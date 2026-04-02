@@ -1,0 +1,42 @@
+import 'dotenv/config'
+import bcrypt from 'bcryptjs'
+import { db } from './client.js'
+import { users, branding, layout } from './schema.js'
+
+const email = process.env['ADMIN_EMAIL'] ?? 'admin@example.com'
+const password = process.env['ADMIN_PASSWORD'] ?? 'changeme123'
+
+const existingUsers = await db.select().from(users)
+if (existingUsers.length === 0) {
+  const hash = await bcrypt.hash(password, 10)
+  await db.insert(users).values({
+    email,
+    passwordHash: hash,
+    role: 'admin',
+    createdAt: Date.now(),
+  })
+  console.log(`✓ Created admin user: ${email}`)
+} else {
+  console.log('  Admin user already exists, skipping')
+}
+
+const existingBranding = await db.select().from(branding)
+if (existingBranding.length === 0) {
+  await db.insert(branding).values({
+    id: 1,
+    siteName: 'My Status Page',
+    primaryColor: '#6366f1',
+    accentColor: '#f59e0b',
+    updatedAt: Date.now(),
+  })
+  console.log('✓ Created default branding')
+}
+
+const existingLayout = await db.select().from(layout)
+if (existingLayout.length === 0) {
+  const defaultTree = JSON.stringify({ id: 'root', type: 'page', children: [] })
+  await db.insert(layout).values({ id: 1, tree: defaultTree, updatedAt: Date.now() })
+  console.log('✓ Created default layout')
+}
+
+console.log('✓ Seed complete')
