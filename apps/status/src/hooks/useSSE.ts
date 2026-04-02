@@ -27,22 +27,38 @@ export function useSSE(onIncidentChange?: () => void) {
   const [statusMap, dispatch] = useReducer(reducer, {})
 
   useEffect(() => {
-    const es = new EventSource('/api/v1/public/events')
+    let es: EventSource | null = null
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let closed = false
 
-    es.addEventListener('monitor.status', (e) => {
-      const data = JSON.parse(e.data) as { monitorId: number; status: MonitorStatus; responseMs: number | null; checkedAt: number }
-      dispatch({ type: 'monitor.status', ...data })
-    })
+    function connect() {
+      if (closed) return
+      es = new EventSource('/api/v1/public/events')
 
-    es.addEventListener('incident.created', () => {
-      onIncidentChange?.()
-    })
+      es.addEventListener('monitor.status', (e) => {
+        const data = JSON.parse(e.data) as { monitorId: number; status: MonitorStatus; responseMs: number | null; checkedAt: number }
+        dispatch({ type: 'monitor.status', ...data })
+      })
 
-    es.addEventListener('incident.updated', () => {
-      onIncidentChange?.()
-    })
+      es.addEventListener('incident.created', () => { onIncidentChange?.() })
+      es.addEventListener('incident.updated', () => { onIncidentChange?.() })
 
-    return () => es.close()
+      es.onerror = () => {
+        es?.close()
+        es = null
+        if (!closed) {
+          retryTimer = setTimeout(connect, 2000)
+        }
+      }
+    }
+
+    connect()
+
+    return () => {
+      closed = true
+      if (retryTimer) clearTimeout(retryTimer)
+      es?.close()
+    }
   }, [onIncidentChange])
 
   return statusMap

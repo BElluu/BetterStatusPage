@@ -1,9 +1,18 @@
 export type NodeType = 'page' | 'group' | 'monitor' | 'text' | 'divider'
 
+export interface GridPos {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 interface BaseNode {
   id: string
   type: NodeType
   label?: string
+  /** Grid position on the main canvas (top-level nodes only) */
+  grid?: GridPos
 }
 
 export interface PageNode extends BaseNode {

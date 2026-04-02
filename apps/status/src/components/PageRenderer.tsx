@@ -15,10 +15,30 @@ interface Props {
 }
 
 export function PageRenderer({ tree, monitors, statusMap }: Props) {
+  // Sort by grid position (row-major), then render in a 12-column CSS grid
+  const sorted = [...tree.children].sort((a, b) => {
+    const ay = a.grid?.y ?? 0, ax = a.grid?.x ?? 0
+    const by = b.grid?.y ?? 0, bx = b.grid?.x ?? 0
+    return ay !== by ? ay - by : ax - bx
+  })
+
   return (
-    <section className="space-y-3">
-      {tree.children.map((node) => (
-        <NodeRenderer key={node.id} node={node} monitors={monitors} statusMap={statusMap} />
+    <section
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(12, 1fr)',
+        gap: '10px',
+      }}
+    >
+      {sorted.map((node) => (
+        <div
+          key={node.id}
+          style={{
+            gridColumn: `${(node.grid?.x ?? 0) + 1} / span ${node.grid?.w ?? 12}`,
+          }}
+        >
+          <NodeRenderer node={node} monitors={monitors} statusMap={statusMap} />
+        </div>
       ))}
     </section>
   )
