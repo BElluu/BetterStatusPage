@@ -4,7 +4,6 @@ import Layout from './components/Layout'
 import LoginPage from './pages/Login'
 import DashboardPage from './pages/Dashboard'
 import MonitorsPage from './pages/Monitors'
-import GroupsPage from './pages/Groups'
 import IncidentsPage from './pages/Incidents'
 import BuilderPage from './pages/Builder'
 import BrandingPage from './pages/Branding'
@@ -31,7 +30,6 @@ export default function App() {
         >
           <Route index element={<DashboardPage />} />
           <Route path="monitors" element={<MonitorsPage />} />
-          <Route path="groups" element={<GroupsPage />} />
           <Route path="incidents" element={<IncidentsPage />} />
           <Route path="builder" element={<BuilderPage />} />
           <Route path="branding" element={<BrandingPage />} />

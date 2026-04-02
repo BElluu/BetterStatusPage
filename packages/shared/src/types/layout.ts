@@ -13,7 +13,7 @@ export interface PageNode extends BaseNode {
 
 export interface GroupNode extends BaseNode {
   type: 'group'
-  groupId: number
+  label: string
   collapsible: boolean
   children: LayoutNode[]
 }

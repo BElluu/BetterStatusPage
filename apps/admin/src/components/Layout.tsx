@@ -4,7 +4,6 @@ import { clearToken } from '../api/client'
 const navItems = [
   { to: '/admin/', label: 'Dashboard', icon: '◈' },
   { to: '/admin/monitors', label: 'Monitors', icon: '◉' },
-  { to: '/admin/groups', label: 'Groups', icon: '◧' },
   { to: '/admin/incidents', label: 'Incidents', icon: '⚠' },
   { to: '/admin/builder', label: 'Page Builder', icon: '⊞' },
   { to: '/admin/branding', label: 'Branding', icon: '◈' },
