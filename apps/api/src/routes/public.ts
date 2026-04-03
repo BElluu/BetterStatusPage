@@ -11,7 +11,12 @@ export async function publicRoutes(app: FastifyInstance) {
   app.get('/status', async () => {
     const allMonitors = (await db.select().from(monitors)).map((m) => ({ ...m, config: undefined }))
     const allGroups = await db.select().from(monitorGroups)
-    const activeIncidents = await db.select().from(incidents).where(ne(incidents.status, 'resolved')).orderBy(desc(incidents.createdAt))
+    const rawActiveIncidents = await db.select().from(incidents).where(ne(incidents.status, 'resolved')).orderBy(desc(incidents.createdAt))
+    const activeIncidents = await Promise.all(rawActiveIncidents.map(async (incident) => {
+      const updates = await db.select().from(incidentUpdates).where(eq(incidentUpdates.incidentId, incident.id)).orderBy(desc(incidentUpdates.postedAt))
+      const monitorLinks = await db.select().from(incidentMonitors).where(eq(incidentMonitors.incidentId, incident.id))
+      return { ...incident, updates, monitorIds: monitorLinks.map((l) => l.monitorId) }
+    }))
     const brandingRow = (await db.select().from(branding))[0] ?? null
     return { branding: brandingRow, groups: allGroups, monitors: allMonitors, activeIncidents }
   })

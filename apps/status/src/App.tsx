@@ -137,7 +137,7 @@ export default function App() {
           <section className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: b.textMutedColor }}>Active Incidents</h2>
             {activeIncidents.map((incident) => (
-              <IncidentCard key={incident.id} incident={incident} />
+              <IncidentCard key={incident.id} incident={incident} monitors={liveMonitors} />
             ))}
           </section>
         )}
@@ -158,7 +158,7 @@ export default function App() {
           <section className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: b.textMutedColor }}>Recent Incidents</h2>
             {incidents.filter((i) => i.status === 'resolved').map((incident) => (
-              <IncidentCard key={incident.id} incident={incident} />
+              <IncidentCard key={incident.id} incident={incident} monitors={liveMonitors} />
             ))}
           </section>
         )}

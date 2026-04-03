@@ -1,4 +1,4 @@
-import type { Incident } from '@bsp/shared'
+import type { Incident, Monitor } from '@bsp/shared'
 
 const statusColors: Record<string, string> = {
   investigating: '#ef4444',
@@ -14,8 +14,11 @@ const impactLabels: Record<string, string> = {
   critical: 'Critical Impact',
 }
 
-export function IncidentCard({ incident }: { incident: Incident }) {
+export function IncidentCard({ incident, monitors = [] }: { incident: Incident; monitors?: Monitor[] }) {
   const color = statusColors[incident.status] ?? '#64748b'
+  const affectedMonitors = (incident.monitorIds ?? [])
+    .map((id) => monitors.find((m) => m.id === id))
+    .filter(Boolean) as Monitor[]
 
   return (
     <div
@@ -36,6 +39,20 @@ export function IncidentCard({ incident }: { incident: Incident }) {
           {new Date(incident.startedAt).toLocaleDateString()}
         </span>
       </div>
+
+      {affectedMonitors.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {affectedMonitors.map((m) => (
+            <span
+              key={m.id}
+              className="text-xs px-2 py-0.5 rounded-full"
+              style={{ background: `${color}15`, color: '#94a3b8', border: `1px solid ${color}25` }}
+            >
+              {m.name}
+            </span>
+          ))}
+        </div>
+      )}
 
       {(incident.updates ?? []).length > 0 && (
         <div className="space-y-2">
