@@ -71,6 +71,7 @@ function NodeRenderer({ node, monitors, statusMap }: { node: LayoutNode; monitor
         uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
         showMonitorType={monNode.showMonitorType ?? false}
         showUptimePct={monNode.showUptimePct ?? false}
+        gridW={monNode.grid?.w ?? 1}
         monitorId={monitor.id}
       />
     )
@@ -141,6 +142,7 @@ function GroupBlock({ groupNode, monitors, statusMap }: { groupNode: GroupNode; 
                     uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
                     showMonitorType={monNode.showMonitorType ?? false}
                     showUptimePct={monNode.showUptimePct ?? false}
+                    gridW={groupNode.grid?.w ?? 1}
                     monitorId={monitor.id}
                     nested
                   />
@@ -167,6 +169,7 @@ function MonitorRow({
   uptimeBarPosition = 'right',
   showMonitorType = false,
   showUptimePct = false,
+  gridW = 1,
   monitorId,
   nested = false,
 }: {
@@ -177,6 +180,7 @@ function MonitorRow({
   uptimeBarPosition?: 'right' | 'below'
   showMonitorType?: boolean
   showUptimePct?: boolean
+  gridW?: number
   monitorId: number
   nested?: boolean
 }) {
@@ -228,23 +232,28 @@ function MonitorRow({
           <span className="text-xs" style={{ color }}>{label}</span>
         </div>
       </div>
-      {/* Uptime bars below */}
+      {/* Uptime bars below — fill all 30 bars across full width */}
       {showUptimeBar && uptimeBarPosition === 'below' && (
-        <div className="bsp-uptime-bar mt-2 flex items-center gap-2">
-          {/* Bracketed bars */}
-          <div className="flex-1 min-w-0 overflow-hidden" style={{
-            borderLeft: '2px solid var(--bsp-card-border)',
-            borderRight: '2px solid var(--bsp-card-border)',
-            paddingLeft: '4px',
-            paddingRight: '4px',
-          }}>
-            <UptimeBar monitorId={monitorId} onData={showUptimePct ? setOverallPct : undefined} />
-          </div>
-          {/* Overall uptime % */}
+        <div className="bsp-uptime-bar mt-2">
+          <UptimeBar monitorId={monitorId} fill onData={showUptimePct ? setOverallPct : undefined} />
           {showUptimePct && overallPct !== null && (
-            <span className="text-xs flex-shrink-0" style={{ color: 'var(--bsp-text-muted)' }}>
-              {overallPct.toFixed(2)}% uptime
-            </span>
+            gridW <= 1 ? (
+              /* Narrow (1 col): just centered percentage */
+              <div className="mt-1 text-center" style={{ color: 'var(--bsp-text-muted)', fontSize: '0.6rem' }}>
+                {overallPct.toFixed(2)}% uptime
+              </div>
+            ) : (
+              /* Wider (2–3 col): labels on sides, percentage centered with line spacers */
+              <div className="flex items-center mt-1" style={{ gap: '4px' }}>
+                <span style={{ color: 'var(--bsp-text-muted)', fontSize: '0.6rem', flexShrink: 0 }}>30 days ago</span>
+                <div style={{ flex: 1, height: '1px', background: 'var(--bsp-card-border)' }} />
+                <span style={{ color: 'var(--bsp-text-muted)', fontSize: '0.6rem', flexShrink: 0 }}>
+                  {overallPct.toFixed(2)}% uptime
+                </span>
+                <div style={{ flex: 1, height: '1px', background: 'var(--bsp-card-border)' }} />
+                <span style={{ color: 'var(--bsp-text-muted)', fontSize: '0.6rem', flexShrink: 0 }}>today</span>
+              </div>
+            )
           )}
         </div>
       )}
@@ -252,7 +261,7 @@ function MonitorRow({
   )
 }
 
-function UptimeBar({ monitorId, onData }: { monitorId: number; onData?: (pct: number) => void }) {
+function UptimeBar({ monitorId, onData, fill = false }: { monitorId: number; onData?: (pct: number) => void; fill?: boolean }) {
   const [data, setData] = useState<Array<{ date: string; status: string; uptimePct: number }> | null>(null)
   const [visibleCount, setVisibleCount] = useState(30)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -281,22 +290,49 @@ function UptimeBar({ monitorId, onData }: { monitorId: number; onData?: (pct: nu
 
   if (!data) return null
 
+  const bars = data.slice(-30).map((day) => {
+    const barColor =
+      day.status === 'up' ? 'var(--bsp-up)' :
+      day.status === 'down' ? 'var(--bsp-down)' :
+      day.status === 'degraded' ? 'var(--bsp-degraded)' : 'var(--bsp-card-border)'
+    return (
+      <div
+        key={day.date}
+        className="rounded-sm"
+        style={{ background: barColor, height: '16px' }}
+        title={day.status === 'no-data' ? `${day.date}: No Data` : `${day.date}: ${day.uptimePct.toFixed(1)}%`}
+      />
+    )
+  })
+
+  // fill mode: CSS grid stretches all 30 bars to fill the container width
+  if (fill) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(30, 1fr)', gap: '2px' }}>
+        {bars}
+      </div>
+    )
+  }
+
+  // inline mode: fixed-width bars, show only as many as fit (ResizeObserver)
+  const inlineBars = data.slice(-visibleCount).map((day) => {
+    const barColor =
+      day.status === 'up' ? 'var(--bsp-up)' :
+      day.status === 'down' ? 'var(--bsp-down)' :
+      day.status === 'degraded' ? 'var(--bsp-degraded)' : 'var(--bsp-card-border)'
+    return (
+      <div
+        key={day.date}
+        className="rounded-sm flex-shrink-0"
+        style={{ background: barColor, width: '6px', height: '16px' }}
+        title={day.status === 'no-data' ? `${day.date}: No Data` : `${day.date}: ${day.uptimePct.toFixed(1)}%`}
+      />
+    )
+  })
+
   return (
     <div ref={containerRef} className="flex gap-0.5 items-center justify-end" title="30-day uptime">
-      {data.slice(-visibleCount).map((day) => {
-        const barColor =
-          day.status === 'up' ? 'var(--bsp-up)' :
-          day.status === 'down' ? 'var(--bsp-down)' :
-          day.status === 'degraded' ? 'var(--bsp-degraded)' : 'var(--bsp-card-border)'
-        return (
-          <div
-            key={day.date}
-            className="w-1.5 h-4 rounded-sm flex-shrink-0"
-            style={{ background: barColor }}
-            title={day.status === 'no-data' ? `${day.date}: No Data` : `${day.date}: ${day.uptimePct.toFixed(1)}%`}
-          />
-        )
-      })}
+      {inlineBars}
     </div>
   )
 }
