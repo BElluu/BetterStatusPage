@@ -92,8 +92,21 @@ export default function App() {
   const overallStatus = anyDown ? 'Major Outage' : anyDegraded ? 'Partial Degradation' : allUp ? 'All Systems Operational' : 'Checking…'
   const overallColor = anyDown ? b.statusDownColor : anyDegraded ? b.statusDegradedColor : b.statusUpColor
 
+  // Branding class styles injected BEFORE customCss so user CSS can override via cascade
+  const brandingStyles = `
+.bsp-monitor-card { background: ${b.cardBackground}; border: 1px solid ${b.cardBorderColor}; border-radius: 8px; }
+.bsp-group-card { background: ${b.cardBackground}; border: 1px solid ${b.cardBorderColor}; }
+.bsp-divider { border-top-color: ${b.cardBorderColor}; }
+.bsp-footer { color: ${b.textMutedColor}; border-top-color: ${b.cardBorderColor}; }
+.bsp-text-block { color: ${b.textMutedColor}; }
+.bsp-monitor-name { color: ${b.textColor}; }
+.bsp-group-label { color: ${b.textColor}; }
+.bsp-site-name { color: ${b.textColor}; }
+`
+
   return (
     <div className="bsp-page" style={cssVars}>
+      <style>{brandingStyles}</style>
       {branding?.customCss && <style>{branding.customCss}</style>}
 
       <div className="max-w-3xl mx-auto px-4 py-12 space-y-8">

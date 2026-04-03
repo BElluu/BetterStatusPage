@@ -103,10 +103,7 @@ function GroupBlock({ groupNode, monitors, statusMap }: { groupNode: GroupNode; 
   const aggLabel = aggStatus === 'up' ? 'Operational' : aggStatus === 'down' ? 'Outage' : 'Degraded'
 
   return (
-    <div
-      className="bsp-group-card rounded-xl overflow-hidden flex flex-col h-full"
-      style={{ background: 'var(--bsp-card-bg)', border: '1px solid var(--bsp-card-border)' }}
-    >
+    <div className="bsp-group-card rounded-xl overflow-hidden flex flex-col h-full">
       <div
         className={`bsp-group-header flex items-center justify-between px-4 py-3 shrink-0 ${groupNode.collapsible ? 'cursor-pointer' : ''}`}
         style={groupNode.collapsible ? { transition: 'background 0.15s' } : {}}
@@ -189,7 +186,7 @@ function MonitorRow({
 
   const outerStyle: React.CSSProperties = nested
     ? { padding: '10px 16px 10px 24px' }
-    : { background: 'var(--bsp-card-bg)', border: '1px solid var(--bsp-card-border)', borderRadius: '8px', padding: '10px 14px' }
+    : { borderRadius: '8px', padding: '10px 14px' }
 
   return (
     <div className="bsp-monitor-card flex flex-col" style={outerStyle}>

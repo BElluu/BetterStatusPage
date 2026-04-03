@@ -255,8 +255,6 @@ function LivePreview({ form, logoUrl }: { form: BrandingForm; logoUrl: string | 
   } as React.CSSProperties
 
   const card: React.CSSProperties = {
-    background: v.cardBackground,
-    border: `1px solid ${v.cardBorderColor}`,
     borderRadius: '8px',
     padding: '10px 14px',
     display: 'flex',
@@ -284,8 +282,20 @@ function LivePreview({ form, logoUrl }: { form: BrandingForm; logoUrl: string | 
   const statusColor = { up: v.statusUpColor, down: v.statusDownColor, degraded: v.statusDegradedColor, pending: v.textMutedColor }
   const statusLabel = { up: 'Operational', down: 'Down', degraded: 'Degraded', pending: 'Checking' }
 
+  const brandingStyles = `
+.bsp-monitor-card { background: ${v.cardBackground}; border: 1px solid ${v.cardBorderColor}; border-radius: 8px; }
+.bsp-group-card { background: ${v.cardBackground}; border: 1px solid ${v.cardBorderColor}; }
+.bsp-monitor-name { color: ${v.textColor}; }
+.bsp-group-label { color: ${v.textColor}; }
+.bsp-site-name { color: ${v.textColor}; }
+.bsp-divider { border-top-color: ${v.cardBorderColor}; }
+.bsp-footer { color: ${v.textMutedColor}; border-top-color: ${v.cardBorderColor}; }
+.bsp-text-block { color: ${v.textMutedColor}; }
+`
+
   return (
     <div className="bsp-page" style={{ ...vars, background: v.backgroundColor, minHeight: '100%' }}>
+      <style>{brandingStyles}</style>
       {v.customCss && <style>{v.customCss}</style>}
       <div style={{ maxWidth: '680px', margin: '0 auto', padding: '32px 20px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
@@ -337,10 +347,7 @@ function LivePreview({ form, logoUrl }: { form: BrandingForm; logoUrl: string | 
         </section>
 
         {/* Group */}
-        <div
-          className="bsp-group-card"
-          style={{ background: v.cardBackground, border: `1px solid ${v.cardBorderColor}`, borderRadius: '12px', overflow: 'hidden' }}
-        >
+        <div className="bsp-group-card" style={{ borderRadius: '12px', overflow: 'hidden' }}>
           <div
             className="bsp-group-header"
             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px' }}
