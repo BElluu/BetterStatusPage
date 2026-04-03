@@ -21,8 +21,8 @@ import type {
 
 // ── react-grid-layout setup ───────────────────────────────────────────────────
 const RGL = WidthProvider(ReactGridLayout)
-const ROW_H = 80
-const COLS = 12
+const ROW_H = 52
+const COLS = 3
 
 // ── Builder page ──────────────────────────────────────────────────────────────
 export default function BuilderPage() {
@@ -40,7 +40,7 @@ export default function BuilderPage() {
   // What's currently being dragged from toolbox (for droppingItem size hint)
   const draggingTypeRef = useRef<string>('monitor')
   const [droppingItem, setDroppingItem] = useState<LayoutItem>({
-    i: '__dropping__', x: 0, y: 0, w: 4, h: 2,
+    i: '__dropping__', x: 0, y: 0, w: 1, h: 1,
   })
 
   const { data: monitors = [] } = useQuery<Monitor[]>({
@@ -65,10 +65,14 @@ export default function BuilderPage() {
   }
 
   // Layout array for RGL (derived from tree)
+  // Group height is computed dynamically from children count; all items lock height (width-only resize)
   const rglLayout: LayoutItem[] = useMemo(() =>
     tree.children.map((node, i) => {
       const g = node.grid ?? { ...defaultGrid(node.type), y: i * 3 }
-      return { i: node.id, x: g.x, y: g.y, w: g.w, h: g.h, minH: 1, minW: 1 }
+      const h = node.type === 'group'
+        ? 2 + (node as GroupNode).children.length   // header row + 1 per child
+        : g.h
+      return { i: node.id, x: g.x, y: g.y, w: g.w, h, minH: h, maxH: h, minW: 1, maxW: 3 }
     }),
     [tree.children],
   )
@@ -249,7 +253,7 @@ export default function BuilderPage() {
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 shrink-0">
           <div>
             <h2 className="text-sm font-semibold text-white">Page Builder</h2>
-            <p className="text-[10px] text-slate-500 mt-0.5">Przeciągnij z toolboxa · Zmień rozmiar za uchwytem · Kliknij = edycja</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Przeciągnij z toolboxa · Rozciągnij w poziomie (1–3 kol) · Kliknij = edycja</p>
           </div>
           <div className="flex items-center gap-3">
             {isDirty && <span className="text-xs text-amber-400">Niezapisane</span>}
@@ -268,6 +272,21 @@ export default function BuilderPage() {
           {tree.children.length === 0 ? (
             <EmptyDrop onDrop={handleDrop} droppingItem={droppingItem} rglLayout={rglLayout} />
           ) : (
+            <div className="relative">
+              {/* Column guides */}
+              <div className="absolute inset-0 pointer-events-none" style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '10px',
+                padding: '0',
+              }}>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} style={{
+                    borderLeft: i === 0 ? 'none' : '1px dashed rgba(99,102,241,0.18)',
+                    borderRight: i === 2 ? 'none' : undefined,
+                  }} />
+                ))}
+              </div>
             <RGL
               layout={rglLayout}
               cols={COLS}
@@ -276,7 +295,8 @@ export default function BuilderPage() {
               containerPadding={[0, 0]}
               draggableHandle=".drag-handle"
               isDroppable
-              isResizable={false}
+              isResizable
+              resizeHandles={['e']}
               droppingItem={droppingItem}
               onDrop={handleDrop}
               onLayoutChange={handleLayoutChange}
@@ -298,6 +318,7 @@ export default function BuilderPage() {
                 </div>
               ))}
             </RGL>
+            </div>
           )}
         </div>
       </div>
@@ -324,7 +345,8 @@ function EmptyDrop({ onDrop, droppingItem, rglLayout }: {
         isDroppable
         droppingItem={droppingItem}
         onDrop={onDrop}
-        isResizable={false}
+        isResizable
+        resizeHandles={['e']}
         onLayoutChange={() => {}}
         style={{ minHeight: 260 }}
       >{null}</RGL>

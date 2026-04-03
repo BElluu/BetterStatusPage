@@ -25,7 +25,7 @@ export function PageRenderer({ tree, monitors, statusMap }: Props) {
     <section
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(12, 1fr)',
+        gridTemplateColumns: 'repeat(3, 1fr)',
         gap: '10px',
       }}
     >
@@ -33,7 +33,7 @@ export function PageRenderer({ tree, monitors, statusMap }: Props) {
         <div
           key={node.id}
           style={{
-            gridColumn: `${(node.grid?.x ?? 0) + 1} / span ${node.grid?.w ?? 12}`,
+            gridColumn: `${(node.grid?.x ?? 0) + 1} / span ${node.grid?.w ?? 3}`,
           }}
         >
           <NodeRenderer node={node} monitors={monitors} statusMap={statusMap} />
