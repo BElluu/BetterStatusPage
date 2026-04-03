@@ -1,4 +1,3 @@
-import 'dotenv/config'
 import { sqlite } from './client.js'
 
 const migrations = `
@@ -88,4 +87,21 @@ CREATE TABLE IF NOT EXISTS branding (
 `
 
 sqlite.exec(migrations)
+
+// Additive column migrations (idempotent — try/catch handles "column already exists")
+const columnMigrations: Array<{ sql: string; desc: string }> = [
+  { sql: `ALTER TABLE branding ADD COLUMN background_color TEXT NOT NULL DEFAULT '#0f172a'`, desc: 'branding.background_color' },
+  { sql: `ALTER TABLE branding ADD COLUMN card_background TEXT NOT NULL DEFAULT '#0f172a'`, desc: 'branding.card_background' },
+  { sql: `ALTER TABLE branding ADD COLUMN card_border_color TEXT NOT NULL DEFAULT '#1e293b'`, desc: 'branding.card_border_color' },
+  { sql: `ALTER TABLE branding ADD COLUMN text_color TEXT NOT NULL DEFAULT '#f8fafc'`, desc: 'branding.text_color' },
+  { sql: `ALTER TABLE branding ADD COLUMN text_muted_color TEXT NOT NULL DEFAULT '#94a3b8'`, desc: 'branding.text_muted_color' },
+  { sql: `ALTER TABLE branding ADD COLUMN status_up_color TEXT NOT NULL DEFAULT '#10b981'`, desc: 'branding.status_up_color' },
+  { sql: `ALTER TABLE branding ADD COLUMN status_down_color TEXT NOT NULL DEFAULT '#ef4444'`, desc: 'branding.status_down_color' },
+  { sql: `ALTER TABLE branding ADD COLUMN status_degraded_color TEXT NOT NULL DEFAULT '#f59e0b'`, desc: 'branding.status_degraded_color' },
+]
+for (const { sql, desc } of columnMigrations) {
+  try { sqlite.exec(sql) } catch { /* column already exists */ }
+  console.log(`✓ Column migration: ${desc}`)
+}
+
 console.log('✓ Migrations applied')

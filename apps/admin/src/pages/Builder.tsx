@@ -543,6 +543,19 @@ function PropertiesPanel({
         </select>
         <Toggle label="Wykres uptime" checked={n.showUptimeBar}
           onChange={(v) => onUpdate({ showUptimeBar: v } as Partial<MonitorNode>)} />
+        {n.showUptimeBar && (
+          <div>
+            <Label>Pozycja wykresu uptime</Label>
+            <select
+              value={n.uptimeBarPosition ?? 'right'}
+              onChange={(e) => onUpdate({ uptimeBarPosition: e.target.value as 'right' | 'below' } as Partial<MonitorNode>)}
+              className={cls}
+            >
+              <option value="right">Po prawej stronie</option>
+              <option value="below">Pod spodem</option>
+            </select>
+          </div>
+        )}
         <Toggle label="Czas odpowiedzi" checked={n.showResponseTime}
           onChange={(v) => onUpdate({ showResponseTime: v } as Partial<MonitorNode>)} />
       </div>

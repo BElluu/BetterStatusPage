@@ -4,7 +4,6 @@ import { useSSE } from './hooks/useSSE'
 import type { Branding, Incident, Monitor, LayoutTree } from '@bsp/shared'
 import { PageRenderer } from './components/PageRenderer'
 import { IncidentCard } from './components/IncidentCard'
-import Markdown from 'react-markdown'
 
 interface PublicStatus {
   branding: Branding | null
@@ -49,70 +48,94 @@ export default function App() {
   const monitors = status?.monitors ?? []
   const activeIncidents = status?.activeIncidents ?? []
 
-  // Merge SSE live status into monitors
   const liveMonitors = monitors.map((m) => ({
     ...m,
     currentStatus: statusMap[m.id]?.status ?? m.currentStatus,
   }))
 
-  // Apply branding CSS vars
-  const primaryColor = branding?.primaryColor ?? '#6366f1'
-  const accentColor = branding?.accentColor ?? '#f59e0b'
+  // Resolved branding values (needed as real hex for opacity-appended strings like `${color}1a`)
+  const b = {
+    primaryColor: branding?.primaryColor ?? '#6366f1',
+    accentColor: branding?.accentColor ?? '#f59e0b',
+    backgroundColor: branding?.backgroundColor ?? '#0f172a',
+    cardBackground: branding?.cardBackground ?? '#0f172a',
+    cardBorderColor: branding?.cardBorderColor ?? '#1e293b',
+    textColor: branding?.textColor ?? '#f8fafc',
+    textMutedColor: branding?.textMutedColor ?? '#94a3b8',
+    statusUpColor: branding?.statusUpColor ?? '#10b981',
+    statusDownColor: branding?.statusDownColor ?? '#ef4444',
+    statusDegradedColor: branding?.statusDegradedColor ?? '#f59e0b',
+  }
+
+  const cssVars = {
+    '--bsp-bg': b.backgroundColor,
+    '--bsp-card-bg': b.cardBackground,
+    '--bsp-card-border': b.cardBorderColor,
+    '--bsp-text': b.textColor,
+    '--bsp-text-muted': b.textMutedColor,
+    '--bsp-primary': b.primaryColor,
+    '--bsp-accent': b.accentColor,
+    '--bsp-up': b.statusUpColor,
+    '--bsp-down': b.statusDownColor,
+    '--bsp-degraded': b.statusDegradedColor,
+    // Legacy vars kept for backwards compat (e.g. IncidentCard)
+    '--primary': b.primaryColor,
+    '--accent': b.accentColor,
+    background: b.backgroundColor,
+    minHeight: '100vh',
+  } as React.CSSProperties
 
   const allUp = liveMonitors.length === 0 || liveMonitors.every((m) => m.currentStatus === 'up' || m.currentStatus === 'pending')
   const anyDown = liveMonitors.some((m) => m.currentStatus === 'down')
   const anyDegraded = liveMonitors.some((m) => m.currentStatus === 'degraded')
 
   const overallStatus = anyDown ? 'Major Outage' : anyDegraded ? 'Partial Degradation' : allUp ? 'All Systems Operational' : 'Checking…'
-  const overallColor = anyDown ? '#ef4444' : anyDegraded ? '#f59e0b' : '#10b981'
+  const overallColor = anyDown ? b.statusDownColor : anyDegraded ? b.statusDegradedColor : b.statusUpColor
 
   return (
-    <div style={{ '--primary': primaryColor, '--accent': accentColor } as React.CSSProperties}>
-      {/* Inject custom CSS */}
+    <div className="bsp-page" style={cssVars}>
       {branding?.customCss && <style>{branding.customCss}</style>}
 
       <div className="max-w-3xl mx-auto px-4 py-12 space-y-8">
         {/* Header */}
-        <header className="space-y-3">
+        <header className="bsp-header space-y-3">
           <div className="flex items-center gap-3">
             {branding?.logoUrl && (
               <img src={branding.logoUrl} alt="Logo" className="h-8 object-contain" />
             )}
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="bsp-site-name text-2xl font-bold" style={{ color: b.textColor }}>
               {branding?.siteName ?? 'Status Page'}
             </h1>
           </div>
-
-          {/* Overall status banner */}
           <div
-            className="flex items-center gap-3 rounded-xl px-5 py-4"
-            style={{ background: `${overallColor}18`, border: `1px solid ${overallColor}40` }}
+            className="bsp-status-banner flex items-center gap-3 rounded-xl px-5 py-4"
+            style={{ background: `${overallColor}1a`, border: `1px solid ${overallColor}44` }}
           >
             <span
               className="w-3 h-3 rounded-full"
               style={{ background: overallColor, boxShadow: anyDown ? `0 0 8px ${overallColor}` : 'none' }}
             />
-            <span className="font-semibold text-white">{overallStatus}</span>
+            <span className="font-semibold" style={{ color: b.textColor }}>{overallStatus}</span>
           </div>
         </header>
 
         {/* Active incidents */}
         {activeIncidents.length > 0 && (
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Active Incidents</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: b.textMutedColor }}>Active Incidents</h2>
             {activeIncidents.map((incident) => (
               <IncidentCard key={incident.id} incident={incident} />
             ))}
           </section>
         )}
 
-        {/* Services from layout */}
+        {/* Layout */}
         {tree && tree.children.length > 0 ? (
           <PageRenderer tree={tree} monitors={liveMonitors} statusMap={statusMap} />
         ) : (
           <section className="space-y-2">
             {liveMonitors.map((monitor) => (
-              <MonitorRow key={monitor.id} monitor={monitor} responseMs={statusMap[monitor.id]?.responseMs ?? null} />
+              <FallbackMonitorRow key={monitor.id} monitor={monitor} responseMs={statusMap[monitor.id]?.responseMs ?? null} b={b} />
             ))}
           </section>
         )}
@@ -120,7 +143,7 @@ export default function App() {
         {/* Incident history */}
         {incidents.filter((i) => i.status === 'resolved').length > 0 && (
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Recent Incidents</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: b.textMutedColor }}>Recent Incidents</h2>
             {incidents.filter((i) => i.status === 'resolved').map((incident) => (
               <IncidentCard key={incident.id} incident={incident} />
             ))}
@@ -128,7 +151,7 @@ export default function App() {
         )}
 
         {/* Footer */}
-        <footer className="text-center text-xs text-slate-600 pt-4 border-t border-slate-800">
+        <footer className="bsp-footer text-center text-xs pt-4" style={{ color: b.textMutedColor, borderTop: `1px solid ${b.cardBorderColor}` }}>
           Last updated: {new Date().toLocaleTimeString()}
         </footer>
       </div>
@@ -136,30 +159,31 @@ export default function App() {
   )
 }
 
-function MonitorRow({ monitor, responseMs }: { monitor: Monitor; responseMs: number | null }) {
-  const statusConfig = {
-    up: { dot: '#10b981', label: 'Operational' },
-    down: { dot: '#ef4444', label: 'Down' },
-    degraded: { dot: '#f59e0b', label: 'Degraded' },
-    pending: { dot: '#64748b', label: 'Checking' },
+function FallbackMonitorRow({ monitor, responseMs, b }: {
+  monitor: Monitor
+  responseMs: number | null
+  b: Record<string, string>
+}) {
+  const statusColor = {
+    up: b['statusUpColor']!, down: b['statusDownColor']!, degraded: b['statusDegradedColor']!, pending: b['textMutedColor']!,
   }
-  const cfg = statusConfig[monitor.currentStatus] ?? statusConfig.pending
+  const statusLabel = { up: 'Operational', down: 'Down', degraded: 'Degraded', pending: 'Checking' }
+  const color = statusColor[monitor.currentStatus] ?? statusColor['pending']!
+  const label = statusLabel[monitor.currentStatus as keyof typeof statusLabel] ?? 'Checking'
 
   return (
-    <div className="flex items-center justify-between py-3 px-4 bg-slate-900 rounded-lg border border-slate-800">
+    <div
+      className="bsp-monitor-card flex items-center justify-between py-3 px-4 rounded-lg"
+      style={{ background: b['cardBackground']!, border: `1px solid ${b['cardBorderColor']!}` }}
+    >
       <div className="flex items-center gap-3">
-        <span
-          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-          style={{ background: cfg.dot }}
-        />
-        <span className="text-white text-sm">{monitor.name}</span>
-        <span className="text-xs text-slate-500 uppercase">{monitor.type}</span>
+        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+        <span className="bsp-monitor-name text-sm" style={{ color: b['textColor']! }}>{monitor.name}</span>
+        <span className="bsp-monitor-type text-xs uppercase" style={{ color: b['textMutedColor']! }}>{monitor.type}</span>
       </div>
       <div className="flex items-center gap-3 text-xs">
-        {responseMs !== null && (
-          <span className="text-slate-500">{responseMs}ms</span>
-        )}
-        <span style={{ color: cfg.dot }}>{cfg.label}</span>
+        {responseMs !== null && <span style={{ color: b['textMutedColor']! }}>{responseMs}ms</span>}
+        <span className="bsp-monitor-status" style={{ color }}>{label}</span>
       </div>
     </div>
   )

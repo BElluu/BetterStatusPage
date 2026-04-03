@@ -152,7 +152,7 @@ export function defaultGrid(type: string): GridPos {
 }
 
 export function createMonitorNode(monitorId: number): Omit<MonitorNode, 'id'> {
-  return { type: 'monitor', monitorId, showUptimeBar: true, showResponseTime: true }
+  return { type: 'monitor', monitorId, showUptimeBar: true, showResponseTime: true, uptimeBarPosition: 'right' }
 }
 
 export function createGroupNode(label: string): Omit<GroupNode, 'id'> {

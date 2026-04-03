@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode, Monitor, MonitorStatus } from '@bsp/shared'
 import Markdown from 'react-markdown'
 
@@ -15,7 +15,6 @@ interface Props {
 }
 
 export function PageRenderer({ tree, monitors, statusMap }: Props) {
-  // Sort by grid position (row-major), then render in a 12-column CSS grid
   const sorted = [...tree.children].sort((a, b) => {
     const ay = a.grid?.y ?? 0, ax = a.grid?.x ?? 0
     const by = b.grid?.y ?? 0, bx = b.grid?.x ?? 0
@@ -27,6 +26,7 @@ export function PageRenderer({ tree, monitors, statusMap }: Props) {
       style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(12, 1fr)',
+        gridAutoRows: '80px',
         gap: '10px',
       }}
     >
@@ -35,6 +35,7 @@ export function PageRenderer({ tree, monitors, statusMap }: Props) {
           key={node.id}
           style={{
             gridColumn: `${(node.grid?.x ?? 0) + 1} / span ${node.grid?.w ?? 12}`,
+            gridRow: `span ${node.grid?.h ?? 1}`,
           }}
         >
           <NodeRenderer node={node} monitors={monitors} statusMap={statusMap} />
@@ -46,13 +47,13 @@ export function PageRenderer({ tree, monitors, statusMap }: Props) {
 
 function NodeRenderer({ node, monitors, statusMap }: { node: LayoutNode; monitors: Monitor[]; statusMap: Record<number, StatusInfo> }) {
   if (node.type === 'divider') {
-    return <hr className="border-slate-800 my-4" />
+    return <hr className="bsp-divider my-4" style={{ border: 'none', borderTop: '1px solid var(--bsp-card-border)' }} />
   }
 
   if (node.type === 'text') {
     const textNode = node as TextNode
     return (
-      <div className="prose prose-invert prose-sm max-w-none py-2">
+      <div className="bsp-text-block prose prose-invert prose-sm max-w-none py-2" style={{ color: 'var(--bsp-text-muted)' }}>
         <Markdown>{textNode.markdown}</Markdown>
       </div>
     )
@@ -69,16 +70,14 @@ function NodeRenderer({ node, monitors, statusMap }: { node: LayoutNode; monitor
         responseMs={live?.responseMs ?? null}
         showUptimeBar={monNode.showUptimeBar}
         showResponseTime={monNode.showResponseTime}
+        uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
         monitorId={monitor.id}
       />
     )
   }
 
   if (node.type === 'group') {
-    const groupNode = node as GroupNode
-    return (
-      <GroupBlock groupNode={groupNode} monitors={monitors} statusMap={statusMap} />
-    )
+    return <GroupBlock groupNode={node as GroupNode} monitors={monitors} statusMap={statusMap} />
   }
 
   return null
@@ -87,7 +86,6 @@ function NodeRenderer({ node, monitors, statusMap }: { node: LayoutNode; monitor
 function GroupBlock({ groupNode, monitors, statusMap }: { groupNode: GroupNode; monitors: Monitor[]; statusMap: Record<number, StatusInfo> }) {
   const [collapsed, setCollapsed] = useState(false)
 
-  // Aggregate status for the group
   const groupMonitors = groupNode.children
     .filter((c) => c.type === 'monitor')
     .map((c) => {
@@ -101,50 +99,57 @@ function GroupBlock({ groupNode, monitors, statusMap }: { groupNode: GroupNode; 
   const anyDown = groupMonitors.some((m) => m.currentStatus === 'down')
   const anyDegraded = groupMonitors.some((m) => m.currentStatus === 'degraded')
   const aggStatus = anyDown ? 'down' : anyDegraded ? 'degraded' : 'up'
-  const aggColor = { up: '#10b981', down: '#ef4444', degraded: '#f59e0b' }[aggStatus]
+  const aggColor = aggStatus === 'down' ? 'var(--bsp-down)' : aggStatus === 'degraded' ? 'var(--bsp-degraded)' : 'var(--bsp-up)'
+  const aggLabel = aggStatus === 'up' ? 'Operational' : aggStatus === 'down' ? 'Outage' : 'Degraded'
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div
+      className="bsp-group-card rounded-xl overflow-hidden flex flex-col h-full"
+      style={{ background: 'var(--bsp-card-bg)', border: '1px solid var(--bsp-card-border)' }}
+    >
       <div
-        className={`flex items-center justify-between px-4 py-3 ${groupNode.collapsible ? 'cursor-pointer hover:bg-slate-800/50' : ''}`}
+        className={`bsp-group-header flex items-center justify-between px-4 py-3 shrink-0 ${groupNode.collapsible ? 'cursor-pointer' : ''}`}
+        style={groupNode.collapsible ? { transition: 'background 0.15s' } : {}}
         onClick={() => groupNode.collapsible && setCollapsed(!collapsed)}
+        onMouseEnter={(e) => groupNode.collapsible && ((e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.04)')}
+        onMouseLeave={(e) => groupNode.collapsible && ((e.currentTarget as HTMLDivElement).style.background = '')}
       >
         <div className="flex items-center gap-3">
           <span className="w-2.5 h-2.5 rounded-full" style={{ background: aggColor }} />
-          <span className="font-medium text-white">{groupNode.label}</span>
+          <span className="bsp-group-label font-medium" style={{ color: 'var(--bsp-text)' }}>{groupNode.label}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs" style={{ color: aggColor }}>
-            {aggStatus === 'up' ? 'Operational' : aggStatus === 'down' ? 'Outage' : 'Degraded'}
-          </span>
+          <span className="text-xs" style={{ color: aggColor }}>{aggLabel}</span>
           {groupNode.collapsible && (
-            <span className="text-slate-500 text-sm">{collapsed ? '▸' : '▾'}</span>
+            <span className="text-sm" style={{ color: 'var(--bsp-text-muted)' }}>{collapsed ? '▸' : '▾'}</span>
           )}
         </div>
       </div>
 
       {!collapsed && groupNode.children.length > 0 && (
-        <div className="border-t border-slate-800 divide-y divide-slate-800/50">
-          {groupNode.children.map((child) => {
+        <div className="overflow-y-auto flex-1" style={{ borderTop: '1px solid var(--bsp-card-border)' }}>
+          {groupNode.children.map((child, i) => {
             if (child.type === 'monitor') {
               const monNode = child as MonitorNode
               const monitor = monitors.find((m) => m.id === monNode.monitorId)
               if (!monitor) return null
               const live = statusMap[monitor.id]
               return (
-                <MonitorRow
-                  key={child.id}
-                  monitor={{ ...monitor, currentStatus: live?.status ?? monitor.currentStatus }}
-                  responseMs={live?.responseMs ?? null}
-                  showUptimeBar={monNode.showUptimeBar}
-                  showResponseTime={monNode.showResponseTime}
-                  monitorId={monitor.id}
-                  nested
-                />
+                <div key={child.id} style={i > 0 ? { borderTop: '1px solid var(--bsp-card-border)' } : {}}>
+                  <MonitorRow
+                    monitor={{ ...monitor, currentStatus: live?.status ?? monitor.currentStatus }}
+                    responseMs={live?.responseMs ?? null}
+                    showUptimeBar={monNode.showUptimeBar}
+                    showResponseTime={monNode.showResponseTime}
+                    uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
+                    monitorId={monitor.id}
+                    nested
+                  />
+                </div>
               )
             }
             return (
-              <div key={child.id} className="px-4">
+              <div key={child.id} className="px-4" style={i > 0 ? { borderTop: '1px solid var(--bsp-card-border)' } : {}}>
                 <NodeRenderer node={child} monitors={monitors} statusMap={statusMap} />
               </div>
             )
@@ -160,6 +165,7 @@ function MonitorRow({
   responseMs,
   showUptimeBar,
   showResponseTime,
+  uptimeBarPosition = 'right',
   monitorId,
   nested = false,
 }: {
@@ -167,31 +173,50 @@ function MonitorRow({
   responseMs: number | null
   showUptimeBar: boolean
   showResponseTime: boolean
+  uptimeBarPosition?: 'right' | 'below'
   monitorId: number
   nested?: boolean
 }) {
-  const statusConfig: Record<string, { dot: string; label: string }> = {
-    up: { dot: '#10b981', label: 'Operational' },
-    down: { dot: '#ef4444', label: 'Down' },
-    degraded: { dot: '#f59e0b', label: 'Degraded' },
-    pending: { dot: '#64748b', label: 'Checking' },
+  const statusColor = {
+    up: 'var(--bsp-up)',
+    down: 'var(--bsp-down)',
+    degraded: 'var(--bsp-degraded)',
+    pending: 'var(--bsp-text-muted)',
   }
-  const cfg = statusConfig[monitor.currentStatus] ?? statusConfig['pending']!
+  const statusLabel = { up: 'Operational', down: 'Down', degraded: 'Degraded', pending: 'Checking' }
+  const color = statusColor[monitor.currentStatus as keyof typeof statusColor] ?? statusColor.pending
+  const label = statusLabel[monitor.currentStatus as keyof typeof statusLabel] ?? 'Checking'
+
+  const outerStyle: React.CSSProperties = nested
+    ? { padding: '10px 16px 10px 24px' }
+    : { background: 'var(--bsp-card-bg)', border: '1px solid var(--bsp-card-border)', borderRadius: '8px', padding: '10px 14px' }
 
   return (
-    <div className={`flex items-center justify-between py-3 ${nested ? 'px-6' : 'px-4 bg-slate-900 rounded-lg border border-slate-800'}`}>
-      <div className="flex items-center gap-3">
-        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: cfg.dot }} />
-        <span className="text-white text-sm">{monitor.name}</span>
-        <span className="text-xs text-slate-500 uppercase bg-slate-800/80 px-1.5 py-0.5 rounded">{monitor.type}</span>
+    <div className="bsp-monitor-card flex flex-col" style={outerStyle}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
+          <span className="bsp-monitor-name text-sm" style={{ color: 'var(--bsp-text)' }}>{monitor.name}</span>
+          <span
+            className="bsp-monitor-type text-xs uppercase px-1.5 py-0.5 rounded"
+            style={{ color: 'var(--bsp-text-muted)', background: 'rgba(148,163,184,0.08)' }}
+          >
+            {monitor.type}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-xs">
+          {showResponseTime && responseMs !== null && (
+            <span style={{ color: 'var(--bsp-text-muted)' }}>{responseMs}ms</span>
+          )}
+          {showUptimeBar && uptimeBarPosition === 'right' && <UptimeBar monitorId={monitorId} />}
+          <span className="bsp-monitor-status" style={{ color }}>{label}</span>
+        </div>
       </div>
-      <div className="flex items-center gap-3 text-xs">
-        {showResponseTime && responseMs !== null && (
-          <span className="text-slate-500">{responseMs}ms</span>
-        )}
-        {showUptimeBar && <UptimeBar monitorId={monitorId} />}
-        <span style={{ color: cfg.dot }}>{cfg.label}</span>
-      </div>
+      {showUptimeBar && uptimeBarPosition === 'below' && (
+        <div className="mt-2 pl-5">
+          <UptimeBar monitorId={monitorId} />
+        </div>
+      )}
     </div>
   )
 }
@@ -199,23 +224,22 @@ function MonitorRow({
 function UptimeBar({ monitorId }: { monitorId: number }) {
   const [data, setData] = useState<Array<{ date: string; status: string; uptimePct: number }> | null>(null)
 
-  // Lazy load uptime data
-  useState(() => {
+  useEffect(() => {
     fetch(`/api/v1/public/monitor/${monitorId}/uptime?days=30`)
       .then((r) => r.json())
       .then((res: { days: Array<{ date: string; status: string; uptimePct: number }> }) => setData(res.days))
       .catch(() => {})
-  })
+  }, [monitorId])
 
   if (!data) return null
 
   return (
-    <div className="flex gap-0.5 items-center" title="30-day uptime">
+    <div className="bsp-uptime-bar flex gap-0.5 items-center" title="30-day uptime">
       {data.slice(-30).map((day) => {
         const color =
-          day.status === 'up' ? '#10b981' :
-          day.status === 'down' ? '#ef4444' :
-          day.status === 'degraded' ? '#f59e0b' : '#334155'
+          day.status === 'up' ? 'var(--bsp-up)' :
+          day.status === 'down' ? 'var(--bsp-down)' :
+          day.status === 'degraded' ? 'var(--bsp-degraded)' : 'var(--bsp-card-border)'
         return (
           <div
             key={day.date}
