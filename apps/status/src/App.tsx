@@ -94,7 +94,7 @@ export default function App() {
 
   // Branding class styles injected BEFORE customCss so user CSS can override via cascade
   const brandingStyles = `
-.bsp-monitor-card { background: ${b.cardBackground}; border: 1px solid ${b.cardBorderColor}; border-radius: 8px; }
+.bsp-monitor-card { background: ${b.cardBackground}; border: 1px solid ${b.cardBorderColor}; border-radius: 8px; overflow: hidden; }
 .bsp-group-card { background: ${b.cardBackground}; border: 1px solid ${b.cardBorderColor}; }
 .bsp-divider { border-top-color: ${b.cardBorderColor}; }
 .bsp-footer { color: ${b.textMutedColor}; border-top-color: ${b.cardBorderColor}; }
@@ -186,18 +186,16 @@ function FallbackMonitorRow({ monitor, responseMs, b }: {
 
   return (
     <div
-      className="bsp-monitor-card flex items-center justify-between py-3 px-4 rounded-lg"
+      className="bsp-monitor-card flex items-center gap-2 min-w-0 py-3 px-4 rounded-lg overflow-hidden"
       style={{ background: b['cardBackground']!, border: `1px solid ${b['cardBorderColor']!}` }}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
         <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
-        <span className="bsp-monitor-name text-sm" style={{ color: b['textColor']! }}>{monitor.name}</span>
-        <span className="bsp-monitor-type text-xs uppercase" style={{ color: b['textMutedColor']! }}>{monitor.type}</span>
+        <span className="bsp-monitor-name text-sm truncate" style={{ color: b['textColor']! }}>{monitor.name}</span>
+        <span className="bsp-monitor-type text-xs uppercase flex-shrink-0" style={{ color: b['textMutedColor']! }}>{monitor.type}</span>
       </div>
-      <div className="flex items-center gap-3 text-xs">
-        {responseMs !== null && <span style={{ color: b['textMutedColor']! }}>{responseMs}ms</span>}
-        <span className="bsp-monitor-status" style={{ color }}>{label}</span>
-      </div>
+      {responseMs !== null && <span className="text-xs flex-shrink-0" style={{ color: b['textMutedColor']! }}>{responseMs}ms</span>}
+      <span className="bsp-monitor-status text-xs flex-shrink-0" style={{ color }}>{label}</span>
     </div>
   )
 }

@@ -276,10 +276,10 @@ export default function BuilderPage() {
               containerPadding={[0, 0]}
               draggableHandle=".drag-handle"
               isDroppable
+              isResizable={false}
               droppingItem={droppingItem}
               onDrop={handleDrop}
               onLayoutChange={handleLayoutChange}
-              resizeHandles={['se', 's', 'e']}
               useCSSTransforms
             >
               {tree.children.map((node) => (
@@ -324,13 +324,14 @@ function EmptyDrop({ onDrop, droppingItem, rglLayout }: {
         isDroppable
         droppingItem={droppingItem}
         onDrop={onDrop}
+        isResizable={false}
         onLayoutChange={() => {}}
-        resizeHandles={['se', 's', 'e']}
         style={{ minHeight: 260 }}
       >{null}</RGL>
       <div className="flex items-center justify-center h-48 border-2 border-dashed border-slate-700 rounded-xl text-slate-500 -mt-10 pointer-events-none">
         <p className="text-sm">Przeciągnij elementy z toolboxa</p>
       </div>
+
     </div>
   )
 }
@@ -348,16 +349,28 @@ interface NodeCardProps {
   onGroupDragEnd: (e: DragEndEvent) => void
 }
 
+function DeleteBtn({ onDelete }: { onDelete: () => void }) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onDelete() }}
+      className="absolute top-1 right-1 z-10 w-5 h-5 flex items-center justify-center rounded text-slate-600 hover:text-white hover:bg-red-500 transition-colors text-xs leading-none"
+      title="Usuń"
+    >
+      ×
+    </button>
+  )
+}
+
 function NodeCard(props: NodeCardProps) {
   const { node, isSelected, onSelect, onDelete } = props
   const ring = isSelected ? 'ring-2 ring-indigo-500' : 'ring-1 ring-slate-700/60'
 
   if (node.type === 'divider') {
     return (
-      <div className={`h-full flex items-center rounded-lg bg-slate-900 overflow-hidden ${ring}`} onClick={onSelect}>
+      <div className={`relative h-full flex items-center rounded-lg bg-slate-900 overflow-hidden ${ring}`} onClick={onSelect}>
         <span className="drag-handle cursor-grab px-2 text-slate-600 hover:text-slate-400 self-stretch flex items-center">⠿</span>
-        <hr className="flex-1 border-slate-600" />
-        <button onClick={(e) => { e.stopPropagation(); onDelete() }} className="px-2 text-slate-600 hover:text-red-400 self-stretch flex items-center">×</button>
+        <hr className="flex-1 border-slate-600 mr-6" />
+        <DeleteBtn onDelete={onDelete} />
       </div>
     )
   }
@@ -365,11 +378,11 @@ function NodeCard(props: NodeCardProps) {
   if (node.type === 'text') {
     const n = node as TextNode
     return (
-      <div className={`h-full flex flex-col rounded-lg bg-slate-900 overflow-hidden ${ring}`} onClick={onSelect}>
-        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-slate-800 shrink-0">
+      <div className={`relative h-full flex flex-col rounded-lg bg-slate-900 overflow-hidden ${ring}`} onClick={onSelect}>
+        <DeleteBtn onDelete={onDelete} />
+        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-slate-800 shrink-0 pr-7">
           <span className="drag-handle cursor-grab text-slate-600 hover:text-slate-400">⠿</span>
-          <span className="text-[10px] text-slate-500 flex-1">Tekst</span>
-          <button onClick={(e) => { e.stopPropagation(); onDelete() }} className="text-slate-600 hover:text-red-400 text-sm leading-none">×</button>
+          <span className="text-[10px] text-slate-500">Tekst</span>
         </div>
         <div className="flex-1 px-3 py-2 overflow-hidden">
           <p className="text-xs text-slate-400 line-clamp-4 whitespace-pre-wrap">{n.markdown}</p>
@@ -382,11 +395,11 @@ function NodeCard(props: NodeCardProps) {
     const n = node as MonitorNode
     const monitor = props.monitors.find((m) => m.id === n.monitorId)
     return (
-      <div className={`h-full flex items-center gap-2 px-3 rounded-lg bg-slate-900 overflow-hidden ${ring}`} onClick={onSelect}>
+      <div className={`relative flex items-center gap-2 px-3 py-3 rounded-lg bg-slate-900 ${ring}`} onClick={onSelect}>
+        <DeleteBtn onDelete={onDelete} />
         <span className="drag-handle cursor-grab text-slate-600 hover:text-slate-400 shrink-0">⠿</span>
         <span className="text-[9px] uppercase bg-slate-800 text-slate-400 px-1 py-0.5 rounded shrink-0">{monitor?.type ?? '?'}</span>
-        <span className="flex-1 text-sm text-white truncate">{monitor?.name ?? `#${n.monitorId}`}</span>
-        <button onClick={(e) => { e.stopPropagation(); onDelete() }} className="text-slate-600 hover:text-red-400 shrink-0 text-sm leading-none">×</button>
+        <span className="flex-1 text-sm text-white truncate pr-5">{monitor?.name ?? `#${n.monitorId}`}</span>
       </div>
     )
   }
@@ -427,14 +440,14 @@ function GroupCard({
   }
 
   return (
-    <div className={`h-full flex flex-col rounded-xl bg-slate-900 overflow-hidden ${ring}`} onClick={onSelect}>
+    <div className={`relative h-full flex flex-col rounded-xl bg-slate-900 overflow-hidden ${ring}`} onClick={onSelect}>
+      <DeleteBtn onDelete={onDelete} />
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-800 shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-800 shrink-0 pr-7">
         <span className="drag-handle cursor-grab text-slate-600 hover:text-slate-400">⠿</span>
         <span className="text-slate-400 text-sm">◧</span>
         <span className="flex-1 text-sm font-medium text-white truncate">{node.label || 'Grupa'}</span>
         <span className="text-[10px] text-slate-600">{node.children.length}</span>
-        <button onClick={(e) => { e.stopPropagation(); onDelete() }} className="text-slate-600 hover:text-red-400 text-sm leading-none ml-1">×</button>
       </div>
 
       {/* Children (sortable + drop target) */}
@@ -542,13 +555,20 @@ function PropertiesPanel({
           {monitors.map((m) => <option key={m.id} value={m.id}>[{m.type.toUpperCase()}] {m.name}</option>)}
         </select>
         <Toggle label="Wykres uptime" checked={n.showUptimeBar}
-          onChange={(v) => onUpdate({ showUptimeBar: v } as Partial<MonitorNode>)} />
+          onChange={(v) => {
+            const h = !v ? 1 : (n.uptimeBarPosition ?? 'right') === 'below' ? 2 : 1
+            onUpdate({ showUptimeBar: v, grid: n.grid ? { ...n.grid, h } : undefined } as Partial<MonitorNode>)
+          }} />
         {n.showUptimeBar && (
           <div>
             <Label>Pozycja wykresu uptime</Label>
             <select
               value={n.uptimeBarPosition ?? 'right'}
-              onChange={(e) => onUpdate({ uptimeBarPosition: e.target.value as 'right' | 'below' } as Partial<MonitorNode>)}
+              onChange={(e) => {
+                const pos = e.target.value as 'right' | 'below'
+                const h = pos === 'below' ? 2 : 1
+                onUpdate({ uptimeBarPosition: pos, grid: n.grid ? { ...n.grid, h } : undefined } as Partial<MonitorNode>)
+              }}
               className={cls}
             >
               <option value="right">Po prawej stronie</option>

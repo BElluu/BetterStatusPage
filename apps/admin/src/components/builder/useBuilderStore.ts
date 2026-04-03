@@ -141,7 +141,7 @@ export const useBuilderStore = create<BuilderState>((set) => ({
 // ── factories ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_GRIDS: Record<string, GridPos> = {
-  monitor: { x: 0, y: 0, w: 4, h: 2 },
+  monitor: { x: 0, y: 0, w: 4, h: 1 },
   group:   { x: 0, y: 0, w: 6, h: 5 },
   text:    { x: 0, y: 0, w: 12, h: 2 },
   divider: { x: 0, y: 0, w: 12, h: 1 },
