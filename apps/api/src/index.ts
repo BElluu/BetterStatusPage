@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import './db/migrate.js'
 import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify'
 import cors from '@fastify/cors'
 import jwt from '@fastify/jwt'

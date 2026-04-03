@@ -80,4 +80,13 @@ export const branding = sqliteTable('branding', {
   accentColor: text('accent_color').notNull().default('#f59e0b'),
   customCss: text('custom_css'),
   updatedAt: integer('updated_at').notNull(),
+  // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
+  backgroundColor: text('background_color').notNull().default('#0f172a'),
+  cardBackground: text('card_background').notNull().default('#0f172a'),
+  cardBorderColor: text('card_border_color').notNull().default('#1e293b'),
+  textColor: text('text_color').notNull().default('#f8fafc'),
+  textMutedColor: text('text_muted_color').notNull().default('#94a3b8'),
+  statusUpColor: text('status_up_color').notNull().default('#10b981'),
+  statusDownColor: text('status_down_color').notNull().default('#ef4444'),
+  statusDegradedColor: text('status_degraded_color').notNull().default('#f59e0b'),
 })
