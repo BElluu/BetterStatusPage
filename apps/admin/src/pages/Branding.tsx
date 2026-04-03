@@ -20,20 +20,18 @@ interface BrandingForm {
 
 const DEFAULTS: BrandingForm = {
   siteName: 'Status Page',
-  primaryColor: '#6366f1',
-  accentColor: '#f59e0b',
-  backgroundColor: '#0f172a',
-  cardBackground: '#0f172a',
-  cardBorderColor: '#1e293b',
-  textColor: '#f8fafc',
-  textMutedColor: '#94a3b8',
-  statusUpColor: '#10b981',
-  statusDownColor: '#ef4444',
-  statusDegradedColor: '#f59e0b',
+  primaryColor: '#00d4af',
+  accentColor: '#f5a623',
+  backgroundColor: '#080d18',
+  cardBackground: '#0d1526',
+  cardBorderColor: 'rgba(255,255,255,0.07)',
+  textColor: '#e8edf5',
+  textMutedColor: '#5a6a8a',
+  statusUpColor: '#00d4af',
+  statusDownColor: '#ff4d6a',
+  statusDegradedColor: '#f5a623',
   customCss: '',
 }
-
-const inputCls = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500'
 
 export default function BrandingPage() {
   const qc = useQueryClient()
@@ -90,10 +88,10 @@ export default function BrandingPage() {
   return (
     <div className="flex h-full overflow-hidden">
       {/* ── Controls panel ── */}
-      <div className="w-80 shrink-0 flex flex-col bg-slate-900 border-r border-slate-800 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-800 shrink-0">
-          <h2 className="text-base font-semibold text-white">Branding</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Wygląd publicznej strony statusów</p>
+      <div className="w-80 shrink-0 flex flex-col overflow-hidden" style={{ background: 'var(--sig-surface)', borderRight: '1px solid var(--sig-border)' }}>
+        <div className="px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--sig-border)' }}>
+          <h2 className="font-display font-bold text-base" style={{ color: 'var(--sig-text)' }}>Branding</h2>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--sig-text-muted)' }}>Wygląd publicznej strony statusów</p>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
@@ -101,11 +99,11 @@ export default function BrandingPage() {
           <Section title="Tożsamość">
             <Field label="Nazwa strony">
               <input value={form.siteName} onChange={(e) => set('siteName')(e.target.value)}
-                className={inputCls} placeholder="My Status Page" />
+                className="input-sig" placeholder="My Status Page" />
             </Field>
             <Field label="Logo">
               {currentLogoUrl && (
-                <img src={currentLogoUrl} alt="Logo" className="h-8 object-contain bg-slate-800 rounded px-2 py-1 mb-2" />
+                <img src={currentLogoUrl} alt="Logo" className="h-8 object-contain rounded px-2 py-1 mb-2" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--sig-border)' }} />
               )}
               <input type="file" accept="image/*"
                 onChange={(e) => {
@@ -113,7 +111,8 @@ export default function BrandingPage() {
                   setLogoFile(file)
                   if (file) setLogoPreviewUrl(URL.createObjectURL(file))
                 }}
-                className="block text-xs text-slate-400 file:mr-2 file:bg-slate-700 file:text-slate-200 file:border-0 file:rounded file:px-2 file:py-1 cursor-pointer"
+                className="block text-xs cursor-pointer"
+                style={{ color: 'var(--sig-text-muted)' }}
               />
             </Field>
           </Section>
@@ -162,31 +161,36 @@ export default function BrandingPage() {
               value={form.customCss}
               onChange={(e) => set('customCss')(e.target.value)}
               rows={8}
-              className={`${inputCls} font-mono text-xs resize-none`}
+              className="input-sig font-mono text-xs resize-none"
               placeholder="/* np. .bsp-monitor-card { border-radius: 0; } */"
             />
           </Section>
         </div>
 
         {/* Save */}
-        <div className="px-5 py-4 border-t border-slate-800 shrink-0 flex items-center gap-3">
+        <div className="px-5 py-4 shrink-0 flex items-center gap-3" style={{ borderTop: '1px solid var(--sig-border)' }}>
           <button
             onClick={() => saveMutation.mutate()}
             disabled={saveMutation.isPending}
-            className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium py-2 rounded-lg transition-colors"
+            className="flex-1 text-sm font-semibold py-2 rounded-lg transition-all"
+            style={{
+              background: saveMutation.isPending ? 'rgba(0,212,175,0.3)' : 'linear-gradient(135deg, #00d4af 0%, #00a88a 100%)',
+              color: saveMutation.isPending ? 'rgba(0,0,0,0.5)' : '#080d18',
+              opacity: saveMutation.isPending ? 0.7 : 1,
+            }}
           >
             {saveMutation.isPending ? 'Zapisuję…' : 'Zapisz branding'}
           </button>
-          {saved && <span className="text-sm text-emerald-400 shrink-0">Zapisano!</span>}
+          {saved && <span className="text-sm shrink-0" style={{ color: 'var(--sig-teal)' }}>Zapisano!</span>}
         </div>
       </div>
 
       {/* ── Live preview panel ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-4 py-2 border-b border-slate-800 shrink-0 flex items-center gap-2 bg-slate-900">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs text-slate-300 font-medium">Podgląd na żywo</span>
-          <span className="text-[10px] text-slate-600 ml-1">— zmiany widoczne przed zapisaniem</span>
+        <div className="px-4 py-2 shrink-0 flex items-center gap-2" style={{ background: 'var(--sig-surface)', borderBottom: '1px solid var(--sig-border)' }}>
+          <span className="w-2 h-2 rounded-full" style={{ background: 'var(--sig-teal)', animation: 'orbGlow 2s ease-in-out infinite' }} />
+          <span className="font-mono text-xs font-medium" style={{ color: 'var(--sig-text)' }}>Podgląd na żywo</span>
+          <span className="text-xs ml-1" style={{ color: 'var(--sig-text-muted)' }}>— zmiany widoczne przed zapisaniem</span>
         </div>
         <div className="flex-1 overflow-auto">
           <LivePreview form={form} logoUrl={currentLogoUrl} />
@@ -201,7 +205,7 @@ export default function BrandingPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
-      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{title}</p>
+      <p className="font-mono text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--sig-text-muted)' }}>{title}</p>
       <div className="space-y-2">{children}</div>
     </div>
   )
@@ -210,7 +214,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs text-slate-400 mb-1">{label}</label>
+      <label className="block text-xs mb-1.5" style={{ color: 'var(--sig-text-muted)' }}>{label}</label>
       {children}
     </div>
   )
@@ -222,15 +226,16 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
       <div className="flex items-center gap-2">
         <input
           type="color"
-          value={value}
+          value={value.startsWith('rgba') ? '#000000' : value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-8 h-8 rounded border border-slate-700 bg-slate-800 cursor-pointer shrink-0 p-0.5"
+          className="w-8 h-8 rounded-md cursor-pointer shrink-0 p-0.5"
+          style={{ border: '1px solid var(--sig-border)', background: 'rgba(8,13,24,0.8)' }}
         />
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          maxLength={7}
-          className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
+          maxLength={25}
+          className="input-sig font-mono text-xs"
         />
       </div>
     </Field>

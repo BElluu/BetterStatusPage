@@ -3,6 +3,13 @@ import { api } from '../api/client'
 import type { Monitor, Incident } from '@bsp/shared'
 import { StatusBadge } from '../components/monitors/StatusBadge'
 
+const impactColors: Record<string, string> = {
+  critical: '#ff4d6a',
+  major:    '#f97316',
+  minor:    '#f5a623',
+  none:     '#5a6a8a',
+}
+
 export default function DashboardPage() {
   const { data: monitors = [] } = useQuery<Monitor[]>({
     queryKey: ['monitors'],
@@ -15,31 +22,57 @@ export default function DashboardPage() {
     queryFn: () => api.get('/admin/incidents'),
   })
 
-  const up = monitors.filter((m) => m.currentStatus === 'up').length
-  const down = monitors.filter((m) => m.currentStatus === 'down').length
+  const up       = monitors.filter((m) => m.currentStatus === 'up').length
+  const down     = monitors.filter((m) => m.currentStatus === 'down').length
   const degraded = monitors.filter((m) => m.currentStatus === 'degraded').length
-  const pending = monitors.filter((m) => m.currentStatus === 'pending').length
+  const pending  = monitors.filter((m) => m.currentStatus === 'pending').length
 
   const activeIncidents = incidents.filter((i) => i.status !== 'resolved')
 
+  const stats = [
+    { label: 'Operational', count: up,       color: 'var(--sig-teal)', bg: 'rgba(0,212,175,0.08)', border: 'rgba(0,212,175,0.2)', icon: '↑' },
+    { label: 'Down',        count: down,     color: 'var(--sig-red)',  bg: 'rgba(255,77,106,0.08)', border: 'rgba(255,77,106,0.2)', icon: '↓' },
+    { label: 'Degraded',    count: degraded, color: 'var(--sig-amber)', bg: 'rgba(245,166,35,0.08)', border: 'rgba(245,166,35,0.2)', icon: '~' },
+    { label: 'Pending',     count: pending,  color: 'var(--sig-text-muted)', bg: 'rgba(90,106,138,0.08)', border: 'rgba(90,106,138,0.2)', icon: '?' },
+  ]
+
   return (
-    <div className="p-8 space-y-8">
-      <div>
-        <h2 className="text-xl font-semibold text-white">Dashboard</h2>
-        <p className="text-slate-400 text-sm mt-1">System overview</p>
+    <div className="p-8 space-y-8 fade-up">
+      {/* Page header */}
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--sig-text)' }}>Dashboard</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--sig-text-muted)' }}>
+            System overview · {monitors.length} monitor{monitors.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <span className="font-mono text-xs" style={{ color: 'var(--sig-text-muted)' }}>
+          Live · 15s refresh
+        </span>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        {[
-          { label: 'Operational', count: up, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
-          { label: 'Down', count: down, color: 'text-red-400', bg: 'bg-red-400/10' },
-          { label: 'Degraded', count: degraded, color: 'text-amber-400', bg: 'bg-amber-400/10' },
-          { label: 'Pending', count: pending, color: 'text-slate-400', bg: 'bg-slate-400/10' },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-slate-900 rounded-xl border border-slate-800 p-5">
-            <div className={`text-3xl font-bold ${stat.color}`}>{stat.count}</div>
-            <div className="text-slate-400 text-sm mt-1">{stat.label}</div>
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {stats.map((stat) => (
+          <div
+            key={stat.label}
+            className="glass rounded-xl p-5"
+            style={{ background: stat.bg, borderColor: stat.border }}
+          >
+            <div className="flex items-start justify-between mb-3">
+              <span
+                className="font-mono text-xs font-medium px-1.5 py-0.5 rounded"
+                style={{ background: `${stat.border}`, color: stat.color }}
+              >
+                {stat.icon}
+              </span>
+            </div>
+            <div className="font-mono font-bold text-4xl leading-none" style={{ color: stat.color }}>
+              {stat.count}
+            </div>
+            <div className="text-xs mt-2 font-medium" style={{ color: 'var(--sig-text-muted)' }}>
+              {stat.label}
+            </div>
           </div>
         ))}
       </div>
@@ -47,51 +80,76 @@ export default function DashboardPage() {
       {/* Active Incidents */}
       {activeIncidents.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-3">Active Incidents</h3>
-          <div className="space-y-2">
-            {activeIncidents.map((incident) => (
-              <div key={incident.id} className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 flex items-center justify-between">
-                <div>
-                  <span className="text-white font-medium">{incident.title}</span>
-                  <span className="ml-3 text-xs text-slate-400">{incident.status}</span>
+          <SectionHeader>Active Incidents</SectionHeader>
+          <div className="space-y-2 mt-3">
+            {activeIncidents.map((incident) => {
+              const color = impactColors[incident.impact] ?? 'var(--sig-text-muted)'
+              return (
+                <div
+                  key={incident.id}
+                  className="glass rounded-xl px-4 py-3.5 flex items-center justify-between gap-4"
+                  style={{ borderLeft: `3px solid ${color}` }}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium" style={{ color: 'var(--sig-text)' }}>
+                        {incident.title}
+                      </span>
+                      <span className="ml-2 font-mono text-xs" style={{ color: 'var(--sig-text-muted)' }}>
+                        {incident.status}
+                      </span>
+                    </div>
+                  </div>
+                  <span
+                    className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 font-mono"
+                    style={{ background: `${color}18`, color, border: `1px solid ${color}30` }}
+                  >
+                    {incident.impact}
+                  </span>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded-full ${
-                  incident.impact === 'critical' ? 'bg-red-500/20 text-red-400' :
-                  incident.impact === 'major' ? 'bg-orange-500/20 text-orange-400' :
-                  'bg-yellow-500/20 text-yellow-400'
-                }`}>
-                  {incident.impact}
-                </span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
 
       {/* Monitor table */}
       <div>
-        <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-3">All Monitors</h3>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+        <SectionHeader>All Monitors</SectionHeader>
+        <div className="glass rounded-xl overflow-hidden mt-3" style={{ borderRadius: 12 }}>
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-800">
-                <th className="text-left text-slate-400 font-medium px-4 py-3">Name</th>
-                <th className="text-left text-slate-400 font-medium px-4 py-3">Type</th>
-                <th className="text-left text-slate-400 font-medium px-4 py-3">Status</th>
-                <th className="text-left text-slate-400 font-medium px-4 py-3">Last Check</th>
+              <tr style={{ borderBottom: '1px solid var(--sig-border)' }}>
+                {['Name', 'Type', 'Status', 'Last Check'].map((h) => (
+                  <th
+                    key={h}
+                    className="text-left px-4 py-3 font-mono text-xs uppercase tracking-wider"
+                    style={{ color: 'var(--sig-text-muted)' }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {monitors.map((monitor) => (
-                <tr key={monitor.id} className="border-b border-slate-800/50 last:border-0">
-                  <td className="px-4 py-3 text-white">{monitor.name}</td>
+              {monitors.map((monitor, i) => (
+                <tr
+                  key={monitor.id}
+                  className="glass-hover transition-colors"
+                  style={{ borderTop: i > 0 ? '1px solid var(--sig-border)' : 'none' }}
+                >
+                  <td className="px-4 py-3 font-medium" style={{ color: 'var(--sig-text)' }}>
+                    {monitor.name}
+                  </td>
                   <td className="px-4 py-3">
-                    <span className="text-slate-400 uppercase text-xs">{monitor.type}</span>
+                    <span className="font-mono text-xs uppercase" style={{ color: 'var(--sig-text-muted)' }}>
+                      {monitor.type}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={monitor.currentStatus} />
                   </td>
-                  <td className="px-4 py-3 text-slate-400">
+                  <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--sig-text-muted)' }}>
                     {monitor.lastCheckedAt
                       ? new Date(monitor.lastCheckedAt).toLocaleTimeString()
                       : '—'}
@@ -100,7 +158,7 @@ export default function DashboardPage() {
               ))}
               {monitors.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={4} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--sig-text-muted)' }}>
                     No monitors yet. Add one in the Monitors section.
                   </td>
                 </tr>
@@ -110,5 +168,13 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+function SectionHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="font-mono text-xs uppercase tracking-widest font-medium" style={{ color: 'var(--sig-text-muted)' }}>
+      {children}
+    </h2>
   )
 }

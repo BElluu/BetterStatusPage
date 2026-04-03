@@ -10,11 +10,18 @@ interface Props {
 }
 
 const defaultConfigs: Record<MonitorType, Record<string, unknown>> = {
-  https: { url: 'https://', method: 'GET', expectedStatus: 200 },
-  ping: { host: '', mode: 'tcp', port: 80 },
-  dns: { hostname: '', recordType: 'A' },
+  https:     { url: 'https://', method: 'GET', expectedStatus: 200 },
+  ping:      { host: '', mode: 'tcp', port: 80 },
+  dns:       { hostname: '', recordType: 'A' },
   sqlserver: { host: '', port: 1433, database: '', user: '', password: '', query: 'SELECT 1' },
 }
+
+const types: { value: MonitorType; label: string }[] = [
+  { value: 'https',     label: 'HTTPS' },
+  { value: 'ping',      label: 'Ping / TCP' },
+  { value: 'dns',       label: 'DNS' },
+  { value: 'sqlserver', label: 'SQL Server' },
+]
 
 export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: Props) {
   const isEdit = !!monitor
@@ -43,14 +50,7 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
     setError('')
     setLoading(true)
     try {
-      const body = {
-        name,
-        type,
-        groupId: groupId === '' ? undefined : groupId,
-        intervalSecs,
-        timeoutMs,
-        config,
-      }
+      const body = { name, type, groupId: groupId === '' ? undefined : groupId, intervalSecs, timeoutMs, config }
       if (isEdit) {
         await api.patch(`/admin/monitors/${monitor.id}`, body)
       } else {
@@ -65,16 +65,33 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-      <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-slate-800">
-          <h3 className="text-lg font-semibold text-white">{isEdit ? 'Edit Monitor' : 'New Monitor'}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">×</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+      <div
+        className="glass rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        style={{ background: 'rgba(13,21,38,0.97)' }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--sig-border)' }}>
+          <h3 className="font-display font-bold text-lg" style={{ color: 'var(--sig-text)' }}>
+            {isEdit ? 'Edit Monitor' : 'New Monitor'}
+          </h3>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none transition-colors"
+            style={{ color: 'var(--sig-text-muted)' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-text)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ''; (e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-text-muted)' }}
+          >
+            ×
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg px-4 py-3 text-sm">
+            <div
+              className="rounded-lg px-4 py-3 text-sm"
+              style={{ background: 'rgba(255,77,106,0.08)', border: '1px solid rgba(255,77,106,0.2)', color: 'var(--sig-red)' }}
+            >
               {error}
             </div>
           )}
@@ -84,60 +101,78 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className={inputCls}
+              className="input-sig"
               placeholder="My Service"
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Type">
-              <select value={type} onChange={(e) => handleTypeChange(e.target.value as MonitorType)} className={inputCls}>
-                <option value="https">HTTPS</option>
-                <option value="ping">Ping / TCP</option>
-                <option value="dns">DNS</option>
-                <option value="sqlserver">SQL Server</option>
-              </select>
-            </Field>
+          {/* Type tab selector */}
+          <div>
+            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--sig-text-muted)' }}>
+              Type
+            </label>
+            <div
+              className="flex rounded-lg p-1 gap-1"
+              style={{ background: 'rgba(8,13,24,0.7)', border: '1px solid var(--sig-border)' }}
+            >
+              {types.map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => handleTypeChange(t.value)}
+                  className="flex-1 text-xs font-medium py-1.5 rounded-md transition-all"
+                  style={type === t.value
+                    ? { background: 'var(--sig-teal-glow)', color: 'var(--sig-teal)', border: '1px solid rgba(0,212,175,0.25)' }
+                    : { color: 'var(--sig-text-muted)', border: '1px solid transparent' }
+                  }
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
+          <div className="grid grid-cols-2 gap-3">
             <Field label="Group">
-              <select value={groupId} onChange={(e) => setGroupId(e.target.value === '' ? '' : Number(e.target.value))} className={inputCls}>
+              <select value={groupId} onChange={(e) => setGroupId(e.target.value === '' ? '' : Number(e.target.value))} className="input-sig">
                 <option value="">None</option>
                 {groups.map((g) => (
                   <option key={g.id} value={g.id}>{g.name}</option>
                 ))}
               </select>
             </Field>
+            <Field label="Interval (s)">
+              <input type="number" value={intervalSecs} onChange={(e) => setIntervalSecs(Number(e.target.value))} min={10} className="input-sig" />
+            </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Interval (seconds)">
-              <input type="number" value={intervalSecs} onChange={(e) => setIntervalSecs(Number(e.target.value))} min={10} className={inputCls} />
-            </Field>
-            <Field label="Timeout (ms)">
-              <input type="number" value={timeoutMs} onChange={(e) => setTimeoutMs(Number(e.target.value))} min={1000} className={inputCls} />
-            </Field>
-          </div>
+          <Field label="Timeout (ms)">
+            <input type="number" value={timeoutMs} onChange={(e) => setTimeoutMs(Number(e.target.value))} min={1000} className="input-sig" />
+          </Field>
+
+          {/* Divider */}
+          <div style={{ borderTop: '1px solid var(--sig-border)' }} />
 
           {/* Type-specific fields */}
           {type === 'https' && (
             <>
               <Field label="URL">
-                <input value={(config['url'] as string) ?? ''} onChange={(e) => updateConfig('url', e.target.value)} required className={inputCls} placeholder="https://example.com" />
+                <input value={(config['url'] as string) ?? ''} onChange={(e) => updateConfig('url', e.target.value)} required className="input-sig" placeholder="https://example.com" />
               </Field>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <Field label="Method">
-                  <select value={(config['method'] as string) ?? 'GET'} onChange={(e) => updateConfig('method', e.target.value)} className={inputCls}>
+                  <select value={(config['method'] as string) ?? 'GET'} onChange={(e) => updateConfig('method', e.target.value)} className="input-sig">
                     <option>GET</option>
                     <option>POST</option>
                     <option>HEAD</option>
                   </select>
                 </Field>
                 <Field label="Expected Status">
-                  <input type="number" value={(config['expectedStatus'] as number) ?? 200} onChange={(e) => updateConfig('expectedStatus', Number(e.target.value))} className={inputCls} />
+                  <input type="number" value={(config['expectedStatus'] as number) ?? 200} onChange={(e) => updateConfig('expectedStatus', Number(e.target.value))} className="input-sig" />
                 </Field>
               </div>
               <Field label="Keyword (optional)">
-                <input value={(config['keyword'] as string) ?? ''} onChange={(e) => updateConfig('keyword', e.target.value)} className={inputCls} placeholder="must contain…" />
+                <input value={(config['keyword'] as string) ?? ''} onChange={(e) => updateConfig('keyword', e.target.value)} className="input-sig" placeholder="must contain…" />
               </Field>
             </>
           )}
@@ -145,17 +180,17 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
           {type === 'ping' && (
             <>
               <Field label="Host">
-                <input value={(config['host'] as string) ?? ''} onChange={(e) => updateConfig('host', e.target.value)} required className={inputCls} placeholder="192.168.1.1" />
+                <input value={(config['host'] as string) ?? ''} onChange={(e) => updateConfig('host', e.target.value)} required className="input-sig" placeholder="192.168.1.1" />
               </Field>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <Field label="Mode">
-                  <select value={(config['mode'] as string) ?? 'tcp'} onChange={(e) => updateConfig('mode', e.target.value)} className={inputCls}>
+                  <select value={(config['mode'] as string) ?? 'tcp'} onChange={(e) => updateConfig('mode', e.target.value)} className="input-sig">
                     <option value="tcp">TCP</option>
                     <option value="icmp">ICMP</option>
                   </select>
                 </Field>
                 <Field label="Port">
-                  <input type="number" value={(config['port'] as number) ?? 80} onChange={(e) => updateConfig('port', Number(e.target.value))} className={inputCls} />
+                  <input type="number" value={(config['port'] as number) ?? 80} onChange={(e) => updateConfig('port', Number(e.target.value))} className="input-sig" />
                 </Field>
               </div>
             </>
@@ -164,11 +199,11 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
           {type === 'dns' && (
             <>
               <Field label="Hostname">
-                <input value={(config['hostname'] as string) ?? ''} onChange={(e) => updateConfig('hostname', e.target.value)} required className={inputCls} placeholder="example.com" />
+                <input value={(config['hostname'] as string) ?? ''} onChange={(e) => updateConfig('hostname', e.target.value)} required className="input-sig" placeholder="example.com" />
               </Field>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <Field label="Record Type">
-                  <select value={(config['recordType'] as string) ?? 'A'} onChange={(e) => updateConfig('recordType', e.target.value)} className={inputCls}>
+                  <select value={(config['recordType'] as string) ?? 'A'} onChange={(e) => updateConfig('recordType', e.target.value)} className="input-sig">
                     <option>A</option>
                     <option>AAAA</option>
                     <option>MX</option>
@@ -176,51 +211,63 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
                     <option>TXT</option>
                   </select>
                 </Field>
-                <Field label="Expected Value (optional)">
-                  <input value={(config['expectedValue'] as string) ?? ''} onChange={(e) => updateConfig('expectedValue', e.target.value)} className={inputCls} placeholder="1.2.3.4" />
+                <Field label="Expected Value">
+                  <input value={(config['expectedValue'] as string) ?? ''} onChange={(e) => updateConfig('expectedValue', e.target.value)} className="input-sig" placeholder="1.2.3.4" />
                 </Field>
               </div>
               <Field label="Custom Resolver (optional)">
-                <input value={(config['resolver'] as string) ?? ''} onChange={(e) => updateConfig('resolver', e.target.value)} className={inputCls} placeholder="8.8.8.8" />
+                <input value={(config['resolver'] as string) ?? ''} onChange={(e) => updateConfig('resolver', e.target.value)} className="input-sig" placeholder="8.8.8.8" />
               </Field>
             </>
           )}
 
           {type === 'sqlserver' && (
             <>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <Field label="Host">
-                  <input value={(config['host'] as string) ?? ''} onChange={(e) => updateConfig('host', e.target.value)} required className={inputCls} placeholder="localhost" />
+                  <input value={(config['host'] as string) ?? ''} onChange={(e) => updateConfig('host', e.target.value)} required className="input-sig" placeholder="localhost" />
                 </Field>
                 <Field label="Port">
-                  <input type="number" value={(config['port'] as number) ?? 1433} onChange={(e) => updateConfig('port', Number(e.target.value))} className={inputCls} />
+                  <input type="number" value={(config['port'] as number) ?? 1433} onChange={(e) => updateConfig('port', Number(e.target.value))} className="input-sig" />
                 </Field>
               </div>
               <Field label="Database">
-                <input value={(config['database'] as string) ?? ''} onChange={(e) => updateConfig('database', e.target.value)} required className={inputCls} />
+                <input value={(config['database'] as string) ?? ''} onChange={(e) => updateConfig('database', e.target.value)} required className="input-sig" />
               </Field>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <Field label="User">
-                  <input value={(config['user'] as string) ?? ''} onChange={(e) => updateConfig('user', e.target.value)} required className={inputCls} />
+                  <input value={(config['user'] as string) ?? ''} onChange={(e) => updateConfig('user', e.target.value)} required className="input-sig" />
                 </Field>
                 <Field label="Password">
-                  <input type="password" value={(config['password'] as string) ?? ''} onChange={(e) => updateConfig('password', e.target.value)} required className={inputCls} />
+                  <input type="password" value={(config['password'] as string) ?? ''} onChange={(e) => updateConfig('password', e.target.value)} required className="input-sig" />
                 </Field>
               </div>
               <Field label="Test Query">
-                <input value={(config['query'] as string) ?? 'SELECT 1'} onChange={(e) => updateConfig('query', e.target.value)} className={inputCls} />
+                <input value={(config['query'] as string) ?? 'SELECT 1'} onChange={(e) => updateConfig('query', e.target.value)} className="input-sig" />
               </Field>
             </>
           )}
 
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm rounded-lg transition-colors"
+              style={{ color: 'var(--sig-text-muted)' }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-text)')}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-text-muted)')}
+            >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
+              className="px-4 py-2 text-sm font-semibold rounded-lg transition-all"
+              style={{
+                background: loading ? 'rgba(0,212,175,0.3)' : 'linear-gradient(135deg, #00d4af 0%, #00a88a 100%)',
+                color: loading ? 'rgba(0,0,0,0.5)' : '#080d18',
+                opacity: loading ? 0.7 : 1,
+              }}
             >
               {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Monitor'}
             </button>
@@ -231,12 +278,12 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
   )
 }
 
-const inputCls = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500'
-
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-sm text-slate-400 mb-1.5">{label}</label>
+      <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--sig-text-muted)' }}>
+        {label}
+      </label>
       {children}
     </div>
   )
