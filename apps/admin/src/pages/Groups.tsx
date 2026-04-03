@@ -53,27 +53,32 @@ export default function GroupsPage() {
   const topLevel = groups.filter((g) => !g.parentId)
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-8 space-y-6 fade-up">
       <div>
-        <h2 className="text-xl font-semibold text-white">Groups</h2>
-        <p className="text-slate-400 text-sm mt-1">Organize monitors into nested groups</p>
+        <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--sig-text)' }}>Groups</h1>
+        <p className="text-sm mt-1" style={{ color: 'var(--sig-text-muted)' }}>
+          Organize monitors into nested groups · {groups.length} group{groups.length !== 1 ? 's' : ''}
+        </p>
       </div>
 
       {/* Create form */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-        <h3 className="text-sm font-medium text-white mb-4">Create Group</h3>
+      <div className="glass rounded-xl p-5">
+        <p className="font-mono text-xs uppercase tracking-wider mb-4" style={{ color: 'var(--sig-text-muted)' }}>
+          Create Group
+        </p>
         <form onSubmit={handleCreate} className="flex gap-3">
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="Group name"
             required
-            className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+            className="input-sig flex-1"
           />
           <select
             value={newParentId}
             onChange={(e) => setNewParentId(e.target.value === '' ? '' : Number(e.target.value))}
-            className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+            className="input-sig"
+            style={{ width: 'auto', minWidth: 140 }}
           >
             <option value="">No parent (top level)</option>
             {groups.map((g) => (
@@ -82,7 +87,11 @@ export default function GroupsPage() {
           </select>
           <button
             type="submit"
-            className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            className="text-sm font-semibold px-4 py-2 rounded-lg flex-shrink-0 transition-all"
+            style={{
+              background: 'linear-gradient(135deg, #00d4af 0%, #00a88a 100%)',
+              color: '#080d18',
+            }}
           >
             Create
           </button>
@@ -112,7 +121,9 @@ export default function GroupsPage() {
           />
         ))}
         {topLevel.length === 0 && (
-          <div className="text-slate-500 text-sm text-center py-8">No groups yet.</div>
+          <div className="text-center py-12 text-sm" style={{ color: 'var(--sig-text-muted)' }}>
+            No groups yet.
+          </div>
         )}
       </div>
     </div>
@@ -133,37 +144,89 @@ interface GroupRowProps {
   depth: number
 }
 
+const depthColors = ['var(--sig-teal)', '#f5a623', '#a78bfa', '#60a5fa']
+
 function GroupRow({ group, groups, monitors, editingId, editName, onEdit, onEditName, onSaveEdit, onCancelEdit, onDelete, depth }: GroupRowProps) {
   const children = groups.filter((g) => g.parentId === group.id)
   const groupMonitors = monitors.filter((m) => m.groupId === group.id)
   const isEditing = editingId === group.id
+  const accentColor = depthColors[depth % depthColors.length] ?? 'var(--sig-teal)'
 
   return (
     <div style={{ marginLeft: depth * 20 }}>
-      <div className="bg-slate-900 border border-slate-800 rounded-lg px-4 py-3 flex items-center gap-3">
-        <span className="text-slate-500">{'▸ '.repeat(depth)}◧</span>
+      <div
+        className="glass glass-hover rounded-xl px-4 py-3 flex items-center gap-3"
+        style={{ borderLeft: `2px solid ${accentColor}30` }}
+      >
+        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: accentColor, opacity: 0.7 }} />
+
         {isEditing ? (
           <div className="flex-1 flex gap-2">
             <input
               value={editName}
               onChange={(e) => onEditName(e.target.value)}
-              className="flex-1 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-indigo-500"
+              className="input-sig flex-1 py-1 text-sm"
               autoFocus
             />
-            <button onClick={onSaveEdit} className="text-sm text-indigo-400 hover:text-indigo-300">Save</button>
-            <button onClick={onCancelEdit} className="text-sm text-slate-400 hover:text-white">Cancel</button>
+            <button
+              onClick={onSaveEdit}
+              className="text-sm px-3 py-1 rounded-lg"
+              style={{ color: 'var(--sig-teal)', background: 'var(--sig-teal-glow)' }}
+            >
+              Save
+            </button>
+            <button
+              onClick={onCancelEdit}
+              className="text-sm px-2"
+              style={{ color: 'var(--sig-text-muted)' }}
+            >
+              Cancel
+            </button>
           </div>
         ) : (
           <>
-            <span className="flex-1 text-white font-medium">{group.name}</span>
-            <span className="text-xs text-slate-500">{groupMonitors.length} monitor{groupMonitors.length !== 1 ? 's' : ''}</span>
-            <button onClick={() => onEdit(group)} className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded hover:bg-slate-800">Edit</button>
-            <button onClick={() => onDelete(group.id)} className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded hover:bg-red-500/10">Delete</button>
+            <span className="flex-1 text-sm font-medium" style={{ color: 'var(--sig-text)' }}>
+              {group.name}
+            </span>
+            <span className="font-mono text-xs" style={{ color: 'var(--sig-text-muted)' }}>
+              {groupMonitors.length} monitor{groupMonitors.length !== 1 ? 's' : ''}
+            </span>
+            <button
+              onClick={() => onEdit(group)}
+              className="text-xs px-2 py-1 rounded transition-colors"
+              style={{ color: 'var(--sig-text-muted)' }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-text)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = '' }}
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => onDelete(group.id)}
+              className="text-xs px-2 py-1 rounded transition-colors"
+              style={{ color: 'var(--sig-red)' }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,77,106,0.1)')}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '')}
+            >
+              Delete
+            </button>
           </>
         )}
       </div>
       {children.map((child) => (
-        <GroupRow key={child.id} group={child} groups={groups} monitors={monitors} editingId={editingId} editName={editName} onEdit={onEdit} onEditName={onEditName} onSaveEdit={onSaveEdit} onCancelEdit={onCancelEdit} onDelete={onDelete} depth={depth + 1} />
+        <GroupRow
+          key={child.id}
+          group={child}
+          groups={groups}
+          monitors={monitors}
+          editingId={editingId}
+          editName={editName}
+          onEdit={onEdit}
+          onEditName={onEditName}
+          onSaveEdit={onSaveEdit}
+          onCancelEdit={onCancelEdit}
+          onDelete={onDelete}
+          depth={depth + 1}
+        />
       ))}
     </div>
   )

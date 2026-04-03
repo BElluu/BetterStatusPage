@@ -34,6 +34,8 @@ export function PageRenderer({ tree, monitors, statusMap }: Props) {
           key={node.id}
           style={{
             gridColumn: `${(node.grid?.x ?? 0) + 1} / span ${node.grid?.w ?? 3}`,
+            minWidth: 0,
+            overflow: 'hidden',
           }}
         >
           <NodeRenderer node={node} monitors={monitors} statusMap={statusMap} />
@@ -45,13 +47,17 @@ export function PageRenderer({ tree, monitors, statusMap }: Props) {
 
 function NodeRenderer({ node, monitors, statusMap }: { node: LayoutNode; monitors: Monitor[]; statusMap: Record<number, StatusInfo> }) {
   if (node.type === 'divider') {
-    return <hr className="bsp-divider my-4" style={{ border: 'none', borderTop: '1px solid var(--bsp-card-border)' }} />
+    return (
+      <div className="bsp-divider my-5 flex items-center gap-3">
+        <span className="flex-1 h-px" style={{ background: 'var(--bsp-card-border)' }} />
+      </div>
+    )
   }
 
   if (node.type === 'text') {
     const textNode = node as TextNode
     return (
-      <div className="bsp-text-block prose prose-invert prose-sm max-w-none py-2" style={{ color: 'var(--bsp-text-muted)' }}>
+      <div className="bsp-text-block prose prose-invert prose-sm max-w-none py-2 px-1" style={{ color: 'var(--bsp-text-muted)' }}>
         <Markdown>{textNode.markdown}</Markdown>
       </div>
     )
@@ -102,24 +108,37 @@ function GroupBlock({ groupNode, monitors, statusMap }: { groupNode: GroupNode; 
   const aggStatus = anyDown ? 'down' : anyDegraded ? 'degraded' : 'up'
   const aggColor = aggStatus === 'down' ? 'var(--bsp-down)' : aggStatus === 'degraded' ? 'var(--bsp-degraded)' : 'var(--bsp-up)'
   const aggLabel = aggStatus === 'up' ? 'Operational' : aggStatus === 'down' ? 'Outage' : 'Degraded'
+  const showPulse = aggStatus !== 'up'
 
   return (
-    <div className="bsp-group-card rounded-xl overflow-hidden">
+    <div className="bsp-group-card glass overflow-hidden">
       <div
-        className={`bsp-group-header flex items-center justify-between px-4 py-3 shrink-0 ${groupNode.collapsible ? 'cursor-pointer' : ''}`}
-        style={groupNode.collapsible ? { transition: 'background 0.15s' } : {}}
+        className={`bsp-group-header flex items-center justify-between px-4 py-3.5 ${groupNode.collapsible ? 'cursor-pointer' : ''}`}
+        style={{ transition: 'background 0.15s' }}
         onClick={() => groupNode.collapsible && setCollapsed(!collapsed)}
-        onMouseEnter={(e) => groupNode.collapsible && ((e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.04)')}
+        onMouseEnter={(e) => groupNode.collapsible && ((e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.03)')}
         onMouseLeave={(e) => groupNode.collapsible && ((e.currentTarget as HTMLDivElement).style.background = '')}
       >
         <div className="flex items-center gap-3">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: aggColor }} />
-          <span className="bsp-group-label font-medium" style={{ color: 'var(--bsp-text)' }}>{groupNode.label}</span>
+          <div className="relative flex-shrink-0" style={{ width: 10, height: 10 }}>
+            {showPulse && (
+              <span
+                className="monitor-dot-ring"
+                style={{ background: aggColor, opacity: 0.35 }}
+              />
+            )}
+            <span className="block w-full h-full rounded-full" style={{ background: aggColor }} />
+          </div>
+          <span className="bsp-group-label font-display font-semibold text-sm" style={{ color: 'var(--bsp-text)' }}>
+            {groupNode.label}
+          </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs" style={{ color: aggColor }}>{aggLabel}</span>
+          <span className="text-xs font-medium" style={{ color: aggColor }}>{aggLabel}</span>
           {groupNode.collapsible && (
-            <span className="text-sm" style={{ color: 'var(--bsp-text-muted)' }}>{collapsed ? '▸' : '▾'}</span>
+            <span className="text-xs font-mono" style={{ color: 'var(--bsp-text-muted)' }}>
+              {collapsed ? '▸' : '▾'}
+            </span>
           )}
         </div>
       </div>
@@ -195,56 +214,65 @@ function MonitorRow({
   const statusLabel = { up: 'Operational', down: 'Down', degraded: 'Degraded', pending: 'Checking' }
   const color = statusColor[monitor.currentStatus as keyof typeof statusColor] ?? statusColor.pending
   const label = statusLabel[monitor.currentStatus as keyof typeof statusLabel] ?? 'Checking'
+  const showPulse = monitor.currentStatus === 'down' || monitor.currentStatus === 'degraded'
+
+  const outerClass = nested
+    ? 'bsp-monitor-card flex flex-col overflow-hidden'
+    : 'bsp-monitor-card glass glass-hover flex flex-col overflow-hidden'
 
   const outerStyle: React.CSSProperties = nested
     ? { padding: '10px 16px 10px 24px' }
-    : { borderRadius: '8px', padding: '10px 14px' }
+    : { padding: '10px 14px' }
 
   return (
-    <div className="bsp-monitor-card flex flex-col overflow-hidden" style={outerStyle}>
-      {/* Main row: name — [type] — [bars if right] — status */}
+    <div className={outerClass} style={outerStyle}>
       <div className="flex items-center gap-2">
-        {/* Name: always fully visible */}
-        <span className="bsp-monitor-name text-sm flex-shrink-0" style={{ color: 'var(--bsp-text)' }}>
+        <span className="bsp-monitor-name text-sm font-medium flex-shrink-0" style={{ color: 'var(--bsp-text)' }}>
           {monitor.name}
         </span>
-        {/* Monitor type badge */}
         {showMonitorType && (
-          <span className="text-[10px] uppercase flex-shrink-0 px-1 rounded" style={{ color: 'var(--bsp-text-muted)', background: 'rgba(255,255,255,0.06)' }}>
+          <span
+            className="font-mono text-[10px] uppercase flex-shrink-0 px-1.5 py-0.5 rounded"
+            style={{ color: 'var(--bsp-text-muted)', background: 'rgba(255,255,255,0.05)', letterSpacing: '0.05em' }}
+          >
             {monitor.type}
           </span>
         )}
-        {/* Response time */}
         {showResponseTime && responseMs !== null && (
-          <span className="text-xs flex-shrink-0" style={{ color: 'var(--bsp-text-muted)' }}>{responseMs}ms</span>
+          <span className="font-mono text-xs flex-shrink-0" style={{ color: 'var(--bsp-text-muted)' }}>
+            {responseMs}ms
+          </span>
         )}
-        {/* Uptime bars inline (right position): fill space between name and status */}
         {showUptimeBar && uptimeBarPosition === 'right' && (
           <div className="bsp-uptime-bar flex-1 overflow-hidden min-w-0">
             <UptimeBar monitorId={monitorId} />
           </div>
         )}
-        {/* Spacer when no inline bars */}
         {(!showUptimeBar || uptimeBarPosition === 'below') && <div className="flex-1" />}
-        {/* Status: dot + label */}
         <div className="bsp-monitor-status flex items-center gap-1.5 flex-shrink-0">
-          <span className="w-2 h-2 rounded-full" style={{ background: color }} />
-          <span className="text-xs" style={{ color }}>{label}</span>
+          <div className="relative flex-shrink-0" style={{ width: 8, height: 8 }}>
+            {showPulse && (
+              <span
+                className="monitor-dot-ring"
+                style={{ background: color, opacity: 0.4 }}
+              />
+            )}
+            <span className="block w-full h-full rounded-full" style={{ background: color }} />
+          </div>
+          <span className="text-xs font-medium" style={{ color }}>{label}</span>
         </div>
       </div>
-      {/* Uptime bars below — fill all 30 bars across full width */}
+
       {showUptimeBar && uptimeBarPosition === 'below' && (
         <div className="bsp-uptime-bar mt-2">
           <UptimeBar monitorId={monitorId} fill onData={showUptimePct ? setOverallPct : undefined} />
           {showUptimePct && overallPct !== null && (
             gridW <= 1 ? (
-              /* Narrow (1 col): just centered percentage */
-              <div className="mt-1 text-center" style={{ color: 'var(--bsp-text-muted)', fontSize: '0.6rem' }}>
+              <div className="mt-1 text-center font-mono" style={{ color: 'var(--bsp-text-muted)', fontSize: '0.6rem' }}>
                 {overallPct.toFixed(2)}% uptime
               </div>
             ) : (
-              /* Wider (2–3 col): labels on sides, percentage centered with line spacers */
-              <div className="flex items-center mt-1" style={{ gap: '4px' }}>
+              <div className="flex items-center mt-1 font-mono" style={{ gap: '4px' }}>
                 <span style={{ color: 'var(--bsp-text-muted)', fontSize: '0.6rem', flexShrink: 0 }}>30 days ago</span>
                 <div style={{ flex: 1, height: '1px', background: 'var(--bsp-card-border)' }} />
                 <span style={{ color: 'var(--bsp-text-muted)', fontSize: '0.6rem', flexShrink: 0 }}>
@@ -280,7 +308,6 @@ function UptimeBar({ monitorId, onData, fill = false }: { monitorId: number; onD
     const el = containerRef.current
     if (!el) return
     const ro = new ResizeObserver(([entry]) => {
-      // each bar: 6px (w-1.5) + 2px gap (gap-0.5) = 8px, except last bar has no trailing gap
       const count = Math.floor((entry.contentRect.width + 2) / 8)
       setVisibleCount(Math.min(30, Math.max(0, count)))
     })
@@ -290,49 +317,36 @@ function UptimeBar({ monitorId, onData, fill = false }: { monitorId: number; onD
 
   if (!data) return null
 
-  const bars = data.slice(-30).map((day) => {
-    const barColor =
-      day.status === 'up' ? 'var(--bsp-up)' :
-      day.status === 'down' ? 'var(--bsp-down)' :
-      day.status === 'degraded' ? 'var(--bsp-degraded)' : 'var(--bsp-card-border)'
-    return (
-      <div
-        key={day.date}
-        className="rounded-sm"
-        style={{ background: barColor, height: '16px' }}
-        title={day.status === 'no-data' ? `${day.date}: No Data` : `${day.date}: ${day.uptimePct.toFixed(1)}%`}
-      />
-    )
-  })
+  const barColor = (day: { status: string }) =>
+    day.status === 'up' ? 'var(--bsp-up)' :
+    day.status === 'down' ? 'var(--bsp-down)' :
+    day.status === 'degraded' ? 'var(--bsp-degraded)' : 'rgba(255,255,255,0.08)'
 
-  // fill mode: CSS grid stretches all 30 bars to fill the container width
   if (fill) {
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(30, 1fr)', gap: '2px' }}>
-        {bars}
+        {data.slice(-30).map((day) => (
+          <div
+            key={day.date}
+            className="rounded-sm"
+            style={{ background: barColor(day), height: '14px' }}
+            title={day.status === 'no-data' ? `${day.date}: No Data` : `${day.date}: ${day.uptimePct.toFixed(1)}%`}
+          />
+        ))}
       </div>
     )
   }
 
-  // inline mode: fixed-width bars, show only as many as fit (ResizeObserver)
-  const inlineBars = data.slice(-visibleCount).map((day) => {
-    const barColor =
-      day.status === 'up' ? 'var(--bsp-up)' :
-      day.status === 'down' ? 'var(--bsp-down)' :
-      day.status === 'degraded' ? 'var(--bsp-degraded)' : 'var(--bsp-card-border)'
-    return (
-      <div
-        key={day.date}
-        className="rounded-sm flex-shrink-0"
-        style={{ background: barColor, width: '6px', height: '16px' }}
-        title={day.status === 'no-data' ? `${day.date}: No Data` : `${day.date}: ${day.uptimePct.toFixed(1)}%`}
-      />
-    )
-  })
-
   return (
     <div ref={containerRef} className="flex gap-0.5 items-center justify-end" title="30-day uptime">
-      {inlineBars}
+      {data.slice(-visibleCount).map((day) => (
+        <div
+          key={day.date}
+          className="rounded-sm flex-shrink-0"
+          style={{ background: barColor(day), width: '6px', height: '14px' }}
+          title={day.status === 'no-data' ? `${day.date}: No Data` : `${day.date}: ${day.uptimePct.toFixed(1)}%`}
+        />
+      ))}
     </div>
   )
 }

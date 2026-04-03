@@ -2,16 +2,102 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Signal Design Tokens ─────────────────────────────────────────── */
 :root {
-  --color-primary: #6366f1;
-  --color-accent: #f59e0b;
+  --color-primary: #00d4af;
+  --color-accent:  #f5a623;
+
+  --sig-bg:           #080d18;
+  --sig-surface:      #0d1526;
+  --sig-surface-2:    #111d35;
+  --sig-border:       rgba(255, 255, 255, 0.07);
+  --sig-border-hover: rgba(255, 255, 255, 0.13);
+  --sig-text:         #e8edf5;
+  --sig-text-muted:   #5a6a8a;
+  --sig-teal:         #00d4af;
+  --sig-teal-glow:    rgba(0, 212, 175, 0.18);
+  --sig-red:          #ff4d6a;
+  --sig-amber:        #f5a623;
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #0f172a;
-  color: #e2e8f0;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: var(--sig-bg);
+  color: var(--sig-text);
+}
+
+/* ── Background grid ──────────────────────────────────────────────── */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+/* ── Glass card ───────────────────────────────────────────────────── */
+.glass {
+  background: rgba(13, 21, 38, 0.72);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  border: 1px solid var(--sig-border);
+  border-radius: 12px;
+}
+
+.glass-hover {
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.glass-hover:hover {
+  border-color: var(--sig-border-hover);
+  background: rgba(17, 29, 53, 0.78);
+}
+
+/* ── Status orb ───────────────────────────────────────────────────── */
+@keyframes orb-ping {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  70%  { transform: scale(2.6); opacity: 0;   }
+  100% { transform: scale(2.6); opacity: 0;   }
+}
+
+@keyframes orb-glow {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; }
+  50%       { box-shadow: 0 0 18px 3px currentColor; }
+}
+
+.status-orb-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  animation: orb-ping 2.4s ease-out infinite;
+}
+
+.status-orb-dot {
+  animation: orb-glow 2.4s ease-in-out infinite;
+}
+
+/* ── Monitor dot pulse (non-up) ───────────────────────────────────── */
+@keyframes dot-ping {
+  0%   { transform: scale(1);   opacity: 0.6; }
+  70%  { transform: scale(2.2); opacity: 0;   }
+  100% { transform: scale(2.2); opacity: 0;   }
+}
+
+.monitor-dot-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  animation: dot-ping 2s ease-out infinite;
+}
+
+/* ── Entrance animation ───────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.fade-up {
+  opacity: 0;
+  animation: fadeUp 0.5s ease forwards;
 }

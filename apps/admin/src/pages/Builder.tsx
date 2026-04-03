@@ -308,6 +308,7 @@ export default function BuilderPage() {
                     monitors={monitors}
                     isSelected={selectedId === node.id}
                     onSelect={() => selectNode(selectedId === node.id ? null : node.id)}
+                    onSelectChild={(id) => selectNode(selectedId === id ? null : id)}
                     onDelete={() => deleteNode(node.id)}
                     onUpdate={(patch) => updateNode(node.id, patch)}
                     onAddChild={(n) => addNode(node.id, n)}
@@ -363,6 +364,7 @@ interface NodeCardProps {
   monitors: Monitor[]
   isSelected: boolean
   onSelect: () => void
+  onSelectChild: (id: string) => void
   onDelete: () => void
   onUpdate: (patch: Partial<LayoutNode>) => void
   onAddChild: (n: Omit<LayoutNode, 'id'>) => void
@@ -383,7 +385,7 @@ function DeleteBtn({ onDelete }: { onDelete: () => void }) {
 }
 
 function NodeCard(props: NodeCardProps) {
-  const { node, isSelected, onSelect, onDelete } = props
+  const { node, isSelected, onSelect, onSelectChild, onDelete } = props
   const ring = isSelected ? 'ring-2 ring-indigo-500' : 'ring-1 ring-slate-700/60'
 
   if (node.type === 'divider') {
@@ -426,7 +428,7 @@ function NodeCard(props: NodeCardProps) {
   }
 
   if (node.type === 'group') {
-    return <GroupCard {...props} node={node as GroupNode} />
+    return <GroupCard {...props} node={node as GroupNode} onSelectChild={onSelectChild} />
   }
 
   return null
@@ -434,9 +436,10 @@ function NodeCard(props: NodeCardProps) {
 
 // ── Group card (with inner @dnd-kit sortable) ─────────────────────────────────
 function GroupCard({
-  node, monitors, isSelected, onSelect, onDelete, onUpdate, onAddChild,
+  node, monitors, isSelected, onSelect, onSelectChild, onDelete, onUpdate, onAddChild,
   sensors, onGroupDragEnd,
 }: Omit<NodeCardProps, 'node'> & { node: GroupNode }) {
+  const { selectedId } = useBuilderStore()
   const ring = isSelected ? 'ring-2 ring-indigo-500' : 'ring-1 ring-slate-700/60'
   const [isDragOver, setIsDragOver] = useState(false)
 
@@ -487,6 +490,8 @@ function GroupCard({
                   key={child.id}
                   child={child}
                   monitors={monitors}
+                  onSelect={() => onSelectChild(child.id)}
+                  isSelected={selectedId === child.id}
                   onDelete={() => {
                     const updated = { ...node, children: node.children.filter((c) => c.id !== child.id) }
                     onUpdate(updated as Partial<LayoutNode>)
@@ -508,8 +513,8 @@ function GroupCard({
 }
 
 function SortableGroupItem({
-  child, monitors, onDelete,
-}: { child: LayoutNode; monitors: Monitor[]; onDelete: () => void }) {
+  child, monitors, onSelect, isSelected, onDelete,
+}: { child: LayoutNode; monitors: Monitor[]; onSelect: () => void; isSelected: boolean; onDelete: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: child.id })
 
@@ -524,10 +529,24 @@ function SortableGroupItem({
     : null
 
   return (
-    <div ref={setNodeRef} style={style}
-      className="flex items-center gap-2 px-2 py-1.5 bg-slate-800 hover:bg-slate-750 rounded-lg text-sm"
+    <div
+      ref={setNodeRef}
+      style={{
+        ...style,
+        background: isSelected ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)',
+        outline: isSelected ? '1px solid rgba(99,102,241,0.5)' : 'none',
+      }}
+      className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm cursor-pointer"
+      onClick={onSelect}
     >
-      <span {...attributes} {...listeners} className="cursor-grab text-slate-600 hover:text-slate-400 touch-none">⠿</span>
+      <span
+        {...attributes}
+        {...listeners}
+        className="cursor-grab text-slate-600 hover:text-slate-400 touch-none"
+        onClick={(e) => e.stopPropagation()}
+      >
+        ⠿
+      </span>
       {monitor ? (
         <>
           <span className="text-[9px] uppercase bg-slate-700 text-slate-400 px-1 rounded">{monitor.type}</span>
@@ -536,7 +555,7 @@ function SortableGroupItem({
       ) : (
         <span className="flex-1 text-slate-400 truncate">{(child as MonitorNode).monitorId ?? child.id}</span>
       )}
-      <button onClick={onDelete} className="text-slate-600 hover:text-red-400 text-xs leading-none shrink-0">×</button>
+      <button onClick={(e) => { e.stopPropagation(); onDelete() }} className="text-slate-600 hover:text-red-400 text-xs leading-none shrink-0">×</button>
     </div>
   )
 }
