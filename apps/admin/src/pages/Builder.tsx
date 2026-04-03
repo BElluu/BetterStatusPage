@@ -282,8 +282,7 @@ export default function BuilderPage() {
               }}>
                 {[0, 1, 2].map((i) => (
                   <div key={i} style={{
-                    borderLeft: i === 0 ? 'none' : '1px dashed rgba(99,102,241,0.18)',
-                    borderRight: i === 2 ? 'none' : undefined,
+                    borderLeft: i === 0 ? 'none' : '1px dashed rgba(255,255,255,0.12)',
                   }} />
                 ))}
               </div>
@@ -600,6 +599,12 @@ function PropertiesPanel({
         )}
         <Toggle label="Czas odpowiedzi" checked={n.showResponseTime}
           onChange={(v) => onUpdate({ showResponseTime: v } as Partial<MonitorNode>)} />
+        <Toggle label="Pokaż typ monitora" checked={n.showMonitorType ?? false}
+          onChange={(v) => onUpdate({ showMonitorType: v } as Partial<MonitorNode>)} />
+        {n.showUptimeBar && (n.uptimeBarPosition ?? 'right') === 'below' && (
+          <Toggle label="Pokaż % uptime" checked={n.showUptimePct ?? false}
+            onChange={(v) => onUpdate({ showUptimePct: v } as Partial<MonitorNode>)} />
+        )}
       </div>
     )
   }

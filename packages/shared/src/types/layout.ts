@@ -33,6 +33,8 @@ export interface MonitorNode extends BaseNode {
   showUptimeBar: boolean
   showResponseTime: boolean
   uptimeBarPosition?: 'right' | 'below'
+  showMonitorType?: boolean
+  showUptimePct?: boolean
 }
 
 export interface TextNode extends BaseNode {

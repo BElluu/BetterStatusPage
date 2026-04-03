@@ -69,6 +69,8 @@ function NodeRenderer({ node, monitors, statusMap }: { node: LayoutNode; monitor
         showUptimeBar={monNode.showUptimeBar}
         showResponseTime={monNode.showResponseTime}
         uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
+        showMonitorType={monNode.showMonitorType ?? false}
+        showUptimePct={monNode.showUptimePct ?? false}
         monitorId={monitor.id}
       />
     )
@@ -137,6 +139,8 @@ function GroupBlock({ groupNode, monitors, statusMap }: { groupNode: GroupNode; 
                     showUptimeBar={monNode.showUptimeBar}
                     showResponseTime={monNode.showResponseTime}
                     uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
+                    showMonitorType={monNode.showMonitorType ?? false}
+                    showUptimePct={monNode.showUptimePct ?? false}
                     monitorId={monitor.id}
                     nested
                   />
@@ -161,6 +165,8 @@ function MonitorRow({
   showUptimeBar,
   showResponseTime,
   uptimeBarPosition = 'right',
+  showMonitorType = false,
+  showUptimePct = false,
   monitorId,
   nested = false,
 }: {
@@ -169,9 +175,13 @@ function MonitorRow({
   showUptimeBar: boolean
   showResponseTime: boolean
   uptimeBarPosition?: 'right' | 'below'
+  showMonitorType?: boolean
+  showUptimePct?: boolean
   monitorId: number
   nested?: boolean
 }) {
+  const [overallPct, setOverallPct] = useState<number | null>(null)
+
   const statusColor = {
     up: 'var(--bsp-up)',
     down: 'var(--bsp-down)',
@@ -188,12 +198,18 @@ function MonitorRow({
 
   return (
     <div className="bsp-monitor-card flex flex-col overflow-hidden" style={outerStyle}>
-      {/* Main row: name — [bars if right] — status */}
+      {/* Main row: name — [type] — [bars if right] — status */}
       <div className="flex items-center gap-2">
         {/* Name: always fully visible */}
         <span className="bsp-monitor-name text-sm flex-shrink-0" style={{ color: 'var(--bsp-text)' }}>
           {monitor.name}
         </span>
+        {/* Monitor type badge */}
+        {showMonitorType && (
+          <span className="text-[10px] uppercase flex-shrink-0 px-1 rounded" style={{ color: 'var(--bsp-text-muted)', background: 'rgba(255,255,255,0.06)' }}>
+            {monitor.type}
+          </span>
+        )}
         {/* Response time */}
         {showResponseTime && responseMs !== null && (
           <span className="text-xs flex-shrink-0" style={{ color: 'var(--bsp-text-muted)' }}>{responseMs}ms</span>
@@ -214,15 +230,29 @@ function MonitorRow({
       </div>
       {/* Uptime bars below */}
       {showUptimeBar && uptimeBarPosition === 'below' && (
-        <div className="bsp-uptime-bar mt-2 overflow-hidden">
-          <UptimeBar monitorId={monitorId} />
+        <div className="bsp-uptime-bar mt-2 flex items-center gap-2">
+          {/* Bracketed bars */}
+          <div className="flex-1 min-w-0 overflow-hidden" style={{
+            borderLeft: '2px solid var(--bsp-card-border)',
+            borderRight: '2px solid var(--bsp-card-border)',
+            paddingLeft: '4px',
+            paddingRight: '4px',
+          }}>
+            <UptimeBar monitorId={monitorId} onData={showUptimePct ? setOverallPct : undefined} />
+          </div>
+          {/* Overall uptime % */}
+          {showUptimePct && overallPct !== null && (
+            <span className="text-xs flex-shrink-0" style={{ color: 'var(--bsp-text-muted)' }}>
+              {overallPct.toFixed(2)}% uptime
+            </span>
+          )}
         </div>
       )}
     </div>
   )
 }
 
-function UptimeBar({ monitorId }: { monitorId: number }) {
+function UptimeBar({ monitorId, onData }: { monitorId: number; onData?: (pct: number) => void }) {
   const [data, setData] = useState<Array<{ date: string; status: string; uptimePct: number }> | null>(null)
   const [visibleCount, setVisibleCount] = useState(30)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -230,7 +260,10 @@ function UptimeBar({ monitorId }: { monitorId: number }) {
   useEffect(() => {
     fetch(`/api/v1/public/monitor/${monitorId}/uptime?days=30`)
       .then((r) => r.json())
-      .then((res: { days: Array<{ date: string; status: string; uptimePct: number }> }) => setData(res.days))
+      .then((res: { days: Array<{ date: string; status: string; uptimePct: number }>; overallUptimePct: number }) => {
+        setData(res.days)
+        onData?.(res.overallUptimePct)
+      })
       .catch(() => {})
   }, [monitorId])
 
@@ -260,7 +293,7 @@ function UptimeBar({ monitorId }: { monitorId: number }) {
             key={day.date}
             className="w-1.5 h-4 rounded-sm flex-shrink-0"
             style={{ background: barColor }}
-            title={`${day.date}: ${day.uptimePct.toFixed(1)}%`}
+            title={day.status === 'no-data' ? `${day.date}: No Data` : `${day.date}: ${day.uptimePct.toFixed(1)}%`}
           />
         )
       })}
