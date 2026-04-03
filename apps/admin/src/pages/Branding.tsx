@@ -283,7 +283,7 @@ function LivePreview({ form, logoUrl }: { form: BrandingForm; logoUrl: string | 
   const statusLabel = { up: 'Operational', down: 'Down', degraded: 'Degraded', pending: 'Checking' }
 
   const brandingStyles = `
-.bsp-monitor-card { background: ${v.cardBackground}; border: 1px solid ${v.cardBorderColor}; border-radius: 8px; }
+.bsp-monitor-card { background: ${v.cardBackground}; border: 1px solid ${v.cardBorderColor}; border-radius: 8px; overflow: hidden; }
 .bsp-group-card { background: ${v.cardBackground}; border: 1px solid ${v.cardBorderColor}; }
 .bsp-monitor-name { color: ${v.textColor}; }
 .bsp-group-label { color: ${v.textColor}; }

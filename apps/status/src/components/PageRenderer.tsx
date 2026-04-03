@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode, Monitor, MonitorStatus } from '@bsp/shared'
 import Markdown from 'react-markdown'
 
@@ -26,7 +26,6 @@ export function PageRenderer({ tree, monitors, statusMap }: Props) {
       style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(12, 1fr)',
-        gridAutoRows: '80px',
         gap: '10px',
       }}
     >
@@ -35,7 +34,6 @@ export function PageRenderer({ tree, monitors, statusMap }: Props) {
           key={node.id}
           style={{
             gridColumn: `${(node.grid?.x ?? 0) + 1} / span ${node.grid?.w ?? 12}`,
-            gridRow: `span ${node.grid?.h ?? 1}`,
           }}
         >
           <NodeRenderer node={node} monitors={monitors} statusMap={statusMap} />
@@ -103,7 +101,7 @@ function GroupBlock({ groupNode, monitors, statusMap }: { groupNode: GroupNode; 
   const aggLabel = aggStatus === 'up' ? 'Operational' : aggStatus === 'down' ? 'Outage' : 'Degraded'
 
   return (
-    <div className="bsp-group-card rounded-xl overflow-hidden flex flex-col h-full">
+    <div className="bsp-group-card rounded-xl overflow-hidden">
       <div
         className={`bsp-group-header flex items-center justify-between px-4 py-3 shrink-0 ${groupNode.collapsible ? 'cursor-pointer' : ''}`}
         style={groupNode.collapsible ? { transition: 'background 0.15s' } : {}}
@@ -124,7 +122,7 @@ function GroupBlock({ groupNode, monitors, statusMap }: { groupNode: GroupNode; 
       </div>
 
       {!collapsed && groupNode.children.length > 0 && (
-        <div className="overflow-y-auto flex-1" style={{ borderTop: '1px solid var(--bsp-card-border)' }}>
+        <div style={{ borderTop: '1px solid var(--bsp-card-border)' }}>
           {groupNode.children.map((child, i) => {
             if (child.type === 'monitor') {
               const monNode = child as MonitorNode
@@ -189,28 +187,34 @@ function MonitorRow({
     : { borderRadius: '8px', padding: '10px 14px' }
 
   return (
-    <div className="bsp-monitor-card flex flex-col" style={outerStyle}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
-          <span className="bsp-monitor-name text-sm" style={{ color: 'var(--bsp-text)' }}>{monitor.name}</span>
-          <span
-            className="bsp-monitor-type text-xs uppercase px-1.5 py-0.5 rounded"
-            style={{ color: 'var(--bsp-text-muted)', background: 'rgba(148,163,184,0.08)' }}
-          >
-            {monitor.type}
-          </span>
-        </div>
-        <div className="flex items-center gap-3 text-xs">
-          {showResponseTime && responseMs !== null && (
-            <span style={{ color: 'var(--bsp-text-muted)' }}>{responseMs}ms</span>
-          )}
-          {showUptimeBar && uptimeBarPosition === 'right' && <UptimeBar monitorId={monitorId} />}
-          <span className="bsp-monitor-status" style={{ color }}>{label}</span>
+    <div className="bsp-monitor-card flex flex-col overflow-hidden" style={outerStyle}>
+      {/* Main row: name — [bars if right] — status */}
+      <div className="flex items-center gap-2">
+        {/* Name: always fully visible */}
+        <span className="bsp-monitor-name text-sm flex-shrink-0" style={{ color: 'var(--bsp-text)' }}>
+          {monitor.name}
+        </span>
+        {/* Response time */}
+        {showResponseTime && responseMs !== null && (
+          <span className="text-xs flex-shrink-0" style={{ color: 'var(--bsp-text-muted)' }}>{responseMs}ms</span>
+        )}
+        {/* Uptime bars inline (right position): fill space between name and status */}
+        {showUptimeBar && uptimeBarPosition === 'right' && (
+          <div className="bsp-uptime-bar flex-1 overflow-hidden min-w-0">
+            <UptimeBar monitorId={monitorId} />
+          </div>
+        )}
+        {/* Spacer when no inline bars */}
+        {(!showUptimeBar || uptimeBarPosition === 'below') && <div className="flex-1" />}
+        {/* Status: dot + label */}
+        <div className="bsp-monitor-status flex items-center gap-1.5 flex-shrink-0">
+          <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+          <span className="text-xs" style={{ color }}>{label}</span>
         </div>
       </div>
+      {/* Uptime bars below */}
       {showUptimeBar && uptimeBarPosition === 'below' && (
-        <div className="mt-2 pl-5">
+        <div className="bsp-uptime-bar mt-2 overflow-hidden">
           <UptimeBar monitorId={monitorId} />
         </div>
       )}
@@ -220,6 +224,8 @@ function MonitorRow({
 
 function UptimeBar({ monitorId }: { monitorId: number }) {
   const [data, setData] = useState<Array<{ date: string; status: string; uptimePct: number }> | null>(null)
+  const [visibleCount, setVisibleCount] = useState(30)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetch(`/api/v1/public/monitor/${monitorId}/uptime?days=30`)
@@ -228,21 +234,33 @@ function UptimeBar({ monitorId }: { monitorId: number }) {
       .catch(() => {})
   }, [monitorId])
 
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      // each bar: 6px (w-1.5) + 2px gap (gap-0.5) = 8px, except last bar has no trailing gap
+      const count = Math.floor((entry.contentRect.width + 2) / 8)
+      setVisibleCount(Math.min(30, Math.max(0, count)))
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   if (!data) return null
 
   return (
-    <div className="bsp-uptime-bar flex gap-0.5 items-center" title="30-day uptime">
-      {data.slice(-30).map((day) => {
-        const color =
+    <div ref={containerRef} className="flex gap-0.5 items-center justify-end" title="30-day uptime">
+      {data.slice(-visibleCount).map((day) => {
+        const barColor =
           day.status === 'up' ? 'var(--bsp-up)' :
           day.status === 'down' ? 'var(--bsp-down)' :
           day.status === 'degraded' ? 'var(--bsp-degraded)' : 'var(--bsp-card-border)'
         return (
           <div
             key={day.date}
-            className="w-1.5 h-5 rounded-sm"
-            style={{ background: color }}
-            title={`${day.date}: ${day.uptimePct.toFixed(1)}% uptime`}
+            className="w-1.5 h-4 rounded-sm flex-shrink-0"
+            style={{ background: barColor }}
+            title={`${day.date}: ${day.uptimePct.toFixed(1)}%`}
           />
         )
       })}
