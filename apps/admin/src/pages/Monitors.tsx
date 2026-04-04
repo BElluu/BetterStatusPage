@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { Monitor, MonitorGroup } from '@bsp/shared'
+import type { Monitor } from '@bsp/shared'
 import { StatusBadge } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
 
@@ -14,11 +14,6 @@ export default function MonitorsPage() {
     queryKey: ['monitors'],
     queryFn: () => api.get('/admin/monitors'),
     refetchInterval: 15_000,
-  })
-
-  const { data: groups = [] } = useQuery<MonitorGroup[]>({
-    queryKey: ['groups'],
-    queryFn: () => api.get('/admin/groups'),
   })
 
   const deleteMutation = useMutation({
@@ -59,7 +54,7 @@ export default function MonitorsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-                {['Name', 'Type', 'Group', 'Interval', 'Status', 'Last Check', ''].map((h) => (
+                {['Name', 'Type', 'Interval', 'Status', 'Last Check', ''].map((h) => (
                   <th
                     key={h}
                     className={`px-4 py-3 font-mono text-xs uppercase tracking-wider ${h === '' ? 'text-right' : 'text-left'}`}
@@ -72,7 +67,6 @@ export default function MonitorsPage() {
             </thead>
             <tbody>
               {monitors.map((monitor, i) => {
-                const group = groups.find((g) => g.id === monitor.groupId)
                 return (
                   <tr
                     key={monitor.id}
@@ -91,9 +85,6 @@ export default function MonitorsPage() {
                       >
                         {monitor.type}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm" style={{ color: 'var(--m3-secondary)' }}>
-                      {group?.name ?? '—'}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
                       {monitor.intervalSecs}s
@@ -138,7 +129,7 @@ export default function MonitorsPage() {
               })}
               {monitors.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-sm" style={{ color: 'var(--m3-secondary)' }}>
+                  <td colSpan={6} className="px-4 py-12 text-center text-sm" style={{ color: 'var(--m3-secondary)' }}>
                     No monitors yet. Click "+ Add Monitor" to create one.
                   </td>
                 </tr>
@@ -151,7 +142,6 @@ export default function MonitorsPage() {
       {(showCreate || editingMonitor) && (
         <MonitorFormModal
           monitor={editingMonitor}
-          groups={groups}
           onClose={() => { setShowCreate(false); setEditingMonitor(null) }}
           onSaved={() => {
             qc.invalidateQueries({ queryKey: ['monitors'] })
