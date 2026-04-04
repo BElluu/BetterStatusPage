@@ -141,26 +141,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Nav links */}
-          <div className="hidden md:flex items-center gap-8 font-headline tracking-tight font-bold">
-            <a
-              href="#status"
-              className="transition-colors"
-              style={{ color: 'var(--m3-on-surface)', borderBottom: '2px solid var(--m3-on-surface)', paddingBottom: '2px' }}
-            >
-              Dashboard
-            </a>
-            <a
-              href="#events"
-              className="transition-colors"
-              style={{ color: 'var(--m3-secondary)' }}
-              onMouseEnter={(e) => { (e.target as HTMLElement).style.color = 'var(--m3-on-surface)' }}
-              onMouseLeave={(e) => { (e.target as HTMLElement).style.color = 'var(--m3-secondary)' }}
-            >
-              Incidents
-            </a>
-          </div>
-
           {/* Actions */}
           <div className="flex items-center gap-3">
             {!brandingEnabled && (
@@ -177,12 +157,6 @@ export default function App() {
                 </span>
               </button>
             )}
-            <button
-              className="px-6 py-2 rounded-xl font-bold transition-all active:scale-95 hero-gradient text-white"
-              style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.15)' }}
-            >
-              Subscribe
-            </button>
           </div>
         </nav>
       </header>
