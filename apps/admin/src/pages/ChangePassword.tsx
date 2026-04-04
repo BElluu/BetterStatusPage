@@ -17,7 +17,7 @@ export default function ChangePasswordPage() {
     setLoading(true)
     try {
       const res = await api.post<{ token: string }>('/auth/change-password', { newPassword: password })
-      setToken(res.token)
+      setToken(res.token, false)
       navigate('/admin/')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to change password')

@@ -4,16 +4,22 @@ function getToken(): string | null {
   return sessionStorage.getItem('token')
 }
 
-export function setToken(token: string) {
+export function setToken(token: string, mustChangePassword = false) {
   sessionStorage.setItem('token', token)
+  sessionStorage.setItem('mustChangePwd', mustChangePassword ? '1' : '0')
 }
 
 export function clearToken() {
   sessionStorage.removeItem('token')
+  sessionStorage.removeItem('mustChangePwd')
 }
 
 export function isAuthenticated(): boolean {
   return !!getToken()
+}
+
+export function mustChangePassword(): boolean {
+  return sessionStorage.getItem('mustChangePwd') === '1'
 }
 
 async function request<T>(
