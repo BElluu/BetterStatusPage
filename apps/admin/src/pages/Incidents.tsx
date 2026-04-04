@@ -62,14 +62,11 @@ export default function IncidentsPage() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="text-sm font-semibold px-4 py-2.5 rounded-lg transition-all"
-          style={{
-            background: 'var(--m3-down-bg)',
-            color: 'var(--m3-down)',
-            border: '1px solid color-mix(in srgb, var(--m3-down) 30%, transparent)',
-          }}
+          className="flex items-center gap-2 py-3 px-4 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98]"
+          style={{ background: 'var(--m3-on-surface)', color: 'var(--m3-surface)' }}
         >
-          + Report Incident
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_circle</span>
+          New Incident
         </button>
       </div>
 
@@ -296,7 +293,7 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
       <div style={{ display: 'flex', minHeight: '100%', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
       <div className="rounded-2xl w-full max-w-md" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
         <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-          <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>Report Incident</h3>
+          <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>New Incident</h3>
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none transition-colors"

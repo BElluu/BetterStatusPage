@@ -48,18 +48,6 @@ export default function Layout() {
           </div>
         </div>
 
-        {/* New Incident CTA */}
-        <div className="px-4 mb-5">
-          <button
-            onClick={() => navigate('/admin/incidents')}
-            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98]"
-            style={{ background: 'var(--m3-on-surface)', color: 'var(--m3-surface)' }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_circle</span>
-            New Incident
-          </button>
-        </div>
-
         {/* Nav */}
         <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => (
