@@ -50,12 +50,21 @@ await app.register(staticFiles, {
   decorateReply: false,
 })
 
-// Auth middleware for admin routes
+// Auth middleware
 async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
-  try {
-    await req.jwtVerify()
-  } catch {
-    return reply.code(401).send({ error: 'Unauthorized' })
+  try { await req.jwtVerify() } catch { return reply.code(401).send({ error: 'Unauthorized' }) }
+}
+
+// role hierarchy: admin > operator > branding
+function requireRole(...allowed: string[]) {
+  return async (req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      await req.jwtVerify()
+      const { role } = req.user as { role: string }
+      if (role !== 'admin' && !allowed.includes(role)) {
+        return reply.code(403).send({ error: 'Forbidden' })
+      }
+    } catch { return reply.code(401).send({ error: 'Unauthorized' }) }
   }
 }
 
@@ -63,15 +72,34 @@ async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
 await app.register(authRoutes, { prefix: '/api/v1/auth' })
 await app.register(publicRoutes, { prefix: '/api/v1/public' })
 
-// Admin routes (protected)
 await app.register(async (adminApp) => {
   adminApp.addHook('preHandler', requireAuth)
-  await adminApp.register(monitorRoutes, { prefix: '/monitors' })
-  await adminApp.register(groupRoutes, { prefix: '/groups' })
-  await adminApp.register(incidentRoutes, { prefix: '/incidents' })
-  await adminApp.register(layoutRoutes, { prefix: '/layout' })
-  await adminApp.register(brandingRoutes, { prefix: '/branding' })
-  await adminApp.register(userRoutes, { prefix: '/users' })
+
+  // monitors & groups: operator+
+  await adminApp.register(async (sub) => {
+    sub.addHook('preHandler', requireRole('operator'))
+    await sub.register(monitorRoutes, { prefix: '/monitors' })
+    await sub.register(groupRoutes,   { prefix: '/groups' })
+  })
+
+  // incidents: operator+
+  await adminApp.register(async (sub) => {
+    sub.addHook('preHandler', requireRole('operator'))
+    await sub.register(incidentRoutes, { prefix: '/incidents' })
+  })
+
+  // layout & branding: branding+
+  await adminApp.register(async (sub) => {
+    sub.addHook('preHandler', requireRole('operator', 'branding'))
+    await sub.register(layoutRoutes,   { prefix: '/layout' })
+    await sub.register(brandingRoutes, { prefix: '/branding' })
+  })
+
+  // users: admin only
+  await adminApp.register(async (sub) => {
+    sub.addHook('preHandler', requireRole())  // only admin passes (no allowed list)
+    await sub.register(userRoutes, { prefix: '/users' })
+  })
 }, { prefix: '/api/v1/admin' })
 
 // Serve built frontend apps in production

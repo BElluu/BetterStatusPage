@@ -1,19 +1,25 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { clearToken } from '../api/client'
+import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom'
+import { clearToken, getCurrentUser } from '../api/client'
 import { useDarkMode } from '../hooks/useDarkMode'
 
-const navItems = [
-  { to: '/admin/', label: 'Dashboard', icon: 'dashboard' },
-  { to: '/admin/monitors', label: 'Monitors', icon: 'radio_button_checked' },
-  { to: '/admin/incidents', label: 'Incidents', icon: 'warning' },
-  { to: '/admin/builder', label: 'Page Builder', icon: 'dashboard_customize' },
-  { to: '/admin/branding', label: 'Branding', icon: 'palette' },
-  { to: '/admin/users', label: 'Users', icon: 'group' },
+// role hierarchy: admin > operator > branding
+const ROLE_RANK: Record<string, number> = { admin: 3, operator: 2, branding: 1 }
+
+const ALL_NAV = [
+  { to: '/admin/',          label: 'Dashboard',    icon: 'dashboard',            minRole: 'operator' },
+  { to: '/admin/monitors',  label: 'Monitors',     icon: 'radio_button_checked', minRole: 'operator' },
+  { to: '/admin/incidents', label: 'Incidents',    icon: 'warning',              minRole: 'operator' },
+  { to: '/admin/builder',   label: 'Page Builder', icon: 'dashboard_customize',  minRole: 'operator' },
+  { to: '/admin/branding',  label: 'Branding',     icon: 'palette',              minRole: 'branding' },
+  { to: '/admin/users',     label: 'Users',        icon: 'group',                minRole: 'admin'    },
 ]
 
 export default function Layout() {
   const navigate = useNavigate()
   const [isDark, toggleDark] = useDarkMode()
+  const currentUser = getCurrentUser()
+  const userRank = ROLE_RANK[currentUser?.role ?? ''] ?? 0
+  const navItems = ALL_NAV.filter((item) => userRank >= (ROLE_RANK[item.minRole] ?? 99))
 
   function handleLogout() {
     clearToken()
@@ -96,6 +102,24 @@ export default function Layout() {
 
         {/* Bottom */}
         <div className="px-3 pb-4 pt-4 space-y-0.5" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
+          {/* Settings */}
+          <Link
+            to="/admin/settings"
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all hover:translate-x-1"
+            style={{ color: 'var(--m3-secondary)' }}
+            onMouseEnter={(e) => {
+              ;(e.currentTarget).style.background = 'rgba(0,0,0,0.04)'
+              ;(e.currentTarget).style.color = 'var(--m3-on-surface)'
+            }}
+            onMouseLeave={(e) => {
+              ;(e.currentTarget).style.background = ''
+              ;(e.currentTarget).style.color = 'var(--m3-secondary)'
+            }}
+          >
+            <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '20px' }}>manage_accounts</span>
+            <span className="font-sans">Settings</span>
+          </Link>
+
           {/* Dark mode toggle */}
           <button
             onClick={toggleDark}
