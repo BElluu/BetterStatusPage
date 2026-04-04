@@ -22,6 +22,12 @@ interface BuilderState {
 
   /** Reorder children inside a group (for @dnd-kit within-group DnD) */
   reorderGroupChildren: (groupId: string, fromId: string, toId: string) => void
+
+  /** Move a root-level monitor node into a group */
+  moveToGroup: (nodeId: string, targetGroupId: string) => void
+
+  /** Insert a root node at the given grid position, shifting existing items at >= dropY down to make room */
+  insertRootNode: (node: Omit<LayoutNode, 'id'>, dropY: number) => void
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -120,6 +126,38 @@ export const useBuilderStore = create<BuilderState>((set) => ({
         return { ...node, grid: pos } as LayoutNode
       })
       return { tree: { ...s.tree, children }, isDirty: true }
+    })
+  },
+
+  moveToGroup: (nodeId, targetGroupId) => {
+    set((s) => {
+      const node = s.tree.children.find((c) => c.id === nodeId)
+      if (!node || node.type !== 'monitor') return s
+      // Strip grid — group children don't use RGL positioning
+      const { grid: _g, ...nodeData } = node as LayoutNode & { grid?: GridPos }
+      const rootChildren = s.tree.children.filter((c) => c.id !== nodeId)
+      const children = mapTree(rootChildren, (n) => {
+        if (n.id !== targetGroupId || n.type !== 'group') return n
+        const g = n as GroupNode
+        return { ...g, children: [...g.children, nodeData as LayoutNode] }
+      })
+      return { tree: { ...s.tree, children }, isDirty: true }
+    })
+  },
+
+  insertRootNode: (nodeWithoutId, dropY) => {
+    const node = { ...nodeWithoutId, id: nanoid(8) } as LayoutNode
+    const itemH = node.grid?.h ?? 1
+    set((s) => {
+      // Shift every root item whose y is at or below the drop row
+      const shifted = s.tree.children.map((child) => {
+        const cg = child.grid
+        if (cg && cg.y >= dropY) {
+          return { ...child, grid: { ...cg, y: cg.y + itemH } } as LayoutNode
+        }
+        return child
+      })
+      return { tree: { ...s.tree, children: [...shifted, node] }, isDirty: true }
     })
   },
 

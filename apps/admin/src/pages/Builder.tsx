@@ -36,12 +36,12 @@ export default function BuilderPage() {
     tree, setTree, isDirty, markClean,
     addNode, updateNode, deleteNode,
     applyGridLayout, reorderGroupChildren,
+    moveToGroup, insertRootNode,
     selectNode, selectedId,
   } = useBuilderStore()
 
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [newGroupName, setNewGroupName] = useState('')
 
   // What's currently being dragged from toolbox (for droppingItem size hint)
   const draggingTypeRef = useRef<string>('monitor')
@@ -85,6 +85,16 @@ export default function BuilderPage() {
     [tree.children],
   )
 
+  // Force RGL remount when items are added/removed or group child counts change
+  const rglKey = useMemo(() =>
+    tree.children.length + '|' +
+    tree.children
+      .filter((n) => n.type === 'group')
+      .map((n) => `${n.id}:${(n as GroupNode).children.length}`)
+      .join('|'),
+    [tree.children],
+  )
+
   function handleLayoutChange(newLayout: Layout) {
     applyGridLayout(newLayout.map(({ i, x, y, w, h }) => ({ i, x, y, w, h })))
   }
@@ -100,20 +110,21 @@ export default function BuilderPage() {
   function handleDrop(_layout: Layout, item: LayoutItem | undefined, e: Event) {
     const de = e as DragEvent
     const type = de.dataTransfer?.getData('nodeType') ?? ''
-    const grid: GridPos = { x: item?.x ?? 0, y: item?.y ?? 0, w: item?.w ?? 4, h: item?.h ?? 2 }
+    const dropY = item?.y ?? 0
+    const grid: GridPos = { x: item?.x ?? 0, y: dropY, w: item?.w ?? 1, h: item?.h ?? 1 }
 
     if (type === 'monitor') {
       const monitorId = Number(de.dataTransfer?.getData('monitorId'))
-      if (monitorId) addNode('root', { ...createMonitorNode(monitorId), grid })
+      if (monitorId) insertRootNode({ ...createMonitorNode(monitorId), grid }, dropY)
     } else if (type === 'group') {
       const label = de.dataTransfer?.getData('label') || 'Nowa grupa'
-      addNode('root', { ...createGroupNode(label), grid })
+      insertRootNode({ ...createGroupNode(label), grid }, dropY)
     } else if (type === 'text') {
-      addNode('root', { ...createTextNode(), grid })
+      insertRootNode({ ...createTextNode(), grid }, dropY)
     } else if (type === 'divider') {
-      addNode('root', { type: 'divider', grid } as Omit<LayoutNode, 'id'>)
+      insertRootNode({ type: 'divider', grid } as Omit<LayoutNode, 'id'>, dropY)
     } else if (type === 'incidents') {
-      addNode('root', { ...createIncidentsNode(), grid })
+      insertRootNode({ ...createIncidentsNode(), grid }, dropY)
     }
   }
 
@@ -143,39 +154,19 @@ export default function BuilderPage() {
           {/* Groups */}
           <section>
             <p className="text-[10px] uppercase tracking-wider text-secondary mb-1.5">Grupy</p>
-            <form onSubmit={(e) => {
-              e.preventDefault()
-              if (!newGroupName.trim()) return
-              const g = defaultGrid('group')
-              addNode('root', { ...createGroupNode(newGroupName.trim()), grid: g })
-              setNewGroupName('')
-            }} className="flex gap-1 mb-2">
-              <input
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-                placeholder="Nazwa grupy…"
-                className="flex-1 min-w-0 input-m3 text-xs"
-              />
-              <button type="submit" disabled={!newGroupName.trim()}
-                className="text-xs px-2 py-1 rounded transition-colors">
-                +
-              </button>
-            </form>
-            {newGroupName.trim() && (
-              <div
-                draggable
-                onDragStart={(e) => {
-                  const data = handleToolboxDragStart('group', { label: newGroupName.trim() })
-                  e.dataTransfer.setData('nodeType', 'group')
-                  e.dataTransfer.setData('label', data['label'] ?? newGroupName)
-                  e.dataTransfer.effectAllowed = 'copy'
-                }}
-                className="flex items-center gap-2 px-2 py-1.5 bg-surface-container hover:bg-surface-container-high rounded text-sm text-on-surface-variant cursor-grab active:cursor-grabbing select-none"
-              >
-                <span className="text-secondary">◧</span>
-                <span className="truncate">{newGroupName}</span>
-              </div>
-            )}
+            <div
+              draggable
+              onDragStart={(e) => {
+                handleToolboxDragStart('group', { label: 'Nowa grupa' })
+                e.dataTransfer.setData('nodeType', 'group')
+                e.dataTransfer.setData('label', 'Nowa grupa')
+                e.dataTransfer.effectAllowed = 'copy'
+              }}
+              className="flex items-center gap-2 px-2 py-1.5 bg-surface-container hover:bg-surface-container-high rounded text-sm text-on-surface-variant cursor-grab active:cursor-grabbing select-none"
+            >
+              <span className="text-secondary">◧</span>
+              <span className="truncate">Nowa grupa</span>
+            </div>
           </section>
 
           {/* Monitors */}
@@ -191,12 +182,6 @@ export default function BuilderPage() {
                     e.dataTransfer.setData('nodeType', 'monitor')
                     e.dataTransfer.setData('monitorId', String(m.id))
                     e.dataTransfer.effectAllowed = 'copy'
-                  }}
-                  onClick={() => {
-                    // Click fallback: add to selected group or root
-                    const parentId = selectedId && findNode(tree.children, selectedId)?.type === 'group'
-                      ? selectedId : 'root'
-                    addNode(parentId, createMonitorNode(m.id))
                   }}
                   className="flex items-center gap-2 px-2 py-1.5 bg-surface-container hover:bg-surface-container-high rounded text-sm text-on-surface-variant cursor-grab active:cursor-grabbing select-none"
                 >
@@ -224,12 +209,6 @@ export default function BuilderPage() {
                     handleToolboxDragStart(type)
                     e.dataTransfer.setData('nodeType', type)
                     e.dataTransfer.effectAllowed = 'copy'
-                  }}
-                  onClick={() => {
-                    const grid = defaultGrid(type)
-                    if (type === 'text') addNode('root', { ...createTextNode(), grid })
-                    else if (type === 'incidents') addNode('root', { ...createIncidentsNode(), grid })
-                    else addNode('root', { type: 'divider', grid })
                   }}
                   className="flex items-center gap-2 px-2 py-1.5 bg-surface-container hover:bg-surface-container-high rounded text-sm text-on-surface-variant cursor-grab active:cursor-grabbing select-none"
                 >
@@ -304,6 +283,7 @@ export default function BuilderPage() {
                 ))}
               </div>
             <RGL
+              key={rglKey}
               layout={rglLayout}
               cols={COLS}
               rowHeight={ROW_H}
@@ -329,6 +309,7 @@ export default function BuilderPage() {
                     onDelete={() => deleteNode(node.id)}
                     onUpdate={(patch) => updateNode(node.id, patch)}
                     onAddChild={(n) => addNode(node.id, n)}
+                    onMoveToGroup={(nodeId, groupId) => moveToGroup(nodeId, groupId)}
                     sensors={sensors}
                     onGroupDragEnd={handleGroupDragEnd(node.id)}
                   />
@@ -385,6 +366,7 @@ interface NodeCardProps {
   onDelete: () => void
   onUpdate: (patch: Partial<LayoutNode>) => void
   onAddChild: (n: Omit<LayoutNode, 'id'>) => void
+  onMoveToGroup: (nodeId: string, groupId: string) => void
   sensors: ReturnType<typeof useSensors>
   onGroupDragEnd: (e: DragEndEvent) => void
 }
@@ -402,7 +384,7 @@ function DeleteBtn({ onDelete }: { onDelete: () => void }) {
 }
 
 function NodeCard(props: NodeCardProps) {
-  const { node, isSelected, onSelect, onSelectChild, onDelete } = props
+  const { node, isSelected, onSelect, onSelectChild, onDelete, onMoveToGroup } = props
   const ring = isSelected ? 'ring-2 ring-primary' : 'ring-1 ring-outline-variant'
 
   if (node.type === 'divider') {
@@ -461,7 +443,7 @@ function NodeCard(props: NodeCardProps) {
   }
 
   if (node.type === 'group') {
-    return <GroupCard {...props} node={node as GroupNode} onSelectChild={onSelectChild} />
+    return <GroupCard {...props} node={node as GroupNode} onSelectChild={onSelectChild} onMoveToGroup={onMoveToGroup} />
   }
 
   return null
@@ -470,6 +452,7 @@ function NodeCard(props: NodeCardProps) {
 // ── Group card (with inner @dnd-kit sortable) ─────────────────────────────────
 function GroupCard({
   node, monitors, isSelected, onSelect, onSelectChild, onDelete, onUpdate, onAddChild,
+  onMoveToGroup,
   sensors, onGroupDragEnd,
 }: Omit<NodeCardProps, 'node'> & { node: GroupNode }) {
   const { selectedId } = useBuilderStore()
@@ -478,7 +461,7 @@ function GroupCard({
 
   function handleDragOver(e: React.DragEvent) {
     e.preventDefault()
-    e.stopPropagation() // prevent RGL canvas from showing its own drop placeholder
+    e.stopPropagation()
     e.dataTransfer.dropEffect = 'copy'
     setIsDragOver(true)
   }
@@ -488,7 +471,11 @@ function GroupCard({
     e.stopPropagation()
     setIsDragOver(false)
     const type = e.dataTransfer.getData('nodeType')
-    if (type === 'monitor') {
+    if (type === 'rootMonitor') {
+      // Move existing root-level monitor into this group
+      const nodeId = e.dataTransfer.getData('rootNodeId')
+      if (nodeId) onMoveToGroup(nodeId, node.id)
+    } else if (type === 'monitor') {
       const monitorId = Number(e.dataTransfer.getData('monitorId'))
       if (monitorId) onAddChild(createMonitorNode(monitorId))
     } else if (type === 'text') {
