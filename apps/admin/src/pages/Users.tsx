@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../api/client'
+import { api, getCurrentUser } from '../api/client'
 
 interface User {
   id: number
@@ -9,6 +9,12 @@ interface User {
   mustChangePassword: number
   createdAt: number
 }
+
+const ROLES = [
+  { value: 'admin',    label: 'Admin',    desc: 'Full access' },
+  { value: 'operator', label: 'Operator', desc: 'Everything except Users' },
+  { value: 'branding', label: 'Branding', desc: 'Branding & Builder' },
+]
 
 export default function UsersPage() {
   const qc = useQueryClient()
@@ -43,10 +49,18 @@ export default function UsersPage() {
     },
   })
 
+  const roleMutation = useMutation({
+    mutationFn: ({ id, role }: { id: number; role: string }) =>
+      api.patch(`/admin/users/${id}/role`, { role }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/admin/users/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   })
+
+  const currentUser = getCurrentUser()
 
   return (
     <div className="p-8 space-y-6 fade-up">
@@ -189,9 +203,33 @@ export default function UsersPage() {
               >
                 <td className="px-4 py-3 font-medium" style={{ color: 'var(--m3-on-surface)' }}>{user.email}</td>
                 <td className="px-4 py-3">
-                  <span className="font-mono text-xs uppercase px-2 py-0.5 rounded" style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }}>
-                    {user.role}
-                  </span>
+                  {currentUser?.userId === user.id ? (
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-lg" style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-on-surface)' }}>
+                      {ROLES.find((r) => r.value === user.role)?.label ?? user.role}
+                    </span>
+                  ) : (
+                    <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--m3-outline-variant)', width: 'fit-content' }}>
+                      {ROLES.map((r) => {
+                        const active = user.role === r.value
+                        return (
+                          <button
+                            key={r.value}
+                            type="button"
+                            title={r.desc}
+                            onClick={() => !active && roleMutation.mutate({ id: user.id, role: r.value })}
+                            className="text-xs font-medium px-3 py-1.5 transition-colors"
+                            style={{
+                              background: active ? 'var(--m3-on-surface)' : 'transparent',
+                              color: active ? 'var(--m3-surface)' : 'var(--m3-secondary)',
+                              cursor: active ? 'default' : 'pointer',
+                            }}
+                          >
+                            {r.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   {user.mustChangePassword ? (

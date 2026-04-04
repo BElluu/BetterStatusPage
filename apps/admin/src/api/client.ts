@@ -22,6 +22,17 @@ export function mustChangePassword(): boolean {
   return sessionStorage.getItem('mustChangePwd') === '1'
 }
 
+export function getCurrentUser(): { userId: number; email: string; role: string } | null {
+  const token = getToken()
+  if (!token) return null
+  try {
+    const p = JSON.parse(atob(token.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/')))
+    // handle legacy multi-role tokens (roles array) from previous implementation
+    const role: string = p.role ?? (Array.isArray(p.roles) ? (p.roles[0] ?? 'branding') : 'branding')
+    return { userId: p.userId, email: p.email, role }
+  } catch { return null }
+}
+
 async function request<T>(
   method: string,
   path: string,
