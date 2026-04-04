@@ -3,7 +3,7 @@ import { db } from '../db/client.js'
 import {
   monitors, monitorGroups, incidents, incidentUpdates, incidentMonitors, monitorResults, layout, branding,
 } from '../db/schema.js'
-import { eq, desc, gte, ne } from 'drizzle-orm'
+import { eq, desc, gte, ne, inArray } from 'drizzle-orm'
 import { sseService } from '../services/sse.service.js'
 import type { LayoutTree, LayoutNode, GroupNode, MonitorNode } from '@bsp/shared'
 
@@ -73,6 +73,21 @@ export async function publicRoutes(app: FastifyInstance) {
       dayBuckets[date]!.push(r)
     }
 
+    // Fetch incidents affecting this specific monitor
+    const incidentLinks = await db
+      .select({ incidentId: incidentMonitors.incidentId })
+      .from(incidentMonitors)
+      .where(eq(incidentMonitors.monitorId, monitorId))
+    const incidentIds = incidentLinks.map((l) => l.incidentId)
+    type IncidentRow = { id: number; title: string; startedAt: number; resolvedAt: number | null }
+    let relevantIncidents: IncidentRow[] = []
+    if (incidentIds.length > 0) {
+      relevantIncidents = await db
+        .select({ id: incidents.id, title: incidents.title, startedAt: incidents.startedAt, resolvedAt: incidents.resolvedAt })
+        .from(incidents)
+        .where(inArray(incidents.id, incidentIds))
+    }
+
     const summaryDays = []
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -81,7 +96,19 @@ export async function publicRoutes(app: FastifyInstance) {
       const checksUp = bucket.filter((r) => r.status === 'up').length
       const uptimePct = checksTotal > 0 ? (checksUp / checksTotal) * 100 : 100
       const status = checksTotal === 0 ? 'no-data' : checksUp === checksTotal ? 'up' : checksUp === 0 ? 'down' : 'degraded'
-      summaryDays.push({ date, status, uptimePct, checksTotal, checksUp })
+
+      // Incidents active on this day (started before end of day, not resolved before start of day)
+      const dayStart = new Date(date + 'T00:00:00.000Z').getTime()
+      const dayEnd   = dayStart + 86_400_000 - 1
+      const dayIncidents = relevantIncidents
+        .filter((inc) => inc.startedAt <= dayEnd && (inc.resolvedAt === null || inc.resolvedAt >= dayStart))
+        .map((inc) => ({
+          id: inc.id,
+          title: inc.title,
+          durationMs: inc.resolvedAt !== null ? inc.resolvedAt - inc.startedAt : null,
+        }))
+
+      summaryDays.push({ date, status, uptimePct, checksTotal, checksUp, incidents: dayIncidents })
     }
 
     const totalChecks = summaryDays.reduce((a, d) => a + d.checksTotal, 0)

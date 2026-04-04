@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import type {
   LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode,
   IncidentsNode, Monitor, MonitorStatus, Incident,
@@ -629,6 +630,89 @@ function IncidentsBlock({ config, activeIncidents, allIncidents, monitors }: {
 }
 
 /* ─────────────────────────────────────────────────────────────────────
+   UPTIME SHARED TYPES + TOOLTIP
+   ───────────────────────────────────────────────────────────────────── */
+interface UptimeDay {
+  date: string
+  status: string
+  uptimePct: number
+  incidents?: Array<{ id: number; title: string; durationMs: number | null }>
+}
+
+function fmtDuration(ms: number): string {
+  const h = Math.floor(ms / 3_600_000)
+  const m = Math.floor((ms % 3_600_000) / 60_000)
+  return h > 0 ? `${h}h ${m}m` : `${m}m`
+}
+
+function UptimeTooltip({ day, anchorRect }: { day: UptimeDay; anchorRect: DOMRect }) {
+  const W = 232
+  const vw = window.innerWidth
+  let left = anchorRect.left + anchorRect.width / 2 - W / 2
+  left = Math.max(8, Math.min(left, vw - W - 8))
+  const bottom = window.innerHeight - anchorRect.top + 10
+
+  const dateLabel = new Date(day.date + 'T12:00:00Z').toLocaleDateString('en', {
+    month: 'long', day: 'numeric', year: 'numeric',
+  })
+  const hasIncidents = day.incidents && day.incidents.length > 0
+  const noData = day.status === 'no-data'
+
+  return createPortal(
+    <div style={{
+      position: 'fixed',
+      bottom, left,
+      width: W,
+      zIndex: 9999,
+      background: 'var(--m3-surface-container-high)',
+      border: '1px solid var(--m3-outline-variant)',
+      borderRadius: '12px',
+      padding: '12px 14px',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+      pointerEvents: 'none',
+    }}>
+      {/* Date */}
+      <p style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: '12px', color: 'var(--m3-on-surface)', margin: '0 0 4px' }}>
+        {dateLabel}
+      </p>
+
+      {/* Uptime */}
+      {!noData && (
+        <p style={{ fontSize: '11px', color: 'var(--m3-secondary)', margin: '0 0 6px' }}>
+          Uptime: {day.uptimePct.toFixed(1)}%
+        </p>
+      )}
+      {noData && (
+        <p style={{ fontSize: '11px', color: 'var(--m3-secondary)', margin: '0 0 6px' }}>
+          No data
+        </p>
+      )}
+
+      {/* Incidents */}
+      {hasIncidents ? (
+        <div style={{ borderTop: '1px solid var(--m3-outline-variant)', paddingTop: '6px' }}>
+          {day.incidents!.map((inc) => (
+            <div key={inc.id} style={{ marginBottom: '4px' }}>
+              <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--m3-on-surface)', margin: 0 }}>
+                {inc.title}
+              </p>
+              <p style={{ fontSize: '10px', color: 'var(--m3-secondary)', margin: '1px 0 0' }}>
+                {inc.durationMs !== null ? `Resolved in ${fmtDuration(inc.durationMs)}` : 'Ongoing'}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : !noData && (
+        <p style={{ fontSize: '10px', color: 'var(--m3-secondary)', margin: 0, borderTop: '1px solid var(--m3-outline-variant)', paddingTop: '6px' }}>
+          No incidents
+        </p>
+      )}
+    </div>,
+    document.body,
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────
    UPTIME BARS — full 40-bar version (below position)
    ───────────────────────────────────────────────────────────────────── */
 function UptimeBars({ monitorId, barColor, barColorLight, isDown, isDegraded, onData }: {
@@ -639,63 +723,52 @@ function UptimeBars({ monitorId, barColor, barColorLight, isDown, isDegraded, on
   isDegraded: boolean
   onData?: ((pct: number) => void) | undefined
 }) {
-  const [data, setData] = useState<Array<{ date: string; status: string; uptimePct: number }> | null>(null)
+  const [data, setData] = useState<UptimeDay[] | null>(null)
+  const [hovered, setHovered] = useState<{ day: UptimeDay; rect: DOMRect } | null>(null)
 
   useEffect(() => {
     fetch(`/api/v1/public/monitor/${monitorId}/uptime?days=30`)
       .then((r) => r.json())
-      .then((res: { days: typeof data; overallUptimePct: number }) => {
+      .then((res: { days: UptimeDay[]; overallUptimePct: number }) => {
         setData(res.days)
         onData?.(res.overallUptimePct)
       })
       .catch(() => {})
   }, [monitorId])
 
-  if (data) {
-    const barColorOf = (day: { status: string }) =>
-      day.status === 'up' ? `linear-gradient(to top, ${barColor}, ${barColorLight})`
-      : day.status === 'down' ? '#ba1a1a'
-      : day.status === 'degraded' ? '#eab308'
-      : 'var(--m3-outline-variant)'
+  const barColorOf = (day: UptimeDay) =>
+    day.status === 'up' ? `linear-gradient(to top, ${barColor}, ${barColorLight})`
+    : day.status === 'down' ? '#ba1a1a'
+    : day.status === 'degraded' ? '#eab308'
+    : 'var(--m3-outline-variant)'
 
-    return (
+  const bars: UptimeDay[] = data
+    ? data.slice(-40)
+    : Array.from({ length: 40 }).map((_, i) => {
+        const isLast3 = i >= 37
+        return { date: String(i), status: isLast3 && (isDown || isDegraded) ? (isDown ? 'down' : 'degraded') : 'up', uptimePct: 100 }
+      })
+
+  return (
+    <>
+      {hovered && <UptimeTooltip day={hovered.day} anchorRect={hovered.rect} />}
       <div className="flex h-10 items-end" style={{ gap: '2px' }}>
-        {data.slice(-40).map((day) => (
+        {bars.map((day, i) => (
           <div
-            key={day.date}
+            key={day.date ?? i}
             className="flex-1 rounded-sm"
             style={{
               height: '100%',
               background: barColorOf(day),
-              opacity: day.status === 'no-data' ? 0.3 : 1,
+              opacity: day.status === 'no-data' ? 0.3 : !data ? 0.7 : 1,
+              cursor: 'default',
             }}
-            title={`${day.date}: ${day.status === 'no-data' ? 'No data' : `${day.uptimePct.toFixed(1)}%`}`}
+            onMouseEnter={(e) => data && setHovered({ day, rect: (e.currentTarget as HTMLDivElement).getBoundingClientRect() })}
+            onMouseLeave={() => setHovered(null)}
           />
         ))}
       </div>
-    )
-  }
-
-  /* Skeleton / placeholder bars */
-  return (
-    <div className="flex h-10 items-end" style={{ gap: '2px' }}>
-      {Array.from({ length: 40 }).map((_, i) => {
-        const isLast3 = i >= 37
-        return (
-          <div
-            key={i}
-            className="flex-1 rounded-sm"
-            style={{
-              height: '100%',
-              background: (isDown && isLast3) ? '#ba1a1a'
-                : (isDegraded && isLast3) ? '#eab308'
-                : `linear-gradient(to top, ${barColor}, ${barColorLight})`,
-              opacity: isLast3 && (isDown || isDegraded) ? 1 : 0.7,
-            }}
-          />
-        )
-      })}
-    </div>
+    </>
   )
 }
 
@@ -709,14 +782,15 @@ function UptimeBarsInline({ monitorId, barColor, barColorLight }: {
   barColor: string
   barColorLight: string
 }) {
-  const [data, setData] = useState<Array<{ date: string; status: string; uptimePct: number }> | null>(null)
+  const [data, setData] = useState<UptimeDay[] | null>(null)
   const [barCount, setBarCount] = useState(30)
+  const [hovered, setHovered] = useState<{ day: UptimeDay; rect: DOMRect } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetch(`/api/v1/public/monitor/${monitorId}/uptime?days=30`)
       .then((r) => r.json())
-      .then((res: { days: typeof data }) => { setData(res.days) })
+      .then((res: { days: UptimeDay[] }) => { setData(res.days) })
       .catch(() => {})
   }, [monitorId])
 
@@ -732,33 +806,38 @@ function UptimeBarsInline({ monitorId, barColor, barColorLight }: {
     return () => ro.disconnect()
   }, [])
 
-  const barColorOf = (day: { status: string }) =>
+  const barColorOf = (day: UptimeDay) =>
     day.status === 'up' ? `linear-gradient(to top, ${barColor}, ${barColorLight})`
     : day.status === 'down' ? '#ba1a1a'
     : day.status === 'degraded' ? '#eab308'
     : 'var(--m3-outline-variant)'
 
-  const bars = data
+  const bars: UptimeDay[] = data
     ? data.slice(-barCount)
     : Array.from({ length: barCount }).map((_, i) => ({ date: String(i), status: 'up', uptimePct: 100 }))
 
   return (
-    <div
-      ref={containerRef}
-      style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'stretch', gap: '2px', height: '48px' }}
-      title="30-day uptime"
-    >
-      {bars.map((day, i) => (
-        <div
-          key={day.date ?? i}
-          style={{
-            flex: 1,
-            borderRadius: '3px',
-            background: barColorOf(day),
-            opacity: day.status === 'no-data' ? 0.35 : data ? 1 : 0.5,
-          }}
-        />
-      ))}
-    </div>
+    <>
+      {hovered && <UptimeTooltip day={hovered.day} anchorRect={hovered.rect} />}
+      <div
+        ref={containerRef}
+        style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'stretch', gap: '2px', height: '48px' }}
+      >
+        {bars.map((day, i) => (
+          <div
+            key={day.date ?? i}
+            style={{
+              flex: 1,
+              borderRadius: '3px',
+              background: barColorOf(day),
+              opacity: day.status === 'no-data' ? 0.35 : data ? 1 : 0.5,
+              cursor: 'default',
+            }}
+            onMouseEnter={(e) => data && setHovered({ day, rect: (e.currentTarget as HTMLDivElement).getBoundingClientRect() })}
+            onMouseLeave={() => setHovered(null)}
+          />
+        ))}
+      </div>
+    </>
   )
 }
