@@ -120,25 +120,23 @@ export default function App() {
       {/* ── Top Navigation ── */}
       <header style={{ background: 'var(--m3-surface)', position: 'sticky', top: 0, zIndex: 50 }}>
         <nav className="flex justify-between items-center px-8 py-5 max-w-[1440px] mx-auto">
-          {/* Logo + Site Name */}
-          <div className="flex items-center gap-3">
+          {/* Logo */}
+          <div className="flex items-center">
             {branding?.logoType === 'text' && branding.logoText ? (
               <span
                 className="bsp-site-name font-headline font-extrabold"
-                style={{ fontSize: '20px', color: 'var(--m3-on-surface)', letterSpacing: '-0.01em' }}
+                style={{ fontSize: '22px', color: 'var(--m3-on-surface)', letterSpacing: '-0.01em' }}
               >
                 {branding.logoText}
               </span>
             ) : branding?.logoUrl ? (
-              <img src={branding.logoUrl} alt="Logo" className="h-7 object-contain" />
-            ) : null}
-            {!(branding?.logoType === 'text' && branding.logoText) && (
-              <span
-                className="bsp-site-name font-headline font-extrabold text-xl tracking-tight"
-                style={{ color: 'var(--m3-on-surface)' }}
-              >
-                {siteName}
-              </span>
+              <img src={branding.logoUrl} alt={siteName} style={{ height: '48px', objectFit: 'contain' }} />
+            ) : (
+              <img
+                src={isDark ? '/logo_dark.png' : '/logo_light.png'}
+                alt={siteName}
+                style={{ height: '48px', objectFit: 'contain' }}
+              />
             )}
           </div>
 
@@ -300,13 +298,14 @@ export default function App() {
 
         {/* ── Footer ── */}
         <footer
-          className="bsp-footer text-center text-xs uppercase tracking-widest py-12 mt-4"
+          className="bsp-footer text-center py-12 mt-4"
           style={{
             color: 'var(--m3-secondary)',
             borderTop: '0',
           }}
         >
-          {siteName} · Reliability by Design.
+          <img src={isDark ? '/logo_dark.png' : '/logo_light.png'} alt={siteName} style={{ height: '80px', objectFit: 'contain', margin: '0 auto 16px', opacity: 0.75 }} />
+          <p className="text-xs uppercase tracking-widest">{siteName} · Reliability by Design.</p>
         </footer>
       </main>
     </div>

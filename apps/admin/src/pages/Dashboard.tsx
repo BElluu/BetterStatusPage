@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import type { Monitor, Incident } from '@bsp/shared'
 import { StatusBadge } from '../components/monitors/StatusBadge'
+import { useDarkMode } from '../hooks/useDarkMode'
 
 export default function DashboardPage() {
+  const [isDark] = useDarkMode()
   const { data: monitors = [] } = useQuery<Monitor[]>({
     queryKey: ['monitors'],
     queryFn: () => api.get('/admin/monitors'),
@@ -267,12 +269,10 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {/* Footer spacer */}
-      <footer
-        className="text-xs uppercase tracking-widest py-8 text-center"
-        style={{ color: 'var(--m3-secondary)', borderTop: '0' }}
-      >
-        BetterStatusPage · Reliability by Design.
+      {/* Footer */}
+      <footer className="py-10 text-center" style={{ color: 'var(--m3-secondary)' }}>
+        <img src={isDark ? '/admin/logo_dark.png' : '/admin/logo_light.png'} alt="BetterStatusPage" style={{ height: '56px', objectFit: 'contain', margin: '0 auto 10px', opacity: 0.55 }} />
+        <p className="text-xs uppercase tracking-widest">BetterStatusPage · Reliability by Design.</p>
       </footer>
     </div>
   )
