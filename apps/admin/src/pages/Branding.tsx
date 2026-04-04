@@ -8,6 +8,7 @@ interface BrandingForm {
   siteName: string
   logoType: 'image' | 'text'
   logoText: string
+  logoUrl?: string | null
   primaryColor: string
   accentColor: string
   backgroundColor: string
@@ -80,6 +81,7 @@ export default function BrandingPage() {
         enabled: form.enabled ? 1 : 0,
         customCss: form.customCss || null,
         logoText: form.logoText || null,
+        ...(form.logoUrl === null ? { logoUrl: null } : {}),
       })
       if (logoFile) {
         const fd = new FormData()
@@ -97,7 +99,7 @@ export default function BrandingPage() {
   const set = (key: keyof BrandingForm) => (value: string) =>
     setForm((f) => ({ ...f, [key]: value }))
 
-  const currentLogoUrl = logoPreviewUrl ?? branding?.logoUrl ?? null
+  const currentLogoUrl = form.logoUrl === null ? null : (logoPreviewUrl ?? branding?.logoUrl ?? null)
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -143,7 +145,22 @@ export default function BrandingPage() {
                 {form.logoType === 'image' ? (
                   <>
                     {currentLogoUrl && (
-                      <img src={currentLogoUrl} alt="Logo" className="h-8 object-contain rounded px-2 py-1 mb-2" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }} />
+                      <div className="flex items-center gap-2 mb-2">
+                        <img src={currentLogoUrl} alt="Logo" className="h-8 object-contain rounded px-2 py-1" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }} />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLogoFile(null)
+                            setLogoPreviewUrl(null)
+                            setForm((f) => ({ ...f, logoUrl: null as unknown as string }))
+                          }}
+                          className="text-xs px-2 py-1 rounded-lg transition-colors"
+                          style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
+                          title="Usuń logo"
+                        >
+                          ×
+                        </button>
+                      </div>
                     )}
                     <input type="file" accept="image/*"
                       onChange={(e) => {

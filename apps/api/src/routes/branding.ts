@@ -27,7 +27,7 @@ const DEFAULTS = {
   logoText: null as string | null,
 }
 
-type BrandingBody = Partial<Omit<typeof DEFAULTS, 'logoUrl' | 'faviconUrl'>>
+type BrandingBody = Partial<Omit<typeof DEFAULTS, 'faviconUrl'> & { logoUrl: string | null }>
 
 export async function brandingRoutes(app: FastifyInstance) {
   app.get('/', async () => {
@@ -45,7 +45,7 @@ export async function brandingRoutes(app: FastifyInstance) {
       'siteName', 'primaryColor', 'accentColor', 'backgroundColor',
       'cardBackground', 'cardBorderColor', 'textColor', 'textMutedColor',
       'statusUpColor', 'statusDownColor', 'statusDegradedColor', 'customCss', 'enabled',
-      'logoType', 'logoText',
+      'logoType', 'logoText', 'logoUrl',
     ] as const
     for (const field of fields) {
       if (req.body[field] !== undefined) updates[field] = req.body[field]

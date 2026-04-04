@@ -30,14 +30,7 @@ export default function Layout() {
         {/* Brand */}
         <div className="mb-6 px-4 pt-5">
           <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'var(--m3-on-surface)' }}
-            >
-              <span className="material-symbols-outlined text-xl" style={{ color: 'var(--m3-surface)', fontSize: '20px' }}>
-                architecture
-              </span>
-            </div>
+            <img src={'/admin/icon.png'} alt="BetterStatusPage" style={{ width: '40px', height: '40px', objectFit: 'contain', flexShrink: 0 }} />
             <div>
               <p className="font-headline font-bold text-base leading-none" style={{ color: 'var(--m3-on-surface)' }}>
                 Admin Console
