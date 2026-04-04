@@ -7,6 +7,8 @@ import MonitorsPage from './pages/Monitors'
 import IncidentsPage from './pages/Incidents'
 import BuilderPage from './pages/Builder'
 import BrandingPage from './pages/Branding'
+import ChangePasswordPage from './pages/ChangePassword'
+import UsersPage from './pages/Users'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated()) {
@@ -33,6 +35,8 @@ export default function App() {
           <Route path="incidents" element={<IncidentsPage />} />
           <Route path="builder" element={<BuilderPage />} />
           <Route path="branding" element={<BrandingPage />} />
+          <Route path="change-password" element={<ChangePasswordPage />} />
+          <Route path="users" element={<UsersPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/admin/" replace />} />
       </Routes>

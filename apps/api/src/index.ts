@@ -15,6 +15,7 @@ import { groupRoutes } from './routes/groups.js'
 import { incidentRoutes } from './routes/incidents.js'
 import { layoutRoutes } from './routes/layout.js'
 import { brandingRoutes } from './routes/branding.js'
+import { userRoutes } from './routes/users.js'
 import { publicRoutes } from './routes/public.js'
 import { startScheduler } from './workers/scheduler.js'
 
@@ -70,6 +71,7 @@ await app.register(async (adminApp) => {
   await adminApp.register(incidentRoutes, { prefix: '/incidents' })
   await adminApp.register(layoutRoutes, { prefix: '/layout' })
   await adminApp.register(brandingRoutes, { prefix: '/branding' })
+  await adminApp.register(userRoutes, { prefix: '/users' })
 }, { prefix: '/api/v1/admin' })
 
 // Serve built frontend apps in production

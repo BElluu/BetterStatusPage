@@ -8,6 +8,7 @@ const navItems = [
   { to: '/admin/incidents', label: 'Incidents', icon: 'warning' },
   { to: '/admin/builder', label: 'Page Builder', icon: 'dashboard_customize' },
   { to: '/admin/branding', label: 'Branding', icon: 'palette' },
+  { to: '/admin/users', label: 'Users', icon: 'group' },
 ]
 
 export default function Layout() {
