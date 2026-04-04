@@ -762,6 +762,10 @@ function UptimeBars({ monitorId, barColor, barColorLight, isDown, isDegraded, on
               background: barColorOf(day),
               opacity: day.status === 'no-data' ? 0.3 : !data ? 0.7 : 1,
               cursor: 'default',
+              transition: 'filter 0.12s ease, transform 0.12s ease',
+              transformOrigin: 'bottom',
+              filter: hovered?.day.date === day.date ? 'brightness(1.5)' : 'brightness(1)',
+              transform: hovered?.day.date === day.date ? 'scaleY(1.08)' : 'scaleY(1)',
             }}
             onMouseEnter={(e) => data && setHovered({ day, rect: (e.currentTarget as HTMLDivElement).getBoundingClientRect() })}
             onMouseLeave={() => setHovered(null)}
@@ -832,6 +836,10 @@ function UptimeBarsInline({ monitorId, barColor, barColorLight }: {
               background: barColorOf(day),
               opacity: day.status === 'no-data' ? 0.35 : data ? 1 : 0.5,
               cursor: 'default',
+              transition: 'filter 0.12s ease, transform 0.12s ease',
+              transformOrigin: 'bottom',
+              filter: hovered?.day.date === day.date ? 'brightness(1.5)' : 'brightness(1)',
+              transform: hovered?.day.date === day.date ? 'scaleY(1.08)' : 'scaleY(1)',
             }}
             onMouseEnter={(e) => data && setHovered({ day, rect: (e.currentTarget as HTMLDivElement).getBoundingClientRect() })}
             onMouseLeave={() => setHovered(null)}
