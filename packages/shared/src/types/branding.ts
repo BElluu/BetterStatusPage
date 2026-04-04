@@ -14,5 +14,8 @@ export interface Branding {
   statusDownColor: string
   statusDegradedColor: string
   customCss: string | null
+  enabled: number
+  logoType: string
+  logoText: string | null
   updatedAt: number
 }

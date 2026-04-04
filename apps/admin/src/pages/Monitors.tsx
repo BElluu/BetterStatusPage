@@ -35,8 +35,8 @@ export default function MonitorsPage() {
     <div className="p-8 space-y-6 fade-up">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--sig-text)' }}>Monitors</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--sig-text-muted)' }}>
+          <h1 className="font-headline font-bold text-2xl" style={{ color: 'var(--m3-on-surface)' }}>Monitors</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
             {monitors.length} monitor{monitors.length !== 1 ? 's' : ''} · 15s refresh
           </p>
         </div>
@@ -44,8 +44,8 @@ export default function MonitorsPage() {
           onClick={() => setShowCreate(true)}
           className="text-sm font-semibold px-4 py-2.5 rounded-lg transition-all"
           style={{
-            background: 'linear-gradient(135deg, #00d4af 0%, #00a88a 100%)',
-            color: '#080d18',
+            background: 'var(--m3-primary)',
+            color: 'var(--m3-on-primary)',
           }}
         >
           + Add Monitor
@@ -53,17 +53,17 @@ export default function MonitorsPage() {
       </div>
 
       {isLoading ? (
-        <div className="text-sm" style={{ color: 'var(--sig-text-muted)' }}>Loading…</div>
+        <div className="text-sm" style={{ color: 'var(--m3-secondary)' }}>Loading…</div>
       ) : (
-        <div className="glass rounded-xl overflow-hidden">
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
           <table className="w-full text-sm">
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--sig-border)' }}>
+              <tr style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
                 {['Name', 'Type', 'Group', 'Interval', 'Status', 'Last Check', ''].map((h) => (
                   <th
                     key={h}
                     className={`px-4 py-3 font-mono text-xs uppercase tracking-wider ${h === '' ? 'text-right' : 'text-left'}`}
-                    style={{ color: 'var(--sig-text-muted)' }}
+                    style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
                   >
                     {h}
                   </th>
@@ -76,30 +76,32 @@ export default function MonitorsPage() {
                 return (
                   <tr
                     key={monitor.id}
-                    className="glass-hover"
-                    style={{ borderTop: i > 0 ? '1px solid var(--sig-border)' : 'none' }}
+                    className="transition-colors"
+                    style={{ borderTop: i > 0 ? '1px solid var(--m3-outline-variant)' : 'none' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--m3-surface-container)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = '')}
                   >
-                    <td className="px-4 py-3 font-medium" style={{ color: 'var(--sig-text)' }}>
+                    <td className="px-4 py-3 font-medium" style={{ color: 'var(--m3-on-surface)' }}>
                       {monitor.name}
                     </td>
                     <td className="px-4 py-3">
                       <span
                         className="font-mono text-xs uppercase px-1.5 py-0.5 rounded"
-                        style={{ color: 'var(--sig-text-muted)', background: 'rgba(255,255,255,0.05)' }}
+                        style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
                       >
                         {monitor.type}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm" style={{ color: 'var(--sig-text-muted)' }}>
+                    <td className="px-4 py-3 text-sm" style={{ color: 'var(--m3-secondary)' }}>
                       {group?.name ?? '—'}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--sig-text-muted)' }}>
+                    <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
                       {monitor.intervalSecs}s
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={monitor.currentStatus} />
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--sig-text-muted)' }}>
+                    <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
                       {monitor.lastCheckedAt
                         ? new Date(monitor.lastCheckedAt).toLocaleTimeString()
                         : '—'}
@@ -136,7 +138,7 @@ export default function MonitorsPage() {
               })}
               {monitors.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-sm" style={{ color: 'var(--sig-text-muted)' }}>
+                  <td colSpan={7} className="px-4 py-12 text-center text-sm" style={{ color: 'var(--m3-secondary)' }}>
                     No monitors yet. Click "+ Add Monitor" to create one.
                   </td>
                 </tr>
@@ -178,14 +180,14 @@ function ActionBtn({
       onClick={onClick}
       title={title}
       className="p-1.5 rounded-md transition-all"
-      style={{ color: danger ? 'var(--sig-red)' : 'var(--sig-text-muted)' }}
+      style={{ color: danger ? 'var(--m3-down)' : 'var(--m3-secondary)' }}
       onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLButtonElement).style.background = danger ? 'rgba(255,77,106,0.1)' : 'rgba(255,255,255,0.06)'
-        ;(e.currentTarget as HTMLButtonElement).style.color = danger ? 'var(--sig-red)' : 'var(--sig-text)'
+        ;(e.currentTarget as HTMLButtonElement).style.background = danger ? 'var(--m3-down-bg)' : 'var(--m3-surface-container-high)'
+        ;(e.currentTarget as HTMLButtonElement).style.color = danger ? 'var(--m3-down)' : 'var(--m3-on-surface)'
       }}
       onMouseLeave={(e) => {
         ;(e.currentTarget as HTMLButtonElement).style.background = ''
-        ;(e.currentTarget as HTMLButtonElement).style.color = danger ? 'var(--sig-red)' : 'var(--sig-text-muted)'
+        ;(e.currentTarget as HTMLButtonElement).style.color = danger ? 'var(--m3-down)' : 'var(--m3-secondary)'
       }}
     >
       {children}

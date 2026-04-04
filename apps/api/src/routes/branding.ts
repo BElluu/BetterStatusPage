@@ -22,6 +22,9 @@ const DEFAULTS = {
   statusDownColor: '#ef4444',
   statusDegradedColor: '#f59e0b',
   customCss: null as string | null,
+  enabled: 0 as number,
+  logoType: 'image' as string,
+  logoText: null as string | null,
 }
 
 type BrandingBody = Partial<Omit<typeof DEFAULTS, 'logoUrl' | 'faviconUrl'>>
@@ -41,7 +44,8 @@ export async function brandingRoutes(app: FastifyInstance) {
     const fields = [
       'siteName', 'primaryColor', 'accentColor', 'backgroundColor',
       'cardBackground', 'cardBorderColor', 'textColor', 'textMutedColor',
-      'statusUpColor', 'statusDownColor', 'statusDegradedColor', 'customCss',
+      'statusUpColor', 'statusDownColor', 'statusDegradedColor', 'customCss', 'enabled',
+      'logoType', 'logoText',
     ] as const
     for (const field of fields) {
       if (req.body[field] !== undefined) updates[field] = req.body[field]

@@ -1,118 +1,194 @@
 import type { Incident, Monitor } from '@bsp/shared'
 
-const statusColors: Record<string, string> = {
-  investigating: '#ff4d6a',
-  identified:    '#f97316',
-  monitoring:    '#f5a623',
-  resolved:      '#00d4af',
+/* ── Per-status visual config ─────────────────────────────────────── */
+const statusCfg: Record<string, { label: string; color: string; dotColor: string; badgeBg: string }> = {
+  investigating: { label: 'Investigating', color: '#ba1a1a', dotColor: '#ba1a1a', badgeBg: 'rgba(186,26,26,0.08)' },
+  identified:    { label: 'Identified',    color: '#eab308', dotColor: '#eab308', badgeBg: 'rgba(234,179,8,0.10)' },
+  monitoring:    { label: 'Monitoring',    color: '#3980f4', dotColor: '#3980f4', badgeBg: 'rgba(57,128,244,0.10)' },
+  resolved:      { label: 'Resolved',      color: '#22c55e', dotColor: '#22c55e', badgeBg: 'rgba(34,197,94,0.10)' },
 }
 
-const statusLabels: Record<string, string> = {
-  investigating: 'Investigating',
-  identified:    'Identified',
-  monitoring:    'Monitoring',
-  resolved:      'Resolved',
+function formatDate(ms: number) {
+  return new Date(ms).toLocaleDateString('en', { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
-const impactLabels: Record<string, string> = {
-  none:     'No Impact',
-  minor:    'Minor Impact',
-  major:    'Major Impact',
-  critical: 'Critical Impact',
+function formatTime(ms: number) {
+  return new Date(ms).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC'
+}
+
+function formatDuration(startMs: number, endMs: number) {
+  const diff = Math.abs(endMs - startMs)
+  const h = Math.floor(diff / 3_600_000)
+  const m = Math.floor((diff % 3_600_000) / 60_000)
+  return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
 export function IncidentCard({ incident, monitors = [] }: { incident: Incident; monitors?: Monitor[] }) {
-  const color = statusColors[incident.status] ?? '#5a6a8a'
+  const cfg      = statusCfg[incident.status] ?? statusCfg['investigating']!
+  const isActive = incident.status !== 'resolved'
+  const updates  = incident.updates ?? []
 
   const affectedMonitors = (incident.monitorIds ?? [])
     .map((id) => monitors.find((m) => m.id === id))
     .filter(Boolean) as Monitor[]
 
-  return (
-    <div
-      className="glass rounded-xl overflow-hidden"
-      style={{ borderLeft: `3px solid ${color}` }}
-    >
-      {/* Header */}
-      <div className="px-4 pt-4 pb-3 flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <h3 className="font-display font-bold text-base leading-snug" style={{ color: 'var(--sig-text)' }}>
-            {incident.title}
-          </h3>
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <span
-              className="text-xs font-medium px-2 py-0.5 rounded-full"
-              style={{ background: `${color}18`, color, border: `1px solid ${color}30` }}
-            >
-              {statusLabels[incident.status] ?? incident.status}
-            </span>
-            <span className="text-xs" style={{ color: 'var(--sig-text-muted)' }}>
-              {impactLabels[incident.impact] ?? incident.impact}
-            </span>
-          </div>
+  /* ── Resolved: slim row ──────────────────────────────────────────── */
+  if (!isActive) {
+    const duration = incident.resolvedAt ? formatDuration(incident.startedAt, incident.resolvedAt) : null
+    return (
+      <div
+        className="group transition-colors"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '200px 1fr auto',
+          gap: '40px',
+          alignItems: 'center',
+          padding: '28px 40px',
+          borderBottom: '1px solid var(--m3-outline-variant)',
+          borderRadius: '16px',
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--m3-surface-container-low)' }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = '' }}
+      >
+        {/* Date */}
+        <div className="font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--m3-secondary)' }}>
+          {formatDate(incident.startedAt)}
         </div>
-        <span className="font-mono text-xs flex-shrink-0 mt-0.5" style={{ color: 'var(--sig-text-muted)' }}>
-          {new Date(incident.startedAt).toLocaleDateString()}
+
+        {/* Title + subtitle */}
+        <div>
+          <h4 className="font-headline font-bold text-xl" style={{ color: 'var(--m3-on-surface)' }}>
+            {incident.title}
+          </h4>
+          {duration && (
+            <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
+              Resolved in {duration}.{affectedMonitors.length > 0 && ` Affected: ${affectedMonitors.map((m) => m.name).join(', ')}.`}
+            </p>
+          )}
+        </div>
+
+        {/* Badge */}
+        <span
+          className="font-bold text-xs uppercase tracking-wide whitespace-nowrap"
+          style={{
+            padding: '6px 16px',
+            borderRadius: '999px',
+            background: 'var(--m3-surface-container-high)',
+            color: 'var(--m3-secondary)',
+          }}
+        >
+          Resolved
         </span>
       </div>
+    )
+  }
 
-      {/* Affected monitors */}
-      {affectedMonitors.length > 0 && (
-        <div className="px-4 pb-3 flex flex-wrap gap-1.5">
-          {affectedMonitors.map((m) => (
-            <span
-              key={m.id}
-              className="text-xs px-2 py-0.5 rounded-full font-mono"
-              style={{
-                background: 'rgba(255,255,255,0.05)',
-                color: 'var(--sig-text-muted)',
-                border: '1px solid rgba(255,255,255,0.08)',
-              }}
-            >
-              {m.name}
-            </span>
-          ))}
+  /* ── Active: full card ───────────────────────────────────────────── */
+  return (
+    <div
+      style={{
+        background: 'var(--m3-surface-container-low)',
+        borderRadius: '2rem',
+        padding: '40px',
+        borderLeft: `4px solid ${cfg.color}`,
+      }}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '40px' }}>
+
+        {/* ── Date column ── */}
+        <div className="font-mono text-sm uppercase tracking-widest pt-1" style={{ color: 'var(--m3-secondary)' }}>
+          {formatDate(incident.startedAt)}
+          <br />
+          <span className="text-xs">{formatTime(incident.startedAt)}</span>
         </div>
-      )}
 
-      {/* Updates timeline */}
-      {(incident.updates ?? []).length > 0 && (
-        <div
-          className="px-4 pb-4 space-y-3"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
-        >
-          <div className="pt-3 space-y-3">
-            {(incident.updates ?? []).slice(0, 3).map((update, i) => (
-              <div key={update.id} className="flex gap-3">
-                {/* Timeline line */}
-                <div className="flex flex-col items-center flex-shrink-0">
-                  <div
-                    className="w-2 h-2 rounded-full flex-shrink-0 mt-0.5"
-                    style={{ background: i === 0 ? color : 'rgba(255,255,255,0.12)' }}
-                  />
-                  {i < (incident.updates ?? []).slice(0, 3).length - 1 && (
-                    <div className="w-px flex-1 mt-1" style={{ background: 'rgba(255,255,255,0.07)', minHeight: 16 }} />
-                  )}
-                </div>
-                {/* Content */}
-                <div className="flex-1 min-w-0 pb-1">
-                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                    <span className="text-xs font-medium" style={{ color: i === 0 ? color : 'var(--sig-text-muted)' }}>
-                      {statusLabels[update.status] ?? update.status}
+        {/* ── Content column ── */}
+        <div>
+          {/* Status badge */}
+          <span
+            className="inline-block font-bold text-xs uppercase tracking-tight rounded-full mb-4"
+            style={{
+              padding: '4px 12px',
+              background: cfg.badgeBg,
+              color: cfg.color,
+            }}
+          >
+            {cfg.label}
+            {isActive && (
+              <span
+                className="animate-pulse inline-block rounded-full ml-1.5"
+                style={{ width: 5, height: 5, background: cfg.color, verticalAlign: 'middle' }}
+              />
+            )}
+          </span>
+
+          {/* Title */}
+          <h3
+            className="font-headline font-bold mb-4 leading-tight"
+            style={{ fontSize: '28px', color: 'var(--m3-on-surface)' }}
+          >
+            {incident.title}
+          </h3>
+
+          {/* Affected monitors */}
+          {affectedMonitors.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-6">
+              {affectedMonitors.map((m) => (
+                <span
+                  key={m.id}
+                  className="text-xs font-medium"
+                  style={{
+                    padding: '3px 10px',
+                    borderRadius: '999px',
+                    background: 'var(--m3-surface-container)',
+                    color: 'var(--m3-secondary)',
+                  }}
+                >
+                  {m.name}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Timeline updates */}
+          {updates.length > 0 && (
+            <div className="space-y-6" style={{ borderLeft: '2px solid var(--m3-outline-variant)', paddingLeft: '32px' }}>
+              {updates.slice(0, 4).map((update, i) => {
+                const updateCfg = statusCfg[update.status] ?? statusCfg['investigating']!
+                const isLatest  = i === 0
+                return (
+                  <div key={update.id} className="relative">
+                    {/* Timeline dot */}
+                    <span
+                      className="absolute rounded-full"
+                      style={{
+                        left: '-37px',
+                        top: '4px',
+                        width: '8px',
+                        height: '8px',
+                        background: isLatest ? updateCfg.dotColor : 'var(--m3-outline-variant)',
+                        outline: '3px solid var(--m3-surface-container-low)',
+                      }}
+                    />
+                    <span
+                      className="block text-xs font-bold uppercase tracking-widest mb-1"
+                      style={{ color: isLatest ? updateCfg.color : 'var(--m3-secondary)' }}
+                    >
+                      {formatTime(update.postedAt)} — {updateCfg.label}
                     </span>
-                    <span className="font-mono text-xs" style={{ color: 'var(--sig-text-muted)' }}>
-                      {new Date(update.postedAt).toLocaleString()}
-                    </span>
+                    <p
+                      className="text-sm font-sans leading-relaxed"
+                      style={{ color: 'var(--m3-on-surface)', opacity: isLatest ? 1 : 0.7 }}
+                    >
+                      {update.body}
+                    </p>
                   </div>
-                  <p className="text-sm leading-relaxed" style={{ color: 'var(--sig-text)' }}>
-                    {update.body}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

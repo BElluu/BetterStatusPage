@@ -1,6 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
-import type { LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode, Monitor, MonitorStatus } from '@bsp/shared'
+import { useState, useEffect } from 'react'
+import type {
+  LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode,
+  IncidentsNode, Monitor, MonitorStatus, Incident,
+} from '@bsp/shared'
 import Markdown from 'react-markdown'
+import { IncidentCard } from './IncidentCard'
 
 interface StatusInfo {
   status: MonitorStatus
@@ -12,9 +16,14 @@ interface Props {
   tree: LayoutTree
   monitors: Monitor[]
   statusMap: Record<number, StatusInfo>
+  activeIncidents?: Incident[]
+  allIncidents?: Incident[]
 }
 
-export function PageRenderer({ tree, monitors, statusMap }: Props) {
+export function PageRenderer({
+  tree, monitors, statusMap,
+  activeIncidents = [], allIncidents = [],
+}: Props) {
   const sorted = [...tree.children].sort((a, b) => {
     const ay = a.grid?.y ?? 0, ax = a.grid?.x ?? 0
     const by = b.grid?.y ?? 0, bx = b.grid?.x ?? 0
@@ -26,7 +35,7 @@ export function PageRenderer({ tree, monitors, statusMap }: Props) {
       style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '10px',
+        gap: '24px',
       }}
     >
       {sorted.map((node) => (
@@ -35,30 +44,63 @@ export function PageRenderer({ tree, monitors, statusMap }: Props) {
           style={{
             gridColumn: `${(node.grid?.x ?? 0) + 1} / span ${node.grid?.w ?? 3}`,
             minWidth: 0,
-            overflow: 'hidden',
           }}
         >
-          <NodeRenderer node={node} monitors={monitors} statusMap={statusMap} />
+          <NodeRenderer
+            node={node}
+            monitors={monitors}
+            statusMap={statusMap}
+            activeIncidents={activeIncidents}
+            allIncidents={allIncidents}
+          />
         </div>
       ))}
     </section>
   )
 }
 
-function NodeRenderer({ node, monitors, statusMap }: { node: LayoutNode; monitors: Monitor[]; statusMap: Record<number, StatusInfo> }) {
+function NodeRenderer({
+  node, monitors, statusMap, activeIncidents, allIncidents,
+}: {
+  node: LayoutNode
+  monitors: Monitor[]
+  statusMap: Record<number, StatusInfo>
+  activeIncidents: Incident[]
+  allIncidents: Incident[]
+}) {
   if (node.type === 'divider') {
     return (
-      <div className="bsp-divider my-5 flex items-center gap-3">
-        <span className="flex-1 h-px" style={{ background: 'var(--bsp-card-border)' }} />
+      <div className="bsp-divider my-8 flex items-center gap-3">
+        <span className="flex-1 h-px" style={{ background: 'var(--m3-outline-variant)' }} />
       </div>
     )
   }
 
   if (node.type === 'text') {
-    const textNode = node as TextNode
+    const n = node as TextNode
     return (
-      <div className="bsp-text-block prose prose-invert prose-sm max-w-none py-2 px-1" style={{ color: 'var(--bsp-text-muted)' }}>
-        <Markdown>{textNode.markdown}</Markdown>
+      <div
+        className="bsp-text-block py-4 px-2"
+        style={{ color: 'var(--m3-on-surface-variant)' }}
+      >
+        <Markdown
+          components={{
+            h1: ({ children }) => (
+              <h1 className="font-headline font-extrabold text-4xl tracking-tight mb-3" style={{ color: 'var(--m3-on-surface)' }}>{children}</h1>
+            ),
+            h2: ({ children }) => (
+              <h2 className="font-headline font-bold text-2xl tracking-tight mb-2" style={{ color: 'var(--m3-on-surface)' }}>{children}</h2>
+            ),
+            h3: ({ children }) => (
+              <h3 className="font-headline font-semibold text-xl mb-2" style={{ color: 'var(--m3-on-surface)' }}>{children}</h3>
+            ),
+            p: ({ children }) => (
+              <p className="font-sans text-base leading-relaxed mb-3" style={{ color: 'var(--m3-secondary)' }}>{children}</p>
+            ),
+          }}
+        >
+          {n.markdown}
+        </Markdown>
       </div>
     )
   }
@@ -68,111 +110,424 @@ function NodeRenderer({ node, monitors, statusMap }: { node: LayoutNode; monitor
     const monitor = monitors.find((m) => m.id === monNode.monitorId)
     if (!monitor) return null
     const live = statusMap[monitor.id]
+    const liveMonitor = { ...monitor, currentStatus: live?.status ?? monitor.currentStatus }
+
+    if ((monNode.cardVariant ?? 'default') === 'compact') {
+      return (
+        <CompactMonitorRow
+          monitor={liveMonitor}
+          responseMs={live?.responseMs ?? null}
+          showResponseTime={monNode.showResponseTime}
+          showMonitorType={monNode.showMonitorType ?? false}
+        />
+      )
+    }
+
     return (
-      <MonitorRow
-        monitor={{ ...monitor, currentStatus: live?.status ?? monitor.currentStatus }}
+      <ServiceMonitorCard
+        monitor={liveMonitor}
         responseMs={live?.responseMs ?? null}
+        monitorId={monitor.id}
         showUptimeBar={monNode.showUptimeBar}
         showResponseTime={monNode.showResponseTime}
-        uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
         showMonitorType={monNode.showMonitorType ?? false}
+        uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
         showUptimePct={monNode.showUptimePct ?? false}
         gridW={monNode.grid?.w ?? 1}
-        monitorId={monitor.id}
       />
     )
   }
 
   if (node.type === 'group') {
-    return <GroupBlock groupNode={node as GroupNode} monitors={monitors} statusMap={statusMap} />
+    return (
+      <GroupBlock
+        groupNode={node as GroupNode}
+        monitors={monitors}
+        statusMap={statusMap}
+      />
+    )
+  }
+
+  if (node.type === 'incidents') {
+    return (
+      <IncidentsBlock
+        config={node as IncidentsNode}
+        activeIncidents={activeIncidents}
+        allIncidents={allIncidents}
+        monitors={monitors}
+      />
+    )
   }
 
   return null
 }
 
-function GroupBlock({ groupNode, monitors, statusMap }: { groupNode: GroupNode; monitors: Monitor[]; statusMap: Record<number, StatusInfo> }) {
+/* ─────────────────────────────────────────────────────────────────────
+   SERVICE MONITOR CARD  (large variant — matches design exactly)
+   ───────────────────────────────────────────────────────────────────── */
+function ServiceMonitorCard({
+  monitor, responseMs, monitorId,
+  showUptimeBar, showResponseTime,
+  uptimeBarPosition = 'right',
+  showUptimePct = false,
+}: {
+  monitor: Monitor
+  responseMs: number | null
+  monitorId: number
+  showUptimeBar: boolean
+  showResponseTime: boolean
+  showMonitorType?: boolean
+  uptimeBarPosition?: 'right' | 'below'
+  showUptimePct?: boolean
+  gridW?: number
+}) {
+  const [overallPct, setOverallPct] = useState<number | null>(null)
+
+  const isUp       = monitor.currentStatus === 'up'
+  const isDown     = monitor.currentStatus === 'down'
+  const isDegraded = monitor.currentStatus === 'degraded'
+
+  const statusLabel   = isUp ? 'Operational' : isDown ? 'Outage' : isDegraded ? 'Degraded' : 'Checking'
+  const statusBg      = isUp ? 'rgba(34,197,94,0.12)' : isDown ? '#ffdad6' : isDegraded ? 'rgba(234,179,8,0.12)' : 'var(--m3-surface-container)'
+  const statusColor   = isUp ? '#166534' : isDown ? '#ba1a1a' : isDegraded ? '#854d0e' : 'var(--m3-secondary)'
+  const barColor      = isDown ? '#ba1a1a' : isDegraded ? '#eab308' : 'var(--bsp-up)'
+  const barColorLight = isDown ? '#f28b82' : isDegraded ? '#fcd34d' : '#4ade80'
+
+  const uptimeLabel = (overallPct !== null && showUptimePct)
+    ? `${overallPct.toFixed(1)}% uptime`
+    : null
+
+  const StatusBadge = () => (
+    <span
+      style={{
+        background: statusBg, color: statusColor,
+        padding: '6px 14px', borderRadius: '999px',
+        fontSize: '13px', fontWeight: 700,
+        display: 'flex', alignItems: 'center', gap: '6px',
+        flexShrink: 0,
+      }}
+    >
+      {(isDown || isDegraded) && (
+        <span
+          className="animate-pulse"
+          style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, display: 'inline-block', flexShrink: 0 }}
+        />
+      )}
+      {statusLabel}
+    </span>
+  )
+
+  const NameBlock = () => (
+    <div style={{ flexShrink: 0 }}>
+      <h3
+        className="font-headline font-bold"
+        style={{ fontSize: '28px', lineHeight: 1.15, color: 'var(--bsp-text)', margin: 0 }}
+      >
+        {monitor.name}
+      </h3>
+      <p
+        className="font-mono uppercase"
+        style={{ fontSize: '11px', letterSpacing: '0.09em', color: 'var(--m3-secondary)', marginTop: '4px' }}
+      >
+        {monitor.type.toUpperCase()}
+        {showResponseTime && responseMs !== null && ` · ${responseMs}ms`}
+      </p>
+    </div>
+  )
+
+  /* ── Right: bars fill the gap between name and badge ── */
+  if (showUptimeBar && uptimeBarPosition === 'right') {
+    return (
+      <div className="bsp-monitor-card" style={{ padding: '28px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <NameBlock />
+          <UptimeBarsInline monitorId={monitorId} barColor={barColor} barColorLight={barColorLight} />
+          <StatusBadge />
+        </div>
+      </div>
+    )
+  }
+
+  /* ── Below: stacked layout ── */
+  return (
+    <div className="bsp-monitor-card" style={{ padding: '28px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: showUptimeBar ? '20px' : '0', gap: '16px' }}>
+        <NameBlock />
+        <StatusBadge />
+      </div>
+
+      {showUptimeBar && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--m3-secondary)' }}>
+              90 days ago
+            </span>
+            {uptimeLabel && (
+              <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--m3-on-surface)' }}>
+                {uptimeLabel}
+              </span>
+            )}
+            <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--m3-secondary)' }}>
+              Today
+            </span>
+          </div>
+          <UptimeBars
+            monitorId={monitorId}
+            barColor={barColor}
+            barColorLight={barColorLight}
+            isDown={isDown}
+            isDegraded={isDegraded}
+            onData={(pct) => setOverallPct(pct)}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   COMPACT MONITOR ROW  (slim — for compact variant and group children)
+   ───────────────────────────────────────────────────────────────────── */
+function CompactMonitorRow({
+  monitor, responseMs, showResponseTime, showMonitorType = false, nested = false,
+}: {
+  monitor: Monitor
+  responseMs: number | null
+  showResponseTime: boolean
+  showMonitorType?: boolean
+  nested?: boolean
+}) {
+  const isUp       = monitor.currentStatus === 'up'
+  const isDown     = monitor.currentStatus === 'down'
+  const isDegraded = monitor.currentStatus === 'degraded'
+
+  const statusLabel = isUp ? 'Operational' : isDown ? 'Down' : isDegraded ? 'Degraded' : 'Checking'
+  const statusBg    = isUp
+    ? 'rgba(34,197,94,0.1)'
+    : isDown ? '#ffdad6'
+    : isDegraded ? 'rgba(234,179,8,0.12)'
+    : 'var(--m3-surface-container)'
+  const statusColor = isUp ? '#166534' : isDown ? '#ba1a1a' : isDegraded ? '#854d0e' : 'var(--m3-secondary)'
+  const dotColor    = isUp ? '#22c55e'  : isDown ? '#ba1a1a' : isDegraded ? '#eab308' : 'var(--m3-outline)'
+
+  return (
+    <div
+      className={nested ? '' : 'bsp-monitor-card card-hover'}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        padding: nested ? '10px 20px 10px 24px' : '12px 16px',
+        borderRadius: nested ? 0 : '12px',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Status dot */}
+      <div className="relative flex-shrink-0" style={{ width: 8, height: 8 }}>
+        {(isDown || isDegraded) && (
+          <span
+            className="monitor-dot-ring"
+            style={{ background: dotColor, opacity: 0.4 }}
+          />
+        )}
+        <span
+          className="block w-full h-full rounded-full"
+          style={{ background: dotColor }}
+        />
+      </div>
+
+      {/* Name */}
+      <span
+        className="bsp-monitor-name font-sans font-medium text-sm flex-1 truncate"
+        style={{ color: 'var(--bsp-text)' }}
+      >
+        {monitor.name}
+      </span>
+
+      {/* Type */}
+      {showMonitorType && (
+        <span
+          className="font-mono text-[10px] uppercase flex-shrink-0 px-1.5 py-0.5 rounded"
+          style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
+        >
+          {monitor.type}
+        </span>
+      )}
+
+      {/* Response time */}
+      {showResponseTime && responseMs !== null && (
+        <span className="font-mono text-xs flex-shrink-0" style={{ color: 'var(--m3-secondary)' }}>
+          {responseMs}ms
+        </span>
+      )}
+
+      {/* Status badge */}
+      <span
+        className="text-xs font-sans font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
+        style={{ background: statusBg, color: statusColor }}
+      >
+        {statusLabel}
+      </span>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   GROUP BLOCK  (header with aggregate + compact child rows)
+   ───────────────────────────────────────────────────────────────────── */
+function GroupBlock({ groupNode, monitors, statusMap }: {
+  groupNode: GroupNode
+  monitors: Monitor[]
+  statusMap: Record<number, StatusInfo>
+}) {
   const [collapsed, setCollapsed] = useState(false)
 
-  const groupMonitors = groupNode.children
+  const liveMonitors = groupNode.children
     .filter((c) => c.type === 'monitor')
     .map((c) => {
       const monNode = c as MonitorNode
-      const monitor = monitors.find((m) => m.id === monNode.monitorId)
-      if (!monitor) return null
-      return { ...monitor, currentStatus: statusMap[monitor.id]?.status ?? monitor.currentStatus }
+      const m = monitors.find((mon) => mon.id === monNode.monitorId)
+      if (!m) return null
+      return { ...m, currentStatus: statusMap[m.id]?.status ?? m.currentStatus }
     })
     .filter(Boolean) as Monitor[]
 
-  const anyDown = groupMonitors.some((m) => m.currentStatus === 'down')
-  const anyDegraded = groupMonitors.some((m) => m.currentStatus === 'degraded')
-  const aggStatus = anyDown ? 'down' : anyDegraded ? 'degraded' : 'up'
-  const aggColor = aggStatus === 'down' ? 'var(--bsp-down)' : aggStatus === 'degraded' ? 'var(--bsp-degraded)' : 'var(--bsp-up)'
-  const aggLabel = aggStatus === 'up' ? 'Operational' : aggStatus === 'down' ? 'Outage' : 'Degraded'
-  const showPulse = aggStatus !== 'up'
+  const anyDown     = liveMonitors.some((m) => m.currentStatus === 'down')
+  const anyDegraded = liveMonitors.some((m) => m.currentStatus === 'degraded')
+  const aggStatus   = anyDown ? 'down' : anyDegraded ? 'degraded' : 'up'
+
+  const aggColor    = aggStatus === 'down' ? '#ba1a1a' : aggStatus === 'degraded' ? '#854d0e' : '#166534'
+  const aggDotColor = aggStatus === 'down' ? '#ba1a1a' : aggStatus === 'degraded' ? '#eab308' : '#22c55e'
+  const aggBg       = aggStatus === 'up' ? 'rgba(34,197,94,0.1)' : aggStatus === 'down' ? '#ffdad6' : 'rgba(234,179,8,0.12)'
+  const aggLabel    = aggStatus === 'up' ? 'Operational' : aggStatus === 'down' ? 'Outage' : 'Degraded'
 
   return (
-    <div className="bsp-group-card glass overflow-hidden">
+    <div
+      className="bsp-group-card overflow-hidden"
+      style={{ borderRadius: '1rem' }}
+    >
+      {/* Header */}
       <div
-        className={`bsp-group-header flex items-center justify-between px-4 py-3.5 ${groupNode.collapsible ? 'cursor-pointer' : ''}`}
-        style={{ transition: 'background 0.15s' }}
+        className="flex items-center justify-between px-5 py-4"
+        style={{
+          cursor: groupNode.collapsible ? 'pointer' : 'default',
+          userSelect: 'none',
+          transition: 'background 0.15s',
+        }}
         onClick={() => groupNode.collapsible && setCollapsed(!collapsed)}
-        onMouseEnter={(e) => groupNode.collapsible && ((e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.03)')}
-        onMouseLeave={(e) => groupNode.collapsible && ((e.currentTarget as HTMLDivElement).style.background = '')}
+        onMouseEnter={(e) => {
+          if (groupNode.collapsible)
+            (e.currentTarget as HTMLDivElement).style.background = 'var(--m3-surface-container)'
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLDivElement).style.background = ''
+        }}
       >
         <div className="flex items-center gap-3">
           <div className="relative flex-shrink-0" style={{ width: 10, height: 10 }}>
-            {showPulse && (
+            {aggStatus !== 'up' && (
               <span
                 className="monitor-dot-ring"
-                style={{ background: aggColor, opacity: 0.35 }}
+                style={{ background: aggDotColor, opacity: 0.4 }}
               />
             )}
-            <span className="block w-full h-full rounded-full" style={{ background: aggColor }} />
+            <span
+              className="block w-full h-full rounded-full"
+              style={{ background: aggDotColor }}
+            />
           </div>
-          <span className="bsp-group-label font-display font-semibold text-sm" style={{ color: 'var(--bsp-text)' }}>
+          <span
+            className="bsp-group-label font-headline font-semibold"
+            style={{ color: 'var(--bsp-text)', fontSize: '0.95rem' }}
+          >
             {groupNode.label}
           </span>
+          <span
+            className="text-xs"
+            style={{ color: 'var(--m3-secondary)' }}
+          >
+            {liveMonitors.length} service{liveMonitors.length !== 1 ? 's' : ''}
+          </span>
         </div>
+
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium" style={{ color: aggColor }}>{aggLabel}</span>
+          <span
+            className="text-xs font-sans font-semibold px-2.5 py-1 rounded-full"
+            style={{ background: aggBg, color: aggColor }}
+          >
+            {aggLabel}
+          </span>
           {groupNode.collapsible && (
-            <span className="text-xs font-mono" style={{ color: 'var(--bsp-text-muted)' }}>
-              {collapsed ? '▸' : '▾'}
+            <span
+              className="material-symbols-outlined"
+              style={{
+                fontSize: '18px',
+                color: 'var(--m3-secondary)',
+                transform: collapsed ? 'rotate(-90deg)' : 'none',
+                transition: 'transform 0.2s ease',
+              }}
+            >
+              expand_more
             </span>
           )}
         </div>
       </div>
 
+      {/* Children */}
       {!collapsed && groupNode.children.length > 0 && (
-        <div style={{ borderTop: '1px solid var(--bsp-card-border)' }}>
+        <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
           {groupNode.children.map((child, i) => {
+            const borderStyle = i > 0 ? { borderTop: '1px solid var(--m3-outline-variant)' } : {}
+
             if (child.type === 'monitor') {
               const monNode = child as MonitorNode
-              const monitor = monitors.find((m) => m.id === monNode.monitorId)
-              if (!monitor) return null
-              const live = statusMap[monitor.id]
+              const m = monitors.find((mon) => mon.id === monNode.monitorId)
+              if (!m) return null
+              const live = statusMap[m.id]
+              const liveMonitor = { ...m, currentStatus: live?.status ?? m.currentStatus }
+              const isFullCard = (monNode.cardVariant ?? 'compact') === 'default'
+
               return (
-                <div key={child.id} style={i > 0 ? { borderTop: '1px solid var(--bsp-card-border)' } : {}}>
-                  <MonitorRow
-                    monitor={{ ...monitor, currentStatus: live?.status ?? monitor.currentStatus }}
-                    responseMs={live?.responseMs ?? null}
-                    showUptimeBar={monNode.showUptimeBar}
-                    showResponseTime={monNode.showResponseTime}
-                    uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
-                    showMonitorType={monNode.showMonitorType ?? false}
-                    showUptimePct={monNode.showUptimePct ?? false}
-                    gridW={groupNode.grid?.w ?? 1}
-                    monitorId={monitor.id}
-                    nested
-                  />
+                <div key={child.id} style={borderStyle}>
+                  {isFullCard ? (
+                    <div style={{ padding: '12px 16px' }}>
+                      <ServiceMonitorCard
+                        monitor={liveMonitor}
+                        responseMs={live?.responseMs ?? null}
+                        monitorId={m.id}
+                        showUptimeBar={monNode.showUptimeBar}
+                        showResponseTime={monNode.showResponseTime}
+                        showMonitorType={monNode.showMonitorType ?? false}
+                        uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
+                        showUptimePct={monNode.showUptimePct ?? false}
+                      />
+                    </div>
+                  ) : (
+                    <CompactMonitorRow
+                      monitor={liveMonitor}
+                      responseMs={live?.responseMs ?? null}
+                      showResponseTime={monNode.showResponseTime}
+                      showMonitorType={monNode.showMonitorType ?? false}
+                      nested
+                    />
+                  )}
                 </div>
               )
             }
-            return (
-              <div key={child.id} className="px-4" style={i > 0 ? { borderTop: '1px solid var(--bsp-card-border)' } : {}}>
-                <NodeRenderer node={child} monitors={monitors} statusMap={statusMap} />
-              </div>
-            )
+
+            if (child.type === 'text') {
+              return (
+                <div
+                  key={child.id}
+                  className="px-5 py-3 text-sm"
+                  style={{ ...borderStyle, color: 'var(--m3-secondary)' }}
+                >
+                  <Markdown>{(child as TextNode).markdown}</Markdown>
+                </div>
+              )
+            }
+
+            return null
           })}
         </div>
       )}
@@ -180,171 +535,172 @@ function GroupBlock({ groupNode, monitors, statusMap }: { groupNode: GroupNode; 
   )
 }
 
-function MonitorRow({
-  monitor,
-  responseMs,
-  showUptimeBar,
-  showResponseTime,
-  uptimeBarPosition = 'right',
-  showMonitorType = false,
-  showUptimePct = false,
-  gridW = 1,
-  monitorId,
-  nested = false,
-}: {
-  monitor: Monitor
-  responseMs: number | null
-  showUptimeBar: boolean
-  showResponseTime: boolean
-  uptimeBarPosition?: 'right' | 'below'
-  showMonitorType?: boolean
-  showUptimePct?: boolean
-  gridW?: number
-  monitorId: number
-  nested?: boolean
+/* ─────────────────────────────────────────────────────────────────────
+   INCIDENTS BLOCK  (configurable incident list)
+   ───────────────────────────────────────────────────────────────────── */
+function IncidentsBlock({ config, activeIncidents, allIncidents, monitors }: {
+  config: IncidentsNode
+  activeIncidents: Incident[]
+  allIncidents: Incident[]
+  monitors: Monitor[]
 }) {
-  const [overallPct, setOverallPct] = useState<number | null>(null)
+  const filter = config.filter ?? 'all'
+  const limit  = config.limit ?? 5
 
-  const statusColor = {
-    up: 'var(--bsp-up)',
-    down: 'var(--bsp-down)',
-    degraded: 'var(--bsp-degraded)',
-    pending: 'var(--bsp-text-muted)',
+  const items = filter === 'active'
+    ? activeIncidents
+    : filter === 'resolved'
+    ? allIncidents.filter((i) => i.status === 'resolved')
+    : [...activeIncidents, ...allIncidents.filter((i) => i.status === 'resolved')]
+
+  const shown = items.slice(0, limit)
+
+  if (shown.length === 0) {
+    // When filtering only active incidents, hide the block entirely — no empty state
+    if (filter === 'active') return null
+
+    return (
+      <div
+        className="rounded-2xl p-10 text-center"
+        style={{
+          background: 'var(--m3-surface-container-lowest)',
+          boxShadow: '0px 12px 32px rgba(19,27,46,0.04)',
+        }}
+      >
+        <span
+          className="material-symbols-outlined block mb-3"
+          style={{ fontSize: '32px', color: '#22c55e' }}
+        >
+          check_circle
+        </span>
+        <p className="font-sans text-sm font-medium" style={{ color: 'var(--m3-secondary)' }}>
+          No incidents to display.
+        </p>
+      </div>
+    )
   }
-  const statusLabel = { up: 'Operational', down: 'Down', degraded: 'Degraded', pending: 'Checking' }
-  const color = statusColor[monitor.currentStatus as keyof typeof statusColor] ?? statusColor.pending
-  const label = statusLabel[monitor.currentStatus as keyof typeof statusLabel] ?? 'Checking'
-  const showPulse = monitor.currentStatus === 'down' || monitor.currentStatus === 'degraded'
-
-  const outerClass = nested
-    ? 'bsp-monitor-card flex flex-col overflow-hidden'
-    : 'bsp-monitor-card glass glass-hover flex flex-col overflow-hidden'
-
-  const outerStyle: React.CSSProperties = nested
-    ? { padding: '10px 16px 10px 24px' }
-    : { padding: '10px 14px' }
 
   return (
-    <div className={outerClass} style={outerStyle}>
-      <div className="flex items-center gap-2">
-        <span className="bsp-monitor-name text-sm font-medium flex-shrink-0" style={{ color: 'var(--bsp-text)' }}>
-          {monitor.name}
-        </span>
-        {showMonitorType && (
-          <span
-            className="font-mono text-[10px] uppercase flex-shrink-0 px-1.5 py-0.5 rounded"
-            style={{ color: 'var(--bsp-text-muted)', background: 'rgba(255,255,255,0.05)', letterSpacing: '0.05em' }}
-          >
-            {monitor.type}
-          </span>
-        )}
-        {showResponseTime && responseMs !== null && (
-          <span className="font-mono text-xs flex-shrink-0" style={{ color: 'var(--bsp-text-muted)' }}>
-            {responseMs}ms
-          </span>
-        )}
-        {showUptimeBar && uptimeBarPosition === 'right' && (
-          <div className="bsp-uptime-bar flex-1 overflow-hidden min-w-0">
-            <UptimeBar monitorId={monitorId} />
-          </div>
-        )}
-        {(!showUptimeBar || uptimeBarPosition === 'below') && <div className="flex-1" />}
-        <div className="bsp-monitor-status flex items-center gap-1.5 flex-shrink-0">
-          <div className="relative flex-shrink-0" style={{ width: 8, height: 8 }}>
-            {showPulse && (
-              <span
-                className="monitor-dot-ring"
-                style={{ background: color, opacity: 0.4 }}
-              />
-            )}
-            <span className="block w-full h-full rounded-full" style={{ background: color }} />
-          </div>
-          <span className="text-xs font-medium" style={{ color }}>{label}</span>
-        </div>
-      </div>
-
-      {showUptimeBar && uptimeBarPosition === 'below' && (
-        <div className="bsp-uptime-bar mt-2">
-          <UptimeBar monitorId={monitorId} fill onData={showUptimePct ? setOverallPct : undefined} />
-          {showUptimePct && overallPct !== null && (
-            gridW <= 1 ? (
-              <div className="mt-1 text-center font-mono" style={{ color: 'var(--bsp-text-muted)', fontSize: '0.6rem' }}>
-                {overallPct.toFixed(2)}% uptime
-              </div>
-            ) : (
-              <div className="flex items-center mt-1 font-mono" style={{ gap: '4px' }}>
-                <span style={{ color: 'var(--bsp-text-muted)', fontSize: '0.6rem', flexShrink: 0 }}>30 days ago</span>
-                <div style={{ flex: 1, height: '1px', background: 'var(--bsp-card-border)' }} />
-                <span style={{ color: 'var(--bsp-text-muted)', fontSize: '0.6rem', flexShrink: 0 }}>
-                  {overallPct.toFixed(2)}% uptime
-                </span>
-                <div style={{ flex: 1, height: '1px', background: 'var(--bsp-card-border)' }} />
-                <span style={{ color: 'var(--bsp-text-muted)', fontSize: '0.6rem', flexShrink: 0 }}>today</span>
-              </div>
-            )
-          )}
-        </div>
-      )}
+    <div className="space-y-4">
+      {shown.map((incident) => (
+        <IncidentCard key={incident.id} incident={incident} monitors={monitors} />
+      ))}
     </div>
   )
 }
 
-function UptimeBar({ monitorId, onData, fill = false }: { monitorId: number; onData?: (pct: number) => void; fill?: boolean }) {
+/* ─────────────────────────────────────────────────────────────────────
+   UPTIME BARS — full 40-bar version (below position)
+   ───────────────────────────────────────────────────────────────────── */
+function UptimeBars({ monitorId, barColor, barColorLight, isDown, isDegraded, onData }: {
+  monitorId: number
+  barColor: string
+  barColorLight: string
+  isDown: boolean
+  isDegraded: boolean
+  onData?: ((pct: number) => void) | undefined
+}) {
   const [data, setData] = useState<Array<{ date: string; status: string; uptimePct: number }> | null>(null)
-  const [visibleCount, setVisibleCount] = useState(30)
-  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetch(`/api/v1/public/monitor/${monitorId}/uptime?days=30`)
       .then((r) => r.json())
-      .then((res: { days: Array<{ date: string; status: string; uptimePct: number }>; overallUptimePct: number }) => {
+      .then((res: { days: typeof data; overallUptimePct: number }) => {
         setData(res.days)
         onData?.(res.overallUptimePct)
       })
       .catch(() => {})
   }, [monitorId])
 
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const ro = new ResizeObserver(([entry]) => {
-      const count = Math.floor((entry.contentRect.width + 2) / 8)
-      setVisibleCount(Math.min(30, Math.max(0, count)))
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
+  if (data) {
+    const barColorOf = (day: { status: string }) =>
+      day.status === 'up' ? `linear-gradient(to top, ${barColor}, ${barColorLight})`
+      : day.status === 'down' ? '#ba1a1a'
+      : day.status === 'degraded' ? '#eab308'
+      : 'var(--m3-outline-variant)'
 
-  if (!data) return null
-
-  const barColor = (day: { status: string }) =>
-    day.status === 'up' ? 'var(--bsp-up)' :
-    day.status === 'down' ? 'var(--bsp-down)' :
-    day.status === 'degraded' ? 'var(--bsp-degraded)' : 'rgba(255,255,255,0.08)'
-
-  if (fill) {
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(30, 1fr)', gap: '2px' }}>
-        {data.slice(-30).map((day) => (
+      <div className="flex h-10 items-end" style={{ gap: '2px' }}>
+        {data.slice(-40).map((day) => (
           <div
             key={day.date}
-            className="rounded-sm"
-            style={{ background: barColor(day), height: '14px' }}
-            title={day.status === 'no-data' ? `${day.date}: No Data` : `${day.date}: ${day.uptimePct.toFixed(1)}%`}
+            className="flex-1 rounded-sm"
+            style={{
+              height: '100%',
+              background: barColorOf(day),
+              opacity: day.status === 'no-data' ? 0.3 : 1,
+            }}
+            title={`${day.date}: ${day.status === 'no-data' ? 'No data' : `${day.uptimePct.toFixed(1)}%`}`}
           />
         ))}
       </div>
     )
   }
 
+  /* Skeleton / placeholder bars */
   return (
-    <div ref={containerRef} className="flex gap-0.5 items-center justify-end" title="30-day uptime">
-      {data.slice(-visibleCount).map((day) => (
+    <div className="flex h-10 items-end" style={{ gap: '2px' }}>
+      {Array.from({ length: 40 }).map((_, i) => {
+        const isLast3 = i >= 37
+        return (
+          <div
+            key={i}
+            className="flex-1 rounded-sm"
+            style={{
+              height: '100%',
+              background: (isDown && isLast3) ? '#ba1a1a'
+                : (isDegraded && isLast3) ? '#eab308'
+                : `linear-gradient(to top, ${barColor}, ${barColorLight})`,
+              opacity: isLast3 && (isDown || isDegraded) ? 1 : 0.7,
+            }}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   UPTIME BARS INLINE — fills horizontal gap between name and badge
+   ───────────────────────────────────────────────────────────────────── */
+function UptimeBarsInline({ monitorId, barColor, barColorLight }: {
+  monitorId: number
+  barColor: string
+  barColorLight: string
+}) {
+  const [data, setData] = useState<Array<{ date: string; status: string; uptimePct: number }> | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/v1/public/monitor/${monitorId}/uptime?days=30`)
+      .then((r) => r.json())
+      .then((res: { days: typeof data }) => { setData(res.days) })
+      .catch(() => {})
+  }, [monitorId])
+
+  const barColorOf = (day: { status: string }) =>
+    day.status === 'up' ? `linear-gradient(to top, ${barColor}, ${barColorLight})`
+    : day.status === 'down' ? '#ba1a1a'
+    : day.status === 'degraded' ? '#eab308'
+    : 'var(--m3-outline-variant)'
+
+  const bars = data
+    ? data.slice(-30)
+    : Array.from({ length: 30 }).map((_, i) => ({ date: String(i), status: 'up', uptimePct: 100 }))
+
+  return (
+    <div
+      style={{ flex: 1, display: 'flex', alignItems: 'stretch', gap: '2px', height: '48px' }}
+      title="30-day uptime"
+    >
+      {bars.map((day, i) => (
         <div
-          key={day.date}
-          className="rounded-sm flex-shrink-0"
-          style={{ background: barColor(day), width: '6px', height: '14px' }}
-          title={day.status === 'no-data' ? `${day.date}: No Data` : `${day.date}: ${day.uptimePct.toFixed(1)}%`}
+          key={day.date ?? i}
+          style={{
+            flex: 1,
+            borderRadius: '3px',
+            background: barColorOf(day),
+            opacity: day.status === 'no-data' ? 0.35 : data ? 1 : 0.5,
+          }}
         />
       ))}
     </div>

@@ -12,17 +12,23 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities'
 import { api } from '../api/client'
 import {
-  useBuilderStore, createMonitorNode, createGroupNode, createTextNode,
+  useBuilderStore, createMonitorNode, createGroupNode, createTextNode, createIncidentsNode,
   defaultGrid, findNode,
 } from '../components/builder/useBuilderStore'
 import type {
-  Monitor, LayoutNode, GroupNode, MonitorNode, TextNode, GridPos,
+  Monitor, LayoutNode, GroupNode, MonitorNode, TextNode, IncidentsNode, GridPos,
 } from '@bsp/shared'
 
 // ── react-grid-layout setup ───────────────────────────────────────────────────
 const RGL = WidthProvider(ReactGridLayout)
-const ROW_H = 52
+const ROW_H = 44
 const COLS = 3
+
+function calcTextH(markdown: string): number {
+  const lines = markdown.split('\n').length
+  const estimatedPx = lines * 22 + 28   // ~22px per line + padding
+  return Math.max(1, Math.ceil(estimatedPx / ROW_H))
+}
 
 // ── Builder page ──────────────────────────────────────────────────────────────
 export default function BuilderPage() {
@@ -71,7 +77,9 @@ export default function BuilderPage() {
       const g = node.grid ?? { ...defaultGrid(node.type), y: i * 3 }
       const h = node.type === 'group'
         ? 2 + (node as GroupNode).children.length   // header row + 1 per child
-        : g.h
+        : (node.type === 'monitor' || node.type === 'incidents' || node.type === 'divider')
+        ? 1                                          // always compact — ignore stored h
+        : g.h                                        // text: auto-sized from content
       return { i: node.id, x: g.x, y: g.y, w: g.w, h, minH: h, maxH: h, minW: 1, maxW: 3 }
     }),
     [tree.children],
@@ -103,7 +111,9 @@ export default function BuilderPage() {
     } else if (type === 'text') {
       addNode('root', { ...createTextNode(), grid })
     } else if (type === 'divider') {
-      addNode('root', { type: 'divider', grid })
+      addNode('root', { type: 'divider', grid } as Omit<LayoutNode, 'id'>)
+    } else if (type === 'incidents') {
+      addNode('root', { ...createIncidentsNode(), grid })
     }
   }
 
@@ -121,18 +131,18 @@ export default function BuilderPage() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden" style={{ '--rgl-placeholder-bg': 'rgba(99,102,241,0.15)' } as React.CSSProperties}>
+    <div className="flex h-full overflow-hidden"  style={{ '--rgl-placeholder-bg': 'color-mix(in srgb, var(--m3-primary) 15%, transparent)' } as React.CSSProperties}>
       {/* ── Toolbox + Properties ── */}
-      <aside className="w-56 flex flex-col bg-slate-900 border-r border-slate-800 shrink-0 overflow-y-auto">
-        <div className="p-3 border-b border-slate-800">
-          <p className="text-xs font-semibold text-white">Toolbox</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">Przeciągnij na canvas</p>
+      <aside className="w-56 flex flex-col shrink-0 overflow-y-auto" style={{ background: "var(--m3-surface-container-low)", borderRight: "1px solid var(--m3-outline-variant)" }}>
+        <div className="p-3" style={{ borderBottom: "1px solid var(--m3-outline-variant)" }}>
+          <p className="text-xs font-semibold" style={{ color: 'var(--m3-on-surface)' }}>Toolbox</p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--m3-secondary)' }}>Przeciągnij na canvas</p>
         </div>
 
         <div className="p-3 space-y-4">
           {/* Groups */}
           <section>
-            <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Grupy</p>
+            <p className="text-[10px] uppercase tracking-wider text-secondary mb-1.5">Grupy</p>
             <form onSubmit={(e) => {
               e.preventDefault()
               if (!newGroupName.trim()) return
@@ -144,10 +154,10 @@ export default function BuilderPage() {
                 value={newGroupName}
                 onChange={(e) => setNewGroupName(e.target.value)}
                 placeholder="Nazwa grupy…"
-                className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-indigo-500"
+                className="flex-1 min-w-0 input-m3 text-xs"
               />
               <button type="submit" disabled={!newGroupName.trim()}
-                className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs px-2 py-1 rounded">
+                className="text-xs px-2 py-1 rounded transition-colors">
                 +
               </button>
             </form>
@@ -160,9 +170,9 @@ export default function BuilderPage() {
                   e.dataTransfer.setData('label', data['label'] ?? newGroupName)
                   e.dataTransfer.effectAllowed = 'copy'
                 }}
-                className="flex items-center gap-2 px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-sm text-slate-300 cursor-grab active:cursor-grabbing select-none"
+                className="flex items-center gap-2 px-2 py-1.5 bg-surface-container hover:bg-surface-container-high rounded text-sm text-on-surface-variant cursor-grab active:cursor-grabbing select-none"
               >
-                <span className="text-slate-500">◧</span>
+                <span className="text-secondary">◧</span>
                 <span className="truncate">{newGroupName}</span>
               </div>
             )}
@@ -170,7 +180,7 @@ export default function BuilderPage() {
 
           {/* Monitors */}
           <section>
-            <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Monitory</p>
+            <p className="text-[10px] uppercase tracking-wider text-secondary mb-1.5">Monitory</p>
             <div className="space-y-1">
               {monitors.map((m) => (
                 <div
@@ -188,23 +198,24 @@ export default function BuilderPage() {
                       ? selectedId : 'root'
                     addNode(parentId, createMonitorNode(m.id))
                   }}
-                  className="flex items-center gap-2 px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-sm text-slate-300 cursor-grab active:cursor-grabbing select-none"
+                  className="flex items-center gap-2 px-2 py-1.5 bg-surface-container hover:bg-surface-container-high rounded text-sm text-on-surface-variant cursor-grab active:cursor-grabbing select-none"
                 >
-                  <span className="text-[9px] uppercase bg-slate-700 text-slate-400 px-1 rounded shrink-0">{m.type}</span>
+                  <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 rounded shrink-0">{m.type}</span>
                   <span className="truncate">{m.name}</span>
                 </div>
               ))}
-              {monitors.length === 0 && <p className="text-xs text-slate-600">Brak monitorów</p>}
+              {monitors.length === 0 && <p className="text-xs text-secondary">Brak monitorów</p>}
             </div>
           </section>
 
           {/* Blocks */}
           <section>
-            <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Bloki</p>
+            <p className="text-[10px] uppercase tracking-wider text-secondary mb-1.5">Bloki</p>
             <div className="space-y-1">
               {[
-                { type: 'text', label: 'Tekst', icon: 'T' },
-                { type: 'divider', label: 'Separator', icon: '—' },
+                { type: 'text',      label: 'Tekst',     icon: 'T'  },
+                { type: 'divider',   label: 'Separator', icon: '—'  },
+                { type: 'incidents', label: 'Incydenty', icon: '⚠'  },
               ].map(({ type, label, icon }) => (
                 <div
                   key={type}
@@ -217,11 +228,12 @@ export default function BuilderPage() {
                   onClick={() => {
                     const grid = defaultGrid(type)
                     if (type === 'text') addNode('root', { ...createTextNode(), grid })
+                    else if (type === 'incidents') addNode('root', { ...createIncidentsNode(), grid })
                     else addNode('root', { type: 'divider', grid })
                   }}
-                  className="flex items-center gap-2 px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-sm text-slate-300 cursor-grab active:cursor-grabbing select-none"
+                  className="flex items-center gap-2 px-2 py-1.5 bg-surface-container hover:bg-surface-container-high rounded text-sm text-on-surface-variant cursor-grab active:cursor-grabbing select-none"
                 >
-                  <span className="text-slate-500 font-mono text-xs">{icon}</span>
+                  <span className="text-secondary font-mono text-xs">{icon}</span>
                   {label}
                 </div>
               ))}
@@ -231,10 +243,10 @@ export default function BuilderPage() {
 
         {/* ── Properties (below toolbox, when element selected) ── */}
         {selectedNode && (
-          <div className="border-t border-slate-800 flex flex-col">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800">
-              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Właściwości</p>
-              <button onClick={() => selectNode(null)} className="text-slate-500 hover:text-white text-base leading-none">×</button>
+          <div className="flex flex-col" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
+            <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
+              <p className="text-[10px] uppercase tracking-wider text-secondary font-semibold">Właściwości</p>
+              <button onClick={() => selectNode(null)} className="text-secondary hover:text-on-surface text-base leading-none">×</button>
             </div>
             <div className="p-3">
               <PropertiesPanel
@@ -250,25 +262,30 @@ export default function BuilderPage() {
 
       {/* ── Canvas ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 shrink-0">
+        <div className="flex items-center justify-between px-5 py-3 shrink-0" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
           <div>
-            <h2 className="text-sm font-semibold text-white">Page Builder</h2>
-            <p className="text-[10px] text-slate-500 mt-0.5">Przeciągnij z toolboxa · Rozciągnij w poziomie (1–3 kol) · Kliknij = edycja</p>
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--m3-on-surface)' }}>Page Builder</h2>
+            <p className="text-[10px] mt-0.5" style={{ color: 'var(--m3-secondary)' }}>Przeciągnij z toolboxa · Rozciągnij w poziomie (1–3 kol) · Kliknij = edycja</p>
           </div>
           <div className="flex items-center gap-3">
-            {isDirty && <span className="text-xs text-amber-400">Niezapisane</span>}
-            {saved && <span className="text-xs text-emerald-400">Zapisano!</span>}
+            {isDirty && <span className="text-xs" style={{ color: 'var(--m3-degraded)' }}>Niezapisane</span>}
+            {saved && <span className="text-xs" style={{ color: 'var(--m3-up)' }}>Zapisano!</span>}
             <button
               onClick={handleSave}
               disabled={saving || !isDirty}
-              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+              className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+              style={{
+                background: saving || !isDirty ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
+                color: saving || !isDirty ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
+                opacity: saving ? 0.7 : 1,
+              }}
             >
               {saving ? 'Zapisuję…' : 'Zapisz'}
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto p-4 bg-[#080d18]">
+        <div className="flex-1 overflow-auto p-4" style={{ background: 'var(--m3-surface-container-low)' }}>
           {tree.children.length === 0 ? (
             <EmptyDrop onDrop={handleDrop} droppingItem={droppingItem} rglLayout={rglLayout} />
           ) : (
@@ -282,7 +299,7 @@ export default function BuilderPage() {
               }}>
                 {[0, 1, 2].map((i) => (
                   <div key={i} style={{
-                    borderLeft: i === 0 ? 'none' : '1px dashed rgba(255,255,255,0.12)',
+                    borderLeft: i === 0 ? 'none' : '1px dashed var(--m3-outline-variant)',
                   }} />
                 ))}
               </div>
@@ -350,7 +367,7 @@ function EmptyDrop({ onDrop, droppingItem, rglLayout }: {
         onLayoutChange={() => {}}
         style={{ minHeight: 260 }}
       >{null}</RGL>
-      <div className="flex items-center justify-center h-48 border-2 border-dashed border-slate-700 rounded-xl text-slate-500 -mt-10 pointer-events-none">
+      <div className="flex items-center justify-center h-48 border-2 border-dashed rounded-xl text-secondary -mt-10 pointer-events-none">
         <p className="text-sm">Przeciągnij elementy z toolboxa</p>
       </div>
 
@@ -376,7 +393,7 @@ function DeleteBtn({ onDelete }: { onDelete: () => void }) {
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onDelete() }}
-      className="absolute top-1 right-1 z-10 w-5 h-5 flex items-center justify-center rounded text-slate-600 hover:text-white hover:bg-red-500 transition-colors text-xs leading-none"
+      className="absolute top-1 right-1 z-10 w-5 h-5 flex items-center justify-center rounded text-secondary hover:text-on-surface hover:bg-red-500 transition-colors text-xs leading-none"
       title="Usuń"
     >
       ×
@@ -386,13 +403,13 @@ function DeleteBtn({ onDelete }: { onDelete: () => void }) {
 
 function NodeCard(props: NodeCardProps) {
   const { node, isSelected, onSelect, onSelectChild, onDelete } = props
-  const ring = isSelected ? 'ring-2 ring-indigo-500' : 'ring-1 ring-slate-700/60'
+  const ring = isSelected ? 'ring-2 ring-primary' : 'ring-1 ring-outline-variant'
 
   if (node.type === 'divider') {
     return (
-      <div className={`relative h-full flex items-center rounded-lg bg-slate-900 overflow-hidden ${ring}`} onClick={onSelect}>
-        <span className="drag-handle cursor-grab px-2 text-slate-600 hover:text-slate-400 self-stretch flex items-center">⠿</span>
-        <hr className="flex-1 border-slate-600 mr-6" />
+      <div className={`relative h-full flex items-center rounded-lg bg-surface-container-low overflow-hidden ${ring}`} onClick={onSelect}>
+        <span className="drag-handle cursor-grab px-2 text-secondary hover:text-on-surface-variant self-stretch flex items-center">⠿</span>
+        <hr className="flex-1 border-outline-variant mr-6" />
         <DeleteBtn onDelete={onDelete} />
       </div>
     )
@@ -401,14 +418,14 @@ function NodeCard(props: NodeCardProps) {
   if (node.type === 'text') {
     const n = node as TextNode
     return (
-      <div className={`relative h-full flex flex-col rounded-lg bg-slate-900 overflow-hidden ${ring}`} onClick={onSelect}>
+      <div className={`relative h-full flex flex-col rounded-lg bg-surface-container-low overflow-hidden ${ring}`} onClick={onSelect}>
         <DeleteBtn onDelete={onDelete} />
-        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-slate-800 shrink-0 pr-7">
-          <span className="drag-handle cursor-grab text-slate-600 hover:text-slate-400">⠿</span>
-          <span className="text-[10px] text-slate-500">Tekst</span>
+        <div className="flex items-center gap-1 px-2 py-1.5 shrink-0 pr-7 border-b border-outline-variant/40">
+          <span className="drag-handle cursor-grab text-secondary hover:text-on-surface-variant">⠿</span>
+          <span className="text-[10px] text-secondary uppercase tracking-wider">Tekst</span>
         </div>
-        <div className="flex-1 px-3 py-2 overflow-hidden">
-          <p className="text-xs text-slate-400 line-clamp-4 whitespace-pre-wrap">{n.markdown}</p>
+        <div className="flex-1 px-3 py-2 overflow-auto">
+          <p className="text-xs text-on-surface-variant whitespace-pre-wrap">{n.markdown}</p>
         </div>
       </div>
     )
@@ -418,11 +435,27 @@ function NodeCard(props: NodeCardProps) {
     const n = node as MonitorNode
     const monitor = props.monitors.find((m) => m.id === n.monitorId)
     return (
-      <div className={`relative flex items-center gap-2 px-3 py-3 rounded-lg bg-slate-900 ${ring}`} onClick={onSelect}>
+      <div className={`relative h-full flex items-center gap-2 px-3 rounded-lg bg-surface-container-low ${ring}`} onClick={onSelect}>
         <DeleteBtn onDelete={onDelete} />
-        <span className="drag-handle cursor-grab text-slate-600 hover:text-slate-400 shrink-0">⠿</span>
-        <span className="text-[9px] uppercase bg-slate-800 text-slate-400 px-1 py-0.5 rounded shrink-0">{monitor?.type ?? '?'}</span>
-        <span className="flex-1 text-sm text-white truncate pr-5">{monitor?.name ?? `#${n.monitorId}`}</span>
+        <span className="drag-handle cursor-grab text-secondary hover:text-on-surface-variant shrink-0">⠿</span>
+        <span className="text-[9px] uppercase bg-surface-container-high text-on-surface-variant px-1 py-0.5 rounded shrink-0">{monitor?.type ?? '?'}</span>
+        <span className="flex-1 text-sm text-on-surface truncate pr-5">{monitor?.name ?? `#${n.monitorId}`}</span>
+        {(n.cardVariant === 'compact') && (
+          <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 py-0.5 rounded shrink-0">compact</span>
+        )}
+      </div>
+    )
+  }
+
+  if (node.type === 'incidents') {
+    const n = node as IncidentsNode
+    const filterLabel = n.filter === 'active' ? 'aktywne' : n.filter === 'resolved' ? 'rozwiązane' : 'wszystkie'
+    return (
+      <div className={`relative h-full flex items-center gap-2 px-3 rounded-lg bg-surface-container-low ${ring}`} onClick={onSelect}>
+        <DeleteBtn onDelete={onDelete} />
+        <span className="drag-handle cursor-grab text-secondary hover:text-on-surface-variant shrink-0">⠿</span>
+        <span className="material-symbols-outlined text-secondary shrink-0" style={{ fontSize: '16px' }}>warning</span>
+        <span className="flex-1 text-sm text-on-surface truncate pr-5">Incydenty · {filterLabel}</span>
       </div>
     )
   }
@@ -440,7 +473,7 @@ function GroupCard({
   sensors, onGroupDragEnd,
 }: Omit<NodeCardProps, 'node'> & { node: GroupNode }) {
   const { selectedId } = useBuilderStore()
-  const ring = isSelected ? 'ring-2 ring-indigo-500' : 'ring-1 ring-slate-700/60'
+  const ring = isSelected ? 'ring-2 ring-primary' : 'ring-1 ring-outline-variant'
   const [isDragOver, setIsDragOver] = useState(false)
 
   function handleDragOver(e: React.DragEvent) {
@@ -464,19 +497,19 @@ function GroupCard({
   }
 
   return (
-    <div className={`relative h-full flex flex-col rounded-xl bg-slate-900 overflow-hidden ${ring}`} onClick={onSelect}>
+    <div className={`relative h-full flex flex-col rounded-xl bg-surface-container-low overflow-hidden ${ring}`} onClick={onSelect}>
       <DeleteBtn onDelete={onDelete} />
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-800 shrink-0 pr-7">
-        <span className="drag-handle cursor-grab text-slate-600 hover:text-slate-400">⠿</span>
-        <span className="text-slate-400 text-sm">◧</span>
-        <span className="flex-1 text-sm font-medium text-white truncate">{node.label || 'Grupa'}</span>
-        <span className="text-[10px] text-slate-600">{node.children.length}</span>
+      <div className="flex items-center gap-2 px-3 py-2 shrink-0 pr-7">
+        <span className="drag-handle cursor-grab text-secondary hover:text-on-surface-variant">⠿</span>
+        <span className="text-on-surface-variant text-sm">◧</span>
+        <span className="flex-1 text-sm font-medium text-on-surface truncate">{node.label || 'Grupa'}</span>
+        <span className="text-[10px] text-secondary">{node.children.length}</span>
       </div>
 
       {/* Children (sortable + drop target) */}
       <div
-        className={`flex-1 overflow-y-auto p-2 transition-colors ${isDragOver ? 'bg-indigo-500/10' : ''}`}
+        className={`flex-1 overflow-y-auto p-2 transition-colors ${isDragOver ? 'bg-primary/10' : ''}`}
         onClick={(e) => e.stopPropagation()}
         onDragOver={handleDragOver}
         onDragLeave={() => setIsDragOver(false)}
@@ -503,7 +536,7 @@ function GroupCard({
         </DndContext>
 
         <div className={`mt-1.5 border-2 border-dashed rounded-lg py-2 text-center text-[10px] transition-colors ${
-          isDragOver ? 'border-indigo-500 text-indigo-400' : 'border-slate-700 text-slate-600'
+          isDragOver ? 'border-primary text-primary' : 'border-outline-variant text-secondary'
         }`}>
           {isDragOver ? 'Upuść tutaj' : 'Przeciągnij monitor z toolboxa'}
         </div>
@@ -533,8 +566,8 @@ function SortableGroupItem({
       ref={setNodeRef}
       style={{
         ...style,
-        background: isSelected ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)',
-        outline: isSelected ? '1px solid rgba(99,102,241,0.5)' : 'none',
+        background: isSelected ? 'color-mix(in srgb, var(--m3-primary) 15%, transparent)' : 'var(--m3-surface-container)',
+        outline: isSelected ? '1px solid color-mix(in srgb, var(--m3-primary) 50%, transparent)' : 'none',
       }}
       className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm cursor-pointer"
       onClick={onSelect}
@@ -542,20 +575,20 @@ function SortableGroupItem({
       <span
         {...attributes}
         {...listeners}
-        className="cursor-grab text-slate-600 hover:text-slate-400 touch-none"
+        className="cursor-grab text-secondary hover:text-on-surface-variant touch-none"
         onClick={(e) => e.stopPropagation()}
       >
         ⠿
       </span>
       {monitor ? (
         <>
-          <span className="text-[9px] uppercase bg-slate-700 text-slate-400 px-1 rounded">{monitor.type}</span>
-          <span className="flex-1 text-slate-300 truncate">{monitor.name}</span>
+          <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 rounded">{monitor.type}</span>
+          <span className="flex-1 text-on-surface-variant truncate">{monitor.name}</span>
         </>
       ) : (
-        <span className="flex-1 text-slate-400 truncate">{(child as MonitorNode).monitorId ?? child.id}</span>
+        <span className="flex-1 text-on-surface-variant truncate">{(child as MonitorNode).monitorId ?? child.id}</span>
       )}
-      <button onClick={(e) => { e.stopPropagation(); onDelete() }} className="text-slate-600 hover:text-red-400 text-xs leading-none shrink-0">×</button>
+      <button onClick={(e) => { e.stopPropagation(); onDelete() }} className="text-secondary hover:text-status-down text-xs leading-none shrink-0">×</button>
     </div>
   )
 }
@@ -569,7 +602,7 @@ function PropertiesPanel({
   onUpdate: (patch: Partial<LayoutNode>) => void
   onAddChild: (n: Omit<LayoutNode, 'id'>) => void
 }) {
-  const cls = 'w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-indigo-500'
+  const cls = 'input-m3 text-xs'
 
   if (node.type === 'text') {
     const n = node as TextNode
@@ -578,7 +611,11 @@ function PropertiesPanel({
         <Label>Tekst (Markdown)</Label>
         <textarea
           value={n.markdown}
-          onChange={(e) => onUpdate({ markdown: e.target.value } as Partial<TextNode>)}
+          onChange={(e) => {
+            const markdown = e.target.value
+            const h = calcTextH(markdown)
+            onUpdate({ markdown, grid: n.grid ? { ...n.grid, h } : undefined } as Partial<TextNode>)
+          }}
           rows={12}
           className={`${cls} resize-none font-mono`}
         />
@@ -594,36 +631,56 @@ function PropertiesPanel({
         <select value={n.monitorId} onChange={(e) => onUpdate({ monitorId: Number(e.target.value) } as Partial<MonitorNode>)} className={cls}>
           {monitors.map((m) => <option key={m.id} value={m.id}>[{m.type.toUpperCase()}] {m.name}</option>)}
         </select>
-        <Toggle label="Wykres uptime" checked={n.showUptimeBar}
-          onChange={(v) => {
-            const h = !v ? 1 : (n.uptimeBarPosition ?? 'right') === 'below' ? 2 : 1
-            onUpdate({ showUptimeBar: v, grid: n.grid ? { ...n.grid, h } : undefined } as Partial<MonitorNode>)
-          }} />
-        {n.showUptimeBar && (
-          <div>
-            <Label>Pozycja wykresu uptime</Label>
-            <select
-              value={n.uptimeBarPosition ?? 'right'}
-              onChange={(e) => {
-                const pos = e.target.value as 'right' | 'below'
-                const h = pos === 'below' ? 2 : 1
-                onUpdate({ uptimeBarPosition: pos, grid: n.grid ? { ...n.grid, h } : undefined } as Partial<MonitorNode>)
-              }}
-              className={cls}
-            >
-              <option value="right">Po prawej stronie</option>
-              <option value="below">Pod spodem</option>
-            </select>
+
+        <div>
+          <Label>Typ karty</Label>
+          <div className="flex gap-1 mt-1">
+            {(['default', 'compact'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => onUpdate({ cardVariant: v } as Partial<MonitorNode>)}
+                className="flex-1 text-xs py-1.5 rounded transition-all"
+                style={
+                  (n.cardVariant ?? 'default') === v
+                    ? { background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }
+                    : { background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }
+                }
+              >
+                {v === 'default' ? 'Pełna' : 'Kompakt'}
+              </button>
+            ))}
           </div>
+        </div>
+
+        {(n.cardVariant ?? 'default') === 'default' && (
+          <>
+            <Toggle label="Wykres uptime" checked={n.showUptimeBar}
+              onChange={(v) => onUpdate({ showUptimeBar: v } as Partial<MonitorNode>)} />
+            {n.showUptimeBar && (
+              <div>
+                <Label>Pozycja wykresu uptime</Label>
+                <select
+                  value={n.uptimeBarPosition ?? 'right'}
+                  onChange={(e) => onUpdate({ uptimeBarPosition: e.target.value as 'right' | 'below' } as Partial<MonitorNode>)}
+                  className={cls}
+                >
+                  <option value="right">Po prawej stronie</option>
+                  <option value="below">Pod spodem</option>
+                </select>
+              </div>
+            )}
+            {n.showUptimeBar && (n.uptimeBarPosition ?? 'right') === 'below' && (
+              <Toggle label="Pokaż % uptime" checked={n.showUptimePct ?? false}
+                onChange={(v) => onUpdate({ showUptimePct: v } as Partial<MonitorNode>)} />
+            )}
+          </>
         )}
+
         <Toggle label="Czas odpowiedzi" checked={n.showResponseTime}
           onChange={(v) => onUpdate({ showResponseTime: v } as Partial<MonitorNode>)} />
         <Toggle label="Pokaż typ monitora" checked={n.showMonitorType ?? false}
           onChange={(v) => onUpdate({ showMonitorType: v } as Partial<MonitorNode>)} />
-        {n.showUptimeBar && (n.uptimeBarPosition ?? 'right') === 'below' && (
-          <Toggle label="Pokaż % uptime" checked={n.showUptimePct ?? false}
-            onChange={(v) => onUpdate({ showUptimePct: v } as Partial<MonitorNode>)} />
-        )}
       </div>
     )
   }
@@ -636,13 +693,13 @@ function PropertiesPanel({
         <input value={n.label} onChange={(e) => onUpdate({ label: e.target.value } as Partial<GroupNode>)} className={cls} />
         <Toggle label="Zwijalna" checked={n.collapsible}
           onChange={(v) => onUpdate({ collapsible: v } as Partial<GroupNode>)} />
-        <div className="border-t border-slate-800 pt-3">
+        <div className="border-t pt-3">
           <Label>Dodaj monitor do grupy</Label>
           <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
             {monitors.map((m) => (
               <button key={m.id} onClick={() => onAddChild(createMonitorNode(m.id))}
-                className="w-full text-left text-xs text-slate-300 hover:text-white px-2 py-1.5 rounded hover:bg-slate-800 flex items-center gap-2">
-                <span className="text-[9px] uppercase text-slate-500">{m.type}</span>
+                className="w-full text-left text-xs text-on-surface-variant hover:text-on-surface px-2 py-1.5 rounded hover:bg-surface-container-high flex items-center gap-2">
+                <span className="text-[9px] uppercase text-secondary">{m.type}</span>
                 {m.name}
               </button>
             ))}
@@ -652,15 +709,42 @@ function PropertiesPanel({
     )
   }
 
+  if (node.type === 'incidents') {
+    const n = node as IncidentsNode
+    return (
+      <div className="space-y-3">
+        <Label>Limit incydentów</Label>
+        <input
+          type="number"
+          min={1}
+          max={20}
+          value={n.limit ?? 5}
+          onChange={(e) => onUpdate({ limit: Number(e.target.value) } as Partial<IncidentsNode>)}
+          className={cls}
+        />
+        <Label>Filtr</Label>
+        <select
+          value={n.filter ?? 'all'}
+          onChange={(e) => onUpdate({ filter: e.target.value as IncidentsNode['filter'] } as Partial<IncidentsNode>)}
+          className={cls}
+        >
+          <option value="all">Wszystkie</option>
+          <option value="active">Tylko aktywne</option>
+          <option value="resolved">Tylko rozwiązane</option>
+        </select>
+      </div>
+    )
+  }
+
   return null
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <p className="text-[10px] uppercase tracking-wider text-slate-500">{children}</p>
+  return <p className="text-[10px] uppercase tracking-wider text-secondary">{children}</p>
 }
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+    <label className="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="accent-indigo-500" />
       {label}
     </label>

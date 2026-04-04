@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { api } from '../../api/client'
 import type { Monitor, MonitorGroup, MonitorType } from '@bsp/shared'
 
@@ -64,23 +65,24 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+  return createPortal(
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.55)', overflowY: 'auto' }}>
+      <div style={{ display: 'flex', minHeight: '100%', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
       <div
-        className="glass rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
-        style={{ background: 'rgba(13,21,38,0.97)' }}
+        className="rounded-2xl w-full max-w-lg"
+        style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--sig-border)' }}>
-          <h3 className="font-display font-bold text-lg" style={{ color: 'var(--sig-text)' }}>
+        <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
+          <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>
             {isEdit ? 'Edit Monitor' : 'New Monitor'}
           </h3>
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none transition-colors"
-            style={{ color: 'var(--sig-text-muted)' }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-text)' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ''; (e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-text-muted)' }}
+            style={{ color: 'var(--m3-secondary)' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container-high)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ''; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)' }}
           >
             ×
           </button>
@@ -90,7 +92,7 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
           {error && (
             <div
               className="rounded-lg px-4 py-3 text-sm"
-              style={{ background: 'rgba(255,77,106,0.08)', border: '1px solid rgba(255,77,106,0.2)', color: 'var(--sig-red)' }}
+              style={{ background: 'rgba(255,77,106,0.08)', border: '1px solid rgba(255,77,106,0.2)', color: 'var(--m3-down)' }}
             >
               {error}
             </div>
@@ -108,12 +110,12 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
 
           {/* Type tab selector */}
           <div>
-            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--sig-text-muted)' }}>
+            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
               Type
             </label>
             <div
               className="flex rounded-lg p-1 gap-1"
-              style={{ background: 'rgba(8,13,24,0.7)', border: '1px solid var(--sig-border)' }}
+              style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}
             >
               {types.map((t) => (
                 <button
@@ -122,8 +124,8 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
                   onClick={() => handleTypeChange(t.value)}
                   className="flex-1 text-xs font-medium py-1.5 rounded-md transition-all"
                   style={type === t.value
-                    ? { background: 'var(--sig-teal-glow)', color: 'var(--sig-teal)', border: '1px solid rgba(0,212,175,0.25)' }
-                    : { color: 'var(--sig-text-muted)', border: '1px solid transparent' }
+                    ? { background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 25%, transparent)' }
+                    : { color: 'var(--m3-secondary)', border: '1px solid transparent' }
                   }
                 >
                   {t.label}
@@ -151,7 +153,7 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
           </Field>
 
           {/* Divider */}
-          <div style={{ borderTop: '1px solid var(--sig-border)' }} />
+          <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
 
           {/* Type-specific fields */}
           {type === 'https' && (
@@ -253,9 +255,9 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
               type="button"
               onClick={onClose}
               className="px-4 py-2 text-sm rounded-lg transition-colors"
-              style={{ color: 'var(--sig-text-muted)' }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-text)')}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-text-muted)')}
+              style={{ color: 'var(--m3-secondary)' }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)')}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)')}
             >
               Cancel
             </button>
@@ -264,8 +266,8 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
               disabled={loading}
               className="px-4 py-2 text-sm font-semibold rounded-lg transition-all"
               style={{
-                background: loading ? 'rgba(0,212,175,0.3)' : 'linear-gradient(135deg, #00d4af 0%, #00a88a 100%)',
-                color: loading ? 'rgba(0,0,0,0.5)' : '#080d18',
+                background: loading ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
+                color: loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
                 opacity: loading ? 0.7 : 1,
               }}
             >
@@ -274,14 +276,16 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
           </div>
         </form>
       </div>
-    </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--sig-text-muted)' }}>
+      <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
         {label}
       </label>
       {children}

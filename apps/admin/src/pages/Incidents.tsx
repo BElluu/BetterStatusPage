@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { Incident, Monitor } from '@bsp/shared'
@@ -54,8 +55,8 @@ export default function IncidentsPage() {
     <div className="p-8 space-y-6 fade-up">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--sig-text)' }}>Incidents</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--sig-text-muted)' }}>
+          <h1 className="font-headline font-bold text-2xl" style={{ color: 'var(--m3-on-surface)' }}>Incidents</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
             {activeCount} active · {incidents.length} total
           </p>
         </div>
@@ -63,9 +64,9 @@ export default function IncidentsPage() {
           onClick={() => setShowCreate(true)}
           className="text-sm font-semibold px-4 py-2.5 rounded-lg transition-all"
           style={{
-            background: 'rgba(255,77,106,0.12)',
-            color: 'var(--sig-red)',
-            border: '1px solid rgba(255,77,106,0.25)',
+            background: 'var(--m3-down-bg)',
+            color: 'var(--m3-down)',
+            border: '1px solid color-mix(in srgb, var(--m3-down) 30%, transparent)',
           }}
         >
           + Report Incident
@@ -81,21 +82,21 @@ export default function IncidentsPage() {
           return (
             <div
               key={incident.id}
-              className="glass rounded-xl overflow-hidden"
+              className="rounded-2xl overflow-hidden"
               style={{ borderLeft: `3px solid ${color}` }}
             >
               {/* Header row */}
               <div
                 className="px-5 py-4 flex items-center gap-3 cursor-pointer transition-colors"
                 onClick={() => setExpandedId(isExpanded ? null : incident.id)}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.02)')}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = 'var(--m3-surface-container)')}
                 onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.background = '')}
               >
-                <span className="font-mono text-xs flex-shrink-0" style={{ color: 'var(--sig-text-muted)' }}>
+                <span className="font-mono text-xs flex-shrink-0" style={{ color: 'var(--m3-secondary)' }}>
                   {isExpanded ? '▾' : '▸'}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <span className="font-medium text-sm" style={{ color: 'var(--sig-text)' }}>
+                  <span className="font-medium text-sm" style={{ color: 'var(--m3-on-surface)' }}>
                     {incident.title}
                   </span>
                   <div className="flex gap-2 mt-1.5 flex-wrap">
@@ -113,7 +114,7 @@ export default function IncidentsPage() {
                     </span>
                   </div>
                 </div>
-                <span className="font-mono text-xs flex-shrink-0" style={{ color: 'var(--sig-text-muted)' }}>
+                <span className="font-mono text-xs flex-shrink-0" style={{ color: 'var(--m3-secondary)' }}>
                   {new Date(incident.startedAt).toLocaleDateString()}
                 </span>
                 <button
@@ -124,8 +125,8 @@ export default function IncidentsPage() {
                     }
                   }}
                   className="text-xs px-2 py-1 rounded transition-colors flex-shrink-0"
-                  style={{ color: 'var(--sig-red)' }}
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,77,106,0.1)')}
+                  style={{ color: 'var(--m3-down)' }}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-down-bg)')}
                   onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '')}
                 >
                   Delete
@@ -134,11 +135,11 @@ export default function IncidentsPage() {
 
               {/* Expanded panel */}
               {isExpanded && (
-                <div className="px-5 pb-5 pt-4 space-y-4" style={{ borderTop: '1px solid var(--sig-border)' }}>
+                <div className="px-5 pb-5 pt-4 space-y-4" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
 
                   {/* Affected monitors */}
                   <div>
-                    <p className="font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--sig-text-muted)' }}>
+                    <p className="font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
                       Affected Monitors
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -149,9 +150,9 @@ export default function IncidentsPage() {
                             key={mid}
                             className="text-xs px-2 py-0.5 rounded-full font-mono"
                             style={{
-                              background: 'rgba(255,255,255,0.05)',
-                              color: 'var(--sig-text-muted)',
-                              border: '1px solid var(--sig-border)',
+                              background: 'var(--m3-surface-container)',
+                              color: 'var(--m3-secondary)',
+                              border: '1px solid var(--m3-outline-variant)',
                             }}
                           >
                             {m.name}
@@ -159,7 +160,7 @@ export default function IncidentsPage() {
                         ) : null
                       })}
                       {(incident.monitorIds ?? []).length === 0 && (
-                        <span className="text-xs" style={{ color: 'var(--sig-text-muted)' }}>None linked</span>
+                        <span className="text-xs" style={{ color: 'var(--m3-secondary)' }}>None linked</span>
                       )}
                     </div>
                   </div>
@@ -167,7 +168,7 @@ export default function IncidentsPage() {
                   {/* Updates timeline */}
                   {(incident.updates ?? []).length > 0 && (
                     <div className="space-y-3">
-                      <p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--sig-text-muted)' }}>
+                      <p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
                         Updates
                       </p>
                       <div className="space-y-3">
@@ -178,22 +179,22 @@ export default function IncidentsPage() {
                               <div className="flex flex-col items-center flex-shrink-0">
                                 <div
                                   className="w-2 h-2 rounded-full flex-shrink-0 mt-0.5"
-                                  style={{ background: i === 0 ? uc : 'rgba(255,255,255,0.12)' }}
+                                  style={{ background: i === 0 ? uc : 'var(--m3-outline-variant)' }}
                                 />
                                 {i < (incident.updates ?? []).length - 1 && (
-                                  <div className="w-px flex-1 mt-1" style={{ background: 'var(--sig-border)', minHeight: 16 }} />
+                                  <div className="w-px flex-1 mt-1" style={{ background: 'var(--m3-outline-variant)', minHeight: 16 }} />
                                 )}
                               </div>
                               <div className="flex-1 min-w-0 pb-1">
                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                  <span className="text-xs font-medium" style={{ color: i === 0 ? uc : 'var(--sig-text-muted)' }}>
+                                  <span className="text-xs font-medium" style={{ color: i === 0 ? uc : 'var(--m3-secondary)' }}>
                                     {update.status}
                                   </span>
-                                  <span className="font-mono text-xs" style={{ color: 'var(--sig-text-muted)' }}>
+                                  <span className="font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
                                     {new Date(update.postedAt).toLocaleString()}
                                   </span>
                                 </div>
-                                <p className="text-sm" style={{ color: 'var(--sig-text)' }}>{update.body}</p>
+                                <p className="text-sm" style={{ color: 'var(--m3-on-surface)' }}>{update.body}</p>
                               </div>
                             </div>
                           )
@@ -205,7 +206,7 @@ export default function IncidentsPage() {
                   {/* Post update */}
                   {incident.status !== 'resolved' && (
                     <div className="space-y-3">
-                      <p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--sig-text-muted)' }}>
+                      <p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
                         Post Update
                       </p>
                       <textarea
@@ -234,8 +235,8 @@ export default function IncidentsPage() {
                           }}
                           className="text-sm font-semibold px-4 py-2 rounded-lg transition-all"
                           style={{
-                            background: 'linear-gradient(135deg, #00d4af 0%, #00a88a 100%)',
-                            color: '#080d18',
+                            background: 'var(--m3-primary)',
+                            color: 'var(--m3-on-primary)',
                           }}
                         >
                           Post Update
@@ -249,7 +250,7 @@ export default function IncidentsPage() {
           )
         })}
         {incidents.length === 0 && (
-          <div className="text-center py-14 text-sm" style={{ color: 'var(--sig-text-muted)' }}>
+          <div className="text-center py-14 text-sm" style={{ color: 'var(--m3-secondary)' }}>
             No incidents reported. All systems operational.
           </div>
         )}
@@ -290,17 +291,18 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
-      <div className="glass rounded-2xl w-full max-w-md" style={{ background: 'rgba(13,21,38,0.95)' }}>
-        <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--sig-border)' }}>
-          <h3 className="font-display font-bold text-lg" style={{ color: 'var(--sig-text)' }}>Report Incident</h3>
+  return createPortal(
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.55)', overflowY: 'auto' }}>
+      <div style={{ display: 'flex', minHeight: '100%', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div className="rounded-2xl w-full max-w-md" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
+        <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
+          <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>Report Incident</h3>
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none transition-colors"
-            style={{ color: 'var(--sig-text-muted)' }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-text)' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ''; (e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-text-muted)' }}
+            style={{ color: 'var(--m3-secondary)' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container-high)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ''; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)' }}
           >
             ×
           </button>
@@ -308,7 +310,7 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--sig-text-muted)' }}>
+            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
               Title
             </label>
             <input
@@ -322,7 +324,7 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--sig-text-muted)' }}>
+              <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
                 Status
               </label>
               <select value={status} onChange={(e) => setStatus(e.target.value)} className="input-sig">
@@ -332,7 +334,7 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
               </select>
             </div>
             <div>
-              <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--sig-text-muted)' }}>
+              <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
                 Impact
               </label>
               <select value={impact} onChange={(e) => setImpact(e.target.value)} className="input-sig">
@@ -345,16 +347,16 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
           </div>
 
           <div>
-            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--sig-text-muted)' }}>
+            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
               Affected Monitors
             </label>
             <div
               className="space-y-1 max-h-36 overflow-y-auto rounded-lg p-2"
-              style={{ background: 'rgba(8,13,24,0.6)', border: '1px solid var(--sig-border)' }}
+              style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}
             >
               {monitors.map((m) => (
                 <label key={m.id} className="flex items-center gap-2.5 text-sm cursor-pointer px-2 py-1.5 rounded-md transition-colors"
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLLabelElement).style.background = 'rgba(255,255,255,0.04)')}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLLabelElement).style.background = 'var(--m3-surface-container)')}
                   onMouseLeave={(e) => ((e.currentTarget as HTMLLabelElement).style.background = '')}
                 >
                   <input
@@ -365,13 +367,13 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
                         ? [...selectedMonitors, m.id]
                         : selectedMonitors.filter((id) => id !== m.id))
                     }}
-                    style={{ accentColor: 'var(--sig-teal)' }}
+                    style={{ accentColor: 'var(--m3-primary)' }}
                   />
-                  <span style={{ color: 'var(--sig-text)' }}>{m.name}</span>
+                  <span style={{ color: 'var(--m3-on-surface)' }}>{m.name}</span>
                 </label>
               ))}
               {monitors.length === 0 && (
-                <p className="text-xs px-2 py-2" style={{ color: 'var(--sig-text-muted)' }}>No monitors available</p>
+                <p className="text-xs px-2 py-2" style={{ color: 'var(--m3-secondary)' }}>No monitors available</p>
               )}
             </div>
           </div>
@@ -381,9 +383,9 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
               type="button"
               onClick={onClose}
               className="text-sm px-4 py-2 rounded-lg transition-colors"
-              style={{ color: 'var(--sig-text-muted)' }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-text)')}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-text-muted)')}
+              style={{ color: 'var(--m3-secondary)' }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)')}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)')}
             >
               Cancel
             </button>
@@ -392,8 +394,8 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
               disabled={loading}
               className="text-sm font-semibold px-4 py-2 rounded-lg transition-all"
               style={{
-                background: loading ? 'rgba(0,212,175,0.3)' : 'linear-gradient(135deg, #00d4af 0%, #00a88a 100%)',
-                color: loading ? 'rgba(0,0,0,0.5)' : '#080d18',
+                background: loading ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
+                color: loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
                 opacity: loading ? 0.7 : 1,
               }}
             >
@@ -402,6 +404,8 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
           </div>
         </form>
       </div>
-    </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
