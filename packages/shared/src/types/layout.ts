@@ -41,6 +41,7 @@ export interface MonitorNode extends BaseNode {
 
 export interface TextNode extends BaseNode {
   type: 'text'
+  name: string
   markdown: string
 }
 

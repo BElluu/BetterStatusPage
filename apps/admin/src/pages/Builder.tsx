@@ -405,6 +405,7 @@ function NodeCard(props: NodeCardProps) {
         <div className="flex items-center gap-1 px-2 py-1.5 shrink-0 pr-7 border-b border-outline-variant/40">
           <span className="drag-handle cursor-grab text-secondary hover:text-on-surface-variant">⠿</span>
           <span className="text-[10px] text-secondary uppercase tracking-wider">Tekst</span>
+          <span className="text-xs text-on-surface-variant truncate ml-1">{n.name || ''}</span>
         </div>
         <div className="flex-1 px-3 py-2 overflow-auto">
           <p className="text-xs text-on-surface-variant whitespace-pre-wrap">{n.markdown}</p>
@@ -572,8 +573,13 @@ function SortableGroupItem({
           <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 rounded">{monitor.type}</span>
           <span className="flex-1 text-on-surface-variant truncate">{monitor.name}</span>
         </>
+      ) : child.type === 'text' ? (
+        <>
+          <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 rounded">T</span>
+          <span className="flex-1 text-on-surface-variant truncate">{(child as TextNode).name || 'Tekst'}</span>
+        </>
       ) : (
-        <span className="flex-1 text-on-surface-variant truncate">{(child as MonitorNode).monitorId ?? child.id}</span>
+        <span className="flex-1 text-on-surface-variant truncate">{child.id}</span>
       )}
       <button onClick={(e) => { e.stopPropagation(); onDelete() }} className="text-secondary hover:text-status-down text-xs leading-none shrink-0">×</button>
     </div>
@@ -595,6 +601,13 @@ function PropertiesPanel({
     const n = node as TextNode
     return (
       <div className="space-y-3">
+        <Label>Nazwa</Label>
+        <input
+          value={n.name ?? ''}
+          onChange={(e) => onUpdate({ name: e.target.value } as Partial<TextNode>)}
+          className={cls}
+          placeholder="Nowy tekst"
+        />
         <Label>Tekst (Markdown)</Label>
         <textarea
           value={n.markdown}

@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { api } from '../../api/client'
-import type { Monitor, MonitorGroup, MonitorType } from '@bsp/shared'
+import type { Monitor, MonitorType } from '@bsp/shared'
 
 interface Props {
   monitor: Monitor | null
-  groups: MonitorGroup[]
   onClose: () => void
   onSaved: () => void
 }
@@ -24,11 +23,10 @@ const types: { value: MonitorType; label: string }[] = [
   { value: 'sqlserver', label: 'SQL Server' },
 ]
 
-export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: Props) {
+export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
   const isEdit = !!monitor
   const [name, setName] = useState(monitor?.name ?? '')
   const [type, setType] = useState<MonitorType>(monitor?.type as MonitorType ?? 'https')
-  const [groupId, setGroupId] = useState<number | ''>(monitor?.groupId ?? '')
   const [intervalSecs, setIntervalSecs] = useState(monitor?.intervalSecs ?? 60)
   const [timeoutMs, setTimeoutMs] = useState(monitor?.timeoutMs ?? 10000)
   const [config, setConfig] = useState<Record<string, unknown>>(
@@ -51,7 +49,7 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
     setError('')
     setLoading(true)
     try {
-      const body = { name, type, groupId: groupId === '' ? undefined : groupId, intervalSecs, timeoutMs, config }
+      const body = { name, type, intervalSecs, timeoutMs, config }
       if (isEdit) {
         await api.patch(`/admin/monitors/${monitor.id}`, body)
       } else {
@@ -134,19 +132,9 @@ export default function MonitorFormModal({ monitor, groups, onClose, onSaved }: 
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Group">
-              <select value={groupId} onChange={(e) => setGroupId(e.target.value === '' ? '' : Number(e.target.value))} className="input-sig">
-                <option value="">None</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Interval (s)">
-              <input type="number" value={intervalSecs} onChange={(e) => setIntervalSecs(Number(e.target.value))} min={10} className="input-sig" />
-            </Field>
-          </div>
+          <Field label="Interval (s)">
+            <input type="number" value={intervalSecs} onChange={(e) => setIntervalSecs(Number(e.target.value))} min={10} className="input-sig" />
+          </Field>
 
           <Field label="Timeout (ms)">
             <input type="number" value={timeoutMs} onChange={(e) => setTimeoutMs(Number(e.target.value))} min={1000} className="input-sig" />
