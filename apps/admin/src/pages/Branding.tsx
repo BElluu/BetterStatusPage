@@ -4,7 +4,10 @@ import { api } from '../api/client'
 import type { Branding } from '@bsp/shared'
 
 interface BrandingForm {
+  enabled: boolean
   siteName: string
+  logoType: 'image' | 'text'
+  logoText: string
   primaryColor: string
   accentColor: string
   backgroundColor: string
@@ -19,17 +22,20 @@ interface BrandingForm {
 }
 
 const DEFAULTS: BrandingForm = {
+  enabled: false,
   siteName: 'Status Page',
-  primaryColor: '#00d4af',
-  accentColor: '#f5a623',
-  backgroundColor: '#080d18',
-  cardBackground: '#0d1526',
-  cardBorderColor: 'rgba(255,255,255,0.07)',
-  textColor: '#e8edf5',
-  textMutedColor: '#5a6a8a',
-  statusUpColor: '#00d4af',
-  statusDownColor: '#ff4d6a',
-  statusDegradedColor: '#f5a623',
+  logoType: 'image',
+  logoText: '',
+  primaryColor: '#5256a4',
+  accentColor: '#5c5faa',
+  backgroundColor: '#faf8ff',
+  cardBackground: '#f2f0fd',
+  cardBorderColor: '#c8c5d0',
+  textColor: '#1b1b22',
+  textMutedColor: '#5d5c72',
+  statusUpColor: '#1a7f37',
+  statusDownColor: '#c0392b',
+  statusDegradedColor: '#b05c00',
   customCss: '',
 }
 
@@ -48,7 +54,10 @@ export default function BrandingPage() {
   useEffect(() => {
     if (branding) {
       setForm({
+        enabled: !!branding.enabled,
         siteName: branding.siteName,
+        logoType: (branding.logoType as 'image' | 'text') ?? 'image',
+        logoText: branding.logoText ?? '',
         primaryColor: branding.primaryColor,
         accentColor: branding.accentColor,
         backgroundColor: branding.backgroundColor ?? DEFAULTS.backgroundColor,
@@ -66,7 +75,12 @@ export default function BrandingPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      await api.patch('/admin/branding', { ...form, customCss: form.customCss || null })
+      await api.patch('/admin/branding', {
+        ...form,
+        enabled: form.enabled ? 1 : 0,
+        customCss: form.customCss || null,
+        logoText: form.logoText || null,
+      })
       if (logoFile) {
         const fd = new FormData()
         fd.append('file', logoFile)
@@ -88,34 +102,97 @@ export default function BrandingPage() {
   return (
     <div className="flex h-full overflow-hidden">
       {/* ── Controls panel ── */}
-      <div className="w-80 shrink-0 flex flex-col overflow-hidden" style={{ background: 'var(--sig-surface)', borderRight: '1px solid var(--sig-border)' }}>
-        <div className="px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--sig-border)' }}>
-          <h2 className="font-display font-bold text-base" style={{ color: 'var(--sig-text)' }}>Branding</h2>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--sig-text-muted)' }}>Wygląd publicznej strony statusów</p>
+      <div className="w-80 shrink-0 flex flex-col overflow-hidden" style={{ background: 'var(--m3-surface-container-low)', borderRight: '1px solid var(--m3-outline-variant)' }}>
+        <div className="px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
+          <h2 className="font-headline font-bold text-base" style={{ color: 'var(--m3-on-surface)' }}>Branding</h2>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>Wygląd publicznej strony statusów</p>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
-          {/* Tożsamość */}
-          <Section title="Tożsamość">
-            <Field label="Nazwa strony">
-              <input value={form.siteName} onChange={(e) => set('siteName')(e.target.value)}
-                className="input-sig" placeholder="My Status Page" />
-            </Field>
-            <Field label="Logo">
-              {currentLogoUrl && (
-                <img src={currentLogoUrl} alt="Logo" className="h-8 object-contain rounded px-2 py-1 mb-2" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--sig-border)' }} />
-              )}
-              <input type="file" accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0] ?? null
-                  setLogoFile(file)
-                  if (file) setLogoPreviewUrl(URL.createObjectURL(file))
-                }}
-                className="block text-xs cursor-pointer"
-                style={{ color: 'var(--sig-text-muted)' }}
+
+          {/* ── Tożsamość — zawsze aktywne ── */}
+          <div>
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: 'var(--m3-secondary)' }}>
+              Tożsamość
+              <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(34,197,94,0.12)', color: '#16a34a' }}>zawsze aktywne</span>
+            </p>
+            <div className="space-y-2">
+              <Field label="Nazwa strony">
+                <input value={form.siteName} onChange={(e) => set('siteName')(e.target.value)}
+                  className="input-sig" placeholder="My Status Page" />
+              </Field>
+              <Field label="Logo">
+                {/* Logo type toggle */}
+                <div className="flex gap-1 p-0.5 rounded-lg mb-2" style={{ background: 'var(--m3-surface-container)' }}>
+                  {(['image', 'text'] as const).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, logoType: type }))}
+                      className="flex-1 text-xs py-1.5 rounded-md font-semibold transition-all"
+                      style={{
+                        background: form.logoType === type ? 'var(--m3-surface-container-lowest)' : 'transparent',
+                        color: form.logoType === type ? 'var(--m3-on-surface)' : 'var(--m3-secondary)',
+                        boxShadow: form.logoType === type ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                      }}
+                    >
+                      {type === 'image' ? 'Obrazek' : 'Tekst'}
+                    </button>
+                  ))}
+                </div>
+                {form.logoType === 'image' ? (
+                  <>
+                    {currentLogoUrl && (
+                      <img src={currentLogoUrl} alt="Logo" className="h-8 object-contain rounded px-2 py-1 mb-2" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }} />
+                    )}
+                    <input type="file" accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null
+                        setLogoFile(file)
+                        if (file) setLogoPreviewUrl(URL.createObjectURL(file))
+                      }}
+                      className="block text-xs cursor-pointer"
+                      style={{ color: 'var(--m3-secondary)' }}
+                    />
+                  </>
+                ) : (
+                  <input
+                    value={form.logoText}
+                    onChange={(e) => setForm((f) => ({ ...f, logoText: e.target.value }))}
+                    className="input-sig"
+                    placeholder="np. Acme Corp"
+                    maxLength={40}
+                  />
+                )}
+              </Field>
+            </div>
+          </div>
+
+          {/* ── Branding toggle ── */}
+          <div
+            className="flex items-center justify-between px-4 py-3 rounded-xl"
+            style={{ background: form.enabled ? 'rgba(34,197,94,0.08)' : 'var(--m3-surface-container)', border: `1px solid ${form.enabled ? 'rgba(34,197,94,0.3)' : 'var(--m3-outline-variant)'}` }}
+          >
+            <div>
+              <p className="font-sans text-sm font-semibold" style={{ color: 'var(--m3-on-surface)' }}>
+                Własny branding
+              </p>
+              <p className="font-sans text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>
+                {form.enabled ? 'Własne kolory są aktywne' : 'Używane są domyślne kolory projektu'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, enabled: !f.enabled }))}
+              className="relative flex-shrink-0 w-12 h-6 rounded-full transition-colors duration-200"
+              style={{ background: form.enabled ? '#22c55e' : 'var(--m3-outline-variant)' }}
+            >
+              <span
+                className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200"
+                style={{ transform: form.enabled ? 'translateX(24px)' : 'translateX(2px)' }}
               />
-            </Field>
-          </Section>
+            </button>
+          </div>
 
           {/* Tło i karty */}
           <Section title="Tło i karty">
@@ -168,29 +245,29 @@ export default function BrandingPage() {
         </div>
 
         {/* Save */}
-        <div className="px-5 py-4 shrink-0 flex items-center gap-3" style={{ borderTop: '1px solid var(--sig-border)' }}>
+        <div className="px-5 py-4 shrink-0 flex items-center gap-3" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
           <button
             onClick={() => saveMutation.mutate()}
             disabled={saveMutation.isPending}
             className="flex-1 text-sm font-semibold py-2 rounded-lg transition-all"
             style={{
-              background: saveMutation.isPending ? 'rgba(0,212,175,0.3)' : 'linear-gradient(135deg, #00d4af 0%, #00a88a 100%)',
-              color: saveMutation.isPending ? 'rgba(0,0,0,0.5)' : '#080d18',
+              background: saveMutation.isPending ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
+              color: saveMutation.isPending ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
               opacity: saveMutation.isPending ? 0.7 : 1,
             }}
           >
             {saveMutation.isPending ? 'Zapisuję…' : 'Zapisz branding'}
           </button>
-          {saved && <span className="text-sm shrink-0" style={{ color: 'var(--sig-teal)' }}>Zapisano!</span>}
+          {saved && <span className="text-sm shrink-0" style={{ color: 'var(--m3-primary)' }}>Zapisano!</span>}
         </div>
       </div>
 
       {/* ── Live preview panel ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-4 py-2 shrink-0 flex items-center gap-2" style={{ background: 'var(--sig-surface)', borderBottom: '1px solid var(--sig-border)' }}>
-          <span className="w-2 h-2 rounded-full" style={{ background: 'var(--sig-teal)', animation: 'orbGlow 2s ease-in-out infinite' }} />
-          <span className="font-mono text-xs font-medium" style={{ color: 'var(--sig-text)' }}>Podgląd na żywo</span>
-          <span className="text-xs ml-1" style={{ color: 'var(--sig-text-muted)' }}>— zmiany widoczne przed zapisaniem</span>
+        <div className="px-4 py-2 shrink-0 flex items-center gap-2" style={{ background: 'var(--m3-surface-container-low)', borderBottom: '1px solid var(--m3-outline-variant)' }}>
+          <span className="w-2 h-2 rounded-full" style={{ background: 'var(--m3-primary)', animation: 'orbGlow 2s ease-in-out infinite' }} />
+          <span className="font-mono text-xs font-medium" style={{ color: 'var(--m3-on-surface)' }}>Podgląd na żywo</span>
+          <span className="text-xs ml-1" style={{ color: 'var(--m3-secondary)' }}>— zmiany widoczne przed zapisaniem</span>
         </div>
         <div className="flex-1 overflow-auto">
           <LivePreview form={form} logoUrl={currentLogoUrl} />
@@ -205,7 +282,7 @@ export default function BrandingPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
-      <p className="font-mono text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--sig-text-muted)' }}>{title}</p>
+      <p className="font-mono text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--m3-secondary)' }}>{title}</p>
       <div className="space-y-2">{children}</div>
     </div>
   )
@@ -214,7 +291,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs mb-1.5" style={{ color: 'var(--sig-text-muted)' }}>{label}</label>
+      <label className="block text-xs mb-1.5" style={{ color: 'var(--m3-secondary)' }}>{label}</label>
       {children}
     </div>
   )
@@ -229,7 +306,7 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
           value={value.startsWith('rgba') ? '#000000' : value}
           onChange={(e) => onChange(e.target.value)}
           className="w-8 h-8 rounded-md cursor-pointer shrink-0 p-0.5"
-          style={{ border: '1px solid var(--sig-border)', background: 'rgba(8,13,24,0.8)' }}
+          style={{ border: '1px solid var(--m3-outline-variant)', background: 'var(--m3-surface-container-lowest)' }}
         />
         <input
           value={value}
@@ -244,158 +321,247 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
 
 // ── Live preview ───────────────────────────────────────────────────────────────
 
+// Design system defaults (matches index.css --bsp-* aliases when branding disabled)
+const DESIGN_DEFAULTS = {
+  backgroundColor: '#f2f3ff',
+  cardBackground: '#f2f3ff',
+  cardBorderColor: '#c6c6cd',
+  textColor: '#131b2e',
+  textMutedColor: '#505f76',
+  primaryColor: '#000000',
+  accentColor: '#497cff',
+  statusUpColor: '#22c55e',
+  statusDownColor: '#ba1a1a',
+  statusDegradedColor: '#eab308',
+}
+
 function LivePreview({ form, logoUrl }: { form: BrandingForm; logoUrl: string | null }) {
-  const v = form
-  const vars = {
-    '--bsp-bg': v.backgroundColor,
-    '--bsp-card-bg': v.cardBackground,
-    '--bsp-card-border': v.cardBorderColor,
-    '--bsp-text': v.textColor,
-    '--bsp-text-muted': v.textMutedColor,
-    '--bsp-primary': v.primaryColor,
-    '--bsp-accent': v.accentColor,
-    '--bsp-up': v.statusUpColor,
-    '--bsp-down': v.statusDownColor,
-    '--bsp-degraded': v.statusDegradedColor,
-  } as React.CSSProperties
+  const v = form.enabled ? form : { ...form, ...DESIGN_DEFAULTS }
 
-  const card: React.CSSProperties = {
-    borderRadius: '8px',
-    padding: '10px 14px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  // Helper to generate status badge styles
+  const statusBadge = (status: 'up' | 'down' | 'degraded') => ({
+    up:       { bg: `${v.statusUpColor}1a`,       color: v.statusUpColor,       label: 'Operational' },
+    down:     { bg: `${v.statusDownColor}20`,      color: v.statusDownColor,     label: 'Outage' },
+    degraded: { bg: `${v.statusDegradedColor}18`,  color: v.statusDegradedColor, label: 'Degraded' },
+  }[status])
+
+  // Lighten a hex color for gradient top (mix with white ~40%)
+  function lighten(hex: string): string {
+    const n = parseInt(hex.replace('#', ''), 16)
+    const r = Math.min(255, ((n >> 16) & 0xff) + 80)
+    const g = Math.min(255, ((n >> 8)  & 0xff) + 80)
+    const b = Math.min(255, (n         & 0xff) + 80)
+    return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
   }
 
-  const dot = (color: string): React.CSSProperties => ({
-    width: '8px', height: '8px', borderRadius: '50%',
-    background: color, display: 'inline-block', flexShrink: 0,
-  })
-
-  const badge: React.CSSProperties = {
-    fontSize: '9px', color: v.textMutedColor,
-    background: `${v.cardBorderColor}aa`,
-    padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase',
+  // Uptime bars row — gradient matching actual app
+  const UptimeBars = ({ color, barCount = 30 }: { color: string; barCount?: number }) => {
+    const lightColor = lighten(color)
+    return (
+      <div style={{ display: 'flex', height: '40px', gap: '2px' }}>
+        {Array.from({ length: barCount }).map((_, i) => (
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              borderRadius: '2px',
+              background: `linear-gradient(to top, ${color}, ${lightColor})`,
+              opacity: i >= barCount - 3 ? 0.5 : 1,
+            }}
+          />
+        ))}
+      </div>
+    )
   }
 
-  const monitors: Array<{ name: string; type: string; status: 'up' | 'down' | 'degraded' | 'pending' }> = [
-    { name: 'API Server', type: 'https', status: 'up' },
-    { name: 'Database', type: 'ping', status: 'down' },
-    { name: 'CDN', type: 'https', status: 'degraded' },
-  ]
+  // Full monitor card — 'right' position: bars inline between name and badge
+  const MonitorCard = ({ name, type, status }: {
+    name: string; type: string; status: 'up' | 'down' | 'degraded'
+  }) => {
+    const s = statusBadge(status)
+    const barColor = status === 'up' ? v.statusUpColor : status === 'down' ? v.statusDownColor : v.statusDegradedColor
+    const lightColor = lighten(barColor)
+    return (
+      <div style={{
+        background: v.cardBackground,
+        border: `1px solid ${v.cardBorderColor}`,
+        borderRadius: '16px',
+        padding: '28px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {/* Name + type */}
+          <div style={{ flexShrink: 0 }}>
+            <div style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: '28px', color: v.textColor, lineHeight: 1.15 }}>
+              {name}
+            </div>
+            <div style={{ fontFamily: 'monospace', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.09em', color: v.textMutedColor, marginTop: '4px' }}>
+              {type}
+            </div>
+          </div>
+          {/* Bars filling gap */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'stretch', gap: '2px', height: '48px' }}>
+            {Array.from({ length: 30 }).map((_, i) => (
+              <div key={i} style={{
+                flex: 1,
+                borderRadius: '3px',
+                background: `linear-gradient(to top, ${barColor}, ${lightColor})`,
+                opacity: i >= 27 ? 0.5 : 1,
+              }} />
+            ))}
+          </div>
+          {/* Badge */}
+          <span style={{
+            background: s.bg, color: s.color,
+            padding: '6px 14px', borderRadius: '999px',
+            fontSize: '13px', fontWeight: 700, flexShrink: 0,
+          }}>
+            {s.label}
+          </span>
+        </div>
+      </div>
+    )
+  }
 
-  const statusColor = { up: v.statusUpColor, down: v.statusDownColor, degraded: v.statusDegradedColor, pending: v.textMutedColor }
-  const statusLabel = { up: 'Operational', down: 'Down', degraded: 'Degraded', pending: 'Checking' }
-
-  const brandingStyles = `
-.bsp-monitor-card { background: ${v.cardBackground}; border: 1px solid ${v.cardBorderColor}; border-radius: 8px; overflow: hidden; }
-.bsp-group-card { background: ${v.cardBackground}; border: 1px solid ${v.cardBorderColor}; }
-.bsp-monitor-name { color: ${v.textColor}; }
-.bsp-group-label { color: ${v.textColor}; }
-.bsp-site-name { color: ${v.textColor}; }
-.bsp-divider { border-top-color: ${v.cardBorderColor}; }
-.bsp-footer { color: ${v.textMutedColor}; border-top-color: ${v.cardBorderColor}; }
-.bsp-text-block { color: ${v.textMutedColor}; }
-`
+  // Compact row (group child)
+  const CompactRow = ({ name, status }: { name: string; status: 'up' | 'down' | 'degraded' }) => {
+    const s = statusBadge(status)
+    const dotColor = status === 'up' ? v.statusUpColor : status === 'down' ? v.statusDownColor : v.statusDegradedColor
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '10px',
+        padding: '10px 20px',
+        borderTop: `1px solid ${v.cardBorderColor}`,
+      }}>
+        <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
+        <span style={{ flex: 1, fontSize: '13px', color: v.textColor, fontWeight: 500 }}>{name}</span>
+        <span style={{ fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '999px', background: s.bg, color: s.color }}>
+          {s.label}
+        </span>
+      </div>
+    )
+  }
 
   return (
-    <div className="bsp-page" style={{ ...vars, background: v.backgroundColor, minHeight: '100%' }}>
-      <style>{brandingStyles}</style>
+    <div style={{ background: v.backgroundColor, minHeight: '100%', fontFamily: 'Inter, sans-serif' }}>
       {v.customCss && <style>{v.customCss}</style>}
-      <div style={{ maxWidth: '680px', margin: '0 auto', padding: '32px 20px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
-        {/* Header */}
-        <header className="bsp-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-            {logoUrl && <img src={logoUrl} alt="" style={{ height: '28px', objectFit: 'contain' }} />}
-            <span className="bsp-site-name" style={{ fontSize: '20px', fontWeight: 700, color: v.textColor }}>
+      {/* Nav */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '16px 32px',
+        borderBottom: `1px solid ${v.cardBorderColor}`,
+        background: v.backgroundColor,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {form.logoType === 'text' && form.logoText ? (
+            <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: '16px', color: v.textColor }}>
+              {form.logoText}
+            </span>
+          ) : logoUrl ? (
+            <img src={logoUrl} alt="" style={{ height: '22px', objectFit: 'contain' }} />
+          ) : null}
+          {!(form.logoType === 'text' && form.logoText) && (
+            <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: '16px', color: v.textColor }}>
               {v.siteName || 'Status Page'}
             </span>
-          </div>
-          <div
-            className="bsp-status-banner"
-            style={{
-              display: 'flex', alignItems: 'center', gap: '10px',
-              background: `${v.statusUpColor}1a`,
-              border: `1px solid ${v.statusUpColor}44`,
-              borderRadius: '12px', padding: '12px 16px',
-            }}
-          >
-            <span style={dot(v.statusUpColor)} />
-            <span style={{ fontWeight: 600, color: v.textColor, fontSize: '14px' }}>All Systems Operational</span>
-          </div>
-        </header>
+          )}
+        </div>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: '8px',
+          padding: '5px 14px', borderRadius: '999px',
+          background: `${v.statusUpColor}15`,
+          fontSize: '11px', fontWeight: 600, color: v.statusUpColor,
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: v.statusUpColor, display: 'inline-block' }} />
+          All systems operational
+        </div>
+      </div>
 
-        {/* Standalone monitors */}
-        <section style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {monitors.map((m) => (
-            <div key={m.name} className="bsp-monitor-card" style={card}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={dot(statusColor[m.status])} />
-                <span className="bsp-monitor-name" style={{ fontSize: '13px', color: v.textColor }}>{m.name}</span>
-                <span className="bsp-monitor-type" style={badge}>{m.type}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                {m.status === 'up' && (
-                  <span className="bsp-uptime-bar" style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
-                    {Array.from({ length: 20 }, (_, i) => (
-                      <span key={i} style={{ width: '4px', height: '16px', borderRadius: '2px', background: i < 18 ? v.statusUpColor : v.statusDownColor }} />
-                    ))}
-                  </span>
-                )}
-                <span className="bsp-monitor-status" style={{ fontSize: '11px', color: statusColor[m.status] }}>
-                  {statusLabel[m.status]}
-                </span>
-              </div>
-            </div>
-          ))}
-        </section>
+      {/* Hero */}
+      <div style={{ textAlign: 'center', padding: '32px 32px 24px' }}>
+        <div style={{
+          fontFamily: 'Manrope, sans-serif', fontWeight: 800,
+          fontSize: '36px', lineHeight: 1.1,
+          color: v.textColor, marginBottom: '8px',
+        }}>
+          All systems operational.
+        </div>
+        <div style={{ fontSize: '13px', color: v.textMutedColor }}>
+          3 services monitored in real time.
+        </div>
+      </div>
 
-        {/* Group */}
-        <div className="bsp-group-card" style={{ borderRadius: '12px', overflow: 'hidden' }}>
-          <div
-            className="bsp-group-header"
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ ...dot(v.statusUpColor), width: '10px', height: '10px' }} />
-              <span className="bsp-group-label" style={{ fontWeight: 500, fontSize: '14px', color: v.textColor }}>Infrastructure</span>
-            </div>
-            <span style={{ fontSize: '12px', color: v.statusUpColor }}>Operational</span>
-          </div>
-          {['Web Server', 'Load Balancer', 'Object Storage'].map((name, i) => (
-            <div
-              key={name}
-              className="bsp-monitor-card"
-              style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '10px 16px 10px 28px',
-                borderTop: `1px solid ${v.cardBorderColor}`,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={dot(i === 1 ? v.statusDegradedColor : v.statusUpColor)} />
-                <span className="bsp-monitor-name" style={{ fontSize: '13px', color: v.textColor }}>{name}</span>
-              </div>
-              <span className="bsp-monitor-status" style={{ fontSize: '11px', color: i === 1 ? v.statusDegradedColor : v.statusUpColor }}>
-                {i === 1 ? 'Degraded' : 'Operational'}
+      {/* Cards grid */}
+      <div style={{ padding: '0 32px 32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+        {/* Two monitor cards side by side */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <MonitorCard name="API Engine" type="HTTPS" status="up" />
+          <MonitorCard name="Web Console" type="HTTPS" status="degraded" />
+        </div>
+
+        {/* Group card */}
+        <div style={{
+          background: v.cardBackground,
+          border: `1px solid ${v.cardBorderColor}`,
+          borderRadius: '16px',
+          overflow: 'hidden',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '9px', height: '9px', borderRadius: '50%', background: v.statusUpColor }} />
+              <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 600, fontSize: '14px', color: v.textColor }}>
+                Infrastructure
               </span>
+              <span style={{ fontSize: '11px', color: v.textMutedColor }}>3 services</span>
             </div>
-          ))}
+            <span style={{ fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '999px', background: `${v.statusUpColor}1a`, color: v.statusUpColor }}>
+              Operational
+            </span>
+          </div>
+          <CompactRow name="Primary DB Cluster" status="up" />
+          <CompactRow name="Cache Layer" status="degraded" />
+          <CompactRow name="Object Storage" status="up" />
         </div>
 
-        {/* Text block example */}
-        <div className="bsp-text-block" style={{ color: v.textMutedColor, fontSize: '13px', lineHeight: 1.6 }}>
-          <strong style={{ color: v.textColor }}>Scheduled maintenance</strong> — window on Sunday 02:00–04:00 UTC.
+        {/* Active incident card */}
+        <div style={{
+          background: v.cardBackground,
+          borderRadius: '24px',
+          padding: '28px',
+          borderLeft: `4px solid ${v.statusDegradedColor}`,
+        }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '28px' }}>
+            <div style={{ fontSize: '11px', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.07em', color: v.textMutedColor }}>
+              Jun 14, 2026<br />14:20 UTC
+            </div>
+            <div>
+              <span style={{
+                display: 'inline-block', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
+                padding: '3px 10px', borderRadius: '999px', marginBottom: '10px',
+                background: `${v.statusDegradedColor}15`, color: v.statusDegradedColor,
+              }}>
+                Investigating
+              </span>
+              <div style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: '18px', color: v.textColor, marginBottom: '12px' }}>
+                Elevated latency in EU region
+              </div>
+              <div style={{ borderLeft: `2px solid ${v.cardBorderColor}`, paddingLeft: '20px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: v.statusDegradedColor, marginBottom: '4px' }}>
+                  14:20 UTC — Investigating
+                </div>
+                <div style={{ fontSize: '12px', color: v.textColor }}>
+                  We are investigating reports of elevated response times affecting EU endpoints.
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-
-        {/* Divider */}
-        <hr className="bsp-divider" style={{ border: 'none', borderTop: `1px solid ${v.cardBorderColor}` }} />
 
         {/* Footer */}
-        <footer className="bsp-footer" style={{ textAlign: 'center', fontSize: '11px', color: v.textMutedColor }}>
-          Last updated: {new Date().toLocaleTimeString()}
-        </footer>
+        <div style={{ textAlign: 'center', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: v.textMutedColor, paddingTop: '8px' }}>
+          {v.siteName || 'Status Page'} · Reliability by Design.
+        </div>
       </div>
     </div>
   )

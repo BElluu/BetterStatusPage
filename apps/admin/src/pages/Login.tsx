@@ -25,45 +25,51 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-grid" style={{ background: 'var(--sig-bg)' }}>
-      {/* Left panel — branding */}
+    <div className="min-h-screen flex" style={{ background: 'var(--m3-surface)' }}>
+      {/* Left branding panel */}
       <div
-        className="hidden lg:flex flex-col justify-between w-[420px] flex-shrink-0 p-12 relative overflow-hidden"
-        style={{ background: 'linear-gradient(160deg, rgba(0,212,175,0.08) 0%, transparent 60%)', borderRight: '1px solid var(--sig-border)' }}
+        className="hidden lg:flex flex-col justify-between w-[400px] flex-shrink-0 p-12 relative overflow-hidden"
+        style={{
+          background: 'var(--m3-surface-container-low)',
+          borderRight: '1px solid var(--m3-outline-variant)',
+        }}
       >
-        {/* Decorative orb */}
+        {/* Decorative gradient blobs */}
         <div
-          className="absolute -top-24 -left-24 w-64 h-64 rounded-full pointer-events-none"
-          style={{ background: 'radial-gradient(circle, rgba(0,212,175,0.12) 0%, transparent 70%)' }}
+          className="absolute -top-32 -left-32 w-80 h-80 rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(circle, color-mix(in srgb, var(--m3-primary) 12%, transparent) 0%, transparent 70%)' }}
         />
         <div
           className="absolute bottom-0 right-0 w-96 h-96 rounded-full pointer-events-none"
-          style={{ background: 'radial-gradient(circle, rgba(0,212,175,0.05) 0%, transparent 70%)' }}
+          style={{ background: 'radial-gradient(circle, color-mix(in srgb, var(--m3-primary) 6%, transparent) 0%, transparent 70%)' }}
         />
 
         {/* Logo */}
         <div className="relative flex items-center gap-3">
           <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: 'var(--sig-teal-glow)', border: '1px solid rgba(0,212,175,0.35)' }}
+            className="w-10 h-10 rounded-2xl flex items-center justify-center"
+            style={{
+              background: 'var(--m3-primary-fixed)',
+              border: '1px solid color-mix(in srgb, var(--m3-primary) 30%, transparent)',
+            }}
           >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <circle cx="9" cy="9" r="3" fill="#00d4af" />
-              <circle cx="9" cy="9" r="7" stroke="#00d4af" strokeWidth="1.2" strokeOpacity="0.4" fill="none" />
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="3.5" fill="var(--m3-primary)" />
+              <circle cx="10" cy="10" r="8.5" stroke="var(--m3-primary)" strokeWidth="1.2" strokeOpacity="0.35" fill="none" />
             </svg>
           </div>
-          <span className="font-display font-bold text-lg" style={{ color: 'var(--sig-text)' }}>
+          <span className="font-headline font-bold text-xl" style={{ color: 'var(--m3-on-surface)' }}>
             BetterStatusPage
           </span>
         </div>
 
-        {/* Main text */}
+        {/* Main copy */}
         <div className="relative space-y-4">
-          <h2 className="font-display font-bold text-4xl leading-tight" style={{ color: 'var(--sig-text)' }}>
+          <h2 className="font-headline font-extrabold text-4xl leading-[1.1] tracking-tight" style={{ color: 'var(--m3-on-surface)' }}>
             Monitor everything.<br />
-            <span style={{ color: 'var(--sig-teal)' }}>Stay ahead</span> of issues.
+            <span style={{ color: 'var(--m3-primary)' }}>Stay ahead</span> of issues.
           </h2>
-          <p className="text-base leading-relaxed" style={{ color: 'var(--sig-text-muted)' }}>
+          <p className="text-base font-sans leading-relaxed" style={{ color: 'var(--m3-secondary)' }}>
             Real-time status pages, incident management, and uptime monitoring — all in one place.
           </p>
         </div>
@@ -76,35 +82,40 @@ export default function LoginPage() {
             { value: 'Live', label: 'SSE Updates' },
           ].map((stat) => (
             <div key={stat.label}>
-              <div className="font-mono font-medium text-lg" style={{ color: 'var(--sig-teal)' }}>{stat.value}</div>
-              <div className="text-xs mt-0.5" style={{ color: 'var(--sig-text-muted)' }}>{stat.label}</div>
+              <div className="font-mono font-semibold text-xl" style={{ color: 'var(--m3-primary)' }}>{stat.value}</div>
+              <div className="text-xs font-sans mt-0.5" style={{ color: 'var(--m3-secondary)' }}>{stat.label}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Right panel — form */}
+      {/* Right form panel */}
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
-          <div className="flex items-center gap-2.5 mb-10 lg:hidden">
+          <div className="flex items-center gap-3 mb-10 lg:hidden">
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: 'var(--sig-teal-glow)', border: '1px solid rgba(0,212,175,0.3)' }}
+              className="w-9 h-9 rounded-2xl flex items-center justify-center"
+              style={{
+                background: 'var(--m3-primary-fixed)',
+                border: '1px solid color-mix(in srgb, var(--m3-primary) 30%, transparent)',
+              }}
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <circle cx="7" cy="7" r="2.5" fill="#00d4af" />
-                <circle cx="7" cy="7" r="5.5" stroke="#00d4af" strokeWidth="1" strokeOpacity="0.4" fill="none" />
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <circle cx="9" cy="9" r="3" fill="var(--m3-primary)" />
+                <circle cx="9" cy="9" r="7.5" stroke="var(--m3-primary)" strokeWidth="1.2" strokeOpacity="0.35" fill="none" />
               </svg>
             </div>
-            <span className="font-display font-bold" style={{ color: 'var(--sig-text)' }}>BetterStatusPage</span>
+            <span className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>
+              BetterStatusPage
+            </span>
           </div>
 
           <div className="mb-8">
-            <h1 className="font-display font-bold text-2xl" style={{ color: 'var(--sig-text)' }}>
+            <h1 className="font-headline font-bold text-2xl" style={{ color: 'var(--m3-on-surface)' }}>
               Welcome back
             </h1>
-            <p className="text-sm mt-1.5" style={{ color: 'var(--sig-text-muted)' }}>
+            <p className="text-sm font-sans mt-1.5" style={{ color: 'var(--m3-secondary)' }}>
               Sign in to your admin panel
             </p>
           </div>
@@ -112,11 +123,11 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div
-                className="rounded-lg px-4 py-3 text-sm"
+                className="rounded-xl px-4 py-3 text-sm font-sans"
                 style={{
-                  background: 'rgba(255,77,106,0.08)',
-                  border: '1px solid rgba(255,77,106,0.2)',
-                  color: '#ff4d6a',
+                  background: 'var(--m3-down-bg)',
+                  border: '1px solid color-mix(in srgb, var(--m3-down) 30%, transparent)',
+                  color: 'var(--m3-down)',
                 }}
               >
                 {error}
@@ -124,7 +135,7 @@ export default function LoginPage() {
             )}
 
             <div>
-              <label className="block text-xs font-medium mb-1.5 uppercase tracking-wider" style={{ color: 'var(--sig-text-muted)' }}>
+              <label className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
                 Email
               </label>
               <input
@@ -132,13 +143,13 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="input-sig"
+                className="input-m3"
                 placeholder="admin@example.com"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium mb-1.5 uppercase tracking-wider" style={{ color: 'var(--sig-text-muted)' }}>
+              <label className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
                 Password
               </label>
               <input
@@ -146,7 +157,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="input-sig"
+                className="input-m3"
                 placeholder="••••••••"
               />
             </div>
@@ -154,13 +165,14 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full font-medium rounded-lg py-2.5 text-sm transition-all"
+              className="w-full font-sans font-semibold rounded-xl py-3 text-sm transition-all mt-2"
               style={{
-                background: loading ? 'rgba(0,212,175,0.3)' : 'linear-gradient(135deg, #00d4af 0%, #00a88a 100%)',
-                color: loading ? 'rgba(255,255,255,0.5)' : '#080d18',
-                fontWeight: 600,
-                opacity: loading ? 0.7 : 1,
+                background: loading
+                  ? 'var(--m3-surface-container-high)'
+                  : 'var(--m3-primary)',
+                color: loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
                 cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.7 : 1,
               }}
             >
               {loading ? 'Signing in…' : 'Sign in'}

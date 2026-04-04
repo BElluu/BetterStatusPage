@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { arrayMove } from '@dnd-kit/sortable'
-import type { LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode, GridPos } from '@bsp/shared'
+import type { LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode, IncidentsNode, GridPos } from '@bsp/shared'
 
 interface BuilderState {
   tree: LayoutTree
@@ -141,10 +141,11 @@ export const useBuilderStore = create<BuilderState>((set) => ({
 // ── factories ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_GRIDS: Record<string, GridPos> = {
-  monitor: { x: 0, y: 0, w: 1, h: 1 },
-  group:   { x: 0, y: 0, w: 1, h: 2 },
-  text:    { x: 0, y: 0, w: 3, h: 2 },
-  divider: { x: 0, y: 0, w: 3, h: 1 },
+  monitor:   { x: 0, y: 0, w: 1, h: 1 },
+  group:     { x: 0, y: 0, w: 1, h: 1 },
+  text:      { x: 0, y: 0, w: 3, h: 2 },
+  divider:   { x: 0, y: 0, w: 3, h: 1 },
+  incidents: { x: 0, y: 0, w: 3, h: 1 },
 }
 
 export function defaultGrid(type: string): GridPos {
@@ -152,7 +153,7 @@ export function defaultGrid(type: string): GridPos {
 }
 
 export function createMonitorNode(monitorId: number): Omit<MonitorNode, 'id'> {
-  return { type: 'monitor', monitorId, showUptimeBar: true, showResponseTime: true, uptimeBarPosition: 'right', showMonitorType: false, showUptimePct: false }
+  return { type: 'monitor', monitorId, showUptimeBar: true, showResponseTime: true, uptimeBarPosition: 'right', showMonitorType: false, showUptimePct: false, cardVariant: 'default' }
 }
 
 export function createGroupNode(label: string): Omit<GroupNode, 'id'> {
@@ -161,4 +162,8 @@ export function createGroupNode(label: string): Omit<GroupNode, 'id'> {
 
 export function createTextNode(): Omit<TextNode, 'id'> {
   return { type: 'text', markdown: '## Tytuł sekcji\nOpis…' }
+}
+
+export function createIncidentsNode(): Omit<IncidentsNode, 'id'> {
+  return { type: 'incidents', limit: 5, filter: 'all' }
 }

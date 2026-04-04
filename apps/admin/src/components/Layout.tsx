@@ -1,16 +1,18 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { clearToken } from '../api/client'
+import { useDarkMode } from '../hooks/useDarkMode'
 
 const navItems = [
-  { to: '/admin/', label: 'Dashboard', icon: NavIconDashboard },
-  { to: '/admin/monitors', label: 'Monitors', icon: NavIconMonitors },
-  { to: '/admin/incidents', label: 'Incidents', icon: NavIconIncidents },
-  { to: '/admin/builder', label: 'Page Builder', icon: NavIconBuilder },
-  { to: '/admin/branding', label: 'Branding', icon: NavIconBranding },
+  { to: '/admin/', label: 'Dashboard', icon: 'dashboard' },
+  { to: '/admin/monitors', label: 'Monitors', icon: 'radio_button_checked' },
+  { to: '/admin/incidents', label: 'Incidents', icon: 'warning' },
+  { to: '/admin/builder', label: 'Page Builder', icon: 'dashboard_customize' },
+  { to: '/admin/branding', label: 'Branding', icon: 'palette' },
 ]
 
 export default function Layout() {
   const navigate = useNavigate()
+  const [isDark, toggleDark] = useDarkMode()
 
   function handleLogout() {
     clearToken()
@@ -18,166 +20,144 @@ export default function Layout() {
   }
 
   return (
-    <div className="flex h-screen" style={{ background: 'var(--sig-bg)' }}>
+    <div className="flex h-screen" style={{ background: 'var(--m3-surface-container-low)' }}>
       {/* Sidebar */}
       <aside
-        className="w-52 flex flex-col flex-shrink-0"
-        style={{ background: 'var(--sig-surface)', borderRight: '1px solid var(--sig-border)' }}
+        className="hidden md:flex flex-col h-screen w-64 sticky top-0 flex-shrink-0"
+        style={{ background: 'var(--m3-surface-container-low)' }}
       >
         {/* Brand */}
-        <div className="px-5 py-5" style={{ borderBottom: '1px solid var(--sig-border)' }}>
-          <div className="flex items-center gap-2.5">
+        <div className="mb-6 px-4 pt-5">
+          <div className="flex items-center gap-3">
             <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-              style={{ background: 'var(--sig-teal-glow)', border: '1px solid rgba(0,212,175,0.3)' }}
+              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'var(--m3-on-surface)' }}
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <circle cx="7" cy="7" r="2.5" fill="#00d4af" />
-                <circle cx="7" cy="7" r="5.5" stroke="#00d4af" strokeWidth="1" strokeOpacity="0.4" fill="none" />
-              </svg>
+              <span className="material-symbols-outlined text-xl" style={{ color: 'var(--m3-surface)', fontSize: '20px' }}>
+                architecture
+              </span>
             </div>
             <div>
-              <p className="font-display font-bold text-sm leading-none" style={{ color: 'var(--sig-text)' }}>
-                BetterStatus
+              <p className="font-headline font-bold text-base leading-none" style={{ color: 'var(--m3-on-surface)' }}>
+                Admin Console
               </p>
-              <p className="text-xs leading-none mt-1" style={{ color: 'var(--sig-text-muted)' }}>
-                Admin
+              <p className="text-xs leading-none mt-1" style={{ color: 'var(--m3-secondary)' }}>
+                Reliability Engineering
               </p>
             </div>
           </div>
         </div>
 
+        {/* New Incident CTA */}
+        <div className="px-4 mb-5">
+          <button
+            onClick={() => navigate('/admin/incidents')}
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98]"
+            style={{ background: 'var(--m3-on-surface)', color: 'var(--m3-surface)' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_circle</span>
+            New Incident
+          </button>
+        </div>
+
         {/* Nav */}
-        <nav className="flex-1 py-3 px-2 space-y-0.5">
-          {navItems.map((item) => {
-            const Icon = item.icon
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === '/admin/'}
-                className={({ isActive }) =>
-                  `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-all group ${
-                    isActive ? 'sig-nav-active' : 'sig-nav-idle'
-                  }`
+        <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/admin/'}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-200 hover:translate-x-1"
+              style={({ isActive }) => isActive
+                ? {
+                    background: 'var(--m3-surface-container-lowest)',
+                    color: 'var(--m3-on-surface)',
+                    fontWeight: 600,
+                    boxShadow: '0 1px 4px rgba(19,27,46,0.08)',
+                  }
+                : {
+                    color: 'var(--m3-secondary)',
+                  }
+              }
+              onMouseEnter={(e) => {
+                const el = e.currentTarget
+                if (!el.style.boxShadow || el.style.boxShadow === 'none') {
+                  el.style.background = 'rgba(0,0,0,0.04)'
+                  el.style.color = 'var(--m3-on-surface)'
                 }
-                style={({ isActive }) => isActive
-                  ? {
-                      color: 'var(--sig-teal)',
-                      background: 'var(--sig-teal-glow)',
-                      borderLeft: '2px solid var(--sig-teal)',
-                      paddingLeft: '10px',
-                    }
-                  : {
-                      color: 'var(--sig-text-muted)',
-                      borderLeft: '2px solid transparent',
-                    }
+              }}
+              onMouseLeave={(e) => {
+                const el = e.currentTarget
+                if (el.style.background === 'rgba(0,0,0,0.04)') {
+                  el.style.background = ''
+                  el.style.color = 'var(--m3-secondary)'
                 }
-              >
-                {({ isActive }) => (
-                  <>
-                    <Icon active={isActive} />
-                    <span className="font-medium">{item.label}</span>
-                  </>
-                )}
-              </NavLink>
-            )
-          })}
+              }}
+            >
+              {({ isActive }) => (
+                <>
+                  <span
+                    className="material-symbols-outlined flex-shrink-0"
+                    style={{
+                      fontSize: '20px',
+                      fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0",
+                    }}
+                  >
+                    {item.icon}
+                  </span>
+                  <span className="font-sans">{item.label}</span>
+                </>
+              )}
+            </NavLink>
+          ))}
         </nav>
 
-        {/* Logout */}
-        <div className="px-2 pb-3" style={{ borderTop: '1px solid var(--sig-border)' }}>
+        {/* Bottom */}
+        <div className="px-3 pb-4 pt-4 space-y-0.5" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
+          {/* Dark mode toggle */}
           <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-colors"
-            style={{ color: 'var(--sig-text-muted)', borderLeft: '2px solid transparent' }}
+            onClick={toggleDark}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all hover:translate-x-1"
+            style={{ color: 'var(--m3-secondary)' }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-red)'
-              ;(e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,77,106,0.08)'
+              ;(e.currentTarget).style.background = 'rgba(0,0,0,0.04)'
+              ;(e.currentTarget).style.color = 'var(--m3-on-surface)'
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = 'var(--sig-text-muted)'
-              ;(e.currentTarget as HTMLButtonElement).style.background = ''
+              ;(e.currentTarget).style.background = ''
+              ;(e.currentTarget).style.color = 'var(--m3-secondary)'
             }}
           >
-            <NavIconLogout active={false} />
-            <span className="font-medium">Logout</span>
+            <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '20px' }}>
+              {isDark ? 'light_mode' : 'dark_mode'}
+            </span>
+            <span className="font-sans">{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+          </button>
+
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all hover:translate-x-1"
+            style={{ color: 'var(--m3-secondary)' }}
+            onMouseEnter={(e) => {
+              ;(e.currentTarget).style.background = 'var(--m3-error-container)'
+              ;(e.currentTarget).style.color = 'var(--m3-on-error-container)'
+            }}
+            onMouseLeave={(e) => {
+              ;(e.currentTarget).style.background = ''
+              ;(e.currentTarget).style.color = 'var(--m3-secondary)'
+            }}
+          >
+            <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '20px' }}>logout</span>
+            <span className="font-sans">Logout</span>
           </button>
         </div>
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto" style={{ background: 'var(--m3-surface-container-low)' }}>
         <Outlet />
       </main>
     </div>
-  )
-}
-
-/* ── Nav Icons ───────────────────────────────────────────────────────── */
-function NavIconDashboard({ active }: { active: boolean }) {
-  const c = active ? '#00d4af' : '#5a6a8a'
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
-      <rect x="1" y="1" width="6" height="6" rx="1.5" stroke={c} strokeWidth="1.3" fill={active ? 'rgba(0,212,175,0.12)' : 'none'} />
-      <rect x="9" y="1" width="6" height="6" rx="1.5" stroke={c} strokeWidth="1.3" fill={active ? 'rgba(0,212,175,0.12)' : 'none'} />
-      <rect x="1" y="9" width="6" height="6" rx="1.5" stroke={c} strokeWidth="1.3" fill={active ? 'rgba(0,212,175,0.12)' : 'none'} />
-      <rect x="9" y="9" width="6" height="6" rx="1.5" stroke={c} strokeWidth="1.3" fill={active ? 'rgba(0,212,175,0.12)' : 'none'} />
-    </svg>
-  )
-}
-
-function NavIconMonitors({ active }: { active: boolean }) {
-  const c = active ? '#00d4af' : '#5a6a8a'
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
-      <circle cx="8" cy="8" r="6.5" stroke={c} strokeWidth="1.3" />
-      <circle cx="8" cy="8" r="2.5" fill={c} opacity={active ? 1 : 0.5} />
-    </svg>
-  )
-}
-
-function NavIconIncidents({ active }: { active: boolean }) {
-  const c = active ? '#00d4af' : '#5a6a8a'
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
-      <path d="M8 2L14 13H2L8 2Z" stroke={c} strokeWidth="1.3" strokeLinejoin="round" fill={active ? 'rgba(0,212,175,0.1)' : 'none'} />
-      <line x1="8" y1="6" x2="8" y2="9.5" stroke={c} strokeWidth="1.3" strokeLinecap="round" />
-      <circle cx="8" cy="11.5" r="0.7" fill={c} />
-    </svg>
-  )
-}
-
-function NavIconBuilder({ active }: { active: boolean }) {
-  const c = active ? '#00d4af' : '#5a6a8a'
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
-      <rect x="1" y="1" width="14" height="10" rx="1.5" stroke={c} strokeWidth="1.3" fill={active ? 'rgba(0,212,175,0.08)' : 'none'} />
-      <line x1="6" y1="1" x2="6" y2="11" stroke={c} strokeWidth="1.3" />
-      <line x1="1" y1="6" x2="15" y2="6" stroke={c} strokeWidth="1.3" />
-      <line x1="4" y1="14" x2="12" y2="14" stroke={c} strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function NavIconBranding({ active }: { active: boolean }) {
-  const c = active ? '#00d4af' : '#5a6a8a'
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
-      <circle cx="5" cy="5" r="2.5" stroke={c} strokeWidth="1.3" fill={active ? 'rgba(0,212,175,0.15)' : 'none'} />
-      <circle cx="11" cy="5" r="2.5" stroke={c} strokeWidth="1.3" fill={active ? 'rgba(245,166,35,0.15)' : 'none'} />
-      <circle cx="8" cy="11" r="2.5" stroke={c} strokeWidth="1.3" fill={active ? 'rgba(255,77,106,0.15)' : 'none'} />
-    </svg>
-  )
-}
-
-function NavIconLogout({ active }: { active: boolean }) {
-  const c = active ? '#ff4d6a' : 'currentColor'
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="flex-shrink-0">
-      <path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3" stroke={c} strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M10 5l3 3-3 3" stroke={c} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-      <line x1="13" y1="8" x2="6" y2="8" stroke={c} strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
   )
 }

@@ -1,4 +1,4 @@
-export type NodeType = 'page' | 'group' | 'monitor' | 'text' | 'divider'
+export type NodeType = 'page' | 'group' | 'monitor' | 'text' | 'divider' | 'incidents'
 
 export interface GridPos {
   x: number
@@ -35,6 +35,8 @@ export interface MonitorNode extends BaseNode {
   uptimeBarPosition?: 'right' | 'below'
   showMonitorType?: boolean
   showUptimePct?: boolean
+  /** Card display variant: 'default' = full card with uptime bars, 'compact' = slim row */
+  cardVariant?: 'default' | 'compact'
 }
 
 export interface TextNode extends BaseNode {
@@ -46,5 +48,13 @@ export interface DividerNode extends BaseNode {
   type: 'divider'
 }
 
-export type LayoutNode = GroupNode | MonitorNode | TextNode | DividerNode
+export interface IncidentsNode extends BaseNode {
+  type: 'incidents'
+  /** Max number of incidents to show (default: 5) */
+  limit?: number
+  /** Show only active, only resolved, or both */
+  filter?: 'active' | 'resolved' | 'all'
+}
+
+export type LayoutNode = GroupNode | MonitorNode | TextNode | DividerNode | IncidentsNode
 export type LayoutTree = PageNode

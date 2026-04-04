@@ -89,4 +89,7 @@ export const branding = sqliteTable('branding', {
   statusUpColor: text('status_up_color').notNull().default('#10b981'),
   statusDownColor: text('status_down_color').notNull().default('#ef4444'),
   statusDegradedColor: text('status_degraded_color').notNull().default('#f59e0b'),
+  enabled: integer('enabled').notNull().default(0),
+  logoType: text('logo_type').notNull().default('image'),
+  logoText: text('logo_text'),
 })
