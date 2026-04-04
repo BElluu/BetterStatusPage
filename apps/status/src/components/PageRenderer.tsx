@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type {
   LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode,
   IncidentsNode, Monitor, MonitorStatus, Incident,
@@ -133,7 +133,7 @@ function NodeRenderer({
         showMonitorType={monNode.showMonitorType ?? false}
         uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
         showUptimePct={monNode.showUptimePct ?? false}
-        gridW={monNode.grid?.w ?? 1}
+        gridW={monNode.grid?.w ?? 3}
       />
     )
   }
@@ -170,6 +170,7 @@ function ServiceMonitorCard({
   showUptimeBar, showResponseTime,
   uptimeBarPosition = 'right',
   showUptimePct = false,
+  gridW = 3,
 }: {
   monitor: Monitor
   responseMs: number | null
@@ -190,6 +191,7 @@ function ServiceMonitorCard({
   const statusLabel   = isUp ? 'Operational' : isDown ? 'Outage' : isDegraded ? 'Degraded' : 'Checking'
   const statusBg      = isUp ? 'rgba(34,197,94,0.12)' : isDown ? '#ffdad6' : isDegraded ? 'rgba(234,179,8,0.12)' : 'var(--m3-surface-container)'
   const statusColor   = isUp ? '#166534' : isDown ? '#ba1a1a' : isDegraded ? '#854d0e' : 'var(--m3-secondary)'
+  const dotColor      = isUp ? '#22c55e'  : isDown ? '#ba1a1a' : isDegraded ? '#eab308' : 'var(--m3-secondary)'
   const barColor      = isDown ? '#ba1a1a' : isDegraded ? '#eab308' : 'var(--bsp-up)'
   const barColorLight = isDown ? '#f28b82' : isDegraded ? '#fcd34d' : '#4ade80'
 
@@ -197,14 +199,50 @@ function ServiceMonitorCard({
     ? `${overallPct.toFixed(1)}% uptime`
     : null
 
-  const StatusBadge = () => (
+  // Right-position layout: gridW=1 → dot only; gridW=2 → compact pill; gridW≥3 → full pill
+  const StatusBadgeRight = () => {
+    if (gridW === 1) {
+      return (
+        <div style={{ flexShrink: 0, position: 'relative', width: 14, height: 14 }}>
+          {(isDown || isDegraded) && (
+            <span className="monitor-dot-ring" style={{ background: dotColor, opacity: 0.4 }} />
+          )}
+          <span style={{ display: 'block', width: '100%', height: '100%', borderRadius: '50%', background: dotColor }} />
+        </div>
+      )
+    }
+    return (
+      <span
+        style={{
+          background: statusBg, color: statusColor,
+          padding: '6px 14px', borderRadius: '999px',
+          fontSize: '13px', fontWeight: 700,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+          flexShrink: 0,
+          minWidth: gridW === 2 ? '96px' : '114px',
+        }}
+      >
+        {(isDown || isDegraded) && (
+          <span
+            className="animate-pulse"
+            style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, display: 'inline-block', flexShrink: 0 }}
+          />
+        )}
+        {statusLabel}
+      </span>
+    )
+  }
+
+  // Below-position / no-bars layout: always full pill
+  const StatusBadgeBelow = () => (
     <span
       style={{
         background: statusBg, color: statusColor,
         padding: '6px 14px', borderRadius: '999px',
         fontSize: '13px', fontWeight: 700,
-        display: 'flex', alignItems: 'center', gap: '6px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
         flexShrink: 0,
+        minWidth: '114px',
       }}
     >
       {(isDown || isDegraded) && (
@@ -218,10 +256,10 @@ function ServiceMonitorCard({
   )
 
   const NameBlock = () => (
-    <div style={{ flexShrink: 0 }}>
+    <div style={{ width: '160px', flexShrink: 0 }}>
       <h3
         className="font-headline font-bold"
-        style={{ fontSize: '28px', lineHeight: 1.15, color: 'var(--bsp-text)', margin: 0 }}
+        style={{ fontSize: '28px', lineHeight: 1.15, color: 'var(--bsp-text)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
       >
         {monitor.name}
       </h3>
@@ -239,10 +277,10 @@ function ServiceMonitorCard({
   if (showUptimeBar && uptimeBarPosition === 'right') {
     return (
       <div className="bsp-monitor-card" style={{ padding: '28px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <NameBlock />
           <UptimeBarsInline monitorId={monitorId} barColor={barColor} barColorLight={barColorLight} />
-          <StatusBadge />
+          <StatusBadgeRight />
         </div>
       </div>
     )
@@ -253,7 +291,7 @@ function ServiceMonitorCard({
     <div className="bsp-monitor-card" style={{ padding: '28px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: showUptimeBar ? '20px' : '0', gap: '16px' }}>
         <NameBlock />
-        <StatusBadge />
+        <StatusBadgeBelow />
       </div>
 
       {showUptimeBar && (
@@ -500,6 +538,7 @@ function GroupBlock({ groupNode, monitors, statusMap }: {
                         showMonitorType={monNode.showMonitorType ?? false}
                         uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
                         showUptimePct={monNode.showUptimePct ?? false}
+                        gridW={groupNode.grid?.w ?? 3}
                       />
                     </div>
                   ) : (
@@ -661,7 +700,9 @@ function UptimeBars({ monitorId, barColor, barColorLight, isDown, isDegraded, on
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   UPTIME BARS INLINE — fills horizontal gap between name and badge
+   UPTIME BARS INLINE — always spans name→badge; count reduces if narrow
+   Each bar uses flex:1 so they fill the space evenly. ResizeObserver
+   reduces count when container < 30 bars × min 3px + gaps.
    ───────────────────────────────────────────────────────────────────── */
 function UptimeBarsInline({ monitorId, barColor, barColorLight }: {
   monitorId: number
@@ -669,6 +710,8 @@ function UptimeBarsInline({ monitorId, barColor, barColorLight }: {
   barColorLight: string
 }) {
   const [data, setData] = useState<Array<{ date: string; status: string; uptimePct: number }> | null>(null)
+  const [barCount, setBarCount] = useState(30)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetch(`/api/v1/public/monitor/${monitorId}/uptime?days=30`)
@@ -677,6 +720,18 @@ function UptimeBarsInline({ monitorId, barColor, barColorLight }: {
       .catch(() => {})
   }, [monitorId])
 
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      if (!entry) return
+      // min bar width 3px + 2px gap = 5px per slot; +2 to account for no trailing gap
+      setBarCount(Math.min(30, Math.max(1, Math.floor((entry.contentRect.width + 2) / 5))))
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   const barColorOf = (day: { status: string }) =>
     day.status === 'up' ? `linear-gradient(to top, ${barColor}, ${barColorLight})`
     : day.status === 'down' ? '#ba1a1a'
@@ -684,12 +739,13 @@ function UptimeBarsInline({ monitorId, barColor, barColorLight }: {
     : 'var(--m3-outline-variant)'
 
   const bars = data
-    ? data.slice(-30)
-    : Array.from({ length: 30 }).map((_, i) => ({ date: String(i), status: 'up', uptimePct: 100 }))
+    ? data.slice(-barCount)
+    : Array.from({ length: barCount }).map((_, i) => ({ date: String(i), status: 'up', uptimePct: 100 }))
 
   return (
     <div
-      style={{ flex: 1, display: 'flex', alignItems: 'stretch', gap: '2px', height: '48px' }}
+      ref={containerRef}
+      style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'stretch', gap: '2px', height: '48px' }}
       title="30-day uptime"
     >
       {bars.map((day, i) => (
