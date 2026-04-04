@@ -14,9 +14,13 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      const res = await api.post<{ token: string }>('/auth/login', { email, password })
+      const res = await api.post<{ token: string; mustChangePassword?: boolean }>('/auth/login', { email, password })
       setToken(res.token)
-      navigate('/admin/')
+      if (res.mustChangePassword) {
+        navigate('/admin/change-password')
+      } else {
+        navigate('/admin/')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
