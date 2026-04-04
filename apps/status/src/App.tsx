@@ -109,7 +109,8 @@ export default function App() {
 .bsp-site-name { color: ${branding!.textColor}; }
 ` : ''
 
-  const siteName = branding?.siteName ?? 'StatusPage'
+  const siteName = branding?.siteName || 'Status Page'
+  document.title = siteName
 
   return (
     <div className="bsp-page" style={{ ...cssVars, background: 'var(--m3-surface)', minHeight: '100vh' }}>
