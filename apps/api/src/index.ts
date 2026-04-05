@@ -9,6 +9,7 @@ import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
 
+import { setupRoutes } from './routes/setup.js'
 import { authRoutes } from './routes/auth.js'
 import { monitorRoutes } from './routes/monitors.js'
 import { groupRoutes } from './routes/groups.js'
@@ -69,6 +70,7 @@ function requireRole(...allowed: string[]) {
 }
 
 // Routes
+await app.register(setupRoutes, { prefix: '/api/v1/setup' })
 await app.register(authRoutes, { prefix: '/api/v1/auth' })
 await app.register(publicRoutes, { prefix: '/api/v1/public' })
 
