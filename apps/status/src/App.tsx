@@ -130,12 +130,12 @@ export default function App() {
                 {branding.logoText}
               </span>
             ) : branding?.logoUrl ? (
-              <img src={branding.logoUrl} alt={siteName} style={{ height: '48px', objectFit: 'contain' }} />
+              <img src={branding.logoUrl} alt={siteName} style={{ height: '40px', maxWidth: '200px', objectFit: 'contain' }} />
             ) : (
               <img
                 src={isDark ? '/logo_dark.png' : '/logo_light.png'}
                 alt={siteName}
-                style={{ height: '100px', objectFit: 'contain' }}
+                style={{ height: '36px', objectFit: 'contain' }}
               />
             )}
           </div>
