@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { setToken, api } from '../api/client'
+import { setToken, api, isAuthenticated } from '../api/client'
 
 const STEPS = [
   { n: 1, label: 'Database' },
@@ -17,7 +17,7 @@ export default function SetupPage() {
     fetch('/api/v1/setup/status')
       .then((r) => r.json())
       .then((data: { needsSetup: boolean }) => {
-        if (!data.needsSetup) navigate('/admin/login', { replace: true })
+        if (!data.needsSetup) navigate(isAuthenticated() ? '/admin/' : '/admin/login', { replace: true })
         else setChecking(false)
       })
       .catch(() => setChecking(false))

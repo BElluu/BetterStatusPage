@@ -86,9 +86,6 @@ CREATE TABLE IF NOT EXISTS branding (
 );
 `
 
-sqlite.exec(migrations)
-
-// Additive column migrations (idempotent — try/catch handles "column already exists")
 const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE branding ADD COLUMN background_color TEXT NOT NULL DEFAULT '#0f172a'`, desc: 'branding.background_color' },
   { sql: `ALTER TABLE branding ADD COLUMN card_background TEXT NOT NULL DEFAULT '#0f172a'`, desc: 'branding.card_background' },
@@ -103,9 +100,13 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE branding ADD COLUMN logo_text TEXT`, desc: 'branding.logo_text' },
   { sql: `ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`, desc: 'users.must_change_password' },
 ]
-for (const { sql, desc } of columnMigrations) {
-  try { sqlite.exec(sql) } catch { /* column already exists */ }
-  console.log(`✓ Column migration: ${desc}`)
-}
 
-console.log('✓ Migrations applied')
+/** Runs all migrations against the already-initialized DB. */
+export function runMigrations(): void {
+  sqlite.exec(migrations)
+  for (const { sql, desc } of columnMigrations) {
+    try { sqlite.exec(sql) } catch { /* column already exists */ }
+    console.log(`✓ Column migration: ${desc}`)
+  }
+  console.log('✓ Migrations applied')
+}
