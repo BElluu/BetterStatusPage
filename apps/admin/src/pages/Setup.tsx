@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { setToken, api, isAuthenticated } from '../api/client'
+import { useDarkMode } from '../hooks/useDarkMode'
 
 const STEPS = [
   { n: 1, label: 'Database' },
@@ -10,6 +11,7 @@ const STEPS = [
 
 export default function SetupPage() {
   const navigate = useNavigate()
+  const [isDark, toggleDark] = useDarkMode()
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [checking, setChecking] = useState(true)
 
@@ -68,17 +70,12 @@ export default function SetupPage() {
           style={{ background: 'radial-gradient(circle, color-mix(in srgb, var(--m3-primary) 6%, transparent) 0%, transparent 70%)' }} />
 
         {/* Logo */}
-        <div className="relative flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
-            style={{ background: 'var(--m3-primary-fixed)', border: '1px solid color-mix(in srgb, var(--m3-primary) 30%, transparent)' }}>
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <circle cx="10" cy="10" r="3.5" fill="var(--m3-primary)" />
-              <circle cx="10" cy="10" r="8.5" stroke="var(--m3-primary)" strokeWidth="1.2" strokeOpacity="0.35" fill="none" />
-            </svg>
-          </div>
-          <span className="font-headline font-bold text-xl" style={{ color: 'var(--m3-on-surface)' }}>
-            BetterStatusPage
-          </span>
+        <div className="relative flex justify-center">
+          <img
+            src={isDark ? '/admin/logo_dark.png' : '/admin/logo_light.png'}
+            alt="BetterStatusPage"
+            style={{ height: '160px', objectFit: 'contain' }}
+          />
         </div>
 
         {/* Headline */}
@@ -157,19 +154,30 @@ export default function SetupPage() {
       </div>
 
       {/* ── Right panel ── */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12">
+      <div className="flex-1 relative flex items-center justify-center px-6 py-12">
+        {/* Dark mode toggle */}
+        <button
+          onClick={toggleDark}
+          className="absolute top-5 right-5 p-2 rounded-full transition-all"
+          style={{ color: 'var(--m3-secondary)' }}
+          onMouseEnter={(e) => { (e.currentTarget).style.background = 'var(--m3-surface-container)' }}
+          onMouseLeave={(e) => { (e.currentTarget).style.background = '' }}
+          aria-label="Toggle dark mode"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+            {isDark ? 'light_mode' : 'dark_mode'}
+          </span>
+        </button>
+
         <div className="w-full max-w-md">
 
           {/* Mobile logo */}
-          <div className="flex items-center gap-3 mb-10 lg:hidden">
-            <div className="w-9 h-9 rounded-2xl flex items-center justify-center"
-              style={{ background: 'var(--m3-primary-fixed)', border: '1px solid color-mix(in srgb, var(--m3-primary) 30%, transparent)' }}>
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <circle cx="9" cy="9" r="3" fill="var(--m3-primary)" />
-                <circle cx="9" cy="9" r="7.5" stroke="var(--m3-primary)" strokeWidth="1.2" strokeOpacity="0.35" fill="none" />
-              </svg>
-            </div>
-            <span className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>BetterStatusPage</span>
+          <div className="flex items-center mb-10 lg:hidden">
+            <img
+              src={isDark ? '/admin/logo_dark.png' : '/admin/logo_light.png'}
+              alt="BetterStatusPage"
+              style={{ height: '32px', objectFit: 'contain' }}
+            />
           </div>
 
           {/* ── STEP 1: Database ── */}
