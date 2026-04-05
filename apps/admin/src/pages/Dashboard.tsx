@@ -271,8 +271,8 @@ export default function DashboardPage() {
 
       {/* Footer */}
       <footer className="py-10 text-center" style={{ color: 'var(--m3-secondary)' }}>
-        <img src={isDark ? '/admin/logo_dark.png' : '/admin/logo_light.png'} alt="BetterStatusPage" style={{ height: '56px', objectFit: 'contain', margin: '0 auto 10px', opacity: 0.55 }} />
-        <p className="text-xs uppercase tracking-widest">BetterStatusPage · Reliability by Design.</p>
+        <img src={isDark ? '/admin/logo_dark.png' : '/admin/logo_light.png'} alt="BetterStatusPage" style={{ height: '100px', objectFit: 'contain', margin: '0 auto 10px', opacity: 0.55 }} />
+        <p className="text-xs uppercase tracking-widest">BetterStatusPage</p>
       </footer>
     </div>
   )

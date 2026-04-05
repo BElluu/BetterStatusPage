@@ -577,7 +577,7 @@ function LivePreview({ form, logoUrl }: { form: BrandingForm; logoUrl: string | 
 
         {/* Footer */}
         <div style={{ textAlign: 'center', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: v.textMutedColor, paddingTop: '8px' }}>
-          {v.siteName || 'Status Page'} · Reliability by Design.
+          {v.siteName || 'Status Page'}
         </div>
       </div>
     </div>
