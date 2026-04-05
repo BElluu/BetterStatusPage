@@ -54,8 +54,10 @@ async function request<T>(
 
   if (res.status === 401) {
     clearToken()
-    window.location.href = '/admin/login'
-    throw new Error('Unauthorized')
+    if (!window.location.pathname.includes('/login')) {
+      window.location.href = '/admin/login'
+    }
+    throw new Error('Incorrect email or password')
   }
 
   if (!res.ok) {

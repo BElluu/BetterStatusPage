@@ -135,7 +135,7 @@ export default function App() {
               <img
                 src={isDark ? '/logo_dark.png' : '/logo_light.png'}
                 alt={siteName}
-                style={{ height: '48px', objectFit: 'contain' }}
+                style={{ height: '100px', objectFit: 'contain' }}
               />
             )}
           </div>
@@ -305,7 +305,7 @@ export default function App() {
           }}
         >
           <img src={isDark ? '/logo_dark.png' : '/logo_light.png'} alt={siteName} style={{ height: '80px', objectFit: 'contain', margin: '0 auto 16px', opacity: 0.75 }} />
-          <p className="text-xs uppercase tracking-widest">{siteName} · Reliability by Design.</p>
+          <p className="text-xs uppercase tracking-widest">{siteName}</p>
         </footer>
       </main>
     </div>
