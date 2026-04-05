@@ -1,5 +1,4 @@
 import 'dotenv/config'
-import './db/migrate.js'
 import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify'
 import cors from '@fastify/cors'
 import jwt from '@fastify/jwt'
@@ -9,6 +8,9 @@ import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
 
+import { isSetupComplete, writeSetupComplete } from './config.js'
+import { initDb } from './db/client.js'
+import { runMigrations } from './db/migrate.js'
 import { setupRoutes } from './routes/setup.js'
 import { authRoutes } from './routes/auth.js'
 import { monitorRoutes } from './routes/monitors.js'
@@ -67,6 +69,22 @@ function requireRole(...allowed: string[]) {
       }
     } catch { return reply.code(401).send({ error: 'Unauthorized' }) }
   }
+}
+
+// Auto-migrate legacy installs: if DB file already exists but setup.json is missing,
+// treat as already configured so existing deployments keep working.
+if (!isSetupComplete()) {
+  const dbPath = process.env['DATABASE_PATH'] ?? './data/db.sqlite'
+  if (fs.existsSync(dbPath)) {
+    writeSetupComplete('sqlite')
+    console.log('✓ Existing database detected — setup marked as complete')
+  }
+}
+
+// Initialize DB only when setup has been completed
+if (isSetupComplete()) {
+  initDb()
+  runMigrations()
 }
 
 // Routes
@@ -130,4 +148,4 @@ const port = Number(process.env['PORT'] ?? 3000)
 await app.listen({ port, host: '0.0.0.0' })
 console.log(`✓ API running on http://localhost:${port}`)
 
-startScheduler()
+if (isSetupComplete()) startScheduler()

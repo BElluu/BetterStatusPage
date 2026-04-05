@@ -1,18 +1,19 @@
 import type { FastifyInstance } from 'fastify'
 import bcrypt from 'bcryptjs'
-import { db } from '../db/client.js'
+import { isSetupComplete, writeSetupComplete } from '../config.js'
+import { initDb, db } from '../db/client.js'
+import { runMigrations } from '../db/migrate.js'
+import { startScheduler } from '../workers/scheduler.js'
 import { users, branding, layout } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
 
 export async function setupRoutes(app: FastifyInstance) {
   app.get('/status', async () => {
-    const existing = await db.select({ id: users.id }).from(users)
-    return { needsSetup: existing.length === 0 }
+    return { needsSetup: !isSetupComplete() }
   })
 
   app.post<{ Body: { email: string; password: string } }>('/complete', async (req, reply) => {
-    const existing = await db.select({ id: users.id }).from(users)
-    if (existing.length > 0) {
+    if (isSetupComplete()) {
       return reply.code(409).send({ error: 'Setup already completed' })
     }
 
@@ -23,6 +24,10 @@ export async function setupRoutes(app: FastifyInstance) {
     if (password.length < 8) {
       return reply.code(400).send({ error: 'Password must be at least 8 characters' })
     }
+
+    // Initialize DB and run migrations now that we have a confirmed DB type
+    initDb()
+    runMigrations()
 
     const hash = await bcrypt.hash(password, 10)
     await db.insert(users).values({ email, passwordHash: hash, role: 'admin', createdAt: Date.now() })
@@ -43,6 +48,10 @@ export async function setupRoutes(app: FastifyInstance) {
         updatedAt: Date.now(),
       })
     }
+
+    // Mark setup as complete and start the monitor scheduler
+    writeSetupComplete('sqlite')
+    startScheduler()
 
     const [user] = await db.select().from(users).where(eq(users.email, email))
     const token = app.jwt.sign({ userId: user!.id, email: user!.email, role: user!.role })
