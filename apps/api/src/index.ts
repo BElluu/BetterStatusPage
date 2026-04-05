@@ -8,7 +8,7 @@ import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
 
-import { isSetupComplete, writeSetupComplete } from './config.js'
+import { isSetupComplete } from './config.js'
 import { initDb } from './db/client.js'
 import { runMigrations } from './db/migrate.js'
 import { setupRoutes } from './routes/setup.js'
@@ -68,16 +68,6 @@ function requireRole(...allowed: string[]) {
         return reply.code(403).send({ error: 'Forbidden' })
       }
     } catch { return reply.code(401).send({ error: 'Unauthorized' }) }
-  }
-}
-
-// Auto-migrate legacy installs: if DB file already exists but setup.json is missing,
-// treat as already configured so existing deployments keep working.
-if (!isSetupComplete()) {
-  const dbPath = process.env['DATABASE_PATH'] ?? './data/db.sqlite'
-  if (fs.existsSync(dbPath)) {
-    writeSetupComplete('sqlite')
-    console.log('✓ Existing database detected — setup marked as complete')
   }
 }
 
