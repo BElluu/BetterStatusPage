@@ -10,6 +10,7 @@ export default function Layout() {
   const [isDark, toggleDark] = useDarkMode()
   const currentUser = getCurrentUser()
   const userRank = ROLE_RANK[currentUser?.role ?? ''] ?? 0
+  const hoverBg = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'
 
   const ALL_NAV = [
     { to: '/admin/',               label: 'Dashboard',      icon: 'dashboard',            minRole: 'operator' },
@@ -73,13 +74,13 @@ export default function Layout() {
               onMouseEnter={(e) => {
                 const el = e.currentTarget
                 if (!el.style.boxShadow || el.style.boxShadow === 'none') {
-                  el.style.background = 'rgba(0,0,0,0.04)'
+                  el.style.background = hoverBg
                   el.style.color = 'var(--m3-on-surface)'
                 }
               }}
               onMouseLeave={(e) => {
                 const el = e.currentTarget
-                if (el.style.background === 'rgba(0,0,0,0.04)') {
+                if (!el.style.boxShadow || el.style.boxShadow === 'none') {
                   el.style.background = ''
                   el.style.color = 'var(--m3-secondary)'
                 }
@@ -111,7 +112,7 @@ export default function Layout() {
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all hover:translate-x-1"
             style={{ color: 'var(--m3-secondary)' }}
             onMouseEnter={(e) => {
-              ;(e.currentTarget).style.background = 'rgba(0,0,0,0.04)'
+              ;(e.currentTarget).style.background = hoverBg
               ;(e.currentTarget).style.color = 'var(--m3-on-surface)'
             }}
             onMouseLeave={(e) => {
@@ -129,7 +130,7 @@ export default function Layout() {
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all hover:translate-x-1"
             style={{ color: 'var(--m3-secondary)' }}
             onMouseEnter={(e) => {
-              ;(e.currentTarget).style.background = 'rgba(0,0,0,0.04)'
+              ;(e.currentTarget).style.background = hoverBg
               ;(e.currentTarget).style.color = 'var(--m3-on-surface)'
             }}
             onMouseLeave={(e) => {
