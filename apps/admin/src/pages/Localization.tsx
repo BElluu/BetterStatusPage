@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { Locale, TranslationKey, AdminTranslationKey } from '@bsp/shared'
+import type { Locale, TranslationKey } from '@bsp/shared'
 import { EN_DEFAULTS } from '../i18n/statusDefaults'
-import { EN_ADMIN_DEFAULTS } from '../i18n/defaults'
 
 /* ── Translation key groups ──────────────────────────────────────── */
 const STATUS_PAGE_GROUPS: Array<{ label: string; keys: TranslationKey[] }> = [
@@ -17,15 +16,7 @@ const STATUS_PAGE_GROUPS: Array<{ label: string; keys: TranslationKey[] }> = [
   },
   {
     label: 'Page Copy',
-    keys: ['page.hero','page.monitoredRealTime','page.service','page.services','page.incident','page.incidents'],
-  },
-  {
-    label: 'Navigation & Tabs',
-    keys: ['section.systemEvents','tab.active','tab.history'],
-  },
-  {
-    label: 'Empty States',
-    keys: ['empty.noActiveIncidents','empty.noHistory','empty.noIncidents'],
+    keys: ['page.hero','page.monitoredLine','page.incidentLine','page.groupServiceCount'],
   },
   {
     label: 'Uptime Bars & Tooltips',
@@ -34,17 +25,6 @@ const STATUS_PAGE_GROUPS: Array<{ label: string; keys: TranslationKey[] }> = [
   {
     label: 'Incident Statuses',
     keys: ['incident.investigating','incident.identified','incident.monitoring','incident.resolved'],
-  },
-]
-
-const ADMIN_GROUPS: Array<{ label: string; keys: AdminTranslationKey[] }> = [
-  {
-    label: 'Navigation',
-    keys: ['nav.dashboard','nav.monitors','nav.incidents','nav.pageBuilder','nav.branding','nav.users','nav.settings','nav.localization'],
-  },
-  {
-    label: 'Interface',
-    keys: ['nav.darkMode','nav.lightMode','nav.logout'],
   },
 ]
 
@@ -141,14 +121,12 @@ function AddLocaleForm({ onCreated }: { onCreated: () => void }) {
 
 /* ── Locale editor panel ─────────────────────────────────────────── */
 function LocaleEditor({ locale, onDelete }: { locale: Locale; onDelete: () => void }) {
-  const [tab, setTab] = useState<'status' | 'admin'>('status')
   const [translations, setTranslations] = useState<Partial<Record<TranslationKey, string>>>(() => locale.translations ?? {})
-  const [adminTranslations, setAdminTranslations] = useState<Partial<Record<AdminTranslationKey, string>>>(() => locale.adminTranslations ?? {})
   const [saved, setSaved] = useState(false)
   const qc = useQueryClient()
 
   const saveMutation = useMutation({
-    mutationFn: () => api.patch(`/admin/locales/${locale.code}`, { translations, adminTranslations }),
+    mutationFn: () => api.patch(`/admin/locales/${locale.code}`, { translations }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-locales'] })
       setSaved(true)
@@ -162,6 +140,11 @@ function LocaleEditor({ locale, onDelete }: { locale: Locale; onDelete: () => vo
       qc.invalidateQueries({ queryKey: ['admin-locales'] })
       onDelete()
     },
+  })
+
+  const setDefaultMutation = useMutation({
+    mutationFn: () => api.post(`/admin/locales/${locale.code}/set-default`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-locales'] }),
   })
 
   return (
@@ -188,6 +171,16 @@ function LocaleEditor({ locale, onDelete }: { locale: Locale; onDelete: () => vo
           )}
         </div>
         <div className="flex gap-2">
+          {locale.isDefault === 0 && (
+            <button
+              onClick={() => setDefaultMutation.mutate()}
+              disabled={setDefaultMutation.isPending}
+              className="px-4 py-2 rounded-full text-sm font-bold transition-colors"
+              style={{ background: 'var(--m3-secondary-container)', color: 'var(--m3-on-secondary-container)' }}
+            >
+              {setDefaultMutation.isPending ? 'Setting…' : 'Set as Default'}
+            </button>
+          )}
           {locale.isDefault === 0 && (
             <button
               onClick={() => deleteMutation.mutate()}
@@ -218,67 +211,27 @@ function LocaleEditor({ locale, onDelete }: { locale: Locale; onDelete: () => vo
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-xl mb-6 self-start" style={{ background: 'var(--m3-surface-container)' }}>
-        {(['status', 'admin'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className="px-5 py-2 rounded-lg text-sm font-bold transition-all"
-            style={{
-              background: tab === t ? 'var(--m3-surface-container-lowest)' : 'transparent',
-              color: tab === t ? 'var(--m3-on-surface)' : 'var(--m3-secondary)',
-              boxShadow: tab === t ? '0 1px 4px rgba(19,27,46,0.08)' : 'none',
-            }}
-          >
-            {t === 'status' ? 'Status Page' : 'Admin Panel'}
-          </button>
-        ))}
-      </div>
-
       {/* Keys */}
       <div className="flex-1 overflow-y-auto pr-2">
-        {tab === 'status' ? (
-          STATUS_PAGE_GROUPS.map((group) => (
-            <div key={group.label} className="mb-8">
-              <p
-                className="text-xs font-bold uppercase tracking-widest mb-3"
-                style={{ color: 'var(--m3-secondary)' }}
-              >
-                {group.label}
-              </p>
-              {group.keys.map((key) => (
-                <KeyRow
-                  key={key}
-                  keyName={key}
-                  placeholder={EN_DEFAULTS[key]}
-                  value={translations[key] ?? ''}
-                  onChange={(v) => setTranslations((prev) => ({ ...prev, [key]: v }))}
-                />
-              ))}
-            </div>
-          ))
-        ) : (
-          ADMIN_GROUPS.map((group) => (
-            <div key={group.label} className="mb-8">
-              <p
-                className="text-xs font-bold uppercase tracking-widest mb-3"
-                style={{ color: 'var(--m3-secondary)' }}
-              >
-                {group.label}
-              </p>
-              {group.keys.map((key) => (
-                <KeyRow
-                  key={key}
-                  keyName={key}
-                  placeholder={EN_ADMIN_DEFAULTS[key]}
-                  value={adminTranslations[key] ?? ''}
-                  onChange={(v) => setAdminTranslations((prev) => ({ ...prev, [key]: v }))}
-                />
-              ))}
-            </div>
-          ))
-        )}
+        {STATUS_PAGE_GROUPS.map((group) => (
+          <div key={group.label} className="mb-8">
+            <p
+              className="text-xs font-bold uppercase tracking-widest mb-3"
+              style={{ color: 'var(--m3-secondary)' }}
+            >
+              {group.label}
+            </p>
+            {group.keys.map((key) => (
+              <KeyRow
+                key={key}
+                keyName={key}
+                placeholder={EN_DEFAULTS[key]}
+                value={translations[key] ?? ''}
+                onChange={(v) => setTranslations((prev) => ({ ...prev, [key]: v }))}
+              />
+            ))}
+          </div>
+        ))}
       </div>
     </div>
   )

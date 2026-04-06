@@ -43,10 +43,10 @@ export default function DashboardPage() {
       <header className="flex justify-between items-center pt-12">
         <div>
           <h2 className="font-headline text-4xl font-extrabold tracking-tighter mb-2" style={{ color: 'var(--m3-on-surface)' }}>
-            Systems Overview
+            Dashboard
           </h2>
           <p className="font-sans text-lg" style={{ color: 'var(--m3-secondary)' }}>
-            Platform-wide health and reliability metrics.
+            Overview of your monitoring infrastructure.
           </p>
         </div>
         <div
@@ -54,7 +54,7 @@ export default function DashboardPage() {
           style={{ background: 'var(--m3-surface-container-highest)' }}
         >
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span style={{ color: 'var(--m3-on-surface-variant)' }}>Live Telemetry · 15s</span>
+          <span style={{ color: 'var(--m3-on-surface-variant)' }}>Live Metrics</span>
         </div>
       </header>
 
@@ -67,7 +67,7 @@ export default function DashboardPage() {
         >
           <div>
             <span className="font-label text-xs uppercase tracking-widest block mb-4" style={{ color: 'var(--m3-secondary)' }}>
-              Current Global Status
+              Current Status
             </span>
             <h3 className="font-headline text-3xl font-bold mb-2" style={{ color: 'var(--m3-on-surface)' }}>
               {globalStatus}
@@ -124,7 +124,7 @@ export default function DashboardPage() {
           <div>
             <div className="text-5xl font-extrabold mb-2">{activeIncidents.length}</div>
             <p className="text-sm opacity-80">
-              {activeIncidents.length === 0 ? 'Clean sheet — no active issues.' : `${activeIncidents.length} incident${activeIncidents.length > 1 ? 's' : ''} in progress.`}
+              {activeIncidents.length === 0 ? 'No active issues.' : `${activeIncidents.length} incident${activeIncidents.length > 1 ? 's' : ''} in progress.`}
             </p>
           </div>
         </div>
@@ -161,9 +161,6 @@ export default function DashboardPage() {
             <h3 className="font-headline text-2xl font-bold" style={{ color: 'var(--m3-on-surface)' }}>
               System Components
             </h3>
-            <p style={{ color: 'var(--m3-on-surface-variant)' }}>
-              Manage monitoring endpoints and visibility.
-            </p>
           </div>
           <Link
             to="/admin/monitors"
@@ -189,7 +186,7 @@ export default function DashboardPage() {
               radio_button_checked
             </span>
             <p className="font-sans text-sm" style={{ color: 'var(--m3-secondary)' }}>
-              No monitors yet. Add one in the Monitors section.
+              No monitors yet. Add a monitor to start tracking uptime.
             </p>
           </div>
         ) : (

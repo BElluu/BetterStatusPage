@@ -26,29 +26,32 @@ export function useLocale() {
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [availableLocales, setAvailableLocales] = useState<LocaleSummary[]>([])
-  const [locale, setLocaleState] = useState<string>(() => localStorage.getItem(LS_KEY) ?? 'en')
+  const [locale, setLocaleState] = useState<string>(() => localStorage.getItem(LS_KEY) ?? '')
   const [translations, setTranslations] = useState<Partial<Record<TranslationKey, string>>>({})
 
-  // Fetch list of available locales
+  // Fetch list of available locales; determine active locale if not yet set
   useEffect(() => {
     fetch('/api/v1/public/locales')
       .then((r) => r.json())
       .then((data: LocaleSummary[]) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setAvailableLocales(data)
-          // If saved locale no longer exists, fall back to first available
-          const saved = localStorage.getItem(LS_KEY)
-          if (saved && !data.find((l) => l.code === saved)) {
-            setLocaleState(data[0]!.code)
-          }
+        if (!Array.isArray(data) || data.length === 0) return
+        setAvailableLocales(data)
+
+        const saved = localStorage.getItem(LS_KEY)
+        if (saved && data.find((l) => l.code === saved)) {
+          // User previously chose a language — keep it
+          return
         }
+        // No saved preference: use the locale marked as default, fallback to 'en'
+        const defaultLocale = data.find((l) => l.isDefault === 1) ?? data.find((l) => l.code === 'en') ?? data[0]!
+        setLocaleState(defaultLocale.code)
       })
       .catch(() => {})
   }, [])
 
-  // Fetch translations whenever locale changes
+  // Fetch translations whenever active locale changes
   useEffect(() => {
-    if (locale === 'en') {
+    if (!locale || locale === 'en') {
       setTranslations({})
       return
     }

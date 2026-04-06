@@ -7,6 +7,7 @@ function getToken(): string | null {
 export function setToken(token: string, mustChangePassword = false) {
   sessionStorage.setItem('token', token)
   sessionStorage.setItem('mustChangePwd', mustChangePassword ? '1' : '0')
+  window.dispatchEvent(new CustomEvent('bsp-auth-change'))
 }
 
 export function clearToken() {

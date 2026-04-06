@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { Incident, Monitor } from '@bsp/shared'
+import { ConfirmModal } from '../components/ConfirmModal'
 
 const statusColors: Record<string, string> = {
   investigating: '#ff4d6a',
@@ -22,6 +23,7 @@ export default function IncidentsPage() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<Incident | null>(null)
   const [updateBody, setUpdateBody] = useState('')
   const [updateStatus, setUpdateStatus] = useState('monitoring')
 
@@ -117,9 +119,7 @@ export default function IncidentsPage() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (confirm(`Delete incident "${incident.title}"?`)) {
-                      deleteMutation.mutate(incident.id)
-                    }
+                    setConfirmDelete(incident)
                   }}
                   className="text-xs px-2 py-1 rounded transition-colors flex-shrink-0"
                   style={{ color: 'var(--m3-down)' }}
@@ -261,6 +261,15 @@ export default function IncidentsPage() {
             qc.invalidateQueries({ queryKey: ['incidents'] })
             setShowCreate(false)
           }}
+        />
+      )}
+
+      {confirmDelete && (
+        <ConfirmModal
+          title="Delete incident"
+          message={`Delete "${confirmDelete.title}"? This cannot be undone.`}
+          onConfirm={() => { deleteMutation.mutate(confirmDelete.id); setConfirmDelete(null) }}
+          onCancel={() => setConfirmDelete(null)}
         />
       )}
     </div>

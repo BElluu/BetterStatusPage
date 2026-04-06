@@ -12,11 +12,9 @@ export type TranslationKey =
   | 'overall.incidentsInProgress'
   | 'overall.checking'
   | 'page.hero'
-  | 'page.monitoredRealTime'
-  | 'page.service'
-  | 'page.services'
-  | 'page.incident'
-  | 'page.incidents'
+  | 'page.monitoredLine'
+  | 'page.incidentLine'
+  | 'page.groupServiceCount'
   | 'section.systemEvents'
   | 'tab.active'
   | 'tab.history'
@@ -48,6 +46,29 @@ export type AdminTranslationKey =
   | 'nav.darkMode'
   | 'nav.lightMode'
   | 'nav.logout'
+  | 'dash.title'
+  | 'dash.subtitle'
+  | 'dash.currentStatus'
+  | 'dash.activeIncidents'
+  | 'dash.noActiveIssues'
+  | 'dash.incidentsInProgress'
+  | 'dash.monitorHealth'
+  | 'dash.systemComponents'
+  | 'dash.manageMonitors'
+  | 'dash.recentActivity'
+  | 'dash.liveMetrics'
+  | 'dash.noMonitors'
+  | 'common.operational'
+  | 'common.down'
+  | 'common.degraded'
+  | 'common.pending'
+  | 'common.save'
+  | 'common.cancel'
+  | 'common.delete'
+  | 'common.create'
+  | 'common.edit'
+  | 'common.add'
+  | 'common.loading'
 
 export interface Locale {
   code: string
@@ -61,4 +82,5 @@ export interface Locale {
 export interface LocaleSummary {
   code: string
   name: string
+  isDefault?: number
 }
