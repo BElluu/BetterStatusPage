@@ -77,27 +77,42 @@ export default function DashboardPage() {
               {down > 0 && ` · ${down} down`}{degraded > 0 && ` · ${degraded} degraded`}
             </p>
           </div>
-          {/* Uptime bars */}
-          <div className="mt-8 flex gap-0.5 h-12 items-end">
-            {Array.from({ length: 20 }).map((_, i) => {
-              const isLast = i === 19
-              const barColor = allOperational
-                ? '#22c55e'
-                : isLast && down > 0
-                ? '#ba1a1a'
-                : isLast && degraded > 0
-                ? '#eab308'
-                : '#22c55e'
-              const height = allOperational ? `${80 + Math.sin(i * 1.3) * 15}%` : i === 16 ? '40%' : `${75 + Math.sin(i * 1.1) * 20}%`
-              return (
-                <div
-                  key={i}
-                  className="flex-1 rounded-t-sm"
-                  style={{ background: barColor, height }}
-                />
-              )
-            })}
-          </div>
+          {/* Monitor status breakdown */}
+          {monitors.length > 0 && (
+            <div className="mt-8">
+              <div className="flex rounded-full overflow-hidden h-2.5 mb-3">
+                {up > 0 && (
+                  <div style={{ width: `${(up / monitors.length) * 100}%`, background: '#22c55e' }} />
+                )}
+                {degraded > 0 && (
+                  <div style={{ width: `${(degraded / monitors.length) * 100}%`, background: '#eab308' }} />
+                )}
+                {down > 0 && (
+                  <div style={{ width: `${(down / monitors.length) * 100}%`, background: '#ba1a1a' }} />
+                )}
+              </div>
+              <div className="flex gap-4 text-xs font-medium" style={{ color: 'var(--m3-on-surface-variant)' }}>
+                {up > 0 && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: '#22c55e' }} />
+                    {up} operational
+                  </span>
+                )}
+                {degraded > 0 && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: '#eab308' }} />
+                    {degraded} degraded
+                  </span>
+                )}
+                {down > 0 && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: '#ba1a1a' }} />
+                    {down} down
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Active Incidents */}
