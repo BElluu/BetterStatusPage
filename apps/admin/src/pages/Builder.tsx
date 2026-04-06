@@ -19,6 +19,36 @@ import type {
   Monitor, LayoutNode, GroupNode, MonitorNode, TextNode, IncidentsNode, GridPos,
 } from '@bsp/shared'
 
+// ── Prune monitor nodes that reference deleted monitors ───────────────────────
+function pruneOrphanedMonitors(
+  tree: LayoutTree,
+  validIds: Set<number>,
+): { pruned: LayoutTree; removed: number } {
+  let removed = 0
+
+  function filterChildren(children: LayoutNode[]): LayoutNode[] {
+    const result: LayoutNode[] = []
+    for (const node of children) {
+      if (node.type === 'monitor') {
+        if (validIds.has((node as MonitorNode).monitorId)) {
+          result.push(node)
+        } else {
+          removed++
+        }
+      } else if (node.type === 'group') {
+        const g = node as GroupNode
+        result.push({ ...g, children: filterChildren(g.children) })
+      } else {
+        result.push(node)
+      }
+    }
+    return result
+  }
+
+  const pruned = { ...tree, children: filterChildren(tree.children) }
+  return { pruned, removed }
+}
+
 // ── react-grid-layout setup ───────────────────────────────────────────────────
 const RGL = WidthProvider(ReactGridLayout)
 const ROW_H = 44
@@ -55,8 +85,17 @@ export default function BuilderPage() {
   })
 
   useEffect(() => {
-    api.get<unknown>('/admin/layout').then((d) => setTree(d as typeof tree))
-  }, [setTree])
+    if (monitors.length === 0) return // wait for monitors to load before pruning
+    api.get<unknown>('/admin/layout').then((d) => {
+      const loaded = d as typeof tree
+      const validIds = new Set(monitors.map((m) => m.id))
+      const { pruned, removed } = pruneOrphanedMonitors(loaded, validIds)
+      setTree(pruned)
+      // If any orphaned monitor nodes were stripped, mark dirty so the user can save
+      if (removed > 0) useBuilderStore.setState({ isDirty: true })
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setTree, monitors.length])
 
   async function handleSave() {
     setSaving(true)
@@ -117,7 +156,7 @@ export default function BuilderPage() {
       const monitorId = Number(de.dataTransfer?.getData('monitorId'))
       if (monitorId) insertRootNode({ ...createMonitorNode(monitorId), grid }, dropY)
     } else if (type === 'group') {
-      const label = de.dataTransfer?.getData('label') || 'Nowa grupa'
+      const label = de.dataTransfer?.getData('label') || 'New group'
       insertRootNode({ ...createGroupNode(label), grid }, dropY)
     } else if (type === 'text') {
       insertRootNode({ ...createTextNode(), grid }, dropY)
@@ -147,31 +186,31 @@ export default function BuilderPage() {
       <aside className="w-56 flex flex-col shrink-0 overflow-y-auto" style={{ background: "var(--m3-surface-container-low)", borderRight: "1px solid var(--m3-outline-variant)" }}>
         <div className="p-3" style={{ borderBottom: "1px solid var(--m3-outline-variant)" }}>
           <p className="text-xs font-semibold" style={{ color: 'var(--m3-on-surface)' }}>Toolbox</p>
-          <p className="text-[10px] mt-0.5" style={{ color: 'var(--m3-secondary)' }}>Przeciągnij na canvas</p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--m3-secondary)' }}>Drag onto canvas</p>
         </div>
 
         <div className="p-3 space-y-4">
           {/* Groups */}
           <section>
-            <p className="text-[10px] uppercase tracking-wider text-secondary mb-1.5">Grupy</p>
+            <p className="text-[10px] uppercase tracking-wider text-secondary mb-1.5">Groups</p>
             <div
               draggable
               onDragStart={(e) => {
-                handleToolboxDragStart('group', { label: 'Nowa grupa' })
+                handleToolboxDragStart('group', { label: 'New group' })
                 e.dataTransfer.setData('nodeType', 'group')
-                e.dataTransfer.setData('label', 'Nowa grupa')
+                e.dataTransfer.setData('label', 'New group')
                 e.dataTransfer.effectAllowed = 'copy'
               }}
               className="flex items-center gap-2 px-2 py-1.5 bg-surface-container hover:bg-surface-container-high rounded text-sm text-on-surface-variant cursor-grab active:cursor-grabbing select-none"
             >
               <span className="text-secondary">◧</span>
-              <span className="truncate">Nowa grupa</span>
+              <span className="truncate">New group</span>
             </div>
           </section>
 
           {/* Monitors */}
           <section>
-            <p className="text-[10px] uppercase tracking-wider text-secondary mb-1.5">Monitory</p>
+            <p className="text-[10px] uppercase tracking-wider text-secondary mb-1.5">Monitors</p>
             <div className="space-y-1">
               {monitors.map((m) => (
                 <div
@@ -189,18 +228,18 @@ export default function BuilderPage() {
                   <span className="truncate">{m.name}</span>
                 </div>
               ))}
-              {monitors.length === 0 && <p className="text-xs text-secondary">Brak monitorów</p>}
+              {monitors.length === 0 && <p className="text-xs text-secondary">No monitors</p>}
             </div>
           </section>
 
           {/* Blocks */}
           <section>
-            <p className="text-[10px] uppercase tracking-wider text-secondary mb-1.5">Bloki</p>
+            <p className="text-[10px] uppercase tracking-wider text-secondary mb-1.5">Blocks</p>
             <div className="space-y-1">
               {[
-                { type: 'text',      label: 'Tekst',     icon: 'T'  },
-                { type: 'divider',   label: 'Separator', icon: '—'  },
-                { type: 'incidents', label: 'Incydenty', icon: '⚠'  },
+                { type: 'text',      label: 'Text',      icon: 'T'  },
+                { type: 'divider',   label: 'Divider',   icon: '—'  },
+                { type: 'incidents', label: 'Incidents', icon: '⚠'  },
               ].map(({ type, label, icon }) => (
                 <div
                   key={type}
@@ -224,7 +263,7 @@ export default function BuilderPage() {
         {selectedNode && (
           <div className="flex flex-col" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
             <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-              <p className="text-[10px] uppercase tracking-wider text-secondary font-semibold">Właściwości</p>
+              <p className="text-[10px] uppercase tracking-wider text-secondary font-semibold">Properties</p>
               <button onClick={() => selectNode(null)} className="text-secondary hover:text-on-surface text-base leading-none">×</button>
             </div>
             <div className="p-3">
@@ -244,11 +283,11 @@ export default function BuilderPage() {
         <div className="flex items-center justify-between px-5 py-3 shrink-0" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
           <div>
             <h2 className="text-sm font-semibold" style={{ color: 'var(--m3-on-surface)' }}>Page Builder</h2>
-            <p className="text-[10px] mt-0.5" style={{ color: 'var(--m3-secondary)' }}>Przeciągnij z toolboxa · Rozciągnij w poziomie (1–3 kol) · Kliknij = edycja</p>
+            <p className="text-[10px] mt-0.5" style={{ color: 'var(--m3-secondary)' }}>Drag from toolbox · Resize horizontally (1–3 col) · Click to edit</p>
           </div>
           <div className="flex items-center gap-3">
-            {isDirty && <span className="text-xs" style={{ color: 'var(--m3-degraded)' }}>Niezapisane</span>}
-            {saved && <span className="text-xs" style={{ color: 'var(--m3-up)' }}>Zapisano!</span>}
+            {isDirty && <span className="text-xs" style={{ color: 'var(--m3-degraded)' }}>Unsaved</span>}
+            {saved && <span className="text-xs" style={{ color: 'var(--m3-up)' }}>Saved!</span>}
             <button
               onClick={handleSave}
               disabled={saving || !isDirty}
@@ -259,7 +298,7 @@ export default function BuilderPage() {
                 opacity: saving ? 0.7 : 1,
               }}
             >
-              {saving ? 'Zapisuję…' : 'Zapisz'}
+              {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
         </div>
@@ -349,7 +388,7 @@ function EmptyDrop({ onDrop, droppingItem, rglLayout }: {
         style={{ minHeight: 260 }}
       >{null}</RGL>
       <div className="flex items-center justify-center h-48 border-2 border-dashed rounded-xl text-secondary -mt-10 pointer-events-none">
-        <p className="text-sm">Przeciągnij elementy z toolboxa</p>
+        <p className="text-sm">Drag elements from the toolbox</p>
       </div>
 
     </div>
@@ -376,7 +415,7 @@ function DeleteBtn({ onDelete }: { onDelete: () => void }) {
     <button
       onClick={(e) => { e.stopPropagation(); onDelete() }}
       className="absolute top-1 right-1 z-10 w-5 h-5 flex items-center justify-center rounded text-secondary hover:text-on-surface hover:bg-red-500 transition-colors text-xs leading-none"
-      title="Usuń"
+      title="Delete"
     >
       ×
     </button>
@@ -404,7 +443,7 @@ function NodeCard(props: NodeCardProps) {
         <DeleteBtn onDelete={onDelete} />
         <div className="flex items-center gap-1 px-2 py-1.5 shrink-0 pr-7 border-b border-outline-variant/40">
           <span className="drag-handle cursor-grab text-secondary hover:text-on-surface-variant">⠿</span>
-          <span className="text-[10px] text-secondary uppercase tracking-wider">Tekst</span>
+          <span className="text-[10px] text-secondary uppercase tracking-wider">Text</span>
           <span className="text-xs text-on-surface-variant truncate ml-1">{n.name || ''}</span>
         </div>
         <div className="flex-1 px-3 py-2 overflow-auto">
@@ -432,7 +471,7 @@ function NodeCard(props: NodeCardProps) {
 
   if (node.type === 'incidents') {
     const n = node as IncidentsNode
-    const filterLabel = n.filter === 'active' ? 'aktywne' : n.filter === 'resolved' ? 'rozwiązane' : 'wszystkie'
+    const filterLabel = n.filter === 'active' ? 'active' : n.filter === 'resolved' ? 'resolved' : 'all'
     return (
       <div className={`relative h-full flex items-center gap-2 px-3 rounded-lg bg-surface-container-low ${ring}`} onClick={onSelect}>
         <DeleteBtn onDelete={onDelete} />
@@ -491,7 +530,7 @@ function GroupCard({
       <div className="flex items-center gap-2 px-3 py-2 shrink-0 pr-7">
         <span className="drag-handle cursor-grab text-secondary hover:text-on-surface-variant">⠿</span>
         <span className="text-on-surface-variant text-sm">◧</span>
-        <span className="flex-1 text-sm font-medium text-on-surface truncate">{node.label || 'Grupa'}</span>
+        <span className="flex-1 text-sm font-medium text-on-surface truncate">{node.label || 'Group'}</span>
         <span className="text-[10px] text-secondary">{node.children.length}</span>
       </div>
 
@@ -526,7 +565,7 @@ function GroupCard({
         <div className={`mt-1.5 border-2 border-dashed rounded-lg py-2 text-center text-[10px] transition-colors ${
           isDragOver ? 'border-primary text-primary' : 'border-outline-variant text-secondary'
         }`}>
-          {isDragOver ? 'Upuść tutaj' : 'Przeciągnij monitor z toolboxa'}
+          {isDragOver ? 'Drop here' : 'Drag monitor from toolbox'}
         </div>
       </div>
     </div>
@@ -576,7 +615,7 @@ function SortableGroupItem({
       ) : child.type === 'text' ? (
         <>
           <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 rounded">T</span>
-          <span className="flex-1 text-on-surface-variant truncate">{(child as TextNode).name || 'Tekst'}</span>
+          <span className="flex-1 text-on-surface-variant truncate">{(child as TextNode).name || 'Text'}</span>
         </>
       ) : (
         <span className="flex-1 text-on-surface-variant truncate">{child.id}</span>
@@ -601,14 +640,14 @@ function PropertiesPanel({
     const n = node as TextNode
     return (
       <div className="space-y-3">
-        <Label>Nazwa</Label>
+        <Label>Name</Label>
         <input
           value={n.name ?? ''}
           onChange={(e) => onUpdate({ name: e.target.value } as Partial<TextNode>)}
           className={cls}
-          placeholder="Nowy tekst"
+          placeholder="New text"
         />
-        <Label>Tekst (Markdown)</Label>
+        <Label>Text (Markdown)</Label>
         <textarea
           value={n.markdown}
           onChange={(e) => {
@@ -633,7 +672,7 @@ function PropertiesPanel({
         </select>
 
         <div>
-          <Label>Typ karty</Label>
+          <Label>Card type</Label>
           <div className="flex gap-1 mt-1">
             {(['default', 'compact'] as const).map((v) => (
               <button
@@ -647,7 +686,7 @@ function PropertiesPanel({
                     : { background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }
                 }
               >
-                {v === 'default' ? 'Pełna' : 'Kompakt'}
+                {v === 'default' ? 'Full' : 'Compact'}
               </button>
             ))}
           </div>
@@ -655,31 +694,31 @@ function PropertiesPanel({
 
         {(n.cardVariant ?? 'default') === 'default' && (
           <>
-            <Toggle label="Wykres uptime" checked={n.showUptimeBar}
+            <Toggle label="Uptime bar" checked={n.showUptimeBar}
               onChange={(v) => onUpdate({ showUptimeBar: v } as Partial<MonitorNode>)} />
             {n.showUptimeBar && (
               <div>
-                <Label>Pozycja wykresu uptime</Label>
+                <Label>Uptime bar position</Label>
                 <select
                   value={n.uptimeBarPosition ?? 'right'}
                   onChange={(e) => onUpdate({ uptimeBarPosition: e.target.value as 'right' | 'below' } as Partial<MonitorNode>)}
                   className={cls}
                 >
-                  <option value="right">Po prawej stronie</option>
-                  <option value="below">Pod spodem</option>
+                  <option value="right">Right</option>
+                  <option value="below">Below</option>
                 </select>
               </div>
             )}
             {n.showUptimeBar && (n.uptimeBarPosition ?? 'right') === 'below' && (
-              <Toggle label="Pokaż % uptime" checked={n.showUptimePct ?? false}
+              <Toggle label="Show uptime %" checked={n.showUptimePct ?? false}
                 onChange={(v) => onUpdate({ showUptimePct: v } as Partial<MonitorNode>)} />
             )}
           </>
         )}
 
-        <Toggle label="Czas odpowiedzi" checked={n.showResponseTime}
+        <Toggle label="Response time" checked={n.showResponseTime}
           onChange={(v) => onUpdate({ showResponseTime: v } as Partial<MonitorNode>)} />
-        <Toggle label="Pokaż typ monitora" checked={n.showMonitorType ?? false}
+        <Toggle label="Show monitor type" checked={n.showMonitorType ?? false}
           onChange={(v) => onUpdate({ showMonitorType: v } as Partial<MonitorNode>)} />
       </div>
     )
@@ -689,12 +728,12 @@ function PropertiesPanel({
     const n = node as GroupNode
     return (
       <div className="space-y-3">
-        <Label>Nazwa grupy</Label>
+        <Label>Group name</Label>
         <input value={n.label} onChange={(e) => onUpdate({ label: e.target.value } as Partial<GroupNode>)} className={cls} />
-        <Toggle label="Zwijalna" checked={n.collapsible}
+        <Toggle label="Collapsible" checked={n.collapsible}
           onChange={(v) => onUpdate({ collapsible: v } as Partial<GroupNode>)} />
         <div className="border-t pt-3">
-          <Label>Dodaj monitor do grupy</Label>
+          <Label>Add monitor to group</Label>
           <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
             {monitors.map((m) => (
               <button key={m.id} onClick={() => onAddChild(createMonitorNode(m.id))}
@@ -713,7 +752,7 @@ function PropertiesPanel({
     const n = node as IncidentsNode
     return (
       <div className="space-y-3">
-        <Label>Limit incydentów</Label>
+        <Label>Incident limit</Label>
         <input
           type="number"
           min={1}
@@ -722,15 +761,15 @@ function PropertiesPanel({
           onChange={(e) => onUpdate({ limit: Number(e.target.value) } as Partial<IncidentsNode>)}
           className={cls}
         />
-        <Label>Filtr</Label>
+        <Label>Filter</Label>
         <select
           value={n.filter ?? 'all'}
           onChange={(e) => onUpdate({ filter: e.target.value as IncidentsNode['filter'] } as Partial<IncidentsNode>)}
           className={cls}
         >
-          <option value="all">Wszystkie</option>
-          <option value="active">Tylko aktywne</option>
-          <option value="resolved">Tylko rozwiązane</option>
+          <option value="all">All</option>
+          <option value="active">Active only</option>
+          <option value="resolved">Resolved only</option>
         </select>
       </div>
     )

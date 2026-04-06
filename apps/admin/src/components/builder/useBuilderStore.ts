@@ -199,7 +199,7 @@ export function createGroupNode(label: string): Omit<GroupNode, 'id'> {
 }
 
 export function createTextNode(): Omit<TextNode, 'id'> {
-  return { type: 'text', name: 'Nowy tekst', markdown: '## Tytuł sekcji\nOpis…' }
+  return { type: 'text', name: 'New text', markdown: '## Section title\nDescription…' }
 }
 
 export function createIncidentsNode(): Omit<IncidentsNode, 'id'> {
