@@ -19,6 +19,7 @@ import { incidentRoutes } from './routes/incidents.js'
 import { layoutRoutes } from './routes/layout.js'
 import { brandingRoutes } from './routes/branding.js'
 import { userRoutes } from './routes/users.js'
+import { vaultRoutes } from './routes/vaults.js'
 import { publicRoutes } from './routes/public.js'
 import { publicLocaleRoutes, adminLocaleRoutes } from './routes/locales.js'
 import { startScheduler } from './workers/scheduler.js'
@@ -130,10 +131,11 @@ await app.register(async (adminApp) => {
     await sub.register(adminLocaleRoutes, { prefix: '/locales' })
   })
 
-  // users: admin only
+  // users & vaults: admin only
   await adminApp.register(async (sub) => {
     sub.addHook('preHandler', requireRole())  // only admin passes (no allowed list)
-    await sub.register(userRoutes, { prefix: '/users' })
+    await sub.register(userRoutes,  { prefix: '/users' })
+    await sub.register(vaultRoutes, { prefix: '/vaults' })
   })
 }, { prefix: '/api/v1/admin' })
 

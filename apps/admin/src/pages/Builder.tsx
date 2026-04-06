@@ -16,7 +16,7 @@ import {
   defaultGrid, findNode,
 } from '../components/builder/useBuilderStore'
 import type {
-  Monitor, LayoutNode, GroupNode, MonitorNode, TextNode, IncidentsNode, GridPos,
+  Monitor, LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode, IncidentsNode, GridPos,
 } from '@bsp/shared'
 
 // ── Prune monitor nodes that reference deleted monitors ───────────────────────

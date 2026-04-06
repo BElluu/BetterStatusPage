@@ -72,6 +72,25 @@ export const locales = sqliteTable('locales', {
   updatedAt:          integer('updated_at').notNull(),
 })
 
+export const vaults = sqliteTable('vaults', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  type: text('type').notNull().default('local'), // 'local'
+  description: text('description'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+export const vaultSecrets = sqliteTable('vault_secrets', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  vaultId: integer('vault_id').notNull(),
+  name: text('name').notNull(),
+  type: text('type').notNull(), // 'userpass' | 'value' | 'json'
+  encryptedValue: text('encrypted_value').notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
 export const branding = sqliteTable('branding', {
   id: integer('id').primaryKey(),
   siteName: text('site_name').notNull().default('Status Page'),
