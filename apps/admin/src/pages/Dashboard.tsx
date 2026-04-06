@@ -26,8 +26,11 @@ export default function DashboardPage() {
   const recentActivity  = incidents.slice(0, 5)
 
   const allOperational = down === 0 && degraded === 0 && monitors.length > 0
-  const globalStatus = down > 0
+  const allDown = down > 0 && down === monitors.length
+  const globalStatus = allDown
     ? 'Major Outage Detected'
+    : down > 0
+    ? 'Partial Outage'
     : degraded > 0
     ? 'Partial Degradation'
     : monitors.length === 0

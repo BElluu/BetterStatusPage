@@ -431,14 +431,15 @@ function GroupBlock({ groupNode, monitors, statusMap }: {
     })
     .filter(Boolean) as Monitor[]
 
-  const anyDown     = liveMonitors.some((m) => m.currentStatus === 'down')
+  const allDown     = liveMonitors.length > 0 && liveMonitors.every((m) => m.currentStatus === 'down')
+  const someDown    = !allDown && liveMonitors.some((m) => m.currentStatus === 'down')
   const anyDegraded = liveMonitors.some((m) => m.currentStatus === 'degraded')
-  const aggStatus   = anyDown ? 'down' : anyDegraded ? 'degraded' : 'up'
+  const aggStatus   = allDown ? 'down' : someDown ? 'partial' : anyDegraded ? 'degraded' : 'up'
 
-  const aggColor    = aggStatus === 'down' ? '#ba1a1a' : aggStatus === 'degraded' ? '#854d0e' : '#166534'
-  const aggDotColor = aggStatus === 'down' ? '#ba1a1a' : aggStatus === 'degraded' ? '#eab308' : '#22c55e'
-  const aggBg       = aggStatus === 'up' ? 'rgba(34,197,94,0.1)' : aggStatus === 'down' ? '#ffdad6' : 'rgba(234,179,8,0.12)'
-  const aggLabel    = aggStatus === 'up' ? 'Operational' : aggStatus === 'down' ? 'Outage' : 'Degraded'
+  const aggColor    = aggStatus === 'down' ? '#ba1a1a' : aggStatus === 'partial' ? '#9a3412' : aggStatus === 'degraded' ? '#854d0e' : '#166534'
+  const aggDotColor = aggStatus === 'down' ? '#ba1a1a' : aggStatus === 'partial' ? '#ea580c' : aggStatus === 'degraded' ? '#eab308' : '#22c55e'
+  const aggBg       = aggStatus === 'up' ? 'rgba(34,197,94,0.1)' : aggStatus === 'down' ? '#ffdad6' : aggStatus === 'partial' ? 'rgba(234,88,12,0.1)' : 'rgba(234,179,8,0.12)'
+  const aggLabel    = aggStatus === 'up' ? 'Operational' : aggStatus === 'down' ? 'Outage' : aggStatus === 'partial' ? 'Partial Outage' : 'Degraded'
 
   return (
     <div
