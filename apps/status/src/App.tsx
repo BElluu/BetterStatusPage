@@ -59,12 +59,15 @@ export default function App() {
   const brandingEnabled = !!(branding?.enabled)
 
   const allUp = liveMonitors.length === 0 || liveMonitors.every((m) => m.currentStatus === 'up' || m.currentStatus === 'pending')
-  const anyDown = liveMonitors.some((m) => m.currentStatus === 'down')
+  const allDown = liveMonitors.length > 0 && liveMonitors.every((m) => m.currentStatus === 'down')
+  const someDown = !allDown && liveMonitors.some((m) => m.currentStatus === 'down')
   const anyDegraded = liveMonitors.some((m) => m.currentStatus === 'degraded')
   const hasActiveIncidents = activeIncidents.length > 0
 
-  const overallStatus = anyDown
+  const overallStatus = allDown
     ? 'Major Outage.'
+    : someDown
+    ? 'Partial Outage.'
     : anyDegraded
     ? 'Partial Degradation.'
     : hasActiveIncidents
@@ -73,8 +76,10 @@ export default function App() {
     ? 'All systems operational.'
     : 'Checking…'
 
-  const overallColor = anyDown
+  const overallColor = allDown
     ? (brandingEnabled ? branding!.statusDownColor : '#ba1a1a')
+    : someDown
+    ? (brandingEnabled ? branding!.statusDownColor : '#ea580c')
     : anyDegraded
     ? (brandingEnabled ? branding!.statusDegradedColor : '#eab308')
     : hasActiveIncidents
