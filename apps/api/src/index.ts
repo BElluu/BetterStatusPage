@@ -4,6 +4,7 @@ import cors from '@fastify/cors'
 import jwt from '@fastify/jwt'
 import multipart from '@fastify/multipart'
 import staticFiles from '@fastify/static'
+import rateLimit from '@fastify/rate-limit'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
@@ -14,7 +15,6 @@ import { runMigrations } from './db/migrate.js'
 import { setupRoutes } from './routes/setup.js'
 import { authRoutes } from './routes/auth.js'
 import { monitorRoutes } from './routes/monitors.js'
-import { groupRoutes } from './routes/groups.js'
 import { incidentRoutes } from './routes/incidents.js'
 import { layoutRoutes } from './routes/layout.js'
 import { brandingRoutes } from './routes/branding.js'
@@ -28,15 +28,27 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = Fastify({ logger: { level: 'info' } })
 
 // CORS
+const allowedOrigins = process.env['ALLOWED_ORIGINS']?.split(',').map((o) => o.trim())
 await app.register(cors, {
-  origin: true,
+  origin: allowedOrigins
+    ?? (process.env['NODE_ENV'] === 'production' ? false : true),
   credentials: true,
 })
 
 // JWT
+const jwtSecret = process.env['JWT_SECRET']
+if (!jwtSecret) {
+  if (process.env['NODE_ENV'] === 'production') {
+    throw new Error('JWT_SECRET environment variable must be set in production')
+  }
+  console.warn('⚠ JWT_SECRET not set — using insecure default (development only)')
+}
 await app.register(jwt, {
-  secret: process.env['JWT_SECRET'] ?? 'dev-secret-change-me',
+  secret: jwtSecret ?? 'dev-secret-change-me',
 })
+
+// Rate limiting (applied per-route where needed)
+await app.register(rateLimit, { global: false })
 
 // Multipart (file uploads)
 await app.register(multipart, {
@@ -52,6 +64,17 @@ await app.register(staticFiles, {
   root: uploadsDir,
   prefix: '/uploads/',
   decorateReply: false,
+})
+
+// Security headers
+app.addHook('onSend', (_req, reply, _payload, done) => {
+  reply.header('X-Content-Type-Options', 'nosniff')
+  reply.header('X-Frame-Options', 'DENY')
+  reply.header('Referrer-Policy', 'strict-origin-when-cross-origin')
+  if (process.env['NODE_ENV'] === 'production') {
+    reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  }
+  done()
 })
 
 // Auth middleware
@@ -87,11 +110,10 @@ await app.register(publicLocaleRoutes, { prefix: '/api/v1/public/locales' })
 await app.register(async (adminApp) => {
   adminApp.addHook('preHandler', requireAuth)
 
-  // monitors & groups: operator+
+  // monitors: operator+
   await adminApp.register(async (sub) => {
     sub.addHook('preHandler', requireRole('operator'))
     await sub.register(monitorRoutes, { prefix: '/monitors' })
-    await sub.register(groupRoutes,   { prefix: '/groups' })
   })
 
   // incidents: operator+

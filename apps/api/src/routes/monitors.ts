@@ -11,14 +11,13 @@ export async function monitorRoutes(app: FastifyInstance) {
   })
 
   app.post<{ Body: {
-    name: string; type: string; groupId?: number
+    name: string; type: string
     intervalSecs?: number; timeoutMs?: number; config: unknown
   } }>('/', async (req) => {
     const now = Date.now()
     const results = await db.insert(monitors).values({
       name: req.body.name,
       type: req.body.type,
-      groupId: req.body.groupId ?? null,
       intervalSecs: req.body.intervalSecs ?? 60,
       timeoutMs: req.body.timeoutMs ?? 10000,
       config: JSON.stringify(req.body.config),
@@ -38,7 +37,7 @@ export async function monitorRoutes(app: FastifyInstance) {
   })
 
   app.patch<{ Params: { id: string }; Body: Partial<{
-    name: string; type: string; groupId: number | null
+    name: string; type: string
     intervalSecs: number; timeoutMs: number; config: unknown
   }> }>('/:id', async (req, reply) => {
     const id = Number(req.params.id)
@@ -48,7 +47,6 @@ export async function monitorRoutes(app: FastifyInstance) {
     const updates: Record<string, unknown> = { updatedAt: Date.now() }
     if (req.body.name !== undefined) updates['name'] = req.body.name
     if (req.body.type !== undefined) updates['type'] = req.body.type
-    if (req.body.groupId !== undefined) updates['groupId'] = req.body.groupId
     if (req.body.intervalSecs !== undefined) updates['intervalSecs'] = req.body.intervalSecs
     if (req.body.timeoutMs !== undefined) updates['timeoutMs'] = req.body.timeoutMs
     if (req.body.config !== undefined) updates['config'] = JSON.stringify(req.body.config)

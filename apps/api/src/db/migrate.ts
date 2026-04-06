@@ -9,17 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
   created_at INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS monitor_groups (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  parent_id INTEGER,
-  name TEXT NOT NULL,
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS monitors (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  group_id INTEGER,
   name TEXT NOT NULL,
   type TEXT NOT NULL,
   interval_secs INTEGER NOT NULL DEFAULT 60,
@@ -98,6 +89,8 @@ CREATE TABLE IF NOT EXISTS branding (
 `
 
 const columnMigrations: Array<{ sql: string; desc: string }> = [
+  { sql: `DROP TABLE IF EXISTS monitor_groups`, desc: 'drop monitor_groups (unused)' },
+  { sql: `ALTER TABLE monitors DROP COLUMN group_id`, desc: 'monitors: drop legacy group_id' },
   { sql: `ALTER TABLE branding ADD COLUMN background_color TEXT NOT NULL DEFAULT '#0f172a'`, desc: 'branding.background_color' },
   { sql: `ALTER TABLE branding ADD COLUMN card_background TEXT NOT NULL DEFAULT '#0f172a'`, desc: 'branding.card_background' },
   { sql: `ALTER TABLE branding ADD COLUMN card_border_color TEXT NOT NULL DEFAULT '#1e293b'`, desc: 'branding.card_border_color' },

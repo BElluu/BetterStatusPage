@@ -4,6 +4,9 @@ import { incidents, incidentUpdates, incidentMonitors } from '../db/schema.js'
 import { eq, desc } from 'drizzle-orm'
 import { sseService } from '../services/sse.service.js'
 
+const VALID_STATUSES = ['investigating', 'identified', 'monitoring', 'resolved'] as const
+const VALID_IMPACTS = ['minor', 'major', 'critical'] as const
+
 async function enrichIncident(incident: typeof incidents.$inferSelect) {
   const updates = await db.select().from(incidentUpdates)
     .where(eq(incidentUpdates.incidentId, incident.id))
@@ -25,12 +28,20 @@ export async function incidentRoutes(app: FastifyInstance) {
     return Promise.all(all.map(enrichIncident))
   })
 
-  app.post<{ Body: { title: string; status?: string; impact?: string; startedAt?: number } }>('/', async (req) => {
+  app.post<{ Body: { title: string; status?: string; impact?: string; startedAt?: number } }>('/', async (req, reply) => {
+    const status = req.body.status ?? 'investigating'
+    const impact = req.body.impact ?? 'minor'
+    if (!VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
+      return reply.code(400).send({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` })
+    }
+    if (!VALID_IMPACTS.includes(impact as typeof VALID_IMPACTS[number])) {
+      return reply.code(400).send({ error: `Invalid impact. Must be one of: ${VALID_IMPACTS.join(', ')}` })
+    }
     const now = Date.now()
     const results = await db.insert(incidents).values({
       title: req.body.title,
-      status: req.body.status ?? 'investigating',
-      impact: req.body.impact ?? 'minor',
+      status,
+      impact,
       startedAt: req.body.startedAt ?? now,
       createdAt: now,
       updatedAt: now,
@@ -47,6 +58,12 @@ export async function incidentRoutes(app: FastifyInstance) {
       const existing = (await db.select().from(incidents).where(eq(incidents.id, id)))[0]
       if (!existing) return reply.code(404).send({ error: 'Not found' })
 
+      if (req.body.status !== undefined && !VALID_STATUSES.includes(req.body.status as typeof VALID_STATUSES[number])) {
+        return reply.code(400).send({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` })
+      }
+      if (req.body.impact !== undefined && !VALID_IMPACTS.includes(req.body.impact as typeof VALID_IMPACTS[number])) {
+        return reply.code(400).send({ error: `Invalid impact. Must be one of: ${VALID_IMPACTS.join(', ')}` })
+      }
       const updates: Record<string, unknown> = { updatedAt: Date.now() }
       if (req.body.title !== undefined) updates['title'] = req.body.title
       if (req.body.status !== undefined) updates['status'] = req.body.status
@@ -67,6 +84,9 @@ export async function incidentRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string }; Body: { body: string; status: string } }>(
     '/:id/updates', async (req, reply) => {
+      if (!VALID_STATUSES.includes(req.body.status as typeof VALID_STATUSES[number])) {
+        return reply.code(400).send({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` })
+      }
       const incidentId = Number(req.params.id)
       const existing = (await db.select().from(incidents).where(eq(incidents.id, incidentId)))[0]
       if (!existing) return reply.code(404).send({ error: 'Not found' })

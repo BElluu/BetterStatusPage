@@ -36,7 +36,6 @@ export type MonitorConfig = HttpsConfig | PingConfig | DnsConfig | SqlServerConf
 
 export interface Monitor {
   id: number
-  groupId: number | null
   name: string
   type: MonitorType
   intervalSecs: number

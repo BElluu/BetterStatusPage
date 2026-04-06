@@ -18,7 +18,9 @@ export function normalizeRole(raw: string): string {
 }
 
 export async function authRoutes(app: FastifyInstance) {
-  app.post<{ Body: { email: string; password: string } }>('/login', async (req, reply) => {
+  app.post<{ Body: { email: string; password: string } }>('/login', {
+    config: { rateLimit: { max: 10, timeWindow: '15 minutes' } },
+  }, async (req, reply) => {
     const { email, password } = req.body
     const results = await db.select().from(users).where(eq(users.email, email))
     const user = results[0]
