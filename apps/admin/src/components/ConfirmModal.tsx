@@ -1,3 +1,5 @@
+import { createPortal } from 'react-dom'
+
 interface ConfirmModalProps {
   title: string
   message: string
@@ -15,7 +17,7 @@ export function ConfirmModal({
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
       style={{ background: 'rgba(0,0,0,0.4)' }}
@@ -52,6 +54,7 @@ export function ConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

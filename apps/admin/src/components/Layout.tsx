@@ -19,6 +19,7 @@ export default function Layout() {
     { to: '/admin/branding',       label: 'Branding',       icon: 'palette',              minRole: 'branding' },
     { to: '/admin/localization',   label: 'Localization',   icon: 'translate',            minRole: 'branding' },
     { to: '/admin/users',          label: 'Users',          icon: 'group',                minRole: 'admin'    },
+    { to: '/admin/vault',          label: 'Vault',          icon: 'shield_lock',          minRole: 'admin'    },
   ]
 
   const navItems = ALL_NAV.filter((item) => userRank >= (ROLE_RANK[item.minRole] ?? 99))
