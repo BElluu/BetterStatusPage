@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
 import {
-  monitors, monitorGroups, incidents, incidentUpdates, incidentMonitors, monitorResults, layout, branding,
+  monitors, incidents, incidentUpdates, incidentMonitors, monitorResults, layout, branding,
 } from '../db/schema.js'
 import { eq, desc, gte, ne, inArray } from 'drizzle-orm'
 import { sseService } from '../services/sse.service.js'
@@ -10,7 +10,6 @@ import type { LayoutTree, LayoutNode, GroupNode, MonitorNode } from '@bsp/shared
 export async function publicRoutes(app: FastifyInstance) {
   app.get('/status', async () => {
     const allMonitors = (await db.select().from(monitors)).map((m) => ({ ...m, config: undefined }))
-    const allGroups = await db.select().from(monitorGroups)
     const rawActiveIncidents = await db.select().from(incidents).where(ne(incidents.status, 'resolved')).orderBy(desc(incidents.createdAt))
     const activeIncidents = await Promise.all(rawActiveIncidents.map(async (incident) => {
       const updates = await db.select().from(incidentUpdates).where(eq(incidentUpdates.incidentId, incident.id)).orderBy(desc(incidentUpdates.postedAt))
@@ -18,7 +17,7 @@ export async function publicRoutes(app: FastifyInstance) {
       return { ...incident, updates, monitorIds: monitorLinks.map((l) => l.monitorId) }
     }))
     const brandingRow = (await db.select().from(branding))[0] ?? null
-    return { branding: brandingRow, groups: allGroups, monitors: allMonitors, activeIncidents }
+    return { branding: brandingRow, monitors: allMonitors, activeIncidents }
   })
 
   app.get('/layout', async () => {

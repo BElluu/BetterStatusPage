@@ -9,17 +9,8 @@ export const users = sqliteTable('users', {
   createdAt: integer('created_at').notNull(),
 })
 
-export const monitorGroups = sqliteTable('monitor_groups', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  parentId: integer('parent_id'),
-  name: text('name').notNull(),
-  sortOrder: integer('sort_order').notNull().default(0),
-  createdAt: integer('created_at').notNull(),
-})
-
 export const monitors = sqliteTable('monitors', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  groupId: integer('group_id'),
   name: text('name').notNull(),
   type: text('type').notNull(), // 'https'|'ping'|'dns'|'sqlserver'
   intervalSecs: integer('interval_secs').notNull().default(60),

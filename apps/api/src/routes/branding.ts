@@ -3,7 +3,35 @@ import { db } from '../db/client.js'
 import { branding } from '../db/schema.js'
 import path from 'path'
 import fs from 'fs'
-import { pipeline } from 'stream/promises'
+
+const ALLOWED_MIME_MAGIC: Array<{ mime: string; magic: number[] }> = [
+  { mime: 'image/jpeg', magic: [0xFF, 0xD8, 0xFF] },
+  { mime: 'image/png',  magic: [0x89, 0x50, 0x4E, 0x47] },
+  { mime: 'image/gif',  magic: [0x47, 0x49, 0x46, 0x38] },
+  { mime: 'image/webp', magic: [0x52, 0x49, 0x46, 0x46] }, // RIFF (verified further below)
+]
+
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png':  '.png',
+  'image/gif':  '.gif',
+  'image/webp': '.webp',
+}
+
+function detectImageMime(buf: Buffer): string | null {
+  for (const { mime, magic } of ALLOWED_MIME_MAGIC) {
+    if (magic.every((byte, i) => buf[i] === byte)) {
+      if (mime === 'image/webp') {
+        // RIFF....WEBP — bytes 8-11 must be 0x57 0x45 0x42 0x50
+        if (buf.length < 12) return null
+        if (buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return mime
+        return null
+      }
+      return mime
+    }
+  }
+  return null
+}
 
 const UPLOAD_DIR = process.env['UPLOAD_DIR'] ?? './data/uploads'
 
@@ -69,11 +97,18 @@ export async function brandingRoutes(app: FastifyInstance) {
     const data = await req.file()
     if (!data) return reply.code(400).send({ error: 'No file' })
 
+    const chunks: Buffer[] = []
+    for await (const chunk of data.file) chunks.push(chunk as Buffer)
+    const buf = Buffer.concat(chunks)
+
+    const mime = detectImageMime(buf)
+    if (!mime) return reply.code(400).send({ error: 'Invalid image. Allowed types: JPEG, PNG, GIF, WebP' })
+
     if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true })
 
-    const ext = path.extname(data.filename) || '.png'
+    const ext = MIME_TO_EXT[mime]!
     const filename = `logo${ext}`
-    await pipeline(data.file, fs.createWriteStream(path.join(UPLOAD_DIR, filename)))
+    fs.writeFileSync(path.join(UPLOAD_DIR, filename), buf)
 
     const logoUrl = `/uploads/${filename}`
     const existing = (await db.select().from(branding))[0]

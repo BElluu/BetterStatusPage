@@ -10,7 +10,6 @@ import { LanguageSwitcher } from './components/LanguageSwitcher'
 
 interface PublicStatus {
   branding: Branding | null
-  groups: unknown[]
   monitors: Monitor[]
   activeIncidents: Incident[]
 }

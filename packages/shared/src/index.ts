@@ -1,6 +1,5 @@
 export * from './types/monitor.js'
 export * from './types/incident.js'
 export type { GridPos, PageNode, GroupNode, MonitorNode, TextNode, DividerNode, IncidentsNode, LayoutNode, LayoutTree, NodeType } from './types/layout.js'
-export * from './types/group.js'
 export * from './types/branding.js'
 export * from './types/locale.js'
