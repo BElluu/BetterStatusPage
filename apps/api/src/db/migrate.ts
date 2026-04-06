@@ -74,6 +74,17 @@ CREATE TABLE IF NOT EXISTS layout (
   updated_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS locales (
+  code               TEXT    PRIMARY KEY,
+  name               TEXT    NOT NULL,
+  is_default         INTEGER NOT NULL DEFAULT 0,
+  translations       TEXT    NOT NULL DEFAULT '{}',
+  admin_translations TEXT    NOT NULL DEFAULT '{}',
+  updated_at         INTEGER NOT NULL
+);
+INSERT OR IGNORE INTO locales (code, name, is_default, translations, admin_translations, updated_at)
+VALUES ('en', 'English', 1, '{}', '{}', 0);
+
 CREATE TABLE IF NOT EXISTS branding (
   id INTEGER PRIMARY KEY,
   site_name TEXT NOT NULL DEFAULT 'Status Page',

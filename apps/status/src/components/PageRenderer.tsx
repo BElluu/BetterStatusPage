@@ -6,6 +6,7 @@ import type {
 } from '@bsp/shared'
 import Markdown from 'react-markdown'
 import { IncidentCard } from './IncidentCard'
+import { useLocale } from '../i18n/LocaleContext'
 
 interface StatusInfo {
   status: MonitorStatus
@@ -185,11 +186,12 @@ function ServiceMonitorCard({
 }) {
   const [overallPct, setOverallPct] = useState<number | null>(null)
 
+  const { t } = useLocale()
   const isUp       = monitor.currentStatus === 'up'
   const isDown     = monitor.currentStatus === 'down'
   const isDegraded = monitor.currentStatus === 'degraded'
 
-  const statusLabel   = isUp ? 'Operational' : isDown ? 'Outage' : isDegraded ? 'Degraded' : 'Checking'
+  const statusLabel   = isUp ? t('status.operational') : isDown ? t('status.outage') : isDegraded ? t('status.degraded') : t('status.checking')
   const statusBg      = isUp ? 'rgba(34,197,94,0.12)' : isDown ? '#ffdad6' : isDegraded ? 'rgba(234,179,8,0.12)' : 'var(--m3-surface-container)'
   const statusColor   = isUp ? '#166534' : isDown ? '#ba1a1a' : isDegraded ? '#854d0e' : 'var(--m3-secondary)'
   const dotColor      = isUp ? '#22c55e'  : isDown ? '#ba1a1a' : isDegraded ? '#eab308' : 'var(--m3-secondary)'
@@ -197,7 +199,7 @@ function ServiceMonitorCard({
   const barColorLight = isDown ? '#f28b82' : isDegraded ? '#fcd34d' : '#4ade80'
 
   const uptimeLabel = (overallPct !== null && showUptimePct)
-    ? `${overallPct.toFixed(1)}% uptime`
+    ? t('uptime.pct', { pct: overallPct.toFixed(1) })
     : null
 
   // Right-position layout: gridW=1 → dot only; gridW=2 → compact pill; gridW≥3 → full pill
@@ -299,7 +301,7 @@ function ServiceMonitorCard({
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--m3-secondary)' }}>
-              30 days ago
+              {t('uptime.daysAgo', { n: 30 })}
             </span>
             {uptimeLabel && (
               <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--m3-on-surface)' }}>
@@ -307,7 +309,7 @@ function ServiceMonitorCard({
               </span>
             )}
             <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--m3-secondary)' }}>
-              Today
+              {t('uptime.today')}
             </span>
           </div>
           <UptimeBars
@@ -336,11 +338,12 @@ function CompactMonitorRow({
   showMonitorType?: boolean
   nested?: boolean
 }) {
+  const { t } = useLocale()
   const isUp       = monitor.currentStatus === 'up'
   const isDown     = monitor.currentStatus === 'down'
   const isDegraded = monitor.currentStatus === 'degraded'
 
-  const statusLabel = isUp ? 'Operational' : isDown ? 'Down' : isDegraded ? 'Degraded' : 'Checking'
+  const statusLabel = isUp ? t('status.operational') : isDown ? t('status.outage') : isDegraded ? t('status.degraded') : t('status.checking')
   const statusBg    = isUp
     ? 'rgba(34,197,94,0.1)'
     : isDown ? '#ffdad6'
@@ -431,6 +434,7 @@ function GroupBlock({ groupNode, monitors, statusMap }: {
     })
     .filter(Boolean) as Monitor[]
 
+  const { t } = useLocale()
   const allDown     = liveMonitors.length > 0 && liveMonitors.every((m) => m.currentStatus === 'down')
   const someDown    = !allDown && liveMonitors.some((m) => m.currentStatus === 'down')
   const anyDegraded = liveMonitors.some((m) => m.currentStatus === 'degraded')
@@ -439,7 +443,7 @@ function GroupBlock({ groupNode, monitors, statusMap }: {
   const aggColor    = aggStatus === 'down' ? '#ba1a1a' : aggStatus === 'partial' ? '#9a3412' : aggStatus === 'degraded' ? '#854d0e' : '#166534'
   const aggDotColor = aggStatus === 'down' ? '#ba1a1a' : aggStatus === 'partial' ? '#ea580c' : aggStatus === 'degraded' ? '#eab308' : '#22c55e'
   const aggBg       = aggStatus === 'up' ? 'rgba(34,197,94,0.1)' : aggStatus === 'down' ? '#ffdad6' : aggStatus === 'partial' ? 'rgba(234,88,12,0.1)' : 'rgba(234,179,8,0.12)'
-  const aggLabel    = aggStatus === 'up' ? 'Operational' : aggStatus === 'down' ? 'Outage' : aggStatus === 'partial' ? 'Partial Outage' : 'Degraded'
+  const aggLabel    = aggStatus === 'up' ? t('status.operational') : aggStatus === 'down' ? t('status.outage') : aggStatus === 'partial' ? t('status.partialOutage') : t('status.degraded')
 
   return (
     <div
@@ -486,7 +490,7 @@ function GroupBlock({ groupNode, monitors, statusMap }: {
             className="text-xs"
             style={{ color: 'var(--m3-secondary)' }}
           >
-            {liveMonitors.length} service{liveMonitors.length !== 1 ? 's' : ''}
+            {liveMonitors.length} {liveMonitors.length === 1 ? t('page.service') : t('page.services')}
           </span>
         </div>
 
@@ -585,6 +589,7 @@ function IncidentsBlock({ config, activeIncidents, allIncidents, monitors }: {
   allIncidents: Incident[]
   monitors: Monitor[]
 }) {
+  const { t } = useLocale()
   const filter = config.filter ?? 'all'
   const limit  = config.limit ?? 5
 
@@ -615,7 +620,7 @@ function IncidentsBlock({ config, activeIncidents, allIncidents, monitors }: {
           check_circle
         </span>
         <p className="font-sans text-sm font-medium" style={{ color: 'var(--m3-secondary)' }}>
-          No incidents to display.
+          {t('empty.noIncidents')}
         </p>
       </div>
     )
@@ -647,13 +652,14 @@ function fmtDuration(ms: number): string {
 }
 
 function UptimeTooltip({ day, anchorRect }: { day: UptimeDay; anchorRect: DOMRect }) {
+  const { t, locale } = useLocale()
   const W = 232
   const vw = window.innerWidth
   let left = anchorRect.left + anchorRect.width / 2 - W / 2
   left = Math.max(8, Math.min(left, vw - W - 8))
   const bottom = window.innerHeight - anchorRect.top + 10
 
-  const dateLabel = new Date(day.date + 'T12:00:00Z').toLocaleDateString('en', {
+  const dateLabel = new Date(day.date + 'T12:00:00Z').toLocaleDateString(locale, {
     month: 'long', day: 'numeric', year: 'numeric',
   })
   const hasIncidents = day.incidents && day.incidents.length > 0
@@ -680,12 +686,12 @@ function UptimeTooltip({ day, anchorRect }: { day: UptimeDay; anchorRect: DOMRec
       {/* Uptime */}
       {!noData && (
         <p style={{ fontSize: '11px', color: 'var(--m3-secondary)', margin: '0 0 6px' }}>
-          Uptime: {day.uptimePct.toFixed(1)}%
+          {t('uptime.pct', { pct: day.uptimePct.toFixed(1) })}
         </p>
       )}
       {noData && (
         <p style={{ fontSize: '11px', color: 'var(--m3-secondary)', margin: '0 0 6px' }}>
-          No data
+          {t('uptime.noData')}
         </p>
       )}
 
@@ -698,14 +704,14 @@ function UptimeTooltip({ day, anchorRect }: { day: UptimeDay; anchorRect: DOMRec
                 {inc.title}
               </p>
               <p style={{ fontSize: '10px', color: 'var(--m3-secondary)', margin: '1px 0 0' }}>
-                {inc.durationMs !== null ? `Resolved in ${fmtDuration(inc.durationMs)}` : 'Ongoing'}
+                {inc.durationMs !== null ? t('uptime.resolvedIn', { duration: fmtDuration(inc.durationMs) }) : t('uptime.ongoing')}
               </p>
             </div>
           ))}
         </div>
       ) : !noData && (
         <p style={{ fontSize: '10px', color: 'var(--m3-secondary)', margin: 0, borderTop: '1px solid var(--m3-outline-variant)', paddingTop: '6px' }}>
-          No incidents
+          {t('uptime.noIncidents')}
         </p>
       )}
     </div>,

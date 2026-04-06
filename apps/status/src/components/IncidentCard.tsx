@@ -1,19 +1,12 @@
 import type { Incident, Monitor } from '@bsp/shared'
+import { useLocale } from '../i18n/LocaleContext'
 
-/* ── Per-status visual config ─────────────────────────────────────── */
-const statusCfg: Record<string, { label: string; color: string; dotColor: string; badgeBg: string }> = {
-  investigating: { label: 'Investigating', color: '#ba1a1a', dotColor: '#ba1a1a', badgeBg: 'rgba(186,26,26,0.08)' },
-  identified:    { label: 'Identified',    color: '#eab308', dotColor: '#eab308', badgeBg: 'rgba(234,179,8,0.10)' },
-  monitoring:    { label: 'Monitoring',    color: '#3980f4', dotColor: '#3980f4', badgeBg: 'rgba(57,128,244,0.10)' },
-  resolved:      { label: 'Resolved',      color: '#22c55e', dotColor: '#22c55e', badgeBg: 'rgba(34,197,94,0.10)' },
+function formatDate(ms: number, locale: string) {
+  return new Date(ms).toLocaleDateString(locale, { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
-function formatDate(ms: number) {
-  return new Date(ms).toLocaleDateString('en', { month: 'long', day: 'numeric', year: 'numeric' })
-}
-
-function formatTime(ms: number) {
-  return new Date(ms).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC'
+function formatTime(ms: number, locale: string) {
+  return new Date(ms).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC'
 }
 
 function formatDuration(startMs: number, endMs: number) {
@@ -24,6 +17,22 @@ function formatDuration(startMs: number, endMs: number) {
 }
 
 export function IncidentCard({ incident, monitors = [] }: { incident: Incident; monitors?: Monitor[] }) {
+  const { t, locale } = useLocale()
+
+  const statusCfg: Record<string, { color: string; dotColor: string; badgeBg: string }> = {
+    investigating: { color: '#ba1a1a', dotColor: '#ba1a1a', badgeBg: 'rgba(186,26,26,0.08)' },
+    identified:    { color: '#eab308', dotColor: '#eab308', badgeBg: 'rgba(234,179,8,0.10)' },
+    monitoring:    { color: '#3980f4', dotColor: '#3980f4', badgeBg: 'rgba(57,128,244,0.10)' },
+    resolved:      { color: '#22c55e', dotColor: '#22c55e', badgeBg: 'rgba(34,197,94,0.10)' },
+  }
+
+  const statusLabels: Record<string, string> = {
+    investigating: t('incident.investigating'),
+    identified:    t('incident.identified'),
+    monitoring:    t('incident.monitoring'),
+    resolved:      t('incident.resolved'),
+  }
+
   const cfg      = statusCfg[incident.status] ?? statusCfg['investigating']!
   const isActive = incident.status !== 'resolved'
   const updates  = incident.updates ?? []
@@ -52,7 +61,7 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
       >
         {/* Date */}
         <div className="font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--m3-secondary)' }}>
-          {formatDate(incident.startedAt)}
+          {formatDate(incident.startedAt, locale)}
         </div>
 
         {/* Title + subtitle */}
@@ -62,7 +71,7 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
           </h4>
           {duration && (
             <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
-              Resolved in {duration}.{affectedMonitors.length > 0 && ` Affected: ${affectedMonitors.map((m) => m.name).join(', ')}.`}
+              {t('uptime.resolvedIn', { duration })}.{affectedMonitors.length > 0 && ` ${t('uptime.affected')}: ${affectedMonitors.map((m) => m.name).join(', ')}.`}
             </p>
           )}
         </div>
@@ -77,7 +86,7 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
             color: 'var(--m3-secondary)',
           }}
         >
-          Resolved
+          {t('incident.resolved')}
         </span>
       </div>
     )
@@ -97,9 +106,9 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
 
         {/* ── Date column ── */}
         <div className="font-mono text-sm uppercase tracking-widest pt-1" style={{ color: 'var(--m3-secondary)' }}>
-          {formatDate(incident.startedAt)}
+          {formatDate(incident.startedAt, locale)}
           <br />
-          <span className="text-xs">{formatTime(incident.startedAt)}</span>
+          <span className="text-xs">{formatTime(incident.startedAt, locale)}</span>
         </div>
 
         {/* ── Content column ── */}
@@ -113,7 +122,7 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
               color: cfg.color,
             }}
           >
-            {cfg.label}
+            {statusLabels[incident.status] ?? t('incident.investigating')}
             {isActive && (
               <span
                 className="animate-pulse inline-block rounded-full ml-1.5"
@@ -174,7 +183,7 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
                       className="block text-xs font-bold uppercase tracking-widest mb-1"
                       style={{ color: isLatest ? updateCfg.color : 'var(--m3-secondary)' }}
                     >
-                      {formatTime(update.postedAt)} — {updateCfg.label}
+                      {formatTime(update.postedAt, locale)} — {statusLabels[update.status] ?? t('incident.investigating')}
                     </span>
                     <p
                       className="text-sm font-sans leading-relaxed"

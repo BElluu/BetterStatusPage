@@ -2,9 +2,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState } from 'react'
 import { useSSE } from './hooks/useSSE'
 import { useDarkMode } from './hooks/useDarkMode'
+import { useLocale } from './i18n/LocaleContext'
 import type { Branding, Incident, Monitor, LayoutTree } from '@bsp/shared'
 import { PageRenderer } from './components/PageRenderer'
 import { IncidentCard } from './components/IncidentCard'
+import { LanguageSwitcher } from './components/LanguageSwitcher'
 
 interface PublicStatus {
   branding: Branding | null
@@ -22,6 +24,7 @@ export default function App() {
   const qc = useQueryClient()
   const [isDark, toggleDark] = useDarkMode()
   const [eventsTab, setEventsTab] = useState<'active' | 'history'>('active')
+  const { t } = useLocale()
 
   const handleIncidentChange = useCallback(() => {
     qc.invalidateQueries({ queryKey: ['public-status'] })
@@ -65,16 +68,16 @@ export default function App() {
   const hasActiveIncidents = activeIncidents.length > 0
 
   const overallStatus = allDown
-    ? 'Major Outage.'
+    ? t('overall.majorOutage')
     : someDown
-    ? 'Partial Outage.'
+    ? t('overall.partialOutage')
     : anyDegraded
-    ? 'Partial Degradation.'
+    ? t('overall.partialDegradation')
     : hasActiveIncidents
-    ? 'Incidents in Progress.'
+    ? t('overall.incidentsInProgress')
     : allUp
-    ? 'All systems operational.'
-    : 'Checking…'
+    ? t('overall.allOperational')
+    : t('overall.checking')
 
   const overallColor = allDown
     ? (brandingEnabled ? branding!.statusDownColor : '#ba1a1a')
@@ -147,6 +150,7 @@ export default function App() {
 
           {/* Actions */}
           <div className="flex items-center gap-3">
+            <LanguageSwitcher />
             {!brandingEnabled && (
               <button
                 onClick={toggleDark}
@@ -175,7 +179,7 @@ export default function App() {
           >
             <span className="w-2.5 h-2.5 rounded-full animate-pulse" style={{ background: overallColor }} />
             <span className="text-sm font-semibold tracking-wide font-label uppercase" style={{ color: 'var(--m3-on-surface-variant)' }}>
-              Real-time Network Status
+              {t('page.hero')}
             </span>
           </div>
 
@@ -190,8 +194,8 @@ export default function App() {
           </h1>
 
           <p className="text-xl max-w-2xl mx-auto leading-relaxed" style={{ color: 'var(--m3-secondary)' }}>
-            {liveMonitors.length} {liveMonitors.length === 1 ? 'service' : 'services'} monitored in real time.
-            {activeIncidents.length > 0 && ` ${activeIncidents.length} active ${activeIncidents.length === 1 ? 'incident' : 'incidents'}.`}
+            {liveMonitors.length} {liveMonitors.length === 1 ? t('page.service') : t('page.services')} {t('page.monitoredRealTime')}.
+            {activeIncidents.length > 0 && ` ${activeIncidents.length} ${activeIncidents.length === 1 ? t('page.incident') : t('page.incidents')}.`}
           </p>
         </section>
 
@@ -228,7 +232,7 @@ export default function App() {
             {/* Section header + tabs */}
             <div className="flex items-center justify-between mb-12">
               <h2 className="font-headline text-3xl font-extrabold tracking-tight" style={{ color: 'var(--m3-on-surface)' }}>
-                System Events
+                {t('section.systemEvents')}
               </h2>
               <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'var(--m3-surface-container)' }}>
                 <button
@@ -240,7 +244,7 @@ export default function App() {
                     boxShadow: eventsTab === 'active' ? '0 1px 4px rgba(19,27,46,0.08)' : 'none',
                   }}
                 >
-                  Active
+                  {t('tab.active')}
                 </button>
                 <button
                   onClick={() => setEventsTab('history')}
@@ -251,7 +255,7 @@ export default function App() {
                     boxShadow: eventsTab === 'history' ? '0 1px 4px rgba(19,27,46,0.08)' : 'none',
                   }}
                 >
-                  History
+                  {t('tab.history')}
                 </button>
               </div>
             </div>
@@ -273,7 +277,7 @@ export default function App() {
                       check_circle
                     </span>
                     <p className="font-sans font-medium" style={{ color: 'var(--m3-secondary)' }}>
-                      No active incidents — all systems running normally.
+                      {t('empty.noActiveIncidents')}
                     </p>
                   </div>
                 )}
@@ -292,7 +296,7 @@ export default function App() {
                     style={{ background: 'var(--m3-surface-container-low)' }}
                   >
                     <p className="font-sans text-sm" style={{ color: 'var(--m3-secondary)' }}>
-                      No incident history to display.
+                      {t('empty.noHistory')}
                     </p>
                   </div>
                 )}
@@ -327,11 +331,12 @@ function ServiceCard({
   responseMs: number | null
   animDelay: number
 }) {
+  const { t } = useLocale()
   const isUp       = monitor.currentStatus === 'up'
   const isDown     = monitor.currentStatus === 'down'
   const isDegraded = monitor.currentStatus === 'degraded'
 
-  const statusLabel = isUp ? 'Operational' : isDown ? 'Outage' : isDegraded ? 'Degraded' : 'Checking'
+  const statusLabel = isUp ? t('status.operational') : isDown ? t('status.outage') : isDegraded ? t('status.degraded') : t('status.checking')
   const statusBg    = isUp ? 'rgba(34,197,94,0.1)'  : isDown ? '#ffdad6' : isDegraded ? 'rgba(234,179,8,0.12)' : 'var(--m3-surface-container)'
   const statusColor = isUp ? '#166534' : isDown ? '#ba1a1a' : isDegraded ? '#854d0e' : 'var(--m3-secondary)'
 
@@ -373,11 +378,11 @@ function ServiceCard({
       {/* Uptime labels + bars */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--m3-secondary)' }}>90 days ago</span>
+          <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--m3-secondary)' }}>{t('uptime.daysAgo', { n: 90 })}</span>
           <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--m3-on-surface)' }}>
-            {isUp ? '99.9% uptime' : isDown ? 'Outage' : isDegraded ? 'Degraded' : 'Checking'}
+            {isUp ? t('uptime.pct', { pct: '99.9' }) : isDown ? t('status.outage') : isDegraded ? t('status.degraded') : t('status.checking')}
           </span>
-          <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--m3-secondary)' }}>Today</span>
+          <span style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--m3-secondary)' }}>{t('uptime.today')}</span>
         </div>
         <div className="flex h-10" style={{ gap: '2px' }}>
           {Array.from({ length: 40 }).map((_, i) => (
