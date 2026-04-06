@@ -12,12 +12,12 @@ function parseLocale(row: typeof locales.$inferSelect) {
 }
 
 export async function publicLocaleRoutes(app: FastifyInstance) {
-  // List available locales (code + name only)
+  // List available locales
   app.get('/', async () => {
     const rows = await db
-      .select({ code: locales.code, name: locales.name })
+      .select({ code: locales.code, name: locales.name, isDefault: locales.isDefault })
       .from(locales)
-      .orderBy(locales.isDefault, locales.name)
+      .orderBy(locales.name)
     return rows
   })
 
@@ -85,6 +85,16 @@ export async function adminLocaleRoutes(app: FastifyInstance) {
       return parseLocale(updated[0]!)
     },
   )
+
+  // Set locale as default (clears isDefault on all others)
+  app.post<{ Params: { code: string } }>('/:code/set-default', async (req, reply) => {
+    const row = (await db.select().from(locales).where(eq(locales.code, req.params.code)))[0]
+    if (!row) return reply.code(404).send({ error: 'Locale not found' })
+
+    await db.update(locales).set({ isDefault: 0 })
+    await db.update(locales).set({ isDefault: 1 }).where(eq(locales.code, req.params.code))
+    return parseLocale((await db.select().from(locales).where(eq(locales.code, req.params.code)))[0]!)
+  })
 
   // Delete locale (cannot delete default)
   app.delete<{ Params: { code: string } }>('/:code', async (req, reply) => {

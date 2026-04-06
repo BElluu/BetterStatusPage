@@ -490,7 +490,7 @@ function GroupBlock({ groupNode, monitors, statusMap }: {
             className="text-xs"
             style={{ color: 'var(--m3-secondary)' }}
           >
-            {liveMonitors.length} {liveMonitors.length === 1 ? t('page.service') : t('page.services')}
+            {t('page.groupServiceCount', { n: liveMonitors.length })}
           </span>
         </div>
 
@@ -601,30 +601,7 @@ function IncidentsBlock({ config, activeIncidents, allIncidents, monitors }: {
 
   const shown = items.slice(0, limit)
 
-  if (shown.length === 0) {
-    // When filtering only active incidents, hide the block entirely — no empty state
-    if (filter === 'active') return null
-
-    return (
-      <div
-        className="rounded-2xl p-10 text-center"
-        style={{
-          background: 'var(--m3-surface-container-lowest)',
-          boxShadow: '0px 12px 32px rgba(19,27,46,0.04)',
-        }}
-      >
-        <span
-          className="material-symbols-outlined block mb-3"
-          style={{ fontSize: '32px', color: '#22c55e' }}
-        >
-          check_circle
-        </span>
-        <p className="font-sans text-sm font-medium" style={{ color: 'var(--m3-secondary)' }}>
-          {t('empty.noIncidents')}
-        </p>
-      </div>
-    )
-  }
+  if (shown.length === 0) return null
 
   return (
     <div className="space-y-4">

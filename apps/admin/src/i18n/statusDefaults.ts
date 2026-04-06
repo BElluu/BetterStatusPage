@@ -16,12 +16,10 @@ export const EN_DEFAULTS: Record<TranslationKey, string> = {
   'overall.incidentsInProgress': 'Incidents in Progress.',
   'overall.checking':            'Checking\u2026',
 
-  'page.hero':             'Real-time Network Status',
-  'page.monitoredRealTime':'monitored in real time',
-  'page.service':          'service',
-  'page.services':         'services',
-  'page.incident':         'incident',
-  'page.incidents':        'incidents',
+  'page.hero':              'Real-time Network Status',
+  'page.monitoredLine':     '{n} services monitored in real time.',
+  'page.incidentLine':      '{n} active incidents.',
+  'page.groupServiceCount': '{n} services',
 
   'section.systemEvents': 'System Events',
   'tab.active':           'Active',

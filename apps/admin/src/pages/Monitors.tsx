@@ -4,11 +4,13 @@ import { api } from '../api/client'
 import type { Monitor } from '@bsp/shared'
 import { StatusBadge } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
+import { ConfirmModal } from '../components/ConfirmModal'
 
 export default function MonitorsPage() {
   const qc = useQueryClient()
   const [editingMonitor, setEditingMonitor] = useState<Monitor | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<Monitor | null>(null)
 
   const { data: monitors = [], isLoading } = useQuery<Monitor[]>({
     queryKey: ['monitors'],
@@ -112,11 +114,7 @@ export default function MonitorsPage() {
                           <IconEdit />
                         </ActionBtn>
                         <ActionBtn
-                          onClick={() => {
-                            if (confirm(`Delete "${monitor.name}"?`)) {
-                              deleteMutation.mutate(monitor.id)
-                            }
-                          }}
+                          onClick={() => setConfirmDelete(monitor)}
                           title="Delete"
                           danger
                         >
@@ -148,6 +146,15 @@ export default function MonitorsPage() {
             setShowCreate(false)
             setEditingMonitor(null)
           }}
+        />
+      )}
+
+      {confirmDelete && (
+        <ConfirmModal
+          title="Delete Monitor"
+          message={`Delete "${confirmDelete.name}"? This cannot be undone.`}
+          onConfirm={() => { deleteMutation.mutate(confirmDelete.id); setConfirmDelete(null) }}
+          onCancel={() => setConfirmDelete(null)}
         />
       )}
     </div>

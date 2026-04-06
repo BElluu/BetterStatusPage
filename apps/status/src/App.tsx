@@ -194,8 +194,8 @@ export default function App() {
           </h1>
 
           <p className="text-xl max-w-2xl mx-auto leading-relaxed" style={{ color: 'var(--m3-secondary)' }}>
-            {liveMonitors.length} {liveMonitors.length === 1 ? t('page.service') : t('page.services')} {t('page.monitoredRealTime')}.
-            {activeIncidents.length > 0 && ` ${activeIncidents.length} ${activeIncidents.length === 1 ? t('page.incident') : t('page.incidents')}.`}
+            {t('page.monitoredLine', { n: liveMonitors.length })}
+            {activeIncidents.length > 0 && ` ${t('page.incidentLine', { n: activeIncidents.length })}`}
           </p>
         </section>
 
