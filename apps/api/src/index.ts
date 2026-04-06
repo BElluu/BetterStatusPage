@@ -20,6 +20,7 @@ import { layoutRoutes } from './routes/layout.js'
 import { brandingRoutes } from './routes/branding.js'
 import { userRoutes } from './routes/users.js'
 import { publicRoutes } from './routes/public.js'
+import { publicLocaleRoutes, adminLocaleRoutes } from './routes/locales.js'
 import { startScheduler } from './workers/scheduler.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -81,6 +82,7 @@ if (isSetupComplete()) {
 await app.register(setupRoutes, { prefix: '/api/v1/setup' })
 await app.register(authRoutes, { prefix: '/api/v1/auth' })
 await app.register(publicRoutes, { prefix: '/api/v1/public' })
+await app.register(publicLocaleRoutes, { prefix: '/api/v1/public/locales' })
 
 await app.register(async (adminApp) => {
   adminApp.addHook('preHandler', requireAuth)
@@ -98,11 +100,12 @@ await app.register(async (adminApp) => {
     await sub.register(incidentRoutes, { prefix: '/incidents' })
   })
 
-  // layout & branding: branding+
+  // layout, branding & locales: branding+
   await adminApp.register(async (sub) => {
     sub.addHook('preHandler', requireRole('operator', 'branding'))
-    await sub.register(layoutRoutes,   { prefix: '/layout' })
-    await sub.register(brandingRoutes, { prefix: '/branding' })
+    await sub.register(layoutRoutes,      { prefix: '/layout' })
+    await sub.register(brandingRoutes,    { prefix: '/branding' })
+    await sub.register(adminLocaleRoutes, { prefix: '/locales' })
   })
 
   // users: admin only

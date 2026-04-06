@@ -72,6 +72,15 @@ export const layout = sqliteTable('layout', {
   updatedAt: integer('updated_at').notNull(),
 })
 
+export const locales = sqliteTable('locales', {
+  code:               text('code').primaryKey(),
+  name:               text('name').notNull(),
+  isDefault:          integer('is_default').notNull().default(0),
+  translations:       text('translations').notNull().default('{}'),
+  adminTranslations:  text('admin_translations').notNull().default('{}'),
+  updatedAt:          integer('updated_at').notNull(),
+})
+
 export const branding = sqliteTable('branding', {
   id: integer('id').primaryKey(),
   siteName: text('site_name').notNull().default('Status Page'),

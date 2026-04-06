@@ -1,24 +1,29 @@
 import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom'
 import { clearToken, getCurrentUser } from '../api/client'
 import { useDarkMode } from '../hooks/useDarkMode'
+import { useAdminLocale } from '../i18n/LocaleContext'
+import { AdminLanguageSwitcher } from './LanguageSwitcher'
 
 // role hierarchy: admin > operator > branding
 const ROLE_RANK: Record<string, number> = { admin: 3, operator: 2, branding: 1 }
-
-const ALL_NAV = [
-  { to: '/admin/',          label: 'Dashboard',    icon: 'dashboard',            minRole: 'operator' },
-  { to: '/admin/monitors',  label: 'Monitors',     icon: 'radio_button_checked', minRole: 'operator' },
-  { to: '/admin/incidents', label: 'Incidents',    icon: 'warning',              minRole: 'operator' },
-  { to: '/admin/builder',   label: 'Page Builder', icon: 'dashboard_customize',  minRole: 'operator' },
-  { to: '/admin/branding',  label: 'Branding',     icon: 'palette',              minRole: 'branding' },
-  { to: '/admin/users',     label: 'Users',        icon: 'group',                minRole: 'admin'    },
-]
 
 export default function Layout() {
   const navigate = useNavigate()
   const [isDark, toggleDark] = useDarkMode()
   const currentUser = getCurrentUser()
   const userRank = ROLE_RANK[currentUser?.role ?? ''] ?? 0
+  const { t } = useAdminLocale()
+
+  const ALL_NAV = [
+    { to: '/admin/',               label: t('nav.dashboard'),    icon: 'dashboard',            minRole: 'operator' },
+    { to: '/admin/monitors',       label: t('nav.monitors'),     icon: 'radio_button_checked', minRole: 'operator' },
+    { to: '/admin/incidents',      label: t('nav.incidents'),    icon: 'warning',              minRole: 'operator' },
+    { to: '/admin/builder',        label: t('nav.pageBuilder'),  icon: 'dashboard_customize',  minRole: 'operator' },
+    { to: '/admin/branding',       label: t('nav.branding'),     icon: 'palette',              minRole: 'branding' },
+    { to: '/admin/localization',   label: t('nav.localization'), icon: 'translate',            minRole: 'branding' },
+    { to: '/admin/users',          label: t('nav.users'),        icon: 'group',                minRole: 'admin'    },
+  ]
+
   const navItems = ALL_NAV.filter((item) => userRank >= (ROLE_RANK[item.minRole] ?? 99))
 
   function handleLogout() {
@@ -117,8 +122,11 @@ export default function Layout() {
             }}
           >
             <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '20px' }}>manage_accounts</span>
-            <span className="font-sans">Settings</span>
+            <span className="font-sans">{t('nav.settings')}</span>
           </Link>
+
+          {/* Language switcher (only when >1 locale) */}
+          <AdminLanguageSwitcher />
 
           {/* Dark mode toggle */}
           <button
@@ -137,7 +145,7 @@ export default function Layout() {
             <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '20px' }}>
               {isDark ? 'light_mode' : 'dark_mode'}
             </span>
-            <span className="font-sans">{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+            <span className="font-sans">{isDark ? t('nav.lightMode') : t('nav.darkMode')}</span>
           </button>
 
           {/* Logout */}
@@ -155,7 +163,7 @@ export default function Layout() {
             }}
           >
             <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '20px' }}>logout</span>
-            <span className="font-sans">Logout</span>
+            <span className="font-sans">{t('nav.logout')}</span>
           </button>
         </div>
       </aside>
