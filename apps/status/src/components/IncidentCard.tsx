@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Incident, Monitor } from '@bsp/shared'
 import { useLocale } from '../i18n/LocaleContext'
 
@@ -41,53 +42,120 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
     .map((id) => monitors.find((m) => m.id === id))
     .filter(Boolean) as Monitor[]
 
-  /* ── Resolved: slim row ──────────────────────────────────────────── */
+  /* ── Resolved: collapsible row ──────────────────────────────────── */
   if (!isActive) {
     const duration = incident.resolvedAt ? formatDuration(incident.startedAt, incident.resolvedAt) : null
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const [expanded, setExpanded] = useState(false)
     return (
       <div
-        className="group transition-colors"
         style={{
-          display: 'grid',
-          gridTemplateColumns: '200px 1fr auto',
-          gap: '40px',
-          alignItems: 'center',
-          padding: '28px 40px',
           borderBottom: '1px solid var(--m3-outline-variant)',
           borderRadius: '16px',
         }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--m3-surface-container-low)' }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = '' }}
       >
-        {/* Date */}
-        <div className="font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--m3-secondary)' }}>
-          {formatDate(incident.startedAt, locale)}
-        </div>
-
-        {/* Title + subtitle */}
-        <div>
-          <h4 className="font-headline font-bold text-xl" style={{ color: 'var(--m3-on-surface)' }}>
-            {incident.title}
-          </h4>
-          {duration && (
-            <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
-              {t('uptime.resolvedIn', { duration })}.{affectedMonitors.length > 0 && ` ${t('uptime.affected')}: ${affectedMonitors.map((m) => m.name).join(', ')}.`}
-            </p>
-          )}
-        </div>
-
-        {/* Badge */}
-        <span
-          className="font-bold text-xs uppercase tracking-wide whitespace-nowrap"
+        {/* ── Header row ── */}
+        <button
+          className="w-full text-left transition-colors"
           style={{
-            padding: '6px 16px',
-            borderRadius: '999px',
-            background: 'var(--m3-surface-container-high)',
-            color: 'var(--m3-secondary)',
+            display: 'grid',
+            gridTemplateColumns: '200px 1fr auto auto',
+            gap: '40px',
+            alignItems: 'center',
+            padding: '28px 40px',
+            borderRadius: '16px',
+            background: 'transparent',
+            cursor: updates.length > 0 ? 'pointer' : 'default',
           }}
+          onClick={() => updates.length > 0 && setExpanded((v) => !v)}
+          onMouseEnter={(e) => { if (updates.length > 0) (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container-low)' }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
         >
-          {t('incident.resolved')}
-        </span>
+          {/* Date */}
+          <div className="font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--m3-secondary)' }}>
+            {formatDate(incident.startedAt, locale)}
+            <br />
+            <span className="text-xs normal-case">{formatTime(incident.startedAt, locale)}</span>
+          </div>
+
+          {/* Title + subtitle */}
+          <div>
+            <h4 className="font-headline font-bold text-xl" style={{ color: 'var(--m3-on-surface)' }}>
+              {incident.title}
+            </h4>
+            {duration && (
+              <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
+                {t('uptime.resolvedIn', { duration })}.{affectedMonitors.length > 0 && ` ${t('uptime.affected')}: ${affectedMonitors.map((m) => m.name).join(', ')}.`}
+              </p>
+            )}
+          </div>
+
+          {/* Badge */}
+          <span
+            className="font-bold text-xs uppercase tracking-wide whitespace-nowrap"
+            style={{
+              padding: '6px 16px',
+              borderRadius: '999px',
+              background: 'var(--m3-surface-container-high)',
+              color: 'var(--m3-secondary)',
+            }}
+          >
+            {t('incident.resolved')}
+          </span>
+
+          {/* Chevron */}
+          {updates.length > 0 && (
+            <span
+              className="material-symbols-outlined transition-transform"
+              style={{
+                fontSize: '20px',
+                color: 'var(--m3-secondary)',
+                transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              }}
+            >
+              expand_more
+            </span>
+          )}
+        </button>
+
+        {/* ── Expanded timeline ── */}
+        {expanded && updates.length > 0 && (
+          <div style={{ padding: '0 40px 32px 240px' }}>
+            <div className="space-y-6" style={{ borderLeft: '2px solid var(--m3-outline-variant)', paddingLeft: '32px' }}>
+                {updates.map((update, i) => {
+                  const updateCfg = statusCfg[update.status] ?? statusCfg['investigating']!
+                  const isLatest  = i === 0
+                  return (
+                    <div key={update.id} className="relative">
+                      <span
+                        className="absolute rounded-full"
+                        style={{
+                          left: '-37px',
+                          top: '4px',
+                          width: '8px',
+                          height: '8px',
+                          background: isLatest ? updateCfg.dotColor : 'var(--m3-outline-variant)',
+                          outline: '3px solid var(--m3-surface)',
+                        }}
+                      />
+                      <span
+                        className="block text-xs font-bold uppercase tracking-widest mb-1"
+                        style={{ color: isLatest ? updateCfg.color : 'var(--m3-secondary)' }}
+                      >
+                        {formatTime(update.postedAt, locale)} — {statusLabels[update.status] ?? t('incident.investigating')}
+                      </span>
+                      <p
+                        className="text-sm font-sans leading-relaxed"
+                        style={{ color: 'var(--m3-on-surface)', opacity: isLatest ? 1 : 0.7 }}
+                      >
+                        {update.body}
+                      </p>
+                    </div>
+                  )
+                })}
+            </div>
+          </div>
+        )}
       </div>
     )
   }
