@@ -15,6 +15,8 @@ export type TranslationKey =
   | 'page.monitoredLine'
   | 'page.incidentLine'
   | 'page.groupServiceCount'
+  | 'page.notConfigured'
+  | 'page.notConfiguredHint'
   | 'section.systemEvents'
   | 'tab.active'
   | 'tab.history'
