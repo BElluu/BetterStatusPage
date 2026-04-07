@@ -1,5 +1,6 @@
 import type { SqlServerConfig } from '@bsp/shared'
 import type { MonitorStatus } from '@bsp/shared'
+import { resolveVaultSecret } from './resolveSecret.js'
 
 export async function checkSqlServer(
   config: SqlServerConfig,
@@ -9,14 +10,23 @@ export async function checkSqlServer(
   let sql: typeof import('mssql') | null = null
 
   try {
+    let user     = config.user
+    let password = config.password
+
+    if (config.vault) {
+      const creds = await resolveVaultSecret(config.vault)
+      user     = creds['username'] ?? creds['user']  ?? user
+      password = creds['password'] ?? creds['value'] ?? password
+    }
+
     // Dynamic import to avoid loading mssql if not used
     sql = await import('mssql')
     const pool = await sql.connect({
       server: config.host,
       port: config.port,
       database: config.database,
-      user: config.user,
-      password: config.password,
+      user,
+      password,
       connectionTimeout: timeoutMs,
       requestTimeout: timeoutMs,
       options: {
