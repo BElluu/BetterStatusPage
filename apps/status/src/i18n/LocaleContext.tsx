@@ -26,7 +26,7 @@ export function useLocale() {
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [availableLocales, setAvailableLocales] = useState<LocaleSummary[]>([])
-  const [locale, setLocaleState] = useState<string>(() => localStorage.getItem(LS_KEY) ?? '')
+  const [locale, setLocaleState] = useState<string>(() => localStorage.getItem(LS_KEY) ?? 'en')
   const [translations, setTranslations] = useState<Partial<Record<TranslationKey, string>>>({})
 
   // Fetch list of available locales; determine active locale if not yet set
