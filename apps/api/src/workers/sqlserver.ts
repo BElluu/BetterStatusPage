@@ -10,30 +10,36 @@ export async function checkSqlServer(
   let sql: typeof import('mssql') | null = null
 
   try {
-    let user     = config.user
-    let password = config.password
-
-    if (config.vault) {
-      const creds = await resolveVaultSecret(config.vault)
-      user     = creds['username'] ?? creds['user']  ?? user
-      password = creds['password'] ?? creds['value'] ?? password
-    }
-
     // Dynamic import to avoid loading mssql if not used
     sql = await import('mssql')
-    const pool = await sql.connect({
-      server: config.host,
-      port: config.port,
-      database: config.database,
-      user,
-      password,
-      connectionTimeout: timeoutMs,
-      requestTimeout: timeoutMs,
-      options: {
-        encrypt: true,
-        trustServerCertificate: true,
-      },
-    })
+
+    let pool: import('mssql').ConnectionPool
+
+    if (config.mode === 'connectionString') {
+      if (!config.vault) throw new Error('SQL Server connection string mode requires a vault secret')
+      const creds = await resolveVaultSecret(config.vault)
+      const connStr = creds['connectionString'] ?? creds['value'] ?? ''
+      if (!connStr) throw new Error('SQL Server: resolved connection string is empty')
+      pool = await sql.connect(connStr)
+    } else {
+      let user     = config.user
+      let password = config.password
+      if (config.vault) {
+        const creds = await resolveVaultSecret(config.vault)
+        user     = creds['username'] ?? creds['user']  ?? user
+        password = creds['password'] ?? creds['value'] ?? password
+      }
+      pool = await sql.connect({
+        server: config.host,
+        port: config.port,
+        database: config.database,
+        user,
+        password,
+        connectionTimeout: timeoutMs,
+        requestTimeout: timeoutMs,
+        options: { encrypt: true, trustServerCertificate: true },
+      })
+    }
 
     const result = await pool.request().query(config.query || 'SELECT 1 AS result')
     const responseMs = Date.now() - start

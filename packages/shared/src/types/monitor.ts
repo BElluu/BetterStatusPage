@@ -71,7 +71,9 @@ export interface SqlServerConfig {
   password: string
   query: string
   expectedResult?: string
-  /** If set, user/password are sourced from vault (overrides direct values) */
+  /** 'fields' (default) = individual host/port/database/credentials; 'connectionString' = full connection string from vault */
+  mode?: 'fields' | 'connectionString'
+  /** fields mode: overrides user/password from vault. connectionString mode: provides the full connection string */
   vault?: VaultRef
 }
 

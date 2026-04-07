@@ -329,42 +329,72 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
           )}
 
           {/* ── SQL Server ─────────────────────────────────────────────────── */}
-          {type === 'sqlserver' && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Host">
-                  <input value={(config['host'] as string) ?? ''} onChange={(e) => updateConfig('host', e.target.value)} required className="input-sig" placeholder="localhost" />
-                </Field>
-                <Field label="Port">
-                  <input type="number" value={(config['port'] as number) ?? 1433} onChange={(e) => updateConfig('port', Number(e.target.value))} className="input-sig" />
-                </Field>
-              </div>
-              <Field label="Database">
-                <input value={(config['database'] as string) ?? ''} onChange={(e) => updateConfig('database', e.target.value)} required className="input-sig" />
-              </Field>
-
-              <SectionDivider label="Credentials" />
-              <CredentialSection
-                {...vaultPickerProps}
-                vault={sqlVault}
-                onVaultChange={(v) => updateConfig('vault', v)}
-                mappingFields={JSON_MAPPING_FIELDS['sqlserver']!}
-              >
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="User">
-                    <input value={(config['user'] as string) ?? ''} onChange={(e) => updateConfig('user', e.target.value)} required className="input-sig" autoComplete="off" />
-                  </Field>
-                  <Field label="Password">
-                    <input type="password" value={(config['password'] as string) ?? ''} onChange={(e) => updateConfig('password', e.target.value)} required className="input-sig" autoComplete="new-password" />
-                  </Field>
+          {type === 'sqlserver' && (() => {
+            const sqlMode = (config['mode'] as string) ?? 'fields'
+            return (
+              <>
+                {/* Connection mode toggle */}
+                <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--m3-outline-variant)', width: 'fit-content' }}>
+                  {(['fields', 'connectionString'] as const).map((m) => (
+                    <button key={m} type="button"
+                      onClick={() => { updateConfig('mode', m); updateConfig('vault', undefined) }}
+                      className="px-4 py-1.5 text-xs font-medium transition-all"
+                      style={{
+                        background: sqlMode === m ? 'var(--m3-primary-fixed)' : 'transparent',
+                        color:      sqlMode === m ? 'var(--m3-primary)' : 'var(--m3-secondary)',
+                      }}
+                    >
+                      {m === 'fields' ? 'Individual fields' : 'Connection string'}
+                    </button>
+                  ))}
                 </div>
-              </CredentialSection>
 
-              <Field label="Test Query">
-                <input value={(config['query'] as string) ?? 'SELECT 1'} onChange={(e) => updateConfig('query', e.target.value)} className="input-sig" />
-              </Field>
-            </>
-          )}
+                {sqlMode === 'fields' && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Host">
+                        <input value={(config['host'] as string) ?? ''} onChange={(e) => updateConfig('host', e.target.value)} required className="input-sig" placeholder="localhost" />
+                      </Field>
+                      <Field label="Port">
+                        <input type="number" value={(config['port'] as number) ?? 1433} onChange={(e) => updateConfig('port', Number(e.target.value))} className="input-sig" />
+                      </Field>
+                    </div>
+                    <Field label="Database">
+                      <input value={(config['database'] as string) ?? ''} onChange={(e) => updateConfig('database', e.target.value)} required className="input-sig" />
+                    </Field>
+                    <SectionDivider label="Credentials" />
+                    <CredentialSection
+                      {...vaultPickerProps}
+                      vault={sqlVault}
+                      onVaultChange={(v) => updateConfig('vault', v)}
+                      mappingFields={JSON_MAPPING_FIELDS['sqlserver']!}
+                    >
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="User">
+                          <input value={(config['user'] as string) ?? ''} onChange={(e) => updateConfig('user', e.target.value)} required className="input-sig" autoComplete="off" />
+                        </Field>
+                        <Field label="Password">
+                          <input type="password" value={(config['password'] as string) ?? ''} onChange={(e) => updateConfig('password', e.target.value)} required className="input-sig" autoComplete="new-password" />
+                        </Field>
+                      </div>
+                    </CredentialSection>
+                  </>
+                )}
+
+                {sqlMode === 'connectionString' && (
+                  <ConnectionStringSection
+                    {...vaultPickerProps}
+                    vault={sqlVault}
+                    onVaultChange={(v) => updateConfig('vault', v)}
+                  />
+                )}
+
+                <Field label="Test Query">
+                  <input value={(config['query'] as string) ?? 'SELECT 1'} onChange={(e) => updateConfig('query', e.target.value)} className="input-sig" />
+                </Field>
+              </>
+            )
+          })()}
 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose}
@@ -586,6 +616,118 @@ function CredentialSection({
             </p>
           )}
         </div>
+      )}
+    </div>
+  )
+}
+
+interface ConnectionStringSectionProps {
+  vault: VaultRef | undefined
+  onVaultChange: (v: VaultRef | undefined) => void
+  vaults: { id: number; name: string }[]
+  secretsByVault: Record<number, { id: number; name: string; type: string }[]>
+  onLoadSecrets: (vaultId: number) => Promise<void>
+}
+
+/**
+ * Vault-only picker for SQL Server connection strings.
+ * Direct input is intentionally not available — a connection string contains credentials.
+ */
+function ConnectionStringSection({
+  vault, onVaultChange, vaults, secretsByVault, onLoadSecrets,
+}: ConnectionStringSectionProps) {
+  const selectedVaultId  = vault?.vaultId
+  const selectedSecretId = vault?.secretId
+  const fieldMapping     = vault?.fieldMapping ?? {}
+
+  const secrets        = selectedVaultId ? (secretsByVault[selectedVaultId] ?? null) : null
+  const selectedSecret = secrets?.find((s) => s.id === selectedSecretId)
+
+  return (
+    <div className="space-y-3">
+      <div
+        className="flex items-start gap-2 rounded-lg px-3 py-2"
+        style={{ background: 'rgba(57,128,244,0.08)', border: '1px solid rgba(57,128,244,0.20)' }}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#3980f4', lineHeight: '20px' }}>info</span>
+        <p className="text-xs" style={{ color: 'var(--m3-on-surface-variant)' }}>
+          Connection strings contain credentials and must always be stored in Vault.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Vault">
+          <select
+            className="input-sig"
+            value={selectedVaultId || ''}
+            onChange={(e) => {
+              const id = Number(e.target.value)
+              onLoadSecrets(id)
+              onVaultChange({ vaultId: id, secretId: 0, fieldMapping: {} })
+            }}
+          >
+            <option value="">— select vault —</option>
+            {vaults.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Secret">
+          <select
+            className="input-sig"
+            value={selectedSecretId || ''}
+            disabled={!selectedVaultId}
+            onChange={(e) => {
+              onVaultChange({ vaultId: selectedVaultId!, secretId: Number(e.target.value), fieldMapping: {} })
+            }}
+          >
+            <option value="">— select secret —</option>
+            {(secrets ?? []).map((s) => (
+              <option key={s.id} value={s.id}>{s.name} ({s.type})</option>
+            ))}
+          </select>
+        </Field>
+      </div>
+
+      {selectedSecret?.type === 'value' && (
+        <p className="text-xs rounded-lg px-3 py-2" style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }}>
+          The secret value will be used as the full connection string.
+        </p>
+      )}
+
+      {selectedSecret?.type === 'userpass' && (
+        <div className="flex items-start gap-2 rounded-lg px-3 py-2" style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.20)' }}>
+          <span style={{ color: '#eab308', lineHeight: '20px' }}>⚠</span>
+          <p className="text-xs" style={{ color: 'var(--m3-on-surface-variant)' }}>
+            A <strong>userpass</strong> secret cannot be used as a connection string. Use a <strong>value</strong> or <strong>json</strong> secret instead.
+          </p>
+        </div>
+      )}
+
+      {selectedSecret?.type === 'json' && selectedSecretId && (
+        <div>
+          <p className="font-mono text-xs uppercase tracking-wider mb-1" style={{ color: 'var(--m3-secondary)' }}>JSON Field Mapping</p>
+          <p className="text-xs mb-3" style={{ color: 'var(--m3-secondary)' }}>Enter the JSON key that holds the connection string.</p>
+          <div className="grid items-center gap-3" style={{ gridTemplateColumns: '130px 1fr' }}>
+            <span className="text-xs font-medium" style={{ color: 'var(--m3-on-surface-variant)' }}>Connection String</span>
+            <input
+              className="input-sig text-xs"
+              placeholder='JSON key (e.g. "connectionString")'
+              value={fieldMapping['connectionString'] ?? ''}
+              onChange={(e) => {
+                onVaultChange({
+                  vaultId: selectedVaultId!,
+                  secretId: selectedSecretId,
+                  fieldMapping: { connectionString: e.target.value },
+                })
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {vaults.length === 0 && (
+        <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
+          No vaults found. Create one in the Vault section first.
+        </p>
       )}
     </div>
   )
