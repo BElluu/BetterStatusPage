@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom'
 import { api } from '../../api/client'
 import type { Monitor, MonitorType, HttpsAuth, HttpsAuthType, VaultRef } from '@bsp/shared'
 
+interface TestStep   { label: string; status: 'ok' | 'error' | 'info'; detail?: string; durationMs?: number }
+interface TestResult { overall: 'ok' | 'error'; steps: TestStep[]; totalMs: number }
+
 interface Props {
   monitor: Monitor | null
   onClose: () => void
@@ -52,6 +55,8 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
   )
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<TestResult | null>(null)
 
   const [vaults, setVaults]                 = useState<VaultSummary[]>([])
   const [secretsByVault, setSecretsByVault] = useState<Record<number, SecretSummary[]>>({})
@@ -75,6 +80,20 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
 
   function updateConfig(key: string, value: unknown) {
     setConfig((prev) => ({ ...prev, [key]: value }))
+  }
+
+  async function handleTest() {
+    if (type !== 'https' && type !== 'sqlserver') return
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const result = await api.post<TestResult>('/admin/monitors/test', { type, config, timeoutMs })
+      setTestResult(result)
+    } catch (err) {
+      setTestResult({ overall: 'error', steps: [{ label: 'Test request failed', status: 'error', detail: err instanceof Error ? err.message : String(err) }], totalMs: 0 })
+    } finally {
+      setTesting(false)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -396,6 +415,9 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
             )
           })()}
 
+          {/* ── Test result panel ─────────────────────────────────────────── */}
+          {testResult && <TestResultPanel result={testResult} />}
+
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose}
               className="px-4 py-2 text-sm rounded-lg transition-colors"
@@ -405,6 +427,22 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
             >
               Cancel
             </button>
+            {(type === 'https' || type === 'sqlserver') && (
+              <button type="button" onClick={handleTest} disabled={testing || loading}
+                className="px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5"
+                style={{
+                  background: 'var(--m3-surface-container-high)',
+                  color: testing ? 'var(--m3-secondary)' : 'var(--m3-on-surface)',
+                  opacity: testing ? 0.7 : 1,
+                  border: '1px solid var(--m3-outline-variant)',
+                }}
+              >
+                {testing
+                  ? <><span className="material-symbols-outlined animate-spin" style={{ fontSize: '15px' }}>progress_activity</span> Testing…</>
+                  : <><span className="material-symbols-outlined" style={{ fontSize: '15px' }}>play_arrow</span> Test</>
+                }
+              </button>
+            )}
             <button type="submit" disabled={loading}
               className="px-4 py-2 text-sm font-semibold rounded-lg transition-all"
               style={{
@@ -729,6 +767,66 @@ function ConnectionStringSection({
           No vaults found. Create one in the Vault section first.
         </p>
       )}
+    </div>
+  )
+}
+
+// ── Test result panel ─────────────────────────────────────────────────────────
+
+function TestResultPanel({ result }: { result: TestResult }) {
+  const isOk = result.overall === 'ok'
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${isOk ? 'rgba(34,197,94,0.3)' : 'rgba(186,26,26,0.25)'}` }}>
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-4 py-2.5"
+        style={{ background: isOk ? 'rgba(34,197,94,0.08)' : 'rgba(186,26,26,0.07)' }}
+      >
+        <div className="flex items-center gap-2">
+          <span
+            className="material-symbols-outlined"
+            style={{ fontSize: '18px', color: isOk ? '#22c55e' : '#ba1a1a' }}
+          >
+            {isOk ? 'check_circle' : 'cancel'}
+          </span>
+          <span className="text-sm font-semibold" style={{ color: isOk ? '#22c55e' : '#ba1a1a' }}>
+            {isOk ? 'All checks passed' : 'Test failed'}
+          </span>
+        </div>
+        <span className="text-xs font-mono" style={{ color: 'var(--m3-secondary)' }}>
+          {result.totalMs}ms total
+        </span>
+      </div>
+
+      {/* Steps */}
+      <div className="divide-y" style={{ borderColor: 'var(--m3-outline-variant)' }}>
+        {result.steps.map((step, i) => (
+          <div key={i} className="flex items-start gap-3 px-4 py-2.5" style={{ background: 'var(--m3-surface-container-lowest)' }}>
+            <span
+              className="material-symbols-outlined shrink-0"
+              style={{
+                fontSize: '16px',
+                marginTop: '1px',
+                color: step.status === 'ok' ? '#22c55e' : step.status === 'error' ? '#ba1a1a' : 'var(--m3-secondary)',
+              }}
+            >
+              {step.status === 'ok' ? 'check_circle' : step.status === 'error' ? 'cancel' : 'info'}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium truncate" style={{ color: 'var(--m3-on-surface)' }}>{step.label}</p>
+              {step.detail && (
+                <p className="text-xs mt-0.5 break-all" style={{ color: 'var(--m3-secondary)' }}>{step.detail}</p>
+              )}
+            </div>
+            {step.durationMs != null && (
+              <span className="text-xs font-mono shrink-0" style={{ color: 'var(--m3-secondary)' }}>
+                {step.durationMs}ms
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
