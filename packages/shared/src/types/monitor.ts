@@ -1,5 +1,45 @@
 export type MonitorType = 'https' | 'ping' | 'dns' | 'sqlserver'
 export type MonitorStatus = 'up' | 'down' | 'degraded' | 'pending'
+export type HttpsAuthType = 'none' | 'basic' | 'oauth2' | 'cas'
+
+/** Reference to a vault secret, with optional field mapping for json-type secrets */
+export interface VaultRef {
+  vaultId: number
+  secretId: number
+  /** Only for json-type secrets: maps our field names to JSON object keys */
+  fieldMapping?: Record<string, string>
+}
+
+export interface BasicAuthConfig {
+  username: string
+  password: string
+  /** If set, username/password are sourced from vault (overrides direct values) */
+  vault?: VaultRef
+}
+
+export interface OAuth2Config {
+  tokenUrl: string
+  clientId: string
+  clientSecret: string
+  scope?: string
+  /** If set, clientId/clientSecret are sourced from vault (overrides direct values) */
+  vault?: VaultRef
+}
+
+export interface CASConfig {
+  casServerUrl: string
+  username: string
+  password: string
+  /** If set, username/password are sourced from vault (overrides direct values) */
+  vault?: VaultRef
+}
+
+export interface HttpsAuth {
+  type: HttpsAuthType
+  basic?: BasicAuthConfig
+  oauth2?: OAuth2Config
+  cas?: CASConfig
+}
 
 export interface HttpsConfig {
   url: string
@@ -7,6 +47,7 @@ export interface HttpsConfig {
   expectedStatus: number
   keyword?: string
   headers?: Record<string, string>
+  auth?: HttpsAuth
 }
 
 export interface PingConfig {
@@ -30,6 +71,8 @@ export interface SqlServerConfig {
   password: string
   query: string
   expectedResult?: string
+  /** If set, user/password are sourced from vault (overrides direct values) */
+  vault?: VaultRef
 }
 
 export type MonitorConfig = HttpsConfig | PingConfig | DnsConfig | SqlServerConfig
