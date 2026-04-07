@@ -10,8 +10,9 @@ export async function checkSqlServer(
   let sql: typeof import('mssql') | null = null
 
   try {
-    // Dynamic import to avoid loading mssql if not used
-    sql = await import('mssql')
+    // mssql is CJS; in an ESM package (.default needed for proper interop)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sql = await import('mssql').then((m: any) => m.default ?? m) as typeof import('mssql')
 
     let pool: import('mssql').ConnectionPool
 

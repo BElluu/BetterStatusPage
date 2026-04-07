@@ -3,6 +3,8 @@ import { db } from '../db/client.js'
 import { monitors, monitorResults } from '../db/schema.js'
 import { eq, desc, gte, and } from 'drizzle-orm'
 import { runCheck } from '../workers/scheduler.js'
+import { testHttps, testSqlServer } from '../workers/testRunner.js'
+import type { HttpsConfig, SqlServerConfig } from '@bsp/shared'
 
 export async function monitorRoutes(app: FastifyInstance) {
   app.get('/', async () => {
@@ -59,6 +61,13 @@ export async function monitorRoutes(app: FastifyInstance) {
   app.delete<{ Params: { id: string } }>('/:id', async (req, reply) => {
     await db.delete(monitors).where(eq(monitors.id, Number(req.params.id)))
     return reply.code(204).send()
+  })
+
+  app.post<{ Body: { type: string; config: unknown; timeoutMs?: number } }>('/test', async (req, reply) => {
+    const { type, config, timeoutMs = 10000 } = req.body
+    if (type === 'https') return testHttps(config as HttpsConfig, timeoutMs)
+    if (type === 'sqlserver') return testSqlServer(config as SqlServerConfig, timeoutMs)
+    return reply.code(400).send({ error: `Test not supported for monitor type: ${type}` })
   })
 
   app.post<{ Params: { id: string } }>('/:id/check-now', async (req, reply) => {
