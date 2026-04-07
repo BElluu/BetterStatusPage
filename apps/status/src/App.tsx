@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react'
 import { useSSE } from './hooks/useSSE'
 import { useDarkMode } from './hooks/useDarkMode'
 import { useLocale } from './i18n/LocaleContext'
-import type { Branding, Incident, Monitor, LayoutTree } from '@bsp/shared'
+import type { Branding, Incident, Monitor, LayoutTree, LayoutNode, GroupNode, MonitorNode } from '@bsp/shared'
 import { PageRenderer } from './components/PageRenderer'
 import { IncidentCard } from './components/IncidentCard'
 import { LanguageSwitcher } from './components/LanguageSwitcher'
@@ -17,6 +17,21 @@ interface PublicStatus {
 interface PublicLayout {
   tree: LayoutTree
   branding: Branding | null
+}
+
+function collectLayoutMonitorIds(nodes: LayoutNode[]): Set<number> {
+  const ids = new Set<number>()
+  for (const node of nodes) {
+    if (node.type === 'monitor') ids.add((node as MonitorNode).monitorId)
+    else if (node.type === 'group') {
+      for (const id of collectLayoutMonitorIds((node as GroupNode).children)) ids.add(id)
+    }
+  }
+  return ids
+}
+
+function hasIncidentsBlock(nodes: LayoutNode[]): boolean {
+  return nodes.some((node) => node.type === 'incidents')
 }
 
 export default function App() {
@@ -58,34 +73,38 @@ export default function App() {
     currentStatus: statusMap[m.id]?.status ?? m.currentStatus,
   }))
 
+  const layoutMonitorIds = tree && tree.children.length > 0 ? collectLayoutMonitorIds(tree.children) : null
+  const visibleMonitors = layoutMonitorIds ? liveMonitors.filter((m) => layoutMonitorIds.has(m.id)) : []
+  const layoutHasIncidents = tree ? hasIncidentsBlock(tree.children) : false
+
   const brandingEnabled = !!(branding?.enabled)
 
-  const allUp = liveMonitors.length === 0 || liveMonitors.every((m) => m.currentStatus === 'up' || m.currentStatus === 'pending')
-  const allDown = liveMonitors.length > 0 && liveMonitors.every((m) => m.currentStatus === 'down')
-  const someDown = !allDown && liveMonitors.some((m) => m.currentStatus === 'down')
-  const anyDegraded = liveMonitors.some((m) => m.currentStatus === 'degraded')
-  const hasActiveIncidents = activeIncidents.length > 0
+  const allUp = visibleMonitors.length === 0 || visibleMonitors.every((m) => m.currentStatus === 'up' || m.currentStatus === 'pending')
+  const allDown = visibleMonitors.length > 0 && visibleMonitors.every((m) => m.currentStatus === 'down')
+  const someDown = !allDown && visibleMonitors.some((m) => m.currentStatus === 'down')
+  const anyDegraded = visibleMonitors.some((m) => m.currentStatus === 'degraded')
+  const hasActiveIncidents = layoutHasIncidents && activeIncidents.length > 0
 
   const overallStatus = allDown
     ? t('overall.majorOutage')
+    : hasActiveIncidents
+    ? t('overall.incidentsInProgress')
     : someDown
     ? t('overall.partialOutage')
     : anyDegraded
     ? t('overall.partialDegradation')
-    : hasActiveIncidents
-    ? t('overall.incidentsInProgress')
     : allUp
     ? t('overall.allOperational')
     : t('overall.checking')
 
   const overallColor = allDown
     ? (brandingEnabled ? branding!.statusDownColor : '#ba1a1a')
+    : hasActiveIncidents
+    ? '#eab308'
     : someDown
     ? (brandingEnabled ? branding!.statusDownColor : '#ea580c')
     : anyDegraded
     ? (brandingEnabled ? branding!.statusDegradedColor : '#eab308')
-    : hasActiveIncidents
-    ? '#eab308'
     : (brandingEnabled ? branding!.statusUpColor : '#22c55e')
 
   const resolvedIncidents = incidents.filter((i) => i.status === 'resolved')
@@ -193,8 +212,8 @@ export default function App() {
           </h1>
 
           <p className="text-xl max-w-2xl mx-auto leading-relaxed" style={{ color: 'var(--m3-secondary)' }}>
-            {t('page.monitoredLine', { n: liveMonitors.length })}
-            {activeIncidents.length > 0 && ` ${t('page.incidentLine', { n: activeIncidents.length })}`}
+            {t('page.monitoredLine', { n: visibleMonitors.length })}
+            {layoutHasIncidents && activeIncidents.length > 0 && ` ${t('page.incidentLine', { n: activeIncidents.length })}`}
           </p>
         </section>
 
@@ -209,24 +228,17 @@ export default function App() {
               allIncidents={incidents}
             />
           </section>
-        ) : liveMonitors.length > 0 ? (
-          /* Fallback bento grid when no Page Builder layout is configured */
-          <section className="mb-32 fade-up" style={{ animationDelay: '80ms' }}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {liveMonitors.map((monitor, i) => (
-                <ServiceCard
-                  key={monitor.id}
-                  monitor={monitor}
-                  responseMs={statusMap[monitor.id]?.responseMs ?? null}
-                  animDelay={100 + i * 40}
-                />
-              ))}
-            </div>
+        ) : tree !== undefined ? (
+          /* Layout loaded but empty — prompt to configure */
+          <section className="mb-32 fade-up flex flex-col items-center text-center py-12" style={{ animationDelay: '80ms' }}>
+            <span className="material-symbols-outlined mb-4" style={{ fontSize: '48px', color: 'var(--m3-outline)' }}>dashboard_customize</span>
+            <p className="text-lg font-semibold mb-2" style={{ color: 'var(--m3-on-surface)' }}>{t('page.notConfigured')}</p>
+            <p className="text-sm" style={{ color: 'var(--m3-secondary)' }}>{t('page.notConfiguredHint')}</p>
           </section>
         ) : null}
 
-        {/* ── Events Section (shown when NOT using tree-based incidents block) ── */}
-        {(!tree || tree.children.length === 0) && (activeIncidents.length > 0 || resolvedIncidents.length > 0) && (
+        {/* ── Events Section (shown only when layout is not yet configured) ── */}
+        {tree === undefined && (activeIncidents.length > 0 || resolvedIncidents.length > 0) && (
           <section className="mb-32 fade-up" id="events" style={{ animationDelay: '160ms' }}>
             {/* Section header + tabs */}
             <div className="flex items-center justify-between mb-12">
