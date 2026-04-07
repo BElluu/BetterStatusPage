@@ -124,6 +124,12 @@ export default function BuilderPage() {
     [tree.children],
   )
 
+  // Ensure the canvas is always tall enough to drop below the last item
+  const canvasMinHeight = useMemo(() => {
+    const maxBottom = rglLayout.reduce((max, item) => Math.max(max, item.y + item.h), 0)
+    return (maxBottom + 4) * (ROW_H + 10)
+  }, [rglLayout])
+
   // Force RGL remount when items are added/removed or group child counts change
   const rglKey = useMemo(() =>
     tree.children.length + '|' +
@@ -336,6 +342,7 @@ export default function BuilderPage() {
               onDrop={handleDrop}
               onLayoutChange={handleLayoutChange}
               useCSSTransforms
+              style={{ minHeight: canvasMinHeight }}
             >
               {tree.children.map((node) => (
                 <div key={node.id}>
