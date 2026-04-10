@@ -1,4 +1,4 @@
-export type MonitorType = 'https' | 'ping' | 'dns' | 'sqlserver'
+export type MonitorType = 'https' | 'ping' | 'dns' | 'sqlserver' | 'webhook'
 export type MonitorStatus = 'up' | 'down' | 'degraded' | 'pending'
 export type HttpsAuthType = 'none' | 'basic' | 'oauth2' | 'cas'
 
@@ -78,7 +78,10 @@ export interface SqlServerConfig {
   vault?: VaultRef
 }
 
-export type MonitorConfig = HttpsConfig | PingConfig | DnsConfig | SqlServerConfig
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface WebhookConfig {}
+
+export type MonitorConfig = HttpsConfig | PingConfig | DnsConfig | SqlServerConfig | WebhookConfig
 
 export interface Monitor {
   id: number
@@ -90,6 +93,7 @@ export interface Monitor {
   config: MonitorConfig
   currentStatus: MonitorStatus
   lastCheckedAt: number | null
+  webhookToken: string | null
   createdAt: number
   updatedAt: number
 }

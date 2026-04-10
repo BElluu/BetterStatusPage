@@ -22,6 +22,7 @@ import { userRoutes } from './routes/users.js'
 import { vaultRoutes } from './routes/vaults.js'
 import { publicRoutes } from './routes/public.js'
 import { publicLocaleRoutes, adminLocaleRoutes } from './routes/locales.js'
+import { webhookRoutes } from './routes/webhook.js'
 import { startScheduler } from './workers/scheduler.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -107,6 +108,7 @@ await app.register(setupRoutes, { prefix: '/api/v1/setup' })
 await app.register(authRoutes, { prefix: '/api/v1/auth' })
 await app.register(publicRoutes, { prefix: '/api/v1/public' })
 await app.register(publicLocaleRoutes, { prefix: '/api/v1/public/locales' })
+await app.register(webhookRoutes, { prefix: '/api/v1/hook' })
 
 await app.register(async (adminApp) => {
   adminApp.addHook('preHandler', requireAuth)
