@@ -47,6 +47,7 @@ export interface HttpsConfig {
   expectedStatus: number
   keyword?: string
   headers?: Record<string, string>
+  body?: string
   auth?: HttpsAuth
 }
 
@@ -85,6 +86,7 @@ export interface Monitor {
   type: MonitorType
   intervalSecs: number
   timeoutMs: number
+  retries: number
   config: MonitorConfig
   currentStatus: MonitorStatus
   lastCheckedAt: number | null

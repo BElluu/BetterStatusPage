@@ -14,7 +14,7 @@ export async function monitorRoutes(app: FastifyInstance) {
 
   app.post<{ Body: {
     name: string; type: string
-    intervalSecs?: number; timeoutMs?: number; config: unknown
+    intervalSecs?: number; timeoutMs?: number; retries?: number; config: unknown
   } }>('/', async (req) => {
     const now = Date.now()
     const results = await db.insert(monitors).values({
@@ -22,6 +22,7 @@ export async function monitorRoutes(app: FastifyInstance) {
       type: req.body.type,
       intervalSecs: req.body.intervalSecs ?? 60,
       timeoutMs: req.body.timeoutMs ?? 10000,
+      retries: req.body.retries ?? 1,
       config: JSON.stringify(req.body.config),
       currentStatus: 'pending',
       createdAt: now,
@@ -40,7 +41,7 @@ export async function monitorRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: { id: string }; Body: Partial<{
     name: string; type: string
-    intervalSecs: number; timeoutMs: number; config: unknown
+    intervalSecs: number; timeoutMs: number; retries: number; config: unknown
   }> }>('/:id', async (req, reply) => {
     const id = Number(req.params.id)
     const existing = (await db.select().from(monitors).where(eq(monitors.id, id)))[0]
@@ -51,6 +52,7 @@ export async function monitorRoutes(app: FastifyInstance) {
     if (req.body.type !== undefined) updates['type'] = req.body.type
     if (req.body.intervalSecs !== undefined) updates['intervalSecs'] = req.body.intervalSecs
     if (req.body.timeoutMs !== undefined) updates['timeoutMs'] = req.body.timeoutMs
+    if (req.body.retries !== undefined) updates['retries'] = req.body.retries
     if (req.body.config !== undefined) updates['config'] = JSON.stringify(req.body.config)
 
     const results = await db.update(monitors).set(updates).where(eq(monitors.id, id)).returning()

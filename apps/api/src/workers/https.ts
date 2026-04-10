@@ -9,7 +9,7 @@ import { resolveVaultSecret } from './resolveSecret.js'
 async function resolveAuth(
   auth: HttpsConfig['auth'],
   serviceUrl: string,
-): Promise<{ headers: Record<string, string>; url: string }> {
+): Promise<{ headers: Record<string, string>; url: string; cookieJar?: Map<string, string>; casState?: { casServerUrl: string; tgtUrl: string } }> {
   if (!auth || auth.type === 'none') return { headers: {}, url: serviceUrl }
 
   // ── Basic Auth ────────────────────────────────────────────────────────────
@@ -122,10 +122,13 @@ async function resolveAuth(
     if (!stRes.ok) throw new Error(`CAS: service ticket request failed with HTTP ${stRes.status}`)
     const ticket = (await stRes.text()).trim()
 
-    // Step 4: append ?ticket=ST-xxx to the effective service URL
+    // Step 4: append ?ticket=ST-xxx to the effective service URL.
+    // Return the cookie jar so checkHttps can carry cookies across the redirect chain —
+    // after ticket validation the app sets an authenticated session cookie that must be
+    // forwarded on subsequent hops.
     const u = new URL(effectiveServiceUrl)
     u.searchParams.set('ticket', ticket)
-    return { headers: {}, url: u.toString() }
+    return { headers: {}, url: u.toString(), cookieJar: probeCookies, casState: { casServerUrl, tgtUrl } }
   }
 
   return { headers: {}, url: serviceUrl }
@@ -137,17 +140,84 @@ export async function checkHttps(
 ): Promise<{ status: MonitorStatus; responseMs: number | null; error: string | null }> {
   const start = Date.now()
   try {
-    const { headers: authHeaders, url } = await resolveAuth(config.auth, config.url)
+    const { headers: authHeaders, url, cookieJar, casState } = await resolveAuth(config.auth, config.url)
 
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
 
-    const res = await fetch(url, {
-      method: config.method ?? 'GET',
-      headers: { ...(config.headers ?? {}), ...authHeaders },
-      signal: controller.signal,
-      redirect: 'follow',
-    })
+    let res: Response
+    if (cookieJar) {
+      const jar = new Map<string, string>(cookieJar)
+
+      function jarCookieHdr() {
+        const h = [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ')
+        return h ? { Cookie: h } : {}
+      }
+      function collectJarCookies(r: Response) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sc: string[] = (r.headers as any).getSetCookie?.() ?? []
+        for (const c of sc) {
+          const kv = c.split(';')[0]?.trim() ?? ''
+          const eq = kv.indexOf('=')
+          if (eq > 0) jar.set(kv.substring(0, eq), kv.substring(eq + 1))
+        }
+      }
+
+      // Phase 1: RegisterServiceTicket — single GET to {serviceUrl}?ticket={st}.
+      // nginx validates the ticket and sets NGXCAS in the response (even on a 302).
+      // Do NOT follow the redirect; we only need the cookies from this response.
+      res = await fetch(url, {
+        method: 'GET',
+        headers: { ...jarCookieHdr() },
+        signal: controller.signal,
+        redirect: 'manual',
+      })
+      collectJarCookies(res)
+
+      // Phase 2: visit the monitored URL with NGXCAS + session cookies.
+      // If the app has its own CAS layer it will redirect to CAS login — intercept
+      // and get a fresh ticket; NGINX will pass it to the app (NGXCAS is already valid).
+      let currentUrl2 = config.url
+      for (let hops = 0; hops < 10; hops++) {
+        res = await fetch(currentUrl2, {
+          method: config.method ?? 'GET',
+          headers: { ...(config.headers ?? {}), ...authHeaders, ...jarCookieHdr() },
+          body: config.body ?? undefined,
+          signal: controller.signal,
+          redirect: 'manual',
+        })
+        collectJarCookies(res)
+        if (res.status < 300 || res.status >= 400) break
+        const loc = res.headers.get('location')
+        if (!loc) break
+        const next = new URL(loc, currentUrl2).toString()
+        if (casState && next.startsWith(`${casState.casServerUrl}/login`)) {
+          const svc = new URL(next).searchParams.get('service')
+          if (svc) {
+            const stRes2 = await fetch(casState.tgtUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({ service: svc }).toString(),
+            })
+            if (!stRes2.ok) throw new Error(`CAS app-level ticket failed HTTP ${stRes2.status}`)
+            const ticket2 = (await stRes2.text()).trim()
+            const u2 = new URL(svc)
+            u2.searchParams.set('ticket', ticket2)
+            currentUrl2 = u2.toString()
+            continue
+          }
+        }
+        currentUrl2 = next
+      }
+    } else {
+      res = await fetch(url, {
+        method: config.method ?? 'GET',
+        headers: { ...(config.headers ?? {}), ...authHeaders },
+        body: config.body ?? undefined,
+        signal: controller.signal,
+        redirect: 'follow',
+      })
+    }
     clearTimeout(timer)
 
     const responseMs = Date.now() - start

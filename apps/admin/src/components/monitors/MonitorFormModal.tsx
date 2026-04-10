@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { api } from '../../api/client'
 import type { Monitor, MonitorType, HttpsAuth, HttpsAuthType, VaultRef } from '@bsp/shared'
 
-interface TestStep   { label: string; status: 'ok' | 'error' | 'info'; detail?: string; durationMs?: number }
+interface TestStep   { label: string; status: 'ok' | 'error' | 'info'; detail?: string; fullContent?: string; cookies?: Record<string, string>; durationMs?: number }
 interface TestResult { overall: 'ok' | 'error'; steps: TestStep[]; totalMs: number }
 
 interface Props {
@@ -53,6 +53,8 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
   const [config, setConfig]           = useState<Record<string, unknown>>(
     monitor ? (monitor.config as unknown as Record<string, unknown>) : (defaultConfigs.https as Record<string, unknown>),
   )
+  const [retries, setRetries]         = useState(monitor?.retries ?? 1)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
   const [testing, setTesting] = useState(false)
@@ -63,6 +65,24 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
 
   useEffect(() => {
     api.get<VaultSummary[]>('/admin/vaults').then(setVaults).catch(() => {})
+  }, [])
+
+  // Pre-load secrets for any vault already configured in the monitor being edited
+  useEffect(() => {
+    if (!monitor) return
+    const cfg = monitor.config as unknown as Record<string, unknown>
+    const authCfg = cfg['auth'] as Record<string, unknown> | undefined
+    const ids = [
+      (authCfg?.['basic'] as Record<string, unknown> | undefined)?.['vault'],
+      (authCfg?.['oauth2'] as Record<string, unknown> | undefined)?.['vault'],
+      (authCfg?.['cas'] as Record<string, unknown> | undefined)?.['vault'],
+      cfg['vault'],
+    ]
+      .filter(Boolean)
+      .map((v) => (v as { vaultId: number }).vaultId)
+      .filter((id) => id > 0)
+    for (const id of ids) loadSecrets(id)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function loadSecrets(vaultId: number) {
@@ -76,6 +96,7 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
   function handleTypeChange(newType: MonitorType) {
     setType(newType)
     setConfig(defaultConfigs[newType] as Record<string, unknown>)
+    if (newType !== 'https') setShowAdvanced(false)
   }
 
   function updateConfig(key: string, value: unknown) {
@@ -101,7 +122,7 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
     setError('')
     setLoading(true)
     try {
-      const body = { name, type, intervalSecs, timeoutMs, config }
+      const body = { name, type, intervalSecs, timeoutMs, retries, config }
       if (isEdit) {
         await api.patch(`/admin/monitors/${monitor.id}`, body)
       } else {
@@ -132,13 +153,36 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
   // ── Shared props ─────────────────────────────────────────────────────────
   const vaultPickerProps = { vaults, secretsByVault, onLoadSecrets: loadSecrets }
 
+  const headers = (config['headers'] as Record<string, string> | undefined) ?? {}
+  const headerRows = Object.entries(headers)
+
+  function setHeader(idx: number, field: 'key' | 'value', val: string) {
+    const rows = [...headerRows]
+    rows[idx] = field === 'key' ? [val, rows[idx]?.[1] ?? ''] : [rows[idx]?.[0] ?? '', val]
+    updateConfig('headers', Object.fromEntries(rows.filter(([k]) => k !== '')))
+  }
+  function addHeader() {
+    updateConfig('headers', { ...headers, '': '' })
+  }
+  function removeHeader(idx: number) {
+    const rows = headerRows.filter((_, i) => i !== idx)
+    updateConfig('headers', Object.fromEntries(rows))
+  }
+
   return createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.55)', overflowY: 'auto' }}>
       <div style={{ display: 'flex', minHeight: '100%', alignItems: 'flex-start', justifyContent: 'center', padding: '16px' }}>
       <div
-        className="rounded-2xl w-full max-w-xl my-8"
-        style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}
+        className="rounded-2xl my-8"
+        style={{
+          display: 'flex', flexDirection: 'row',
+          width: showAdvanced ? 'min(900px, calc(100vw - 32px))' : 'min(560px, calc(100vw - 32px))',
+          background: 'var(--m3-surface-container-low)',
+          border: '1px solid var(--m3-outline-variant)',
+          transition: 'width 0.2s ease',
+        }}
       >
+      <div style={{ flex: '0 0 auto', width: showAdvanced ? '560px' : '100%', minWidth: 0 }}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
           <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>
@@ -188,9 +232,14 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
             <input type="number" value={intervalSecs} onChange={(e) => setIntervalSecs(Number(e.target.value))} min={10} className="input-sig" />
           </Field>
 
-          <Field label="Timeout (ms)">
-            <input type="number" value={timeoutMs} onChange={(e) => setTimeoutMs(Number(e.target.value))} min={1000} className="input-sig" />
-          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Timeout (ms)">
+              <input type="number" value={timeoutMs} onChange={(e) => setTimeoutMs(Number(e.target.value))} min={1000} className="input-sig" />
+            </Field>
+            <Field label="Attempts">
+              <input type="number" value={retries} onChange={(e) => setRetries(Math.max(1, Number(e.target.value)))} min={1} max={10} className="input-sig" />
+            </Field>
+          </div>
 
           <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
 
@@ -213,6 +262,23 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
               <Field label="Keyword (optional)">
                 <input value={(config['keyword'] as string) ?? ''} onChange={(e) => updateConfig('keyword', e.target.value)} className="input-sig" placeholder="must contain…" />
               </Field>
+
+              {/* ── Headers & Body toggle ── */}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced((v) => !v)}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
+                  style={{
+                    color: showAdvanced ? 'var(--m3-primary)' : 'var(--m3-secondary)',
+                    background: showAdvanced ? 'var(--m3-primary-fixed)' : 'var(--m3-surface-container)',
+                    border: `1px solid ${showAdvanced ? 'color-mix(in srgb, var(--m3-primary) 25%, transparent)' : 'var(--m3-outline-variant)'}`,
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>tune</span>
+                  Headers &amp; Body
+                </button>
+              </div>
 
               {/* ── Authorization ── */}
               <SectionDivider label="Authorization" />
@@ -455,7 +521,82 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
             </button>
           </div>
         </form>
-      </div>
+      </div>{/* inner scrollable column */}
+
+      {/* ── Advanced side panel (headers / body) ─────────────────────────── */}
+      {showAdvanced && (
+        <div style={{
+          flex: 1,
+          minWidth: 0,
+          borderLeft: '1px solid var(--m3-outline-variant)',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
+            <span className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Headers &amp; Body</span>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(false)}
+              className="w-7 h-7 flex items-center justify-center rounded text-lg leading-none transition-colors"
+              style={{ color: 'var(--m3-secondary)' }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container-high)' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '' }}
+            >×</button>
+          </div>
+          <div className="p-5 space-y-4 overflow-y-auto" style={{ flex: 1 }}>
+            {/* Headers */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Request Headers</label>
+                <button type="button" onClick={addHeader}
+                  className="text-xs px-2 py-0.5 rounded transition-colors"
+                  style={{ color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 30%, transparent)' }}
+                >+ Add</button>
+              </div>
+              {headerRows.length === 0 && (
+                <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>No custom headers.</p>
+              )}
+              <div className="space-y-1.5">
+                {headerRows.map(([k, v], idx) => (
+                  <div key={idx} className="flex gap-1.5 items-center">
+                    <input
+                      className="input-sig text-xs flex-1"
+                      placeholder="Header name"
+                      value={k}
+                      onChange={(e) => setHeader(idx, 'key', e.target.value)}
+                    />
+                    <input
+                      className="input-sig text-xs flex-1"
+                      placeholder="Value"
+                      value={v}
+                      onChange={(e) => setHeader(idx, 'value', e.target.value)}
+                    />
+                    <button type="button" onClick={() => removeHeader(idx)}
+                      className="w-6 h-6 flex items-center justify-center rounded text-sm leading-none flex-shrink-0"
+                      style={{ color: 'var(--m3-secondary)' }}
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Body */}
+            <div>
+              <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Request Body (JSON)</label>
+              <textarea
+                className="input-sig text-xs w-full font-mono"
+                rows={10}
+                placeholder={'{\n  "key": "value"\n}'}
+                value={(config['body'] as string) ?? ''}
+                onChange={(e) => updateConfig('body', e.target.value)}
+                style={{ resize: 'vertical' }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      </div>{/* outer flex row */}
       </div>
     </div>,
     document.body,
@@ -773,8 +914,50 @@ function ConnectionStringSection({
 
 // ── Test result panel ─────────────────────────────────────────────────────────
 
+function buildTestReport(result: TestResult): string {
+  const icon = (s: TestStep['status']) => s === 'ok' ? '✓' : s === 'error' ? '✗' : 'i'
+  const sep = '─'.repeat(60)
+  const lines: string[] = [
+    'BSP Monitor Test Report',
+    `Date:   ${new Date().toISOString()}`,
+    `Result: ${result.overall === 'ok' ? 'PASSED' : 'FAILED'}  |  Total: ${result.totalMs}ms`,
+    sep,
+    '',
+  ]
+  for (const step of result.steps) {
+    const dur = step.durationMs != null ? `  (${step.durationMs}ms)` : ''
+    lines.push(`[${icon(step.status)}] ${step.label}${dur}`)
+    if (step.detail) {
+      lines.push(`    ${step.detail}`)
+    }
+    if (step.cookies && Object.keys(step.cookies).length > 0) {
+      lines.push('    Cookie jar:')
+      for (const [name, value] of Object.entries(step.cookies)) {
+        lines.push(`      ${name} = ${value}`)
+      }
+    }
+    if (step.fullContent) {
+      lines.push('    Full response body:')
+      lines.push('    ' + step.fullContent.split('\n').join('\n    '))
+    }
+    lines.push('')
+  }
+  return lines.join('\n')
+}
+
 function TestResultPanel({ result }: { result: TestResult }) {
   const isOk = result.overall === 'ok'
+
+  const handleDownload = () => {
+    const text = buildTestReport(result)
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `bsp-test-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${isOk ? 'rgba(34,197,94,0.3)' : 'rgba(186,26,26,0.25)'}` }}>
@@ -794,14 +977,30 @@ function TestResultPanel({ result }: { result: TestResult }) {
             {isOk ? 'All checks passed' : 'Test failed'}
           </span>
         </div>
-        <span className="text-xs font-mono" style={{ color: 'var(--m3-secondary)' }}>
-          {result.totalMs}ms total
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDownload}
+            title="Download full test report"
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-mono transition-colors"
+            style={{
+              color: 'var(--m3-secondary)',
+              background: 'var(--m3-surface-container)',
+              border: '1px solid var(--m3-outline-variant)',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>download</span>
+            report
+          </button>
+          <span className="text-xs font-mono" style={{ color: 'var(--m3-secondary)' }}>
+            {result.totalMs}ms total
+          </span>
+        </div>
       </div>
 
       {/* Steps */}
       <div className="divide-y" style={{ borderColor: 'var(--m3-outline-variant)' }}>
-        {result.steps.map((step, i) => (
+        {result.steps.filter(s => s.status !== 'info').map((step, i) => (
           <div key={i} className="flex items-start gap-3 px-4 py-2.5" style={{ background: 'var(--m3-surface-container-lowest)' }}>
             <span
               className="material-symbols-outlined shrink-0"
