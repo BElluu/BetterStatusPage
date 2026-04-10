@@ -19,6 +19,7 @@ export const monitors = sqliteTable('monitors', {
   config: text('config').notNull(), // JSON
   currentStatus: text('current_status').notNull().default('pending'),
   lastCheckedAt: integer('last_checked_at'),
+  webhookToken: text('webhook_token'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 })
