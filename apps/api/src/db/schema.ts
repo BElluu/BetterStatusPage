@@ -15,6 +15,7 @@ export const monitors = sqliteTable('monitors', {
   type: text('type').notNull(), // 'https'|'ping'|'dns'|'sqlserver'
   intervalSecs: integer('interval_secs').notNull().default(60),
   timeoutMs: integer('timeout_ms').notNull().default(10000),
+  retries: integer('retries').notNull().default(1),
   config: text('config').notNull(), // JSON
   currentStatus: text('current_status').notNull().default('pending'),
   lastCheckedAt: integer('last_checked_at'),
