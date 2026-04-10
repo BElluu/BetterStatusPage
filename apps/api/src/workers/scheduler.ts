@@ -15,13 +15,17 @@ export async function runCheck(monitor: typeof monitors.$inferSelect) {
   const config = JSON.parse(monitor.config) as HttpsConfig | PingConfig | DnsConfig | SqlServerConfig
   let result: { status: MonitorStatus; responseMs: number | null; error: string | null }
 
+  const maxAttempts = (monitor.retries ?? 1)
   try {
-    switch (monitor.type) {
-      case 'https': result = await checkHttps(config as HttpsConfig, monitor.timeoutMs); break
-      case 'ping': result = await checkPing(config as PingConfig, monitor.timeoutMs); break
-      case 'dns': result = await checkDns(config as DnsConfig, monitor.timeoutMs); break
-      case 'sqlserver': result = await checkSqlServer(config as SqlServerConfig, monitor.timeoutMs); break
-      default: result = { status: 'down', responseMs: null, error: `Unknown type: ${monitor.type}` }
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      switch (monitor.type) {
+        case 'https': result = await checkHttps(config as HttpsConfig, monitor.timeoutMs); break
+        case 'ping': result = await checkPing(config as PingConfig, monitor.timeoutMs); break
+        case 'dns': result = await checkDns(config as DnsConfig, monitor.timeoutMs); break
+        case 'sqlserver': result = await checkSqlServer(config as SqlServerConfig, monitor.timeoutMs); break
+        default: result = { status: 'down', responseMs: null, error: `Unknown type: ${monitor.type}` }
+      }
+      if (result.status !== 'down' || attempt === maxAttempts) break
     }
   } catch (err) {
     result = { status: 'down', responseMs: null, error: err instanceof Error ? err.message : String(err) }
