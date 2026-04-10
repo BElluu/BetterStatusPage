@@ -72,7 +72,38 @@ async function resolveAuth(
     }
     if (!casServerUrl) throw new Error('CAS: casServerUrl is required')
 
-    // Step 1: obtain TGT
+    // Step 1: probe the service URL, following redirects manually to collect session
+    // cookies and discover the exact session-specific service URL CAS expects.
+    // The ticket must be validated in the same session the app created during the probe.
+    let effectiveServiceUrl = serviceUrl
+    const probeCookies = new Map<string, string>()
+    try {
+      let nextUrl = serviceUrl
+      for (let hops = 0; hops < 10; hops++) {
+        const cookieHeader = [...probeCookies.entries()].map(([k, v]) => `${k}=${v}`).join('; ')
+        const r = await fetch(nextUrl, {
+          redirect: 'manual',
+          ...(cookieHeader ? { headers: { Cookie: cookieHeader } } : {}),
+          signal: AbortSignal.timeout(5000),
+        })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const setCookies: string[] = (r.headers as any).getSetCookie?.() ?? []
+        for (const c of setCookies) {
+          const kv = c.split(';')[0]?.trim() ?? ''
+          const eq = kv.indexOf('=')
+          if (eq > 0) probeCookies.set(kv.substring(0, eq), kv.substring(eq + 1))
+        }
+        if (r.status < 300 || r.status >= 400) break
+        const location = r.headers.get('location')
+        if (!location) break
+        const resolved = new URL(location, nextUrl)
+        const service = resolved.searchParams.get('service')
+        if (service) { effectiveServiceUrl = service; break }
+        nextUrl = resolved.toString()
+      }
+    } catch { /* keep original service URL */ }
+
+    // Step 2: obtain TGT
     const tgtRes = await fetch(`${casServerUrl}/v1/tickets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -82,17 +113,17 @@ async function resolveAuth(
     const tgtUrl = tgtRes.headers.get('location')
     if (!tgtUrl) throw new Error('CAS: no Location header in TGT response')
 
-    // Step 2: obtain service ticket
+    // Step 3: obtain service ticket for the exact service URL discovered above
     const stRes = await fetch(tgtUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ service: serviceUrl }).toString(),
+      body: new URLSearchParams({ service: effectiveServiceUrl }).toString(),
     })
     if (!stRes.ok) throw new Error(`CAS: service ticket request failed with HTTP ${stRes.status}`)
     const ticket = (await stRes.text()).trim()
 
-    // Step 3: append ?ticket=ST-xxx to the service URL
-    const u = new URL(serviceUrl)
+    // Step 4: append ?ticket=ST-xxx to the effective service URL
+    const u = new URL(effectiveServiceUrl)
     u.searchParams.set('ticket', ticket)
     return { headers: {}, url: u.toString() }
   }
