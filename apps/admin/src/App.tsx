@@ -14,6 +14,7 @@ import UsersPage from './pages/Users'
 import SettingsPage from './pages/Settings'
 import LocalizationPage from './pages/Localization'
 import VaultPage from './pages/Vault'
+import NotificationsPage from './pages/Notifications'
 
 const ROLE_RANK: Record<string, number> = { admin: 3, operator: 2, branding: 1 }
 
@@ -113,6 +114,7 @@ export default function App() {
           <Route path="incidents" element={<RequireRole minRole="operator"><IncidentsPage /></RequireRole>} />
           <Route path="builder"   element={<RequireRole minRole="operator"><BuilderPage /></RequireRole>} />
           <Route path="branding"  element={<RequireRole minRole="branding"><BrandingPage /></RequireRole>} />
+          <Route path="notifications" element={<RequireRole minRole="operator"><NotificationsPage /></RequireRole>} />
           <Route path="users"     element={<RequireRole minRole="admin"><UsersPage /></RequireRole>} />
           <Route path="vault"     element={<RequireRole minRole="admin"><VaultPage /></RequireRole>} />
           <Route path="settings"       element={<RequireRole minRole="branding"><SettingsPage /></RequireRole>} />

@@ -6,6 +6,7 @@ import { checkHttps } from './https.js'
 import { checkPing } from './ping.js'
 import { checkDns } from './dns.js'
 import { checkSqlServer } from './sqlserver.js'
+import { sendNotifications } from './notifier.js'
 import { lt, eq } from 'drizzle-orm'
 import type { HttpsConfig, PingConfig, DnsConfig, SqlServerConfig, MonitorStatus } from '@bsp/shared'
 
@@ -47,6 +48,9 @@ export async function runCheck(monitor: typeof monitors.$inferSelect) {
 
   if (prevStatus !== result.status) {
     sseService.broadcast('monitor.status', { monitorId: monitor.id, status: result.status, responseMs: result.responseMs, checkedAt: now })
+    sendNotifications(monitor, result.status, prevStatus, result.error).catch((err) =>
+      console.error('[notifier] sendNotifications failed:', err),
+    )
   }
 }
 
