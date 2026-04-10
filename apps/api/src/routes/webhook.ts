@@ -3,6 +3,7 @@ import { db } from '../db/client.js'
 import { monitors, monitorResults } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
 import { sseService } from '../services/sse.service.js'
+import { sendNotifications } from '../workers/notifier.js'
 
 async function handleWebhook(req: FastifyRequest<{ Params: { token: string } }>, reply: FastifyReply) {
   const { token } = req.params
@@ -25,6 +26,9 @@ async function handleWebhook(req: FastifyRequest<{ Params: { token: string } }>,
 
   if (prevStatus !== 'up') {
     sseService.broadcast('monitor.status', { monitorId: row.id, status: 'up', responseMs: null, checkedAt: now })
+    sendNotifications(row, 'up', prevStatus, null).catch((err) =>
+      console.error('[webhook] sendNotifications failed:', err),
+    )
   }
 
   return reply.code(200).send({ ok: true })

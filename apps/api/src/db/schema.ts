@@ -93,6 +93,37 @@ export const vaultSecrets = sqliteTable('vault_secrets', {
   updatedAt: integer('updated_at').notNull(),
 })
 
+export const notificationChannels = sqliteTable('notification_channels', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  type: text('type').notNull(), // 'email' | 'webhook'
+  config: text('config').notNull().default('{}'), // JSON
+  enabled: integer('enabled').notNull().default(1),
+  notifyOnRecovery: integer('notify_on_recovery').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+export const monitorNotificationChannels = sqliteTable('monitor_notification_channels', {
+  monitorId: integer('monitor_id').notNull(),
+  channelId: integer('channel_id').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.monitorId, t.channelId] }),
+}))
+
+export const smtpSettings = sqliteTable('smtp_settings', {
+  id: integer('id').primaryKey(),
+  host: text('host').notNull().default(''),
+  port: integer('port').notNull().default(587),
+  secure: integer('secure').notNull().default(0),
+  user: text('user').notNull().default(''),
+  password: text('password').notNull().default(''),
+  fromAddress: text('from_address').notNull().default(''),
+  fromName: text('from_name').notNull().default('BSP Alerts'),
+  vaultConfig: text('vault_config'), // JSON VaultRef | null
+  updatedAt: integer('updated_at').notNull(),
+})
+
 export const branding = sqliteTable('branding', {
   id: integer('id').primaryKey(),
   siteName: text('site_name').notNull().default('Status Page'),
