@@ -145,17 +145,39 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
       return { overall: 'error', steps, totalMs: Date.now() - totalStart }
     }
 
+    // Probe: follow the full redirect chain to discover the exact service URL CAS expects.
+    // The app may redirect through multiple hops before landing on CAS login with ?service=<url>.
+    let effectiveServiceUrl = config.url
+    const tProbe = Date.now()
+    try {
+      const probeRes = await fetch(config.url, { redirect: 'follow', signal: AbortSignal.timeout(5000) })
+      // probeRes.url is the final URL after all redirects
+      if (probeRes.url && probeRes.url !== config.url) {
+        const extracted = new URL(probeRes.url).searchParams.get('service')
+        if (extracted) {
+          effectiveServiceUrl = extracted
+          steps.push({ label: 'CAS: effective service URL discovered', status: 'info', detail: effectiveServiceUrl, durationMs: Date.now() - tProbe })
+        } else {
+          steps.push({ label: 'CAS: probe — no service param found, using original URL', status: 'info', durationMs: Date.now() - tProbe })
+        }
+      } else {
+        steps.push({ label: 'CAS: probe — no redirect, using original URL', status: 'info', durationMs: Date.now() - tProbe })
+      }
+    } catch {
+      steps.push({ label: 'CAS: probe failed, using original URL', status: 'info', durationMs: Date.now() - tProbe })
+    }
+
     // Service ticket
     const t2 = Date.now()
     try {
       const stRes = await fetch(tgtUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ service: config.url }).toString(),
+        body: new URLSearchParams({ service: effectiveServiceUrl }).toString(),
       })
       if (!stRes.ok) throw new Error(`HTTP ${stRes.status} ${stRes.statusText}`)
       const ticket = (await stRes.text()).trim()
-      const u = new URL(config.url)
+      const u = new URL(effectiveServiceUrl)
       u.searchParams.set('ticket', ticket)
       finalUrl = u.toString()
       steps.push({ label: 'CAS: service ticket obtained', status: 'ok', detail: `${ticket.substring(0, 24)}…`, durationMs: Date.now() - t2 })
