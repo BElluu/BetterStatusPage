@@ -65,6 +65,35 @@ CREATE TABLE IF NOT EXISTS layout (
   updated_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS notification_channels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  config TEXT NOT NULL DEFAULT '{}',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  notify_on_recovery INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS monitor_notification_channels (
+  monitor_id INTEGER NOT NULL,
+  channel_id INTEGER NOT NULL,
+  PRIMARY KEY (monitor_id, channel_id)
+);
+
+CREATE TABLE IF NOT EXISTS smtp_settings (
+  id INTEGER PRIMARY KEY,
+  host TEXT NOT NULL DEFAULT '',
+  port INTEGER NOT NULL DEFAULT 587,
+  secure INTEGER NOT NULL DEFAULT 0,
+  user TEXT NOT NULL DEFAULT '',
+  password TEXT NOT NULL DEFAULT '',
+  from_address TEXT NOT NULL DEFAULT '',
+  from_name TEXT NOT NULL DEFAULT 'BSP Alerts',
+  updated_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS locales (
   code               TEXT    PRIMARY KEY,
   name               TEXT    NOT NULL,
@@ -126,6 +155,7 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`, desc: 'users.must_change_password' },
   { sql: `ALTER TABLE monitors ADD COLUMN retries INTEGER NOT NULL DEFAULT 1`, desc: 'monitors.retries' },
   { sql: `ALTER TABLE monitors ADD COLUMN webhook_token TEXT`, desc: 'monitors.webhook_token' },
+  { sql: `ALTER TABLE smtp_settings ADD COLUMN vault_config TEXT`, desc: 'smtp_settings.vault_config' },
 ]
 
 /** Runs all migrations against the already-initialized DB. */

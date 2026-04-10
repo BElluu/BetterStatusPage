@@ -101,12 +101,14 @@ export default function MonitorsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <ActionBtn
-                          onClick={() => checkNowMutation.mutate(monitor.id)}
-                          title="Check now"
-                        >
-                          <IconRefresh />
-                        </ActionBtn>
+                        {monitor.type !== 'webhook' && (
+                          <ActionBtn
+                            onClick={() => checkNowMutation.mutate(monitor.id)}
+                            title="Check now"
+                          >
+                            <IconRefresh />
+                          </ActionBtn>
+                        )}
                         <ActionBtn
                           onClick={() => setEditingMonitor(monitor)}
                           title="Edit"

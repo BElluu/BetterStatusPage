@@ -20,6 +20,7 @@ import { layoutRoutes } from './routes/layout.js'
 import { brandingRoutes } from './routes/branding.js'
 import { userRoutes } from './routes/users.js'
 import { vaultRoutes } from './routes/vaults.js'
+import { notificationRoutes } from './routes/notifications.js'
 import { publicRoutes } from './routes/public.js'
 import { publicLocaleRoutes, adminLocaleRoutes } from './routes/locales.js'
 import { webhookRoutes } from './routes/webhook.js'
@@ -131,6 +132,12 @@ await app.register(async (adminApp) => {
     await sub.register(layoutRoutes,      { prefix: '/layout' })
     await sub.register(brandingRoutes,    { prefix: '/branding' })
     await sub.register(adminLocaleRoutes, { prefix: '/locales' })
+  })
+
+  // notifications: operator+
+  await adminApp.register(async (sub) => {
+    sub.addHook('preHandler', requireRole('operator'))
+    await sub.register(notificationRoutes, { prefix: '/notifications' })
   })
 
   // users & vaults: admin only

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { api } from '../../api/client'
-import type { Monitor, MonitorType, HttpsAuth, HttpsAuthType, VaultRef } from '@bsp/shared'
+import type { Monitor, MonitorType, HttpsAuth, HttpsAuthType, VaultRef, NotificationChannel } from '@bsp/shared'
 
 interface TestStep   { label: string; status: 'ok' | 'error' | 'info'; detail?: string; fullContent?: string; cookies?: Record<string, string>; durationMs?: number }
 interface TestResult { overall: 'ok' | 'error'; steps: TestStep[]; totalMs: number }
@@ -67,9 +67,17 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
 
   const [vaults, setVaults]                 = useState<VaultSummary[]>([])
   const [secretsByVault, setSecretsByVault] = useState<Record<number, SecretSummary[]>>({})
+  const [channels, setChannels]             = useState<NotificationChannel[]>([])
+  const [selectedChannelIds, setSelectedChannelIds] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     api.get<VaultSummary[]>('/admin/vaults').then(setVaults).catch(() => {})
+    api.get<NotificationChannel[]>('/admin/notifications/channels').then(setChannels).catch(() => {})
+    if (monitor) {
+      api.get<number[]>(`/admin/notifications/monitor/${monitor.id}/channels`)
+        .then((ids) => setSelectedChannelIds(new Set(ids)))
+        .catch(() => {})
+    }
   }, [])
 
   // Pre-load secrets for any vault already configured in the monitor being edited
@@ -155,8 +163,10 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
       const body = { name, type, intervalSecs, timeoutMs, retries, config }
       if (isEdit) {
         await api.patch(`/admin/monitors/${monitor.id}`, body)
+        await api.put(`/admin/notifications/monitor/${monitor.id}/channels`, { channelIds: [...selectedChannelIds] })
       } else {
-        const created = await api.post<{ webhookToken?: string | null }>('/admin/monitors', body)
+        const created = await api.post<{ id: number; webhookToken?: string | null }>('/admin/monitors', body)
+        await api.put(`/admin/notifications/monitor/${created.id}/channels`, { channelIds: [...selectedChannelIds] })
         if (created.webhookToken) setWebhookToken(created.webhookToken)
         if (type !== 'webhook') { onSaved(); return }
         // webhook: stay open so user can copy the URL before closing
@@ -581,6 +591,46 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
                 </p>
               )}
             </div>
+          )}
+
+          {/* ── Notifications ──────────────────────────────────────────────── */}
+          {channels.length > 0 && (
+            <>
+              <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
+              <div>
+                <label className="block font-mono text-xs uppercase tracking-wider mb-3" style={{ color: 'var(--m3-secondary)' }}>
+                  Notification Channels
+                </label>
+                <div className="space-y-2">
+                  {channels.map((ch) => (
+                    <label key={ch.id} className="flex items-center gap-3 cursor-pointer select-none rounded-lg px-3 py-2 transition-colors"
+                      style={{ border: '1px solid var(--m3-outline-variant)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--m3-surface-container)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = '')}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedChannelIds.has(ch.id)}
+                        onChange={(e) => {
+                          setSelectedChannelIds((prev) => {
+                            const next = new Set(prev)
+                            if (e.target.checked) next.add(ch.id)
+                            else next.delete(ch.id)
+                            return next
+                          })
+                        }}
+                        className="w-4 h-4 rounded accent-[color:var(--m3-primary)]"
+                      />
+                      <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '16px', color: ch.type === 'email' ? '#6366f1' : '#10b981' }}>
+                        {ch.type === 'email' ? 'mail' : 'webhook'}
+                      </span>
+                      <span className="text-sm flex-1" style={{ color: 'var(--m3-on-surface)' }}>{ch.name}</span>
+                      {!ch.enabled && <span className="text-xs" style={{ color: 'var(--m3-secondary)' }}>disabled</span>}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
 
           {/* ── Test result panel ─────────────────────────────────────────── */}
