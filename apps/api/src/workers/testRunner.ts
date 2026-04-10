@@ -5,6 +5,10 @@ export interface TestStep {
   label: string
   status: 'ok' | 'error' | 'info'
   detail?: string
+  /** Full content for steps where detail is truncated (e.g. body preview) */
+  fullContent?: string
+  /** Cookie jar snapshot at this point (name → value), for diagnostic downloads */
+  cookies?: Record<string, string>
   durationMs?: number
 }
 
@@ -22,6 +26,9 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
 
   let authHeaders: Record<string, string> = {}
   let finalUrl = config.url
+  const probeCookies = new Map<string, string>()
+  let casServerBaseUrl: string | null = null
+  let casTgtUrl: string | null = null
 
   const auth = config.auth
 
@@ -139,32 +146,66 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
       if (!tgtRes.ok) throw new Error(`HTTP ${tgtRes.status} ${tgtRes.statusText}`)
       tgtUrl = tgtRes.headers.get('location') ?? ''
       if (!tgtUrl) throw new Error('No Location header in TGT response')
+      casServerBaseUrl = casServerUrl
+      casTgtUrl = tgtUrl
       steps.push({ label: `CAS: TGT obtained from ${casServerUrl}`, status: 'ok', durationMs: Date.now() - t1 })
     } catch (err) {
       steps.push({ label: 'CAS: TGT request failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t1 })
       return { overall: 'error', steps, totalMs: Date.now() - totalStart }
     }
 
-    // Probe: follow the full redirect chain to discover the exact service URL CAS expects.
-    // The app may redirect through multiple hops before landing on CAS login with ?service=<url>.
+    // Probe: follow the redirect chain manually, collecting session cookies at each hop.
+    // The ticket must be validated within the same session the app created during this probe.
     let effectiveServiceUrl = config.url
     const tProbe = Date.now()
     try {
-      const probeRes = await fetch(config.url, { redirect: 'follow', signal: AbortSignal.timeout(5000) })
-      // probeRes.url is the final URL after all redirects
-      if (probeRes.url && probeRes.url !== config.url) {
-        const extracted = new URL(probeRes.url).searchParams.get('service')
-        if (extracted) {
-          effectiveServiceUrl = extracted
-          steps.push({ label: 'CAS: effective service URL discovered', status: 'info', detail: effectiveServiceUrl, durationMs: Date.now() - tProbe })
-        } else {
-          steps.push({ label: 'CAS: probe — no service param found, using original URL', status: 'info', durationMs: Date.now() - tProbe })
+      let nextUrl = config.url
+      for (let hops = 0; hops < 10; hops++) {
+        const cookieHeader = [...probeCookies.entries()].map(([k, v]) => `${k}=${v}`).join('; ')
+        const r = await fetch(nextUrl, {
+          redirect: 'manual',
+          ...(cookieHeader ? { headers: { Cookie: cookieHeader } } : {}),
+          signal: AbortSignal.timeout(5000),
+        })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const setCookies: string[] = (r.headers as any).getSetCookie?.() ?? []
+        const newCookieNames: string[] = []
+        for (const c of setCookies) {
+          const kv = c.split(';')[0]?.trim() ?? ''
+          const eq = kv.indexOf('=')
+          if (eq > 0) {
+            probeCookies.set(kv.substring(0, eq), kv.substring(eq + 1))
+            newCookieNames.push(kv.substring(0, eq))
+          }
         }
-      } else {
-        steps.push({ label: 'CAS: probe — no redirect, using original URL', status: 'info', durationMs: Date.now() - tProbe })
+        const jarSnap = newCookieNames.length > 0 ? Object.fromEntries(newCookieNames.map(n => [n, probeCookies.get(n)!])) : undefined
+        const cookieDetail = newCookieNames.length > 0 ? `Set-Cookie: ${newCookieNames.join(', ')}` : undefined
+        if (r.status < 300 || r.status >= 400) {
+          steps.push({ label: `CAS probe hop ${hops + 1}: ${r.status} ${nextUrl}`, status: 'info', detail: cookieDetail, cookies: jarSnap })
+          break
+        }
+        const location = r.headers.get('location')
+        steps.push({ label: `CAS probe hop ${hops + 1}: ${r.status} ${nextUrl} → ${location ?? '(no location)'}`, status: 'info', detail: cookieDetail, cookies: jarSnap })
+        if (!location) break
+        const resolved = new URL(location, nextUrl)
+        const service = resolved.searchParams.get('service')
+        if (service) {
+          effectiveServiceUrl = service
+          steps.push({ label: 'CAS: effective service URL discovered', status: 'info', detail: effectiveServiceUrl, durationMs: Date.now() - tProbe })
+          break
+        }
+        nextUrl = resolved.toString()
       }
-    } catch {
-      steps.push({ label: 'CAS: probe failed, using original URL', status: 'info', durationMs: Date.now() - tProbe })
+      if (effectiveServiceUrl === config.url) {
+        steps.push({ label: 'CAS: probe — no service param found, using original URL', status: 'info', durationMs: Date.now() - tProbe })
+      }
+      steps.push({
+        label: `CAS probe: ${probeCookies.size} session cookie(s) collected`,
+        status: 'info',
+        detail: probeCookies.size > 0 ? [...probeCookies.keys()].join(', ') : 'none',
+      })
+    } catch (e) {
+      steps.push({ label: 'CAS: probe failed, using original URL', status: 'info', detail: errMsg(e), durationMs: Date.now() - tProbe })
     }
 
     // Service ticket
@@ -181,6 +222,7 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
       u.searchParams.set('ticket', ticket)
       finalUrl = u.toString()
       steps.push({ label: 'CAS: service ticket obtained', status: 'ok', detail: `${ticket.substring(0, 24)}…`, durationMs: Date.now() - t2 })
+      steps.push({ label: 'CAS: submitting ticket to', status: 'info', detail: finalUrl })
     } catch (err) {
       steps.push({ label: 'CAS: service ticket request failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t2 })
       return { overall: 'error', steps, totalMs: Date.now() - totalStart }
@@ -188,23 +230,108 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
   }
 
   // ── HTTP request ──────────────────────────────────────────────────────────
-  steps.push({ label: `${config.method ?? 'GET'} ${config.url}`, status: 'info' })
   const t = Date.now()
   try {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
-    const res = await fetch(finalUrl, {
-      method: config.method ?? 'GET',
-      headers: { ...(config.headers ?? {}), ...authHeaders },
-      signal: controller.signal,
-      redirect: 'follow',
-    })
+    const jar = new Map<string, string>(probeCookies)
+
+    function collectCookies(res: Response): string[] {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const setCookies: string[] = (res.headers as any).getSetCookie?.() ?? []
+      const names: string[] = []
+      for (const c of setCookies) {
+        const kv = c.split(';')[0]?.trim() ?? ''
+        const eq = kv.indexOf('=')
+        if (eq > 0) { jar.set(kv.substring(0, eq), kv.substring(eq + 1)); names.push(kv.substring(0, eq)) }
+      }
+      return names
+    }
+
+    function cookieHdr(): Record<string, string> {
+      const h = [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ')
+      return h ? { Cookie: h } : {}
+    }
+
+    // ── Phase 1 (CAS only): RegisterServiceTicket ────────────────────────
+    // Single GET to {serviceUrl}?ticket={st} — nginx validates the ticket and
+    // responds with Set-Cookie: NGXCAS (and possibly SL_Session).
+    // We do NOT follow the redirect further; we just need the cookies.
+    let res!: Response
+    if (casServerBaseUrl) {
+      const tTicket = Date.now()
+      res = await fetch(finalUrl, {
+        method: 'GET',
+        headers: { ...cookieHdr() },
+        signal: controller.signal,
+        redirect: 'manual',
+      })
+      collectCookies(res)
+      steps.push({
+        label: `CAS: ticket registered → ${res.status}`,
+        status: 'ok',
+        detail: `Cookies collected: ${[...jar.keys()].join(', ')}`,
+        cookies: Object.fromEntries(jar),
+        durationMs: Date.now() - tTicket,
+      })
+    }
+
+    // ── Phase 2: visit the monitored URL with all auth cookies ────────────
+    // NGXCAS is now set, so NGINX will let requests through.
+    // If the app has its own CAS layer, it will redirect to CAS login.
+    // We intercept that redirect and get a fresh ticket — this time NGINX passes
+    // the ticket through to the app (NGXCAS is valid), so the app can validate
+    // it and establish its own authenticated session.
+    steps.push({ label: `GET ${config.url}`, status: 'info' })
+    let currentUrl2 = config.url
+    for (let hops = 0; hops < 10; hops++) {
+      res = await fetch(currentUrl2, {
+        method: config.method ?? 'GET',
+        headers: { ...(config.headers ?? {}), ...authHeaders, ...cookieHdr() },
+        body: config.body ?? undefined,
+        signal: controller.signal,
+        redirect: 'manual',
+      })
+      const newCookies = collectCookies(res)
+      const newJarSnap = newCookies.length ? Object.fromEntries(newCookies.map(n => [n, jar.get(n)!])) : undefined
+      const cookieNote = newCookies.length ? ` [Set-Cookie: ${newCookies.join(', ')}]` : ''
+      if (res.status < 300 || res.status >= 400) break
+      const loc = res.headers.get('location')
+      if (!loc) break
+      const next = new URL(loc, currentUrl2).toString()
+
+      // CAS redirect from app-level auth → get a new ticket and submit it directly.
+      // NGINX has NGXCAS so it won't interfere; the app will receive the ticket.
+      if (casTgtUrl && casServerBaseUrl && next.startsWith(`${casServerBaseUrl}/login`)) {
+        const svc = new URL(next).searchParams.get('service')
+        if (svc) {
+          const tInt = Date.now()
+          try {
+            const stRes2 = await fetch(casTgtUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({ service: svc }).toString(),
+            })
+            if (!stRes2.ok) throw new Error(`HTTP ${stRes2.status}`)
+            const ticket2 = (await stRes2.text()).trim()
+            const u2 = new URL(svc)
+            u2.searchParams.set('ticket', ticket2)
+            steps.push({ label: `CAS: app-level ticket obtained${cookieNote}`, status: 'info', detail: `${ticket2.substring(0, 24)}…`, cookies: newJarSnap, durationMs: Date.now() - tInt })
+            currentUrl2 = u2.toString()
+            continue
+          } catch (err2) {
+            steps.push({ label: 'CAS: app-level ticket request failed', status: 'error', detail: errMsg(err2) })
+            break
+          }
+        }
+      }
+
+      steps.push({ label: `→ ${res.status} ${next}${cookieNote}`, status: 'info', cookies: newJarSnap })
+      currentUrl2 = next
+    }
+
     clearTimeout(timer)
     const responseMs = Date.now() - t
-
-    if (res.url !== finalUrl && res.url !== config.url) {
-      steps.push({ label: `Redirected → ${res.url}`, status: 'info' })
-    }
 
     const expectedStatus = config.expectedStatus ?? 200
     if (res.status !== expectedStatus) {
@@ -213,9 +340,13 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
     }
     steps.push({ label: `Response: HTTP ${res.status}`, status: 'ok', durationMs: responseMs })
 
+    // ── Body preview (first 500 chars) ─────────────────────────────────
+    const body = await res.text()
+    const preview = body.replace(/\s+/g, ' ').trim().substring(0, 500)
+    steps.push({ label: 'Response body preview', status: 'info', detail: preview, fullContent: body })
+
     // ── Keyword check ───────────────────────────────────────────────────
     if (config.keyword) {
-      const body = await res.text()
       if (body.includes(config.keyword)) {
         steps.push({ label: `Keyword "${config.keyword}" found in response`, status: 'ok' })
       } else {
