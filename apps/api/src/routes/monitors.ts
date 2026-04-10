@@ -1,10 +1,15 @@
 import type { FastifyInstance } from 'fastify'
+import { randomBytes } from 'crypto'
 import { db } from '../db/client.js'
 import { monitors, monitorResults } from '../db/schema.js'
 import { eq, desc, gte, and } from 'drizzle-orm'
 import { runCheck } from '../workers/scheduler.js'
 import { testHttps, testSqlServer } from '../workers/testRunner.js'
 import type { HttpsConfig, SqlServerConfig } from '@bsp/shared'
+
+function generateWebhookToken(): string {
+  return randomBytes(24).toString('hex')
+}
 
 export async function monitorRoutes(app: FastifyInstance) {
   app.get('/', async () => {
@@ -23,8 +28,9 @@ export async function monitorRoutes(app: FastifyInstance) {
       intervalSecs: req.body.intervalSecs ?? 60,
       timeoutMs: req.body.timeoutMs ?? 10000,
       retries: req.body.retries ?? 1,
-      config: JSON.stringify(req.body.config),
+      config: JSON.stringify(req.body.config ?? {}),
       currentStatus: 'pending',
+      webhookToken: req.body.type === 'webhook' ? generateWebhookToken() : null,
       createdAt: now,
       updatedAt: now,
     }).returning()
@@ -79,6 +85,20 @@ export async function monitorRoutes(app: FastifyInstance) {
     await runCheck(monitor)
     const updated = (await db.select().from(monitors).where(eq(monitors.id, monitor.id)))[0]!
     return { ...updated, config: JSON.parse(updated.config) }
+  })
+
+  app.post<{ Params: { id: string } }>('/:id/reset-token', async (req, reply) => {
+    const id = Number(req.params.id)
+    const existing = (await db.select().from(monitors).where(eq(monitors.id, id)))[0]
+    if (!existing) return reply.code(404).send({ error: 'Not found' })
+    if (existing.type !== 'webhook') return reply.code(400).send({ error: 'Only webhook monitors have tokens' })
+    const now = Date.now()
+    const results = await db.update(monitors)
+      .set({ webhookToken: generateWebhookToken(), updatedAt: now })
+      .where(eq(monitors.id, id))
+      .returning()
+    const result = results[0]!
+    return { ...result, config: JSON.parse(result.config) }
   })
 
   app.get<{ Params: { id: string }; Querystring: { days?: string } }>('/:id/history', async (req) => {
