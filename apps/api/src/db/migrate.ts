@@ -125,6 +125,7 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE branding ADD COLUMN logo_text TEXT`, desc: 'branding.logo_text' },
   { sql: `ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`, desc: 'users.must_change_password' },
   { sql: `ALTER TABLE monitors ADD COLUMN retries INTEGER NOT NULL DEFAULT 1`, desc: 'monitors.retries' },
+  { sql: `ALTER TABLE monitors ADD COLUMN webhook_token TEXT`, desc: 'monitors.webhook_token' },
 ]
 
 /** Runs all migrations against the already-initialized DB. */

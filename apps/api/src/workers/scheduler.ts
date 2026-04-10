@@ -23,6 +23,7 @@ export async function runCheck(monitor: typeof monitors.$inferSelect) {
         case 'ping': result = await checkPing(config as PingConfig, monitor.timeoutMs); break
         case 'dns': result = await checkDns(config as DnsConfig, monitor.timeoutMs); break
         case 'sqlserver': result = await checkSqlServer(config as SqlServerConfig, monitor.timeoutMs); break
+        case 'webhook': result = { status: 'down', responseMs: null, error: 'No webhook received within interval' }; break
         default: result = { status: 'down', responseMs: null, error: `Unknown type: ${monitor.type}` }
       }
       if (result.status !== 'down' || attempt === maxAttempts) break

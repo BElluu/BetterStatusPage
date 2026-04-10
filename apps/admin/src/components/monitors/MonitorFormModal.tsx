@@ -20,6 +20,7 @@ const defaultConfigs: Record<MonitorType, Record<string, unknown>> = {
   ping:      { host: '', mode: 'tcp', port: 80 },
   dns:       { hostname: '', recordType: 'A' },
   sqlserver: { host: '', port: 1433, database: '', user: '', password: '', query: 'SELECT 1' },
+  webhook:   {},
 }
 
 const MONITOR_TYPES: { value: MonitorType; label: string }[] = [
@@ -27,6 +28,7 @@ const MONITOR_TYPES: { value: MonitorType; label: string }[] = [
   { value: 'ping',      label: 'Ping / TCP' },
   { value: 'dns',       label: 'DNS' },
   { value: 'sqlserver', label: 'SQL Server' },
+  { value: 'webhook',   label: 'Webhook' },
 ]
 
 const AUTH_TYPES: { value: HttpsAuthType; label: string }[] = [
@@ -53,8 +55,11 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
   const [config, setConfig]           = useState<Record<string, unknown>>(
     monitor ? (monitor.config as unknown as Record<string, unknown>) : (defaultConfigs.https as Record<string, unknown>),
   )
-  const [retries, setRetries]         = useState(monitor?.retries ?? 1)
+  const [retries, setRetries]           = useState(monitor?.retries ?? 1)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [webhookToken, setWebhookToken] = useState<string | null>(monitor?.webhookToken ?? null)
+  const [resettingToken, setResettingToken] = useState(false)
+  const [copied, setCopied]             = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
   const [testing, setTesting] = useState(false)
@@ -103,6 +108,28 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
     setConfig((prev) => ({ ...prev, [key]: value }))
   }
 
+  function webhookUrl(token: string) {
+    return `${window.location.origin}/api/v1/hook/${token}`
+  }
+
+  async function handleCopyUrl() {
+    if (!webhookToken) return
+    await navigator.clipboard.writeText(webhookUrl(webhookToken))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function handleResetToken() {
+    if (!monitor) return
+    setResettingToken(true)
+    try {
+      const updated = await api.post<{ webhookToken: string }>(`/admin/monitors/${monitor.id}/reset-token`, {})
+      setWebhookToken(updated.webhookToken)
+    } catch { /* ignore */ } finally {
+      setResettingToken(false)
+    }
+  }
+
   async function handleTest() {
     if (type !== 'https' && type !== 'sqlserver') return
     setTesting(true)
@@ -119,6 +146,9 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    // "Done" after webhook creation — just close and refresh
+    if (type === 'webhook' && !isEdit && webhookToken) { onSaved(); return }
+
     setError('')
     setLoading(true)
     try {
@@ -126,7 +156,12 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
       if (isEdit) {
         await api.patch(`/admin/monitors/${monitor.id}`, body)
       } else {
-        await api.post('/admin/monitors', body)
+        const created = await api.post<{ webhookToken?: string | null }>('/admin/monitors', body)
+        if (created.webhookToken) setWebhookToken(created.webhookToken)
+        if (type !== 'webhook') { onSaved(); return }
+        // webhook: stay open so user can copy the URL before closing
+        setLoading(false)
+        return
       }
       onSaved()
     } catch (err) {
@@ -481,6 +516,73 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
             )
           })()}
 
+          {/* ── Webhook ────────────────────────────────────────────────────── */}
+          {type === 'webhook' && (
+            <div className="space-y-3">
+              <div
+                className="flex items-start gap-2 rounded-lg px-3 py-2"
+                style={{ background: 'rgba(57,128,244,0.08)', border: '1px solid rgba(57,128,244,0.20)' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#3980f4', lineHeight: '20px' }}>info</span>
+                <p className="text-xs" style={{ color: 'var(--m3-on-surface-variant)' }}>
+                  The monitor goes <strong>up</strong> when an external service sends a request to the webhook URL, and goes <strong>down</strong> if no request is received within the configured interval.
+                </p>
+              </div>
+
+              {webhookToken ? (
+                <>
+                  <Field label="Webhook URL">
+                    <div className="flex gap-2 items-stretch">
+                      <input
+                        readOnly
+                        className="input-sig flex-1 font-mono text-xs"
+                        value={webhookUrl(webhookToken)}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCopyUrl}
+                        className="flex items-center gap-1 px-3 rounded-lg text-xs font-semibold transition-all flex-shrink-0"
+                        style={{
+                          background: copied ? 'var(--m3-primary-fixed)' : 'var(--m3-surface-container-high)',
+                          color: copied ? 'var(--m3-primary)' : 'var(--m3-on-surface)',
+                          border: '1px solid var(--m3-outline-variant)',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+                          {copied ? 'check' : 'content_copy'}
+                        </span>
+                        {copied ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                  </Field>
+                  {isEdit && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleResetToken}
+                        disabled={resettingToken}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
+                        style={{
+                          color: 'var(--m3-secondary)',
+                          background: 'var(--m3-surface-container)',
+                          border: '1px solid var(--m3-outline-variant)',
+                          opacity: resettingToken ? 0.6 : 1,
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>refresh</span>
+                        {resettingToken ? 'Resetting…' : 'Reset token'}
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
+                  A unique webhook URL will be generated after saving.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* ── Test result panel ─────────────────────────────────────────── */}
           {testResult && <TestResultPanel result={testResult} />}
 
@@ -491,7 +593,7 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
               onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)')}
               onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)')}
             >
-              Cancel
+              {(type === 'webhook' && !isEdit && webhookToken) ? 'Close' : 'Cancel'}
             </button>
             {(type === 'https' || type === 'sqlserver') && (
               <button type="button" onClick={handleTest} disabled={testing || loading}
@@ -517,7 +619,7 @@ export default function MonitorFormModal({ monitor, onClose, onSaved }: Props) {
                 opacity: loading ? 0.7 : 1,
               }}
             >
-              {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Monitor'}
+              {loading ? 'Saving…' : (type === 'webhook' && !isEdit && webhookToken) ? 'Done' : isEdit ? 'Save Changes' : 'Create Monitor'}
             </button>
           </div>
         </form>
