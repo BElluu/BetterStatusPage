@@ -28,7 +28,7 @@ const DEFAULT_WEBHOOK_BODY = `{
 export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
   const isEdit = !!channel
   const [name, setName]   = useState(channel?.name ?? '')
-  const [type, setType]   = useState<'email' | 'webhook' | 'discord' | 'teams'>(channel?.type as 'email' | 'webhook' | 'discord' | 'teams' ?? 'email')
+  const [type, setType]   = useState<'email' | 'webhook' | 'discord' | 'teams' | 'slack'>(channel?.type as 'email' | 'webhook' | 'discord' | 'teams' | 'slack' ?? 'email')
   const [enabled, setEnabled]               = useState((channel?.enabled ?? 1) === 1)
   const [notifyOnRecovery, setNotifyOnRecovery] = useState((channel?.notifyOnRecovery ?? 0) === 1)
 
@@ -56,6 +56,11 @@ export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
   const [tsUrl, setTsUrl]         = useState(tsCfg?.webhookUrl ?? '')
   const [tsSummary, setTsSummary] = useState(tsCfg?.summary ?? '')
 
+  // Slack config
+  const slCfg = channel?.type === 'slack' ? (channel.config as { webhookUrl: string; text?: string }) : null
+  const [slUrl, setSlUrl]   = useState(slCfg?.webhookUrl ?? '')
+  const [slText, setSlText] = useState(slCfg?.text ?? '')
+
   const [loading, setLoading]   = useState(false)
   const [testing, setTesting]   = useState(false)
   const [testMsg, setTestMsg]   = useState<{ ok: boolean; text: string } | null>(null)
@@ -76,6 +81,12 @@ export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
       return {
         webhookUrl: tsUrl,
         ...(tsSummary ? { summary: tsSummary } : {}),
+      }
+    }
+    if (type === 'slack') {
+      return {
+        webhookUrl: slUrl,
+        ...(slText ? { text: slText } : {}),
       }
     }
     const headers: Record<string, string> = {}
@@ -162,6 +173,7 @@ export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
                   { id: 'webhook', label: 'Webhook' },
                   { id: 'discord', label: 'Discord' },
                   { id: 'teams',   label: 'Teams' },
+                  { id: 'slack',   label: 'Slack' },
                 ] as const).map(({ id, label }) => (
                   <button key={id} type="button" onClick={() => setType(id)}
                     className="flex-1 text-xs font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-1.5"
@@ -172,6 +184,7 @@ export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
                   >
                     {id === 'discord' ? <DiscordIcon size={14} />
                       : id === 'teams' ? <TeamsIcon size={14} />
+                      : id === 'slack' ? <SlackIcon size={14} />
                       : <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{id === 'email' ? 'mail' : 'webhook'}</span>
                     }
                     {label}
@@ -233,6 +246,25 @@ export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
                   <p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>MessageCard is sent automatically</p>
                   <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
                     Status, monitor name, error and timestamp are included in the card. Summary is the notification toast text — leave blank to use the default.
+                  </p>
+                </div>
+                <VarsHint />
+              </>
+            )}
+
+            {/* ── Slack config ── */}
+            {type === 'slack' && (
+              <>
+                <Field label="Webhook URL">
+                  <input value={slUrl} onChange={(e) => setSlUrl(e.target.value)} required className="input-sig" placeholder="https://hooks.slack.com/services/…" />
+                </Field>
+                <Field label="Message Text (optional)">
+                  <input value={slText} onChange={(e) => setSlText(e.target.value)} className="input-sig" placeholder="<!here> Monitor {{monitor_name}} is {{status}}" />
+                </Field>
+                <div className="rounded-lg px-3 py-2.5 space-y-1.5" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}>
+                  <p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Rich Block Kit message is sent automatically</p>
+                  <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
+                    A color-coded card with status, error and timestamp is always included. Message Text is an optional line above the card — use it for <code style={{ fontFamily: 'monospace' }}>{'<!here>'}</code> or <code style={{ fontFamily: 'monospace' }}>{'<!channel>'}</code> mentions.
                   </p>
                 </div>
                 <VarsHint />
@@ -368,6 +400,14 @@ function DiscordIcon({ size = 16 }: { size?: number }) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true">
       <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.032.054a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+    </svg>
+  )
+}
+
+function SlackIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true">
+      <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zm2.521-10.123a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.527 2.527 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
     </svg>
   )
 }

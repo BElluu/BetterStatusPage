@@ -99,7 +99,7 @@ export default function NotificationsPage() {
                 const cfg = ch.config as unknown as Record<string, unknown>
                 const recipient = ch.type === 'email'
                   ? String(cfg['to'] ?? '')
-                  : ch.type === 'discord' || ch.type === 'teams'
+                  : ch.type === 'discord' || ch.type === 'teams' || ch.type === 'slack'
                     ? String(cfg['webhookUrl'] ?? '')
                     : String(cfg['url'] ?? '')
                 return (
@@ -113,18 +113,21 @@ export default function NotificationsPage() {
                     <td className="px-4 py-3">
                       <span className="flex items-center gap-1.5 w-fit px-2 py-0.5 rounded-full text-xs font-medium"
                         style={{
-                          background: ch.type === 'email' ? 'rgba(99,102,241,0.12)'
+                          background: ch.type === 'email'   ? 'rgba(99,102,241,0.12)'
                             : ch.type === 'discord' ? 'rgba(88,101,242,0.12)'
                             : ch.type === 'teams'   ? 'rgba(98,100,167,0.12)'
+                            : ch.type === 'slack'   ? 'rgba(74,21,75,0.10)'
                             : 'rgba(16,185,129,0.12)',
-                          color: ch.type === 'email' ? '#6366f1'
+                          color: ch.type === 'email'   ? '#6366f1'
                             : ch.type === 'discord' ? '#5865f2'
                             : ch.type === 'teams'   ? '#6264a7'
+                            : ch.type === 'slack'   ? '#4a154b'
                             : '#10b981',
                         }}
                       >
                         {ch.type === 'discord' ? <DiscordIcon size={12} />
                           : ch.type === 'teams' ? <TeamsIcon size={12} />
+                          : ch.type === 'slack' ? <SlackIcon size={12} />
                           : <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>{ch.type === 'email' ? 'mail' : 'webhook'}</span>
                         }
                         {ch.type}
@@ -531,6 +534,14 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
       </div>
     </div>,
     document.body,
+  )
+}
+
+function SlackIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true">
+      <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zm2.521-10.123a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.527 2.527 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
+    </svg>
   )
 }
 
