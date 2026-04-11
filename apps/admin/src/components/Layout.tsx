@@ -16,6 +16,7 @@ export default function Layout() {
     { to: '/admin/',               label: 'Dashboard',      icon: 'dashboard',            minRole: 'operator' },
     { to: '/admin/monitors',       label: 'Monitors',       icon: 'radio_button_checked', minRole: 'operator' },
     { to: '/admin/incidents',      label: 'Incidents',      icon: 'warning',              minRole: 'operator' },
+    { to: '/admin/maintenance',    label: 'Maintenance',    icon: 'construction',         minRole: 'operator' },
     { to: '/admin/builder',        label: 'Page Builder',   icon: 'dashboard_customize',  minRole: 'operator' },
     { to: '/admin/branding',       label: 'Branding',       icon: 'palette',              minRole: 'branding' },
     { to: '/admin/localization',   label: 'Localization',   icon: 'translate',            minRole: 'branding' },
