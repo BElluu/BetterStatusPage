@@ -20,6 +20,7 @@ export const monitors = sqliteTable('monitors', {
   currentStatus: text('current_status').notNull().default('pending'),
   lastCheckedAt: integer('last_checked_at'),
   webhookToken: text('webhook_token'),
+  tags: text('tags').notNull().default('[]'), // JSON MonitorTag[]
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 })

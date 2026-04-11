@@ -83,6 +83,11 @@ export interface WebhookConfig {}
 
 export type MonitorConfig = HttpsConfig | PingConfig | DnsConfig | SqlServerConfig | WebhookConfig
 
+export interface MonitorTag {
+  label: string
+  color: string
+}
+
 export interface Monitor {
   id: number
   name: string
@@ -94,6 +99,7 @@ export interface Monitor {
   currentStatus: MonitorStatus
   lastCheckedAt: number | null
   webhookToken: string | null
+  tags: MonitorTag[]
   createdAt: number
   updatedAt: number
 }
