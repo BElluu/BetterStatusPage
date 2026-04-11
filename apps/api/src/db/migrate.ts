@@ -138,6 +138,22 @@ CREATE TABLE IF NOT EXISTS vault_secrets (
 );
 `
 
+const auditMigration = `
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  user_email TEXT NOT NULL,
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT,
+  entity_name TEXT NOT NULL,
+  diff TEXT,
+  timestamp INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
+`
+
 const maintenanceMigration = `
 CREATE TABLE IF NOT EXISTS maintenance_windows (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -181,6 +197,7 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
 /** Runs all migrations against the already-initialized DB. */
 export function runMigrations(): void {
   sqlite.exec(migrations)
+  sqlite.exec(auditMigration)
   sqlite.exec(maintenanceMigration)
   for (const { sql, desc } of columnMigrations) {
     try { sqlite.exec(sql) } catch { /* column already exists */ }

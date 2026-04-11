@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
 import { maintenanceWindows, maintenanceWindowMonitors } from '../db/schema.js'
 import { eq, and, lte, gte } from 'drizzle-orm'
+import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
 
 async function withMonitorIds(win: typeof maintenanceWindows.$inferSelect) {
   const links = await db.select().from(maintenanceWindowMonitors).where(eq(maintenanceWindowMonitors.windowId, win.id))
@@ -55,6 +56,9 @@ export async function maintenanceRoutes(app: FastifyInstance) {
         monitorIds.map((mid) => ({ windowId: win.id, monitorId: mid })),
       )
     }
+    const actor = req.user as { userId: number; email: string }
+    writeAudit({ userId: actor.userId, userEmail: actor.email }, 'create', 'maintenance', win.id, win.name,
+      snapshot({ name: win.name, startsAt: win.startsAt, endsAt: win.endsAt, monitorIds }))
     return withMonitorIds(win)
   })
 
@@ -88,12 +92,25 @@ export async function maintenanceRoutes(app: FastifyInstance) {
       }
     }
 
+    const actor = req.user as { userId: number; email: string }
+    const before = { name: existing.name, startsAt: existing.startsAt, endsAt: existing.endsAt } as Record<string, unknown>
+    const after  = { name: win.name, startsAt: win.startsAt, endsAt: win.endsAt } as Record<string, unknown>
+    const diff = diffObjects(before, after)
+    if (req.body.monitorIds !== undefined) diff['monitorIds'] = { from: '[previous]', to: req.body.monitorIds }
+    if (Object.keys(diff).length) writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'maintenance', id, existing.name, diff)
     return withMonitorIds(win)
   })
 
   // Delete window
   app.delete<{ Params: { id: string } }>('/:id', async (req, reply) => {
-    await db.delete(maintenanceWindows).where(eq(maintenanceWindows.id, Number(req.params.id)))
+    const id = Number(req.params.id)
+    const existing = (await db.select().from(maintenanceWindows).where(eq(maintenanceWindows.id, id)))[0]
+    await db.delete(maintenanceWindows).where(eq(maintenanceWindows.id, id))
+    if (existing) {
+      const actor = req.user as { userId: number; email: string }
+      writeAudit({ userId: actor.userId, userEmail: actor.email }, 'delete', 'maintenance', id, existing.name,
+        snapshot({ name: existing.name }))
+    }
     return reply.code(204).send()
   })
 }

@@ -5,3 +5,4 @@ export type { GridPos, PageNode, GroupNode, MonitorNode, TextNode, DividerNode, 
 export * from './types/branding.js'
 export * from './types/locale.js'
 export * from './types/maintenance.js'
+export * from './types/audit.js'

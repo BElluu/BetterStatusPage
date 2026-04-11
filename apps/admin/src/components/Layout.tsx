@@ -37,8 +37,9 @@ export default function Layout() {
     {
       label: 'Administration',
       items: [
-        { to: '/admin/users', label: 'Users', icon: 'group',        minRole: 'admin' },
-        { to: '/admin/vault', label: 'Vault', icon: 'shield_lock',  minRole: 'admin' },
+        { to: '/admin/users',     label: 'Users',     icon: 'group',        minRole: 'admin' },
+        { to: '/admin/vault',     label: 'Vault',     icon: 'shield_lock',  minRole: 'admin' },
+        { to: '/admin/audit-log', label: 'Audit Log', icon: 'policy',       minRole: 'admin' },
       ],
     },
   ]
