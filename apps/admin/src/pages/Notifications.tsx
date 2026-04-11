@@ -99,7 +99,7 @@ export default function NotificationsPage() {
                 const cfg = ch.config as unknown as Record<string, unknown>
                 const recipient = ch.type === 'email'
                   ? String(cfg['to'] ?? '')
-                  : ch.type === 'discord'
+                  : ch.type === 'discord' || ch.type === 'teams'
                     ? String(cfg['webhookUrl'] ?? '')
                     : String(cfg['url'] ?? '')
                 return (
@@ -113,12 +113,18 @@ export default function NotificationsPage() {
                     <td className="px-4 py-3">
                       <span className="flex items-center gap-1.5 w-fit px-2 py-0.5 rounded-full text-xs font-medium"
                         style={{
-                          background: ch.type === 'email' ? 'rgba(99,102,241,0.12)' : ch.type === 'discord' ? 'rgba(88,101,242,0.12)' : 'rgba(16,185,129,0.12)',
-                          color: ch.type === 'email' ? '#6366f1' : ch.type === 'discord' ? '#5865f2' : '#10b981',
+                          background: ch.type === 'email' ? 'rgba(99,102,241,0.12)'
+                            : ch.type === 'discord' ? 'rgba(88,101,242,0.12)'
+                            : ch.type === 'teams'   ? 'rgba(98,100,167,0.12)'
+                            : 'rgba(16,185,129,0.12)',
+                          color: ch.type === 'email' ? '#6366f1'
+                            : ch.type === 'discord' ? '#5865f2'
+                            : ch.type === 'teams'   ? '#6264a7'
+                            : '#10b981',
                         }}
                       >
-                        {ch.type === 'discord'
-                          ? <DiscordIcon size={12} />
+                        {ch.type === 'discord' ? <DiscordIcon size={12} />
+                          : ch.type === 'teams' ? <TeamsIcon size={12} />
                           : <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>{ch.type === 'email' ? 'mail' : 'webhook'}</span>
                         }
                         {ch.type}
@@ -525,6 +531,14 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
       </div>
     </div>,
     document.body,
+  )
+}
+
+function TeamsIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true">
+      <path d="M17.5 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zm-7 1a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zm7 6c2.67 0 8 1.34 8 4v1.5h-8.5V13c0-1.42-.8-2.67-2-3.3.8-.13 1.63-.2 2.5-.2zM2 14c0-2.66 5.34-4 8.5-4S19 11.34 19 14v2H2v-2z" />
+    </svg>
   )
 }
 

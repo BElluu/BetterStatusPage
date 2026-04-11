@@ -1,6 +1,6 @@
 import type { VaultRef } from './monitor.js'
 
-export type NotificationChannelType = 'email' | 'webhook' | 'discord'
+export type NotificationChannelType = 'email' | 'webhook' | 'discord' | 'teams'
 
 export interface EmailNotificationConfig {
   to: string
@@ -22,7 +22,12 @@ export interface DiscordNotificationConfig {
   content?: string
 }
 
-export type NotificationChannelConfig = EmailNotificationConfig | WebhookNotificationConfig | DiscordNotificationConfig
+export interface TeamsNotificationConfig {
+  webhookUrl: string
+  summary?: string
+}
+
+export type NotificationChannelConfig = EmailNotificationConfig | WebhookNotificationConfig | DiscordNotificationConfig | TeamsNotificationConfig
 
 export interface NotificationChannel {
   id: number
