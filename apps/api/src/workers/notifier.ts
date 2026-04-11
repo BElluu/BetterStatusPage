@@ -59,6 +59,11 @@ export async function sendNotifications(
           config as { webhookUrl: string; summary?: string },
           vars,
         )
+      } else if (channel.type === 'slack') {
+        await sendSlack(
+          config as { webhookUrl: string; text?: string },
+          vars,
+        )
       }
     } catch (err) {
       console.error(`[notifier] Channel ${channel.id} (${channel.type}) failed:`, err instanceof Error ? err.message : err)
@@ -207,6 +212,55 @@ async function sendTeams(
   if (!res.ok) throw new Error(`Teams webhook returned HTTP ${res.status}`)
 }
 
+const SLACK_COLORS = { down: '#E53935', degraded: '#FB8C00', up: '#43A047' } as const
+
+async function sendSlack(
+  config: { webhookUrl: string; text?: string },
+  vars: Record<string, string>,
+) {
+  const status = vars['status'] as keyof typeof SLACK_COLORS
+  const color = SLACK_COLORS[status] ?? SLACK_COLORS.down
+  const statusEmoji = status === 'down' ? '🔴' : status === 'degraded' ? '🟡' : '🟢'
+
+  const fallbackText = `${statusEmoji} Monitor *${vars['monitor_name']}* is *${vars['status'].toUpperCase()}*`
+
+  const fields = [
+    { type: 'mrkdwn', text: `*Status:*\n${vars['status']}` },
+    { type: 'mrkdwn', text: `*Previous:*\n${vars['previous_status']}` },
+    { type: 'mrkdwn', text: `*Type:*\n${vars['monitor_type']}` },
+    ...(vars['error_message'] ? [{ type: 'mrkdwn', text: `*Error:*\n${vars['error_message']}` }] : []),
+  ]
+
+  const blocks = [
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: fallbackText },
+    },
+    {
+      type: 'section',
+      fields,
+    },
+    {
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `Checked at ${vars['checked_at']}` }],
+    },
+  ]
+
+  const payload: Record<string, unknown> = {
+    text: fallbackText,
+    attachments: [{ color, blocks }],
+  }
+  if (config.text) payload['text'] = substituteVars(config.text, vars) + '\n' + fallbackText
+
+  const res = await fetch(config.webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!res.ok) throw new Error(`Slack webhook returned HTTP ${res.status}`)
+}
+
 /** Send a test email directly to the given address using current SMTP settings. */
 export async function testSmtp(to: string): Promise<{ ok: boolean; error?: string }> {
   try {
@@ -252,6 +306,11 @@ export async function testNotificationChannel(channelId: number): Promise<{ ok: 
     } else if (channel.type === 'teams') {
       await sendTeams(
         config as { webhookUrl: string; summary?: string },
+        vars,
+      )
+    } else if (channel.type === 'slack') {
+      await sendSlack(
+        config as { webhookUrl: string; text?: string },
         vars,
       )
     }

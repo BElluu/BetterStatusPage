@@ -53,6 +53,7 @@ When something breaks (or recovers), BetterStatusPage can shout at you via:
 - **Webhook** — fire at Slack, PagerDuty, or literally anything with an HTTP endpoint
 - **Discord** — native integration with rich embeds; color-coded by severity (red = down, orange = degraded, green = recovery), no bot token required — just a webhook URL
 - **Microsoft Teams** — native MessageCard integration; color-coded cards, no app installation required — just an incoming webhook URL
+- **Slack** — native Block Kit integration; color-coded attachments, optional `<!here>` / `<!channel>` mentions — just an incoming webhook URL
 
 All channels support template variables like `{{monitor_name}}`, `{{status}}`, `{{error_message}}` etc., so your alerts can say *"API Gateway is down: connection timeout"* instead of *"status changed"*.
 
@@ -60,6 +61,7 @@ Recovery notifications are optional per channel — because sometimes you want t
 
 > See **[docs/discord-integration.md](docs/discord-integration.md)** for a step-by-step Discord setup guide.
 > See **[docs/teams-integration.md](docs/teams-integration.md)** for a step-by-step Microsoft Teams setup guide.
+> See **[docs/slack-integration.md](docs/slack-integration.md)** for a step-by-step Slack setup guide.
 
 ### 🔐 A vault for your secrets
 
@@ -144,7 +146,7 @@ Status changes propagate to both the admin dashboard and the public page instant
 │   ┌──────────────────────────────────────────────────────┐  │
 │   │               Background Workers                     │  │
 │   │                                                      │  │
-│   │  Scheduler (every 10s)      Notifier (email+webhook+discord+teams) │  │
+│   │  Scheduler (every 10s)      Notifier (email+webhook+discord+teams+slack) │  │
 │   │  ├── HTTPS checker          Vault resolver           │  │
 │   │  ├── Ping / TCP             Result purger (daily)    │  │
 │   │  ├── DNS resolver                                    │  │
@@ -366,9 +368,9 @@ Email and webhook cover the basics, but alerting is only as good as the channels
 - **Slack** — native integration, not just "send a webhook to Slack" (proper formatting, action buttons)
 - **Microsoft Teams** — because not everyone gets a choice
 - **PagerDuty / OpsGenie** — for when "someone should look at this" needs to become "wake someone up right now"
-- **Slack** — native integration with proper formatting and action buttons
 - **Telegram** — for the teams that live there
 - **SMS** — via Twilio or similar, for when the internet itself is on fire and nobody's checking Slack
+- **PagerDuty / OpsGenie** — for when "someone should look at this" needs to become "wake someone up right now"
 
 ### 📡 More monitor types
 
