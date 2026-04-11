@@ -3,6 +3,7 @@ import { db } from '../db/client.js'
 import { notificationChannels, monitorNotificationChannels, smtpSettings } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
 import { testNotificationChannel } from '../workers/notifier.js'
+import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
 
 export async function notificationRoutes(app: FastifyInstance) {
   // ── Channels CRUD ──────────────────────────────────────────────────────────
@@ -27,6 +28,9 @@ export async function notificationRoutes(app: FastifyInstance) {
       updatedAt: now,
     }).returning()
     const r = results[0]!
+    const actor = req.user as { userId: number; email: string }
+    writeAudit({ userId: actor.userId, userEmail: actor.email }, 'create', 'notification_channel', r.id, r.name,
+      snapshot({ name: r.name, type: r.type, enabled: r.enabled, notifyOnRecovery: r.notifyOnRecovery }))
     return { ...r, config: JSON.parse(r.config) }
   })
 
@@ -52,12 +56,25 @@ export async function notificationRoutes(app: FastifyInstance) {
 
     const results = await db.update(notificationChannels).set(updates).where(eq(notificationChannels.id, id)).returning()
     const r = results[0]!
+    const actor = req.user as { userId: number; email: string }
+    const before = { name: existing.name, type: existing.type, enabled: existing.enabled, notifyOnRecovery: existing.notifyOnRecovery } as Record<string, unknown>
+    const after  = { name: r.name, type: r.type, enabled: r.enabled, notifyOnRecovery: r.notifyOnRecovery } as Record<string, unknown>
+    const diff = diffObjects(before, after)
+    if (req.body.config !== undefined) diff['config'] = { from: '[previous config]', to: '[updated config]' }
+    if (Object.keys(diff).length) writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'notification_channel', id, existing.name, diff)
     return { ...r, config: JSON.parse(r.config) }
   })
 
   app.delete<{ Params: { id: string } }>('/channels/:id', async (req, reply) => {
-    await db.delete(monitorNotificationChannels).where(eq(monitorNotificationChannels.channelId, Number(req.params.id)))
-    await db.delete(notificationChannels).where(eq(notificationChannels.id, Number(req.params.id)))
+    const id = Number(req.params.id)
+    const existing = (await db.select().from(notificationChannels).where(eq(notificationChannels.id, id)))[0]
+    await db.delete(monitorNotificationChannels).where(eq(monitorNotificationChannels.channelId, id))
+    await db.delete(notificationChannels).where(eq(notificationChannels.id, id))
+    if (existing) {
+      const actor = req.user as { userId: number; email: string }
+      writeAudit({ userId: actor.userId, userEmail: actor.email }, 'delete', 'notification_channel', id, existing.name,
+        snapshot({ name: existing.name, type: existing.type }))
+    }
     return reply.code(204).send()
   })
 
@@ -118,7 +135,6 @@ export async function notificationRoutes(app: FastifyInstance) {
     }
 
     if (existing) {
-      // Only update password if a new one was provided and not using vault
       const password = req.body.vault
         ? ''
         : (req.body.password && req.body.password !== '••••••••' ? req.body.password : existing.password)
@@ -127,6 +143,15 @@ export async function notificationRoutes(app: FastifyInstance) {
       await db.insert(smtpSettings).values({ id: 1, ...values, password: req.body.vault ? '' : (req.body.password ?? '') })
     }
 
+    const actor = req.user as { userId: number; email: string }
+    const diff: Record<string, unknown> = {}
+    if (existing) {
+      const before = { host: existing.host, port: existing.port, secure: existing.secure, user: existing.user, fromAddress: existing.fromAddress, fromName: existing.fromName } as Record<string, unknown>
+      const after  = { host: req.body.host, port: req.body.port, secure: req.body.secure, user: req.body.user ?? '', fromAddress: req.body.fromAddress, fromName: req.body.fromName } as Record<string, unknown>
+      Object.assign(diff, diffObjects(before, after))
+    }
+    if (req.body.password && req.body.password !== '••••••••') diff['password'] = { from: '[redacted]', to: '[redacted]' }
+    writeAudit({ userId: actor.userId, userEmail: actor.email }, existing ? 'update' : 'create', 'smtp_settings', 1, 'SMTP Settings', Object.keys(diff).length ? diff : undefined)
     return { ok: true }
   })
 

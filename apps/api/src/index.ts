@@ -22,6 +22,7 @@ import { userRoutes } from './routes/users.js'
 import { vaultRoutes } from './routes/vaults.js'
 import { notificationRoutes } from './routes/notifications.js'
 import { maintenanceRoutes } from './routes/maintenance.js'
+import { auditRoutes } from './routes/audit.js'
 import { publicRoutes } from './routes/public.js'
 import { publicLocaleRoutes, adminLocaleRoutes } from './routes/locales.js'
 import { webhookRoutes } from './routes/webhook.js'
@@ -147,11 +148,12 @@ await app.register(async (adminApp) => {
     await sub.register(maintenanceRoutes, { prefix: '/maintenance' })
   })
 
-  // users & vaults: admin only
+  // users, vaults & audit log: admin only
   await adminApp.register(async (sub) => {
     sub.addHook('preHandler', requireRole())  // only admin passes (no allowed list)
-    await sub.register(userRoutes,  { prefix: '/users' })
-    await sub.register(vaultRoutes, { prefix: '/vaults' })
+    await sub.register(userRoutes,   { prefix: '/users' })
+    await sub.register(vaultRoutes,  { prefix: '/vaults' })
+    await sub.register(auditRoutes,  { prefix: '/audit' })
   })
 }, { prefix: '/api/v1/admin' })
 

@@ -5,6 +5,7 @@ import { monitors, monitorResults } from '../db/schema.js'
 import { eq, desc, gte, and } from 'drizzle-orm'
 import { runCheck } from '../workers/scheduler.js'
 import { testHttps, testSqlServer } from '../workers/testRunner.js'
+import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
 import type { HttpsConfig, SqlServerConfig } from '@bsp/shared'
 
 function generateWebhookToken(): string {
@@ -40,7 +41,11 @@ export async function monitorRoutes(app: FastifyInstance) {
       createdAt: now,
       updatedAt: now,
     }).returning()
-    return parseMonitor(results[0]!)
+    const m = parseMonitor(results[0]!)
+    const actor = req.user as { userId: number; email: string }
+    writeAudit({ userId: actor.userId, userEmail: actor.email }, 'create', 'monitor', m.id, m.name,
+      snapshot({ name: m.name, type: m.type, intervalSecs: m.intervalSecs, timeoutMs: m.timeoutMs, retries: m.retries }))
+    return m
   })
 
   app.get<{ Params: { id: string } }>('/:id', async (req, reply) => {
@@ -68,11 +73,25 @@ export async function monitorRoutes(app: FastifyInstance) {
     if (req.body.tags !== undefined) updates.tags = JSON.stringify(req.body.tags)
 
     const results = await db.update(monitors).set(updates).where(eq(monitors.id, id)).returning()
-    return parseMonitor(results[0]!)
+    const m = parseMonitor(results[0]!)
+    const actor = req.user as { userId: number; email: string }
+    const before = { name: existing.name, type: existing.type, intervalSecs: existing.intervalSecs, timeoutMs: existing.timeoutMs, retries: existing.retries, tags: existing.tags }
+    const after  = { name: m.name, type: m.type, intervalSecs: m.intervalSecs, timeoutMs: m.timeoutMs, retries: m.retries, tags: JSON.stringify(m.tags) }
+    const diff = diffObjects(before as Record<string, unknown>, after as Record<string, unknown>)
+    if (req.body.config !== undefined) diff['config'] = { from: '[previous config]', to: '[updated config]' }
+    if (Object.keys(diff).length) writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'monitor', id, existing.name, diff)
+    return m
   })
 
   app.delete<{ Params: { id: string } }>('/:id', async (req, reply) => {
-    await db.delete(monitors).where(eq(monitors.id, Number(req.params.id)))
+    const id = Number(req.params.id)
+    const existing = (await db.select().from(monitors).where(eq(monitors.id, id)))[0]
+    await db.delete(monitors).where(eq(monitors.id, id))
+    if (existing) {
+      const actor = req.user as { userId: number; email: string }
+      writeAudit({ userId: actor.userId, userEmail: actor.email }, 'delete', 'monitor', id, existing.name,
+        snapshot({ name: existing.name, type: existing.type }))
+    }
     return reply.code(204).send()
   })
 
