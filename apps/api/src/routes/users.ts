@@ -4,6 +4,7 @@ import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
 import { normalizeRole } from './auth.js'
+import { writeAudit, snapshot } from '../services/audit.js'
 
 const VALID_ROLES = ['admin', 'operator', 'branding'] as const
 
@@ -36,6 +37,9 @@ export async function userRoutes(app: FastifyInstance) {
     const result = await db.insert(users).values({
       email, passwordHash: hash, role: 'branding', mustChangePassword: 1, createdAt: Date.now(),
     }).returning({ id: users.id, email: users.email, role: users.role, createdAt: users.createdAt })
+    const actor = req.user as { userId: number; email: string }
+    writeAudit({ userId: actor.userId, userEmail: actor.email }, 'create', 'user', result[0]!.id, email,
+      snapshot({ email, role: 'branding' }))
     return { ...result[0], temporaryPassword }
   })
 
@@ -46,9 +50,15 @@ export async function userRoutes(app: FastifyInstance) {
     if (!(VALID_ROLES as readonly string[]).includes(req.body.role)) {
       return reply.code(400).send({ error: 'Invalid role' })
     }
+    const existing = (await db.select().from(users).where(eq(users.id, id)))[0]
     const result = await db.update(users).set({ role: req.body.role }).where(eq(users.id, id))
       .returning({ id: users.id, role: users.role })
     if (!result.length) return reply.code(404).send({ error: 'User not found' })
+    if (existing) {
+      const actor = req.user as { userId: number; email: string }
+      writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'user', id, existing.email,
+        { role: { from: existing.role, to: req.body.role } })
+    }
     return result[0]
   })
 
@@ -59,14 +69,22 @@ export async function userRoutes(app: FastifyInstance) {
     const temporaryPassword = generateTempPassword()
     const hash = await bcrypt.hash(temporaryPassword, 10)
     await db.update(users).set({ passwordHash: hash, mustChangePassword: 1 }).where(eq(users.id, id))
+    const actor = req.user as { userId: number; email: string }
+    writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'user', id, user.email,
+      { action: 'password_reset' })
     return { temporaryPassword }
   })
 
   app.delete<{ Params: { id: string } }>('/:id', async (req, reply) => {
     const id = Number(req.params.id)
-    const jwt = req.user as { userId: number }
-    if (jwt.userId === id) return reply.code(400).send({ error: 'Cannot delete your own account' })
+    const actor = req.user as { userId: number; email: string }
+    if (actor.userId === id) return reply.code(400).send({ error: 'Cannot delete your own account' })
+    const existing = (await db.select().from(users).where(eq(users.id, id)))[0]
     await db.delete(users).where(eq(users.id, id))
+    if (existing) {
+      writeAudit({ userId: actor.userId, userEmail: actor.email }, 'delete', 'user', id, existing.email,
+        snapshot({ email: existing.email, role: existing.role }))
+    }
     return { success: true }
   })
 }

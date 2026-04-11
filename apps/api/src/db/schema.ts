@@ -125,6 +125,18 @@ export const smtpSettings = sqliteTable('smtp_settings', {
   updatedAt: integer('updated_at').notNull(),
 })
 
+export const auditLog = sqliteTable('audit_log', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  userEmail: text('user_email').notNull(),
+  action: text('action').notNull(),       // 'create' | 'update' | 'delete'
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id'),
+  entityName: text('entity_name').notNull(),
+  diff: text('diff'),                     // JSON | null
+  timestamp: integer('timestamp').notNull(),
+})
+
 export const maintenanceWindows = sqliteTable('maintenance_windows', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
