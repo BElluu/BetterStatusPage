@@ -28,7 +28,7 @@ const DEFAULT_WEBHOOK_BODY = `{
 export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
   const isEdit = !!channel
   const [name, setName]   = useState(channel?.name ?? '')
-  const [type, setType]   = useState<'email' | 'webhook'>(channel?.type as 'email' | 'webhook' ?? 'email')
+  const [type, setType]   = useState<'email' | 'webhook' | 'discord'>(channel?.type as 'email' | 'webhook' | 'discord' ?? 'email')
   const [enabled, setEnabled]               = useState((channel?.enabled ?? 1) === 1)
   const [notifyOnRecovery, setNotifyOnRecovery] = useState((channel?.notifyOnRecovery ?? 0) === 1)
 
@@ -45,6 +45,12 @@ export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
   const [whHeaders, setWhHeaders] = useState<[string, string][]>(Object.entries(whCfg?.headers ?? {}))
   const [whBody, setWhBody]       = useState(whCfg?.body ?? DEFAULT_WEBHOOK_BODY)
 
+  // Discord config
+  const dcCfg = channel?.type === 'discord' ? (channel.config as { webhookUrl: string; username?: string; avatarUrl?: string; content?: string }) : null
+  const [dcUrl, setDcUrl]           = useState(dcCfg?.webhookUrl ?? '')
+  const [dcUsername, setDcUsername] = useState(dcCfg?.username ?? '')
+  const [dcContent, setDcContent]   = useState(dcCfg?.content ?? '')
+
   const [loading, setLoading]   = useState(false)
   const [testing, setTesting]   = useState(false)
   const [testMsg, setTestMsg]   = useState<{ ok: boolean; text: string } | null>(null)
@@ -53,6 +59,13 @@ export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
   function buildConfig() {
     if (type === 'email') {
       return { to: emailTo, subject: emailSubject, body: emailBody }
+    }
+    if (type === 'discord') {
+      return {
+        webhookUrl: dcUrl,
+        ...(dcUsername ? { username: dcUsername } : {}),
+        ...(dcContent ? { content: dcContent } : {}),
+      }
     }
     const headers: Record<string, string> = {}
     for (const [k, v] of whHeaders) { if (k) headers[k] = v }
@@ -133,16 +146,23 @@ export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
             <div>
               <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Type</label>
               <div className="flex rounded-lg p-1 gap-1" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}>
-                {(['email', 'webhook'] as const).map((t) => (
-                  <button key={t} type="button" onClick={() => setType(t)}
+                {([
+                  { id: 'email',   label: 'Email' },
+                  { id: 'webhook', label: 'Webhook' },
+                  { id: 'discord', label: 'Discord' },
+                ] as const).map(({ id, label }) => (
+                  <button key={id} type="button" onClick={() => setType(id)}
                     className="flex-1 text-xs font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-1.5"
-                    style={type === t
+                    style={type === id
                       ? { background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 25%, transparent)' }
                       : { color: 'var(--m3-secondary)', border: '1px solid transparent' }
                     }
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{t === 'email' ? 'mail' : 'webhook'}</span>
-                    {t === 'email' ? 'Email' : 'Webhook'}
+                    {id === 'discord'
+                      ? <DiscordIcon size={14} />
+                      : <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{id === 'email' ? 'mail' : 'webhook'}</span>
+                    }
+                    {label}
                   </button>
                 ))}
               </div>
@@ -162,6 +182,28 @@ export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
                 <Field label="Body">
                   <textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)} rows={6} className="input-sig w-full font-mono text-xs" style={{ resize: 'vertical' }} />
                 </Field>
+                <VarsHint />
+              </>
+            )}
+
+            {/* ── Discord config ── */}
+            {type === 'discord' && (
+              <>
+                <Field label="Webhook URL">
+                  <input value={dcUrl} onChange={(e) => setDcUrl(e.target.value)} required className="input-sig" placeholder="https://discord.com/api/webhooks/…" />
+                </Field>
+                <Field label="Bot Username (optional)">
+                  <input value={dcUsername} onChange={(e) => setDcUsername(e.target.value)} className="input-sig" placeholder="BSP Alerts" />
+                </Field>
+                <Field label="Message Content (optional)">
+                  <input value={dcContent} onChange={(e) => setDcContent(e.target.value)} className="input-sig" placeholder="@here Monitor {{monitor_name}} is {{status}}" />
+                </Field>
+                <div className="rounded-lg px-3 py-2.5 space-y-1.5" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}>
+                  <p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Rich embed is sent automatically</p>
+                  <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
+                    Status, monitor name, error message and timestamp are always included in the embed. Message Content is an optional plain-text line above the embed (supports variables).
+                  </p>
+                </div>
                 <VarsHint />
               </>
             )}
@@ -288,6 +330,14 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
       </div>
       <span className="text-sm" style={{ color: 'var(--m3-on-surface-variant)' }}>{label}</span>
     </label>
+  )
+}
+
+function DiscordIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true">
+      <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.032.054a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+    </svg>
   )
 }
 
