@@ -58,7 +58,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
   )
   const [retries, setRetries]           = useState(monitor?.retries ?? 1)
   const [tags, setTags]                 = useState<MonitorTag[]>(monitor?.tags ?? [])
-  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [sidePanel, setSidePanel] = useState<'request' | 'auth' | 'tags' | 'channels' | null>(null)
   const [webhookToken, setWebhookToken] = useState<string | null>(monitor?.webhookToken ?? null)
   const [resettingToken, setResettingToken] = useState(false)
   const [copied, setCopied]             = useState(false)
@@ -111,7 +111,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
   function handleTypeChange(newType: MonitorType) {
     setType(newType)
     setConfig(defaultConfigs[newType] as Record<string, unknown>)
-    if (newType !== 'https') setShowAdvanced(false)
+    if (newType !== 'https' && (sidePanel === 'auth' || sidePanel === 'request')) setSidePanel(null)
   }
 
   function updateConfig(key: string, value: unknown) {
@@ -223,13 +223,13 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
         className="rounded-2xl my-8"
         style={{
           display: 'flex', flexDirection: 'row',
-          width: showAdvanced ? 'min(900px, calc(100vw - 32px))' : 'min(560px, calc(100vw - 32px))',
+          width: sidePanel ? 'min(1024px, calc(100vw - 32px))' : 'min(604px, calc(100vw - 32px))',
           background: 'var(--m3-surface-container-low)',
           border: '1px solid var(--m3-outline-variant)',
           transition: 'width 0.2s ease',
         }}
       >
-      <div style={{ flex: '0 0 auto', width: showAdvanced ? '560px' : '100%', minWidth: 0 }}>
+      <div style={{ flex: '0 0 auto', width: sidePanel ? '560px' : 'calc(100% - 44px)', minWidth: 0 }}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
           <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>
@@ -310,111 +310,6 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
                 <input value={(config['keyword'] as string) ?? ''} onChange={(e) => updateConfig('keyword', e.target.value)} className="input-sig" placeholder="must contain…" />
               </Field>
 
-              {/* ── Headers & Body toggle ── */}
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced((v) => !v)}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
-                  style={{
-                    color: showAdvanced ? 'var(--m3-primary)' : 'var(--m3-secondary)',
-                    background: showAdvanced ? 'var(--m3-primary-fixed)' : 'var(--m3-surface-container)',
-                    border: `1px solid ${showAdvanced ? 'color-mix(in srgb, var(--m3-primary) 25%, transparent)' : 'var(--m3-outline-variant)'}`,
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>tune</span>
-                  Headers &amp; Body
-                </button>
-              </div>
-
-              {/* ── Authorization ── */}
-              <SectionDivider label="Authorization" />
-              <div className="flex rounded-lg p-1 gap-1" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}>
-                {AUTH_TYPES.map((at) => (
-                  <button key={at.value} type="button" onClick={() => setAuthType(at.value)}
-                    className="flex-1 text-xs font-medium py-1.5 rounded-md transition-all"
-                    style={authType === at.value
-                      ? { background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 25%, transparent)' }
-                      : { color: 'var(--m3-secondary)', border: '1px solid transparent' }
-                    }
-                  >
-                    {at.label}
-                  </button>
-                ))}
-              </div>
-
-              {authType === 'basic' && (
-                <CredentialSection
-                  {...vaultPickerProps}
-                  vault={basicVault}
-                  onVaultChange={(v) => updateBasic({ vault: v })}
-                  mappingFields={JSON_MAPPING_FIELDS['basic']!}
-                >
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Username">
-                      <input value={(auth.basic as Record<string, unknown> | undefined)?.['username'] as string ?? ''} onChange={(e) => updateBasic({ username: e.target.value })} className="input-sig" autoComplete="off" />
-                    </Field>
-                    <Field label="Password">
-                      <input type="password" value={(auth.basic as Record<string, unknown> | undefined)?.['password'] as string ?? ''} onChange={(e) => updateBasic({ password: e.target.value })} className="input-sig" autoComplete="new-password" />
-                    </Field>
-                  </div>
-                </CredentialSection>
-              )}
-
-              {authType === 'oauth2' && (
-                <>
-                  {/* tokenUrl and scope are not secrets — always direct input */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Token URL">
-                      <input value={(auth.oauth2 as Record<string, unknown> | undefined)?.['tokenUrl'] as string ?? ''} onChange={(e) => updateOAuth2({ tokenUrl: e.target.value })} className="input-sig" placeholder="https://auth.example.com/oauth/token" />
-                    </Field>
-                    <Field label="Scope (optional)">
-                      <input value={(auth.oauth2 as Record<string, unknown> | undefined)?.['scope'] as string ?? ''} onChange={(e) => updateOAuth2({ scope: e.target.value })} className="input-sig" placeholder="read write" />
-                    </Field>
-                  </div>
-                  {/* clientId / clientSecret can come from vault */}
-                  <CredentialSection
-                    {...vaultPickerProps}
-                    vault={oauth2Vault}
-                    onVaultChange={(v) => updateOAuth2({ vault: v })}
-                    mappingFields={JSON_MAPPING_FIELDS['oauth2']!}
-                  >
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Client ID">
-                        <input value={(auth.oauth2 as Record<string, unknown> | undefined)?.['clientId'] as string ?? ''} onChange={(e) => updateOAuth2({ clientId: e.target.value })} className="input-sig" autoComplete="off" />
-                      </Field>
-                      <Field label="Client Secret">
-                        <input type="password" value={(auth.oauth2 as Record<string, unknown> | undefined)?.['clientSecret'] as string ?? ''} onChange={(e) => updateOAuth2({ clientSecret: e.target.value })} className="input-sig" autoComplete="new-password" />
-                      </Field>
-                    </div>
-                  </CredentialSection>
-                </>
-              )}
-
-              {authType === 'cas' && (
-                <>
-                  {/* casServerUrl is not a secret — always direct input */}
-                  <Field label="CAS Server URL">
-                    <input value={(auth.cas as Record<string, unknown> | undefined)?.['casServerUrl'] as string ?? ''} onChange={(e) => updateCAS({ casServerUrl: e.target.value })} className="input-sig" placeholder="https://cas.example.com/cas" />
-                  </Field>
-                  {/* username / password can come from vault */}
-                  <CredentialSection
-                    {...vaultPickerProps}
-                    vault={casVault}
-                    onVaultChange={(v) => updateCAS({ vault: v })}
-                    mappingFields={JSON_MAPPING_FIELDS['cas']!}
-                  >
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Username">
-                        <input value={(auth.cas as Record<string, unknown> | undefined)?.['username'] as string ?? ''} onChange={(e) => updateCAS({ username: e.target.value })} className="input-sig" autoComplete="off" />
-                      </Field>
-                      <Field label="Password">
-                        <input type="password" value={(auth.cas as Record<string, unknown> | undefined)?.['password'] as string ?? ''} onChange={(e) => updateCAS({ password: e.target.value })} className="input-sig" autoComplete="new-password" />
-                      </Field>
-                    </div>
-                  </CredentialSection>
-                </>
-              )}
             </>
           )}
 
@@ -595,68 +490,6 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
             </div>
           )}
 
-          {/* ── Tags ───────────────────────────────────────────────────────── */}
-          <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
-          <div>
-            <label className="block font-mono text-xs uppercase tracking-wider mb-3" style={{ color: 'var(--m3-secondary)' }}>Tags</label>
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {tags.map((t, i) => (
-                  <span key={i} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium"
-                    style={{ background: `${t.color}22`, color: t.color, border: `1px solid ${t.color}55` }}>
-                    {t.label}
-                    <button type="button" onClick={() => setTags(tags.filter((_, j) => j !== i))}
-                      className="leading-none opacity-60 hover:opacity-100">×</button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <AddTagRow
-              existingTags={allTags.filter((t) => !tags.find((cur) => cur.label === t.label))}
-              onAdd={(tag) => { if (!tags.find((t) => t.label === tag.label)) setTags([...tags, tag]) }}
-            />
-          </div>
-
-          {/* ── Notifications ──────────────────────────────────────────────── */}
-          {channels.length > 0 && (
-            <>
-              <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
-              <div>
-                <label className="block font-mono text-xs uppercase tracking-wider mb-3" style={{ color: 'var(--m3-secondary)' }}>
-                  Notification Channels
-                </label>
-                <div className="space-y-2">
-                  {channels.map((ch) => (
-                    <label key={ch.id} className="flex items-center gap-3 cursor-pointer select-none rounded-lg px-3 py-2 transition-colors"
-                      style={{ border: '1px solid var(--m3-outline-variant)' }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--m3-surface-container)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = '')}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedChannelIds.has(ch.id)}
-                        onChange={(e) => {
-                          setSelectedChannelIds((prev) => {
-                            const next = new Set(prev)
-                            if (e.target.checked) next.add(ch.id)
-                            else next.delete(ch.id)
-                            return next
-                          })
-                        }}
-                        className="w-4 h-4 rounded accent-[color:var(--m3-primary)]"
-                      />
-                      <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '16px', color: ch.type === 'email' ? '#6366f1' : '#10b981' }}>
-                        {ch.type === 'email' ? 'mail' : 'webhook'}
-                      </span>
-                      <span className="text-sm flex-1" style={{ color: 'var(--m3-on-surface)' }}>{ch.name}</span>
-                      {!ch.enabled && <span className="text-xs" style={{ color: 'var(--m3-secondary)' }}>disabled</span>}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
           {/* ── Test result panel ─────────────────────────────────────────── */}
           {testResult && <TestResultPanel result={testResult} />}
 
@@ -699,78 +532,200 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
         </form>
       </div>{/* inner scrollable column */}
 
-      {/* ── Advanced side panel (headers / body) ─────────────────────────── */}
-      {showAdvanced && (
-        <div style={{
-          flex: 1,
-          minWidth: 0,
-          borderLeft: '1px solid var(--m3-outline-variant)',
-          display: 'flex',
-          flexDirection: 'column',
-        }}>
-          <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-            <span className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Headers &amp; Body</span>
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(false)}
-              className="w-7 h-7 flex items-center justify-center rounded text-lg leading-none transition-colors"
-              style={{ color: 'var(--m3-secondary)' }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container-high)' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '' }}
-            >×</button>
-          </div>
-          <div className="p-5 space-y-4 overflow-y-auto" style={{ flex: 1 }}>
-            {/* Headers */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Request Headers</label>
-                <button type="button" onClick={addHeader}
-                  className="text-xs px-2 py-0.5 rounded transition-colors"
-                  style={{ color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 30%, transparent)' }}
-                >+ Add</button>
-              </div>
-              {headerRows.length === 0 && (
-                <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>No custom headers.</p>
-              )}
-              <div className="space-y-1.5">
-                {headerRows.map(([k, v], idx) => (
-                  <div key={idx} className="flex gap-1.5 items-center">
-                    <input
-                      className="input-sig text-xs flex-1"
-                      placeholder="Header name"
-                      value={k}
-                      onChange={(e) => setHeader(idx, 'key', e.target.value)}
-                    />
-                    <input
-                      className="input-sig text-xs flex-1"
-                      placeholder="Value"
-                      value={v}
-                      onChange={(e) => setHeader(idx, 'value', e.target.value)}
-                    />
-                    <button type="button" onClick={() => removeHeader(idx)}
-                      className="w-6 h-6 flex items-center justify-center rounded text-sm leading-none flex-shrink-0"
-                      style={{ color: 'var(--m3-secondary)' }}
-                    >×</button>
-                  </div>
-                ))}
-              </div>
+      {/* ── Side panel ─────────────────────────────────────────────────── */}
+      {sidePanel && (() => {
+        const PANEL_LABELS: Record<string, { icon: string; label: string }> = {
+          auth:     { icon: 'lock',          label: 'Auth' },
+          request:  { icon: 'tune',          label: 'Request' },
+          tags:     { icon: 'label',         label: 'Tags' },
+          channels: { icon: 'notifications', label: 'Alerts' },
+        }
+        const current = PANEL_LABELS[sidePanel]!
+        return (
+          <div style={{ flex: 1, minWidth: '360px', borderLeft: '1px solid var(--m3-outline-variant)', display: 'flex', flexDirection: 'column' }}>
+            {/* Panel header — just the section title */}
+            <div className="flex items-center gap-2 px-5 py-4" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--m3-primary)' }}>{current.icon}</span>
+              <span className="font-mono text-xs uppercase tracking-wider font-medium" style={{ color: 'var(--m3-on-surface)', flex: 1 }}>{current.label}</span>
             </div>
 
-            {/* Body */}
-            <div>
-              <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Request Body (JSON)</label>
-              <textarea
-                className="input-sig text-xs w-full font-mono"
-                rows={10}
-                placeholder={'{\n  "key": "value"\n}'}
-                value={(config['body'] as string) ?? ''}
-                onChange={(e) => updateConfig('body', e.target.value)}
-                style={{ resize: 'vertical' }}
-              />
+            {/* Tab content */}
+            <div className="p-5 space-y-4 overflow-y-auto" style={{ flex: 1 }}>
+
+              {/* ── Request (Headers & Body) ── */}
+              {sidePanel === 'request' && (
+                <>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Request Headers</label>
+                      <button type="button" onClick={addHeader} className="text-xs px-2 py-0.5 rounded transition-colors" style={{ color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 30%, transparent)' }}>+ Add</button>
+                    </div>
+                    {headerRows.length === 0 && <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>No custom headers.</p>}
+                    <div className="space-y-1.5">
+                      {headerRows.map(([k, v], idx) => (
+                        <div key={idx} className="flex gap-1.5 items-center">
+                          <input className="input-sig text-xs flex-1" placeholder="Header name" value={k} onChange={(e) => setHeader(idx, 'key', e.target.value)} />
+                          <input className="input-sig text-xs flex-1" placeholder="Value" value={v} onChange={(e) => setHeader(idx, 'value', e.target.value)} />
+                          <button type="button" onClick={() => removeHeader(idx)} className="w-6 h-6 flex items-center justify-center rounded text-sm leading-none flex-shrink-0" style={{ color: 'var(--m3-secondary)' }}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Request Body (JSON)</label>
+                    <textarea className="input-sig text-xs w-full font-mono" rows={10} placeholder={'{\n  "key": "value"\n}'} value={(config['body'] as string) ?? ''} onChange={(e) => updateConfig('body', e.target.value)} style={{ resize: 'vertical' }} />
+                  </div>
+                </>
+              )}
+
+              {/* ── Auth ── */}
+              {sidePanel === 'auth' && (
+                <div className="space-y-4">
+                  <div className="flex rounded-lg p-1 gap-1" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}>
+                    {AUTH_TYPES.map((at) => (
+                      <button key={at.value} type="button" onClick={() => setAuthType(at.value)}
+                        className="flex-1 text-xs font-medium py-1.5 rounded-md transition-all"
+                        style={authType === at.value
+                          ? { background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 25%, transparent)' }
+                          : { color: 'var(--m3-secondary)', border: '1px solid transparent' }
+                        }
+                      >
+                        {at.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {authType === 'none' && (
+                    <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>No authentication configured.</p>
+                  )}
+
+                  {authType === 'basic' && (
+                    <CredentialSection {...vaultPickerProps} vault={basicVault} onVaultChange={(v) => updateBasic({ vault: v })} mappingFields={JSON_MAPPING_FIELDS['basic']!}>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="Username"><input value={(auth.basic as Record<string, unknown> | undefined)?.['username'] as string ?? ''} onChange={(e) => updateBasic({ username: e.target.value })} className="input-sig" autoComplete="off" /></Field>
+                        <Field label="Password"><input type="password" value={(auth.basic as Record<string, unknown> | undefined)?.['password'] as string ?? ''} onChange={(e) => updateBasic({ password: e.target.value })} className="input-sig" autoComplete="new-password" /></Field>
+                      </div>
+                    </CredentialSection>
+                  )}
+
+                  {authType === 'oauth2' && (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="Token URL"><input value={(auth.oauth2 as Record<string, unknown> | undefined)?.['tokenUrl'] as string ?? ''} onChange={(e) => updateOAuth2({ tokenUrl: e.target.value })} className="input-sig" placeholder="https://auth.example.com/oauth/token" /></Field>
+                        <Field label="Scope (optional)"><input value={(auth.oauth2 as Record<string, unknown> | undefined)?.['scope'] as string ?? ''} onChange={(e) => updateOAuth2({ scope: e.target.value })} className="input-sig" placeholder="read write" /></Field>
+                      </div>
+                      <CredentialSection {...vaultPickerProps} vault={oauth2Vault} onVaultChange={(v) => updateOAuth2({ vault: v })} mappingFields={JSON_MAPPING_FIELDS['oauth2']!}>
+                        <div className="grid grid-cols-2 gap-3">
+                          <Field label="Client ID"><input value={(auth.oauth2 as Record<string, unknown> | undefined)?.['clientId'] as string ?? ''} onChange={(e) => updateOAuth2({ clientId: e.target.value })} className="input-sig" autoComplete="off" /></Field>
+                          <Field label="Client Secret"><input type="password" value={(auth.oauth2 as Record<string, unknown> | undefined)?.['clientSecret'] as string ?? ''} onChange={(e) => updateOAuth2({ clientSecret: e.target.value })} className="input-sig" autoComplete="new-password" /></Field>
+                        </div>
+                      </CredentialSection>
+                    </>
+                  )}
+
+                  {authType === 'cas' && (
+                    <>
+                      <Field label="CAS Server URL"><input value={(auth.cas as Record<string, unknown> | undefined)?.['casServerUrl'] as string ?? ''} onChange={(e) => updateCAS({ casServerUrl: e.target.value })} className="input-sig" placeholder="https://cas.example.com/cas" /></Field>
+                      <CredentialSection {...vaultPickerProps} vault={casVault} onVaultChange={(v) => updateCAS({ vault: v })} mappingFields={JSON_MAPPING_FIELDS['cas']!}>
+                        <div className="grid grid-cols-2 gap-3">
+                          <Field label="Username"><input value={(auth.cas as Record<string, unknown> | undefined)?.['username'] as string ?? ''} onChange={(e) => updateCAS({ username: e.target.value })} className="input-sig" autoComplete="off" /></Field>
+                          <Field label="Password"><input type="password" value={(auth.cas as Record<string, unknown> | undefined)?.['password'] as string ?? ''} onChange={(e) => updateCAS({ password: e.target.value })} className="input-sig" autoComplete="new-password" /></Field>
+                        </div>
+                      </CredentialSection>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* ── Tags ── */}
+              {sidePanel === 'tags' && (
+                <div className="space-y-3">
+                  {tags.length === 0 && <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>No tags yet.</p>}
+                  {tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {tags.map((t, i) => (
+                        <span key={i} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium"
+                          style={{ background: `${t.color}22`, color: t.color, border: `1px solid ${t.color}55` }}>
+                          {t.label}
+                          <button type="button" onClick={() => setTags(tags.filter((_, j) => j !== i))} className="leading-none opacity-60 hover:opacity-100">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <AddTagRow
+                    existingTags={allTags.filter((t) => !tags.find((cur) => cur.label === t.label))}
+                    onAdd={(tag) => { if (!tags.find((t) => t.label === tag.label)) setTags([...tags, tag]) }}
+                  />
+                </div>
+              )}
+
+              {/* ── Channels ── */}
+              {sidePanel === 'channels' && (
+                <div className="space-y-2">
+                  {channels.length === 0 && (
+                    <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>No notification channels configured. Create one in the Notifications section.</p>
+                  )}
+                  {channels.map((ch) => (
+                    <label key={ch.id} className="flex items-center gap-3 cursor-pointer select-none rounded-lg px-3 py-2 transition-colors"
+                      style={{ border: '1px solid var(--m3-outline-variant)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--m3-surface-container)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = '')}
+                    >
+                      <input type="checkbox" checked={selectedChannelIds.has(ch.id)}
+                        onChange={(e) => { setSelectedChannelIds((prev) => { const next = new Set(prev); if (e.target.checked) next.add(ch.id); else next.delete(ch.id); return next }) }}
+                        className="w-4 h-4 rounded accent-[color:var(--m3-primary)]"
+                      />
+                      <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '16px', color: ch.type === 'email' ? '#6366f1' : '#10b981' }}>
+                        {ch.type === 'email' ? 'mail' : 'webhook'}
+                      </span>
+                      <span className="text-sm flex-1" style={{ color: 'var(--m3-on-surface)' }}>{ch.name}</span>
+                      {!ch.enabled && <span className="text-xs" style={{ color: 'var(--m3-secondary)' }}>disabled</span>}
+                    </label>
+                  ))}
+                </div>
+              )}
+
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
+
+      {/* ── Vertical tab strip ──────────────────────────────────────────── */}
+      {(() => {
+        const tabs = [
+          ...(type === 'https' ? [
+            { key: 'auth' as const,     icon: 'lock',          label: 'Auth',    badge: authType !== 'none' ? authType.slice(0, 1).toUpperCase() : null },
+            { key: 'request' as const,  icon: 'tune',          label: 'Request', badge: headerRows.length > 0 ? String(headerRows.length) : null },
+          ] : []),
+          { key: 'tags' as const,     icon: 'label',         label: 'Tags',   badge: tags.length > 0 ? String(tags.length) : null },
+          { key: 'channels' as const, icon: 'notifications', label: 'Alerts', badge: selectedChannelIds.size > 0 ? String(selectedChannelIds.size) : null },
+        ]
+        return (
+          <div style={{ flex: '0 0 44px', borderLeft: '1px solid var(--m3-outline-variant)', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+            {tabs.map((tab) => {
+              const active = sidePanel === tab.key
+              return (
+                <button key={tab.key} type="button"
+                  title={tab.label}
+                  onClick={() => setSidePanel(active ? null : tab.key)}
+                  className="relative flex flex-col items-center justify-center py-4 transition-all"
+                  style={{ color: active ? 'var(--m3-primary)' : 'var(--m3-secondary)', background: active ? 'var(--m3-primary-fixed)' : 'transparent', borderBottom: '1px solid var(--m3-outline-variant)' }}
+                  onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container)' }}
+                  onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = '' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{tab.icon}</span>
+                  {tab.badge && (
+                    <span className="absolute top-1.5 right-1 flex items-center justify-center rounded-full font-bold leading-none"
+                      style={{ background: active ? 'var(--m3-primary)' : 'var(--m3-on-surface-variant)', color: active ? 'var(--m3-on-primary)' : 'var(--m3-surface)', minWidth: '14px', height: '14px', fontSize: '9px', padding: '0 2px' }}>
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )
+      })()}
 
       </div>{/* outer flex row */}
       </div>
