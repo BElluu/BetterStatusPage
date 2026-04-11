@@ -1,0 +1,76 @@
+import { db } from '../db/client.js'
+import { auditLog } from '../db/schema.js'
+
+const SENSITIVE = new Set([
+  'password', 'passwordHash', 'encryptedValue',
+  'clientSecret', 'token', 'secret', 'temporaryPassword',
+  'vaultConfig',
+])
+
+/** Mask sensitive keys in a flat object. */
+function redactObj(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(obj)) {
+    out[k] = SENSITIVE.has(k) ? '[redacted]' : v
+  }
+  return out
+}
+
+/**
+ * Compute a field-level diff between two flat objects.
+ * Only changed keys are included. Sensitive keys are masked.
+ */
+export function diffObjects(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+): Record<string, { from: unknown; to: unknown }> {
+  const diff: Record<string, { from: unknown; to: unknown }> = {}
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)])
+  for (const key of keys) {
+    if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) {
+      diff[key] = {
+        from: SENSITIVE.has(key) ? '[redacted]' : before[key],
+        to: SENSITIVE.has(key) ? '[redacted]' : after[key],
+      }
+    }
+  }
+  return diff
+}
+
+/** Snapshot of an entity for a create/delete entry. Sensitive keys masked. */
+export function snapshot(obj: Record<string, unknown>): Record<string, unknown> {
+  return redactObj(obj)
+}
+
+interface Actor {
+  userId: number
+  userEmail: string
+}
+
+/**
+ * Write an audit log entry. Failures are swallowed so they never break the
+ * primary operation.
+ */
+export async function writeAudit(
+  actor: Actor,
+  action: 'create' | 'update' | 'delete',
+  entityType: string,
+  entityId: number | string | null,
+  entityName: string,
+  diff?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await db.insert(auditLog).values({
+      userId: actor.userId,
+      userEmail: actor.userEmail,
+      action,
+      entityType,
+      entityId: entityId !== null ? String(entityId) : null,
+      entityName,
+      diff: diff ? JSON.stringify(diff) : null,
+      timestamp: Date.now(),
+    })
+  } catch (err) {
+    console.error('[audit] write failed:', err)
+  }
+}

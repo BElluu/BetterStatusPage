@@ -85,6 +85,24 @@ Maintenance windows suppress alert noise for the duration of planned downtime �
 - Individual monitor cards display a **MAINTENANCE** chip so visitors know what's happening
 - The admin dashboard sorts windows into **Active / Upcoming / Past** so you always know what's scheduled
 
+### 🕵️ Audit log
+
+Six months from now, someone will ask *"who changed the check interval on the payments monitor from 30 seconds to 5 minutes last Thursday?"* The answer is in the audit log.
+
+Every mutation in the admin panel is recorded — who did it, when, and exactly what changed. For updates, you get a field-level diff with before and after values (sensitive fields like passwords are always redacted). Covered entities:
+
+| What | Tracked operations |
+|------|--------------------|
+| Monitors | Create, update (name, type, interval, timeout, retries, tags, config), delete |
+| Incidents | Create, update (title, status, impact), delete |
+| Maintenance windows | Create, update, delete |
+| Notification channels | Create, update (name, type, enabled, config), delete |
+| SMTP settings | Configure / update |
+| Vaults & secrets | Create, update (name, value change flagged as `[redacted]`), delete |
+| Users | Create, role change, password reset, delete |
+
+The audit log page (admin-only) lets you filter by **user**, **entity type**, **action** (create / update / delete), and **date range**. Click any row to expand the diff inline.
+
 ### 🌍 i18n, branding, the works
 
 - **Multi-language support** — add your own locale, translate every string, set a default

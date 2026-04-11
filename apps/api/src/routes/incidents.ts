@@ -3,6 +3,7 @@ import { db } from '../db/client.js'
 import { incidents, incidentUpdates, incidentMonitors } from '../db/schema.js'
 import { eq, desc } from 'drizzle-orm'
 import { sseService } from '../services/sse.service.js'
+import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
 
 const VALID_STATUSES = ['investigating', 'identified', 'monitoring', 'resolved'] as const
 const VALID_IMPACTS = ['minor', 'major', 'critical'] as const
@@ -49,6 +50,9 @@ export async function incidentRoutes(app: FastifyInstance) {
     const incident = results[0]!
     const enriched = await enrichIncident(incident)
     sseService.broadcast('incident.created', enriched)
+    const actor = req.user as { userId: number; email: string }
+    writeAudit({ userId: actor.userId, userEmail: actor.email }, 'create', 'incident', incident.id, incident.title,
+      snapshot({ title: incident.title, status: incident.status, impact: incident.impact }))
     return enriched
   })
 
@@ -73,12 +77,24 @@ export async function incidentRoutes(app: FastifyInstance) {
       const results = await db.update(incidents).set(updates).where(eq(incidents.id, id)).returning()
       const enriched = await enrichIncident(results[0]!)
       sseService.broadcast('incident.updated', enriched)
+      const actor = req.user as { userId: number; email: string }
+      const before = { title: existing.title, status: existing.status, impact: existing.impact } as Record<string, unknown>
+      const after  = { title: results[0]!.title, status: results[0]!.status, impact: results[0]!.impact } as Record<string, unknown>
+      const diff = diffObjects(before, after)
+      if (Object.keys(diff).length) writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'incident', id, existing.title, diff)
       return enriched
     },
   )
 
   app.delete<{ Params: { id: string } }>('/:id', async (req, reply) => {
-    await db.delete(incidents).where(eq(incidents.id, Number(req.params.id)))
+    const id = Number(req.params.id)
+    const existing = (await db.select().from(incidents).where(eq(incidents.id, id)))[0]
+    await db.delete(incidents).where(eq(incidents.id, id))
+    if (existing) {
+      const actor = req.user as { userId: number; email: string }
+      writeAudit({ userId: actor.userId, userEmail: actor.email }, 'delete', 'incident', id, existing.title,
+        snapshot({ title: existing.title, impact: existing.impact }))
+    }
     return reply.code(204).send()
   })
 
