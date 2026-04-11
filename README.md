@@ -302,6 +302,56 @@ BetterStatusPage/
 
 ---
 
+## Roadmap 🗺️
+
+BetterStatusPage works great as a single SQLite-backed process — but we know that's not everyone's story. Here's where we're headed:
+
+### 🗄️ More database backends
+
+SQLite is perfect for getting started, but if you're running BetterStatusPage as part of a larger infrastructure where your data already lives in a managed database, you shouldn't have to compromise. We're adding native support for:
+
+- **PostgreSQL** — for teams already running Postgres, or anyone who wants point-in-time recovery, read replicas, and proper concurrent writes
+- **MariaDB / MySQL** — same idea, different flavor
+
+The goal is a single `DATABASE_URL` config switch. No code changes, no data migration headaches — just point it at your existing database and go.
+
+### 🔐 Azure Key Vault integration
+
+The built-in vault is great for self-contained deployments, but enterprises already have their secrets somewhere else — usually Azure Key Vault. Instead of duplicating credentials, we want BetterStatusPage to pull them directly from AKV at runtime. Concretely:
+
+- Authenticate via managed identity or service principal
+- Reference secrets by name from Azure Key Vault in monitor and SMTP configs
+- Zero secrets stored locally — the application is just a consumer
+
+If you're on AWS or GCP, stay tuned — this naturally extends to AWS Secrets Manager and GCP Secret Manager down the line.
+
+### 🔔 More notification channels
+
+Email and webhook cover the basics, but alerting is only as good as the channels people actually watch. On the list:
+
+- **Slack** — native integration, not just "send a webhook to Slack" (proper formatting, action buttons)
+- **Microsoft Teams** — because not everyone gets a choice
+- **PagerDuty / OpsGenie** — for when "someone should look at this" needs to become "wake someone up right now"
+- **Telegram / Discord** — for the teams that live there
+- **SMS** — via Twilio or similar, for when the internet itself is on fire and nobody's checking Slack
+
+### 📡 More monitor types
+
+Five monitor types cover most cases, but there's always more ground to cover:
+
+- **gRPC** — health check support for services that don't speak HTTP
+- **Redis / Valkey** — `PING` and key presence checks for your cache layer
+- **Playwright / Puppeteer** — full browser-based synthetic monitoring for flows that require JavaScript rendering (login flows, checkout funnels, SPAs)
+- **TLS/SSL certificate expiry** — catch expired certs before your users do
+- **Kafka / RabbitMQ** — broker connectivity and lag monitoring
+- **Custom scripted checks** — run an arbitrary Node.js snippet, return a status — full flexibility for anything that doesn't fit a predefined type
+
+---
+
+> 💡 Have a feature request that's not on this list? Open an issue — the best roadmap items come from people actually running the thing in production.
+
+---
+
 ## Contributing 🤝
 
 Found a bug? Have an idea? PRs are welcome — just open an issue first for anything bigger than a typo fix so we can discuss the approach.
