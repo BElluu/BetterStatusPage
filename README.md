@@ -363,11 +363,8 @@ If you're on AWS or GCP, stay tuned — this naturally extends to AWS Secrets Ma
 
 ### 🔔 More notification channels
 
-Email and webhook cover the basics, but alerting is only as good as the channels people actually watch. On the list:
+Email, webhook, Discord, Teams, and Slack cover the most common cases, but alerting is only as good as the channels people actually watch. Still on the list:
 
-- **Slack** — native integration, not just "send a webhook to Slack" (proper formatting, action buttons)
-- **Microsoft Teams** — because not everyone gets a choice
-- **PagerDuty / OpsGenie** — for when "someone should look at this" needs to become "wake someone up right now"
 - **Telegram** — for the teams that live there
 - **SMS** — via Twilio or similar, for when the internet itself is on fire and nobody's checking Slack
 - **PagerDuty / OpsGenie** — for when "someone should look at this" needs to become "wake someone up right now"
