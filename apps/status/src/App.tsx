@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useSSE } from './hooks/useSSE'
 import { useDarkMode } from './hooks/useDarkMode'
 import { useLocale } from './i18n/LocaleContext'
-import type { Branding, Incident, Monitor, LayoutTree, LayoutNode, GroupNode, MonitorNode } from '@bsp/shared'
+import type { Branding, Incident, Monitor, MaintenanceWindow, LayoutTree, LayoutNode, GroupNode, MonitorNode } from '@bsp/shared'
 import { PageRenderer } from './components/PageRenderer'
 import { IncidentCard } from './components/IncidentCard'
 import { LanguageSwitcher } from './components/LanguageSwitcher'
@@ -12,6 +12,7 @@ interface PublicStatus {
   branding: Branding | null
   monitors: Monitor[]
   activeIncidents: Incident[]
+  activeMaintenanceWindows: MaintenanceWindow[]
 }
 
 interface PublicLayout {
@@ -67,6 +68,7 @@ export default function App() {
   const tree = layoutData?.tree
   const monitors = status?.monitors ?? []
   const activeIncidents = status?.activeIncidents ?? []
+  const activeMaintenanceWindows = status?.activeMaintenanceWindows ?? []
 
   const liveMonitors = monitors.map((m) => ({
     ...m,
@@ -74,6 +76,20 @@ export default function App() {
   }))
 
   const layoutMonitorIds = tree && tree.children.length > 0 ? collectLayoutMonitorIds(tree.children) : null
+
+  // Build a set of monitor IDs currently in maintenance
+  const maintenanceMonitorIds = useMemo(() => {
+    const set = new Set<number>()
+    for (const win of activeMaintenanceWindows) {
+      if (win.monitorIds.length === 0) {
+        // All monitors in maintenance
+        monitors.forEach((m) => set.add(m.id))
+      } else {
+        win.monitorIds.forEach((id) => set.add(id))
+      }
+    }
+    return set
+  }, [activeMaintenanceWindows, monitors])
   const visibleMonitors = layoutMonitorIds ? liveMonitors.filter((m) => layoutMonitorIds.has(m.id)) : []
   const layoutHasIncidents = tree ? hasIncidentsBlock(tree.children) : false
 
@@ -187,6 +203,28 @@ export default function App() {
         </nav>
       </header>
 
+      {/* ── Maintenance Banner ── */}
+      {activeMaintenanceWindows.length > 0 && (
+        <div style={{ background: 'rgba(234,179,8,0.12)', borderBottom: '1px solid rgba(234,179,8,0.3)' }}>
+          <div className="max-w-[1440px] mx-auto px-8 py-3 flex flex-col gap-2">
+            {activeMaintenanceWindows.map((win) => (
+              <div key={win.id} className="flex items-start gap-3">
+                <span className="material-symbols-outlined flex-shrink-0 mt-0.5" style={{ fontSize: '18px', color: '#854d0e' }}>construction</span>
+                <div>
+                  <span className="font-semibold text-sm" style={{ color: '#854d0e' }}>{win.name}</span>
+                  {win.description && (
+                    <span className="text-sm ml-2" style={{ color: '#92400e' }}>{win.description}</span>
+                  )}
+                  <span className="text-xs ml-2" style={{ color: '#92400e', opacity: 0.8 }}>
+                    until {new Date(win.endsAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <main className="max-w-[1440px] mx-auto px-8" id="status">
 
         {/* ── Hero ── */}
@@ -226,6 +264,7 @@ export default function App() {
               statusMap={statusMap}
               activeIncidents={activeIncidents}
               allIncidents={incidents}
+              maintenanceMonitorIds={maintenanceMonitorIds}
             />
           </section>
         ) : tree !== undefined ? (

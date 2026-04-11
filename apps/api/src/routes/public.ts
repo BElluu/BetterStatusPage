@@ -2,8 +2,9 @@ import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
 import {
   monitors, incidents, incidentUpdates, incidentMonitors, monitorResults, layout, branding,
+  maintenanceWindows, maintenanceWindowMonitors,
 } from '../db/schema.js'
-import { eq, desc, gte, ne, inArray } from 'drizzle-orm'
+import { eq, desc, gte, ne, inArray, and, lte } from 'drizzle-orm'
 import { sseService } from '../services/sse.service.js'
 import type { LayoutTree, LayoutNode, GroupNode, MonitorNode } from '@bsp/shared'
 
@@ -17,7 +18,17 @@ export async function publicRoutes(app: FastifyInstance) {
       return { ...incident, updates, monitorIds: monitorLinks.map((l) => l.monitorId) }
     }))
     const brandingRow = (await db.select().from(branding))[0] ?? null
-    return { branding: brandingRow, monitors: allMonitors, activeIncidents }
+
+    const now = Date.now()
+    const activeWindowRows = await db.select().from(maintenanceWindows).where(
+      and(lte(maintenanceWindows.startsAt, now), gte(maintenanceWindows.endsAt, now)),
+    )
+    const activeMaintenanceWindows = await Promise.all(activeWindowRows.map(async (win) => {
+      const links = await db.select().from(maintenanceWindowMonitors).where(eq(maintenanceWindowMonitors.windowId, win.id))
+      return { ...win, monitorIds: links.map((l) => l.monitorId) }
+    }))
+
+    return { branding: brandingRow, monitors: allMonitors, activeIncidents, activeMaintenanceWindows }
   })
 
   app.get('/layout', async () => {

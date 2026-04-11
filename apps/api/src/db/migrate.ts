@@ -138,6 +138,25 @@ CREATE TABLE IF NOT EXISTS vault_secrets (
 );
 `
 
+const maintenanceMigration = `
+CREATE TABLE IF NOT EXISTS maintenance_windows (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  starts_at INTEGER NOT NULL,
+  ends_at INTEGER NOT NULL,
+  description TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS maintenance_window_monitors (
+  window_id INTEGER NOT NULL,
+  monitor_id INTEGER NOT NULL,
+  PRIMARY KEY (window_id, monitor_id),
+  FOREIGN KEY (window_id) REFERENCES maintenance_windows(id) ON DELETE CASCADE
+);
+`
+
 const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `DROP TABLE IF EXISTS monitor_groups`, desc: 'drop monitor_groups (unused)' },
   { sql: `ALTER TABLE monitors DROP COLUMN group_id`, desc: 'monitors: drop legacy group_id' },
@@ -162,6 +181,7 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
 /** Runs all migrations against the already-initialized DB. */
 export function runMigrations(): void {
   sqlite.exec(migrations)
+  sqlite.exec(maintenanceMigration)
   for (const { sql, desc } of columnMigrations) {
     try { sqlite.exec(sql) } catch { /* column already exists */ }
     console.log(`✓ Column migration: ${desc}`)

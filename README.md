@@ -74,6 +74,17 @@ The public status page isn't just a list of green dots. It's a fully customizabl
 
 Create incidents, set severity (none → minor → major → critical), link affected monitors, post real-time updates as the situation unfolds, and mark resolved when the dust settles. Everything shows up live on the public page the moment you save.
 
+### 🔧 Maintenance windows
+
+Scheduled that 3 AM database migration? Let people know in advance instead of letting them think you're on fire.
+
+Maintenance windows suppress alert noise for the duration of planned downtime — no more on-call pages for work you're doing on purpose. Create a window with a name, description, start/end time, and optionally scope it to specific monitors (or flip the switch for "all monitors"). While a window is active:
+
+- Notification channels stay quiet for affected monitors — status changes are still tracked, just not shouted
+- The public status page shows an amber banner with the window name and end time
+- Individual monitor cards display a **MAINTENANCE** chip so visitors know what's happening
+- The admin dashboard sorts windows into **Active / Upcoming / Past** so you always know what's scheduled
+
 ### 🌍 i18n, branding, the works
 
 - **Multi-language support** — add your own locale, translate every string, set a default

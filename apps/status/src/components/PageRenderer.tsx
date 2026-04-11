@@ -20,11 +20,13 @@ interface Props {
   statusMap: Record<number, StatusInfo>
   activeIncidents?: Incident[]
   allIncidents?: Incident[]
+  maintenanceMonitorIds?: Set<number>
 }
 
 export function PageRenderer({
   tree, monitors, statusMap,
   activeIncidents = [], allIncidents = [],
+  maintenanceMonitorIds = new Set(),
 }: Props) {
   const sorted = [...tree.children].sort((a, b) => {
     const ay = a.grid?.y ?? 0, ax = a.grid?.x ?? 0
@@ -54,6 +56,7 @@ export function PageRenderer({
             statusMap={statusMap}
             activeIncidents={activeIncidents}
             allIncidents={allIncidents}
+            maintenanceMonitorIds={maintenanceMonitorIds}
           />
         </div>
       ))}
@@ -62,13 +65,14 @@ export function PageRenderer({
 }
 
 function NodeRenderer({
-  node, monitors, statusMap, activeIncidents, allIncidents,
+  node, monitors, statusMap, activeIncidents, allIncidents, maintenanceMonitorIds,
 }: {
   node: LayoutNode
   monitors: Monitor[]
   statusMap: Record<number, StatusInfo>
   activeIncidents: Incident[]
   allIncidents: Incident[]
+  maintenanceMonitorIds: Set<number>
 }) {
   if (node.type === 'divider') {
     return (
@@ -113,6 +117,7 @@ function NodeRenderer({
     if (!monitor) return null
     const live = statusMap[monitor.id]
     const liveMonitor = { ...monitor, currentStatus: live?.status ?? monitor.currentStatus }
+    const inMaintenance = maintenanceMonitorIds.has(monitor.id)
 
     if ((monNode.cardVariant ?? 'default') === 'compact') {
       return (
@@ -121,6 +126,7 @@ function NodeRenderer({
           responseMs={live?.responseMs ?? null}
           showResponseTime={monNode.showResponseTime}
           showMonitorType={monNode.showMonitorType ?? false}
+          inMaintenance={inMaintenance}
         />
       )
     }
@@ -136,6 +142,7 @@ function NodeRenderer({
         uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
         showUptimePct={monNode.showUptimePct ?? false}
         gridW={monNode.grid?.w ?? 3}
+        inMaintenance={inMaintenance}
       />
     )
   }
@@ -146,6 +153,7 @@ function NodeRenderer({
         groupNode={node as GroupNode}
         monitors={monitors}
         statusMap={statusMap}
+        maintenanceMonitorIds={maintenanceMonitorIds}
       />
     )
   }
@@ -173,6 +181,7 @@ function ServiceMonitorCard({
   uptimeBarPosition = 'right',
   showUptimePct = false,
   gridW = 3,
+  inMaintenance = false,
 }: {
   monitor: Monitor
   responseMs: number | null
@@ -183,6 +192,7 @@ function ServiceMonitorCard({
   uptimeBarPosition?: 'right' | 'below'
   showUptimePct?: boolean
   gridW?: number
+  inMaintenance?: boolean
 }) {
   const [overallPct, setOverallPct] = useState<number | null>(null)
 
@@ -266,13 +276,26 @@ function ServiceMonitorCard({
       >
         {monitor.name}
       </h3>
-      <p
-        className="font-mono uppercase"
-        style={{ fontSize: '11px', letterSpacing: '0.09em', color: 'var(--m3-secondary)', marginTop: '4px' }}
-      >
-        {monitor.type.toUpperCase()}
-        {showResponseTime && responseMs !== null && ` · ${responseMs}ms`}
-      </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+        <p
+          className="font-mono uppercase"
+          style={{ fontSize: '11px', letterSpacing: '0.09em', color: 'var(--m3-secondary)', margin: 0 }}
+        >
+          {monitor.type.toUpperCase()}
+          {showResponseTime && responseMs !== null && ` · ${responseMs}ms`}
+        </p>
+        {inMaintenance && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '3px',
+            fontSize: '10px', fontWeight: 700, letterSpacing: '0.04em',
+            padding: '2px 7px', borderRadius: '999px',
+            background: 'rgba(234,179,8,0.15)', color: '#854d0e',
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>construction</span>
+            MAINTENANCE
+          </span>
+        )}
+      </div>
     </div>
   )
 
@@ -330,13 +353,14 @@ function ServiceMonitorCard({
    COMPACT MONITOR ROW  (slim — for compact variant and group children)
    ───────────────────────────────────────────────────────────────────── */
 function CompactMonitorRow({
-  monitor, responseMs, showResponseTime, showMonitorType = false, nested = false,
+  monitor, responseMs, showResponseTime, showMonitorType = false, nested = false, inMaintenance = false,
 }: {
   monitor: Monitor
   responseMs: number | null
   showResponseTime: boolean
   showMonitorType?: boolean
   nested?: boolean
+  inMaintenance?: boolean
 }) {
   const { t } = useLocale()
   const isUp       = monitor.currentStatus === 'up'
@@ -403,6 +427,16 @@ function CompactMonitorRow({
         </span>
       )}
 
+      {/* Maintenance chip */}
+      {inMaintenance && (
+        <span
+          className="flex-shrink-0 flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full"
+          style={{ background: 'rgba(234,179,8,0.15)', color: '#854d0e' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>construction</span>
+        </span>
+      )}
+
       {/* Status badge */}
       <span
         className="text-xs font-sans font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
@@ -417,10 +451,11 @@ function CompactMonitorRow({
 /* ─────────────────────────────────────────────────────────────────────
    GROUP BLOCK  (header with aggregate + compact child rows)
    ───────────────────────────────────────────────────────────────────── */
-function GroupBlock({ groupNode, monitors, statusMap }: {
+function GroupBlock({ groupNode, monitors, statusMap, maintenanceMonitorIds = new Set() }: {
   groupNode: GroupNode
   monitors: Monitor[]
   statusMap: Record<number, StatusInfo>
+  maintenanceMonitorIds?: Set<number>
 }) {
   const [collapsed, setCollapsed] = useState(false)
 
@@ -545,6 +580,7 @@ function GroupBlock({ groupNode, monitors, statusMap }: {
                         uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
                         showUptimePct={monNode.showUptimePct ?? false}
                         gridW={groupNode.grid?.w ?? 3}
+                        inMaintenance={maintenanceMonitorIds.has(m.id)}
                       />
                     </div>
                   ) : (
@@ -554,6 +590,7 @@ function GroupBlock({ groupNode, monitors, statusMap }: {
                       showResponseTime={monNode.showResponseTime}
                       showMonitorType={monNode.showMonitorType ?? false}
                       nested
+                      inMaintenance={maintenanceMonitorIds.has(m.id)}
                     />
                   )}
                 </div>
