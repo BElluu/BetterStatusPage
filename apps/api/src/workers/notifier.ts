@@ -49,6 +49,11 @@ export async function sendNotifications(
           config as { url: string; method: string; headers?: Record<string, string>; body?: string },
           vars,
         )
+      } else if (channel.type === 'discord') {
+        await sendDiscord(
+          config as { webhookUrl: string; username?: string; avatarUrl?: string; content?: string },
+          vars,
+        )
       }
     } catch (err) {
       console.error(`[notifier] Channel ${channel.id} (${channel.type}) failed:`, err instanceof Error ? err.message : err)
@@ -117,6 +122,42 @@ async function sendWebhook(
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
 }
 
+const DISCORD_COLORS = { down: 0xe53935, degraded: 0xfb8c00, up: 0x43a047 } as const
+
+async function sendDiscord(
+  config: { webhookUrl: string; username?: string; avatarUrl?: string; content?: string },
+  vars: Record<string, string>,
+) {
+  const status = vars['status'] as keyof typeof DISCORD_COLORS
+  const color = DISCORD_COLORS[status] ?? DISCORD_COLORS.down
+
+  const embed = {
+    title: `Monitor \`${vars['monitor_name']}\` is **${status.toUpperCase()}**`,
+    color,
+    fields: [
+      { name: 'Status', value: vars['status'], inline: true },
+      { name: 'Previous', value: vars['previous_status'], inline: true },
+      { name: 'Type', value: vars['monitor_type'], inline: true },
+      ...(vars['error_message'] ? [{ name: 'Error', value: vars['error_message'], inline: false }] : []),
+    ],
+    footer: { text: `Checked at ${vars['checked_at']}` },
+    timestamp: new Date().toISOString(),
+  }
+
+  const payload: Record<string, unknown> = { embeds: [embed] }
+  if (config.username) payload['username'] = config.username
+  if (config.avatarUrl) payload['avatar_url'] = substituteVars(config.avatarUrl, vars)
+  if (config.content) payload['content'] = substituteVars(config.content, vars)
+
+  const res = await fetch(config.webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!res.ok) throw new Error(`Discord webhook returned HTTP ${res.status}`)
+}
+
 /** Send a test email directly to the given address using current SMTP settings. */
 export async function testSmtp(to: string): Promise<{ ok: boolean; error?: string }> {
   try {
@@ -152,6 +193,11 @@ export async function testNotificationChannel(channelId: number): Promise<{ ok: 
     } else if (channel.type === 'webhook') {
       await sendWebhook(
         config as { url: string; method: string; headers?: Record<string, string>; body?: string },
+        vars,
+      )
+    } else if (channel.type === 'discord') {
+      await sendDiscord(
+        config as { webhookUrl: string; username?: string; avatarUrl?: string; content?: string },
         vars,
       )
     }
