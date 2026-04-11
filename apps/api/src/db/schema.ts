@@ -125,6 +125,23 @@ export const smtpSettings = sqliteTable('smtp_settings', {
   updatedAt: integer('updated_at').notNull(),
 })
 
+export const maintenanceWindows = sqliteTable('maintenance_windows', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  startsAt: integer('starts_at').notNull(),
+  endsAt: integer('ends_at').notNull(),
+  description: text('description'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+export const maintenanceWindowMonitors = sqliteTable('maintenance_window_monitors', {
+  windowId: integer('window_id').notNull(),
+  monitorId: integer('monitor_id').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.windowId, t.monitorId] }),
+}))
+
 export const branding = sqliteTable('branding', {
   id: integer('id').primaryKey(),
   siteName: text('site_name').notNull().default('Status Page'),

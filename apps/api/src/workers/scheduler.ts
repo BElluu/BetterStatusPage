@@ -1,14 +1,29 @@
 import cron from 'node-cron'
 import { db } from '../db/client.js'
-import { monitors, monitorResults } from '../db/schema.js'
+import { monitors, monitorResults, maintenanceWindows, maintenanceWindowMonitors } from '../db/schema.js'
 import { sseService } from '../services/sse.service.js'
 import { checkHttps } from './https.js'
 import { checkPing } from './ping.js'
 import { checkDns } from './dns.js'
 import { checkSqlServer } from './sqlserver.js'
 import { sendNotifications } from './notifier.js'
-import { lt, eq } from 'drizzle-orm'
+import { lt, eq, and, lte, gte } from 'drizzle-orm'
 import type { HttpsConfig, PingConfig, DnsConfig, SqlServerConfig, MonitorStatus } from '@bsp/shared'
+
+async function isInMaintenance(monitorId: number): Promise<boolean> {
+  const now = Date.now()
+  const activeWindows = await db.select().from(maintenanceWindows).where(
+    and(lte(maintenanceWindows.startsAt, now), gte(maintenanceWindows.endsAt, now)),
+  )
+  if (activeWindows.length === 0) return false
+  for (const win of activeWindows) {
+    const links = await db.select().from(maintenanceWindowMonitors).where(eq(maintenanceWindowMonitors.windowId, win.id))
+    // Empty link list means all monitors are in maintenance
+    if (links.length === 0) return true
+    if (links.some((l) => l.monitorId === monitorId)) return true
+  }
+  return false
+}
 
 const CONCURRENCY = 20
 
@@ -48,9 +63,12 @@ export async function runCheck(monitor: typeof monitors.$inferSelect) {
 
   if (prevStatus !== result.status) {
     sseService.broadcast('monitor.status', { monitorId: monitor.id, status: result.status, responseMs: result.responseMs, checkedAt: now })
-    sendNotifications(monitor, result.status, prevStatus, result.error).catch((err) =>
-      console.error('[notifier] sendNotifications failed:', err),
-    )
+    isInMaintenance(monitor.id).then((inMaintenance) => {
+      if (inMaintenance) return
+      sendNotifications(monitor, result.status, prevStatus, result.error).catch((err) =>
+        console.error('[notifier] sendNotifications failed:', err),
+      )
+    }).catch((err) => console.error('[scheduler] isInMaintenance check failed:', err))
   }
 }
 
