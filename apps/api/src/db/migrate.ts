@@ -156,6 +156,7 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE monitors ADD COLUMN retries INTEGER NOT NULL DEFAULT 1`, desc: 'monitors.retries' },
   { sql: `ALTER TABLE monitors ADD COLUMN webhook_token TEXT`, desc: 'monitors.webhook_token' },
   { sql: `ALTER TABLE smtp_settings ADD COLUMN vault_config TEXT`, desc: 'smtp_settings.vault_config' },
+  { sql: `ALTER TABLE monitors ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`, desc: 'monitors.tags' },
 ]
 
 /** Runs all migrations against the already-initialized DB. */

@@ -12,14 +12,19 @@ function generateWebhookToken(): string {
 }
 
 export async function monitorRoutes(app: FastifyInstance) {
+  function parseMonitor(m: typeof monitors.$inferSelect) {
+    return { ...m, config: JSON.parse(m.config), tags: JSON.parse(m.tags ?? '[]') }
+  }
+
   app.get('/', async () => {
     const rows = await db.select().from(monitors)
-    return rows.map((m) => ({ ...m, config: JSON.parse(m.config) }))
+    return rows.map(parseMonitor)
   })
 
   app.post<{ Body: {
     name: string; type: string
     intervalSecs?: number; timeoutMs?: number; retries?: number; config: unknown
+    tags?: Array<{ label: string; color: string }>
   } }>('/', async (req) => {
     const now = Date.now()
     const results = await db.insert(monitors).values({
@@ -29,41 +34,41 @@ export async function monitorRoutes(app: FastifyInstance) {
       timeoutMs: req.body.timeoutMs ?? 10000,
       retries: req.body.retries ?? 1,
       config: JSON.stringify(req.body.config ?? {}),
+      tags: JSON.stringify(req.body.tags ?? []),
       currentStatus: 'pending',
       webhookToken: req.body.type === 'webhook' ? generateWebhookToken() : null,
       createdAt: now,
       updatedAt: now,
     }).returning()
-    const result = results[0]!
-    return { ...result, config: JSON.parse(result.config) }
+    return parseMonitor(results[0]!)
   })
 
   app.get<{ Params: { id: string } }>('/:id', async (req, reply) => {
-    const rows = await db.select().from(monitors).where(eq(monitors.id, Number(req.params.id)))
-    const monitor = rows[0]
+    const monitor = (await db.select().from(monitors).where(eq(monitors.id, Number(req.params.id))))[0]
     if (!monitor) return reply.code(404).send({ error: 'Not found' })
-    return { ...monitor, config: JSON.parse(monitor.config) }
+    return parseMonitor(monitor)
   })
 
   app.patch<{ Params: { id: string }; Body: Partial<{
     name: string; type: string
     intervalSecs: number; timeoutMs: number; retries: number; config: unknown
+    tags: Array<{ label: string; color: string }>
   }> }>('/:id', async (req, reply) => {
     const id = Number(req.params.id)
     const existing = (await db.select().from(monitors).where(eq(monitors.id, id)))[0]
     if (!existing) return reply.code(404).send({ error: 'Not found' })
 
-    const updates: Record<string, unknown> = { updatedAt: Date.now() }
-    if (req.body.name !== undefined) updates['name'] = req.body.name
-    if (req.body.type !== undefined) updates['type'] = req.body.type
-    if (req.body.intervalSecs !== undefined) updates['intervalSecs'] = req.body.intervalSecs
-    if (req.body.timeoutMs !== undefined) updates['timeoutMs'] = req.body.timeoutMs
-    if (req.body.retries !== undefined) updates['retries'] = req.body.retries
-    if (req.body.config !== undefined) updates['config'] = JSON.stringify(req.body.config)
+    const updates: Partial<typeof monitors.$inferInsert> = { updatedAt: Date.now() }
+    if (req.body.name !== undefined) updates.name = req.body.name
+    if (req.body.type !== undefined) updates.type = req.body.type
+    if (req.body.intervalSecs !== undefined) updates.intervalSecs = req.body.intervalSecs
+    if (req.body.timeoutMs !== undefined) updates.timeoutMs = req.body.timeoutMs
+    if (req.body.retries !== undefined) updates.retries = req.body.retries
+    if (req.body.config !== undefined) updates.config = JSON.stringify(req.body.config)
+    if (req.body.tags !== undefined) updates.tags = JSON.stringify(req.body.tags)
 
     const results = await db.update(monitors).set(updates).where(eq(monitors.id, id)).returning()
-    const result = results[0]!
-    return { ...result, config: JSON.parse(result.config) }
+    return parseMonitor(results[0]!)
   })
 
   app.delete<{ Params: { id: string } }>('/:id', async (req, reply) => {
