@@ -54,6 +54,11 @@ export async function sendNotifications(
           config as { webhookUrl: string; username?: string; avatarUrl?: string; content?: string },
           vars,
         )
+      } else if (channel.type === 'teams') {
+        await sendTeams(
+          config as { webhookUrl: string; summary?: string },
+          vars,
+        )
       }
     } catch (err) {
       console.error(`[notifier] Channel ${channel.id} (${channel.type}) failed:`, err instanceof Error ? err.message : err)
@@ -158,6 +163,50 @@ async function sendDiscord(
   if (!res.ok) throw new Error(`Discord webhook returned HTTP ${res.status}`)
 }
 
+const TEAMS_COLORS = { down: 'E53935', degraded: 'FB8C00', up: '43A047' } as const
+
+async function sendTeams(
+  config: { webhookUrl: string; summary?: string },
+  vars: Record<string, string>,
+) {
+  const status = vars['status'] as keyof typeof TEAMS_COLORS
+  const themeColor = TEAMS_COLORS[status] ?? TEAMS_COLORS.down
+  const statusEmoji = status === 'down' ? '🔴' : status === 'degraded' ? '🟡' : '🟢'
+
+  const summary = config.summary
+    ? substituteVars(config.summary, vars)
+    : `Monitor ${vars['monitor_name']} is ${vars['status'].toUpperCase()}`
+
+  const facts: { name: string; value: string }[] = [
+    { name: 'Status', value: vars['status'] },
+    { name: 'Previous status', value: vars['previous_status'] },
+    { name: 'Monitor type', value: vars['monitor_type'] },
+    ...(vars['error_message'] ? [{ name: 'Error', value: vars['error_message'] }] : []),
+    { name: 'Checked at', value: vars['checked_at'] },
+  ]
+
+  const payload = {
+    '@type': 'MessageCard',
+    '@context': 'https://schema.org/extensions',
+    themeColor,
+    summary,
+    sections: [{
+      activityTitle: `${statusEmoji} **${vars['monitor_name']}** is **${vars['status'].toUpperCase()}**`,
+      activitySubtitle: `Previously: **${vars['previous_status']}**`,
+      facts,
+      markdown: true,
+    }],
+  }
+
+  const res = await fetch(config.webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!res.ok) throw new Error(`Teams webhook returned HTTP ${res.status}`)
+}
+
 /** Send a test email directly to the given address using current SMTP settings. */
 export async function testSmtp(to: string): Promise<{ ok: boolean; error?: string }> {
   try {
@@ -198,6 +247,11 @@ export async function testNotificationChannel(channelId: number): Promise<{ ok: 
     } else if (channel.type === 'discord') {
       await sendDiscord(
         config as { webhookUrl: string; username?: string; avatarUrl?: string; content?: string },
+        vars,
+      )
+    } else if (channel.type === 'teams') {
+      await sendTeams(
+        config as { webhookUrl: string; summary?: string },
         vars,
       )
     }
