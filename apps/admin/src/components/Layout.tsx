@@ -12,20 +12,43 @@ export default function Layout() {
   const userRank = ROLE_RANK[currentUser?.role ?? ''] ?? 0
   const hoverBg = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'
 
-  const ALL_NAV = [
-    { to: '/admin/',               label: 'Dashboard',      icon: 'dashboard',            minRole: 'operator' },
-    { to: '/admin/monitors',       label: 'Monitors',       icon: 'radio_button_checked', minRole: 'operator' },
-    { to: '/admin/incidents',      label: 'Incidents',      icon: 'warning',              minRole: 'operator' },
-    { to: '/admin/maintenance',    label: 'Maintenance',    icon: 'construction',         minRole: 'operator' },
-    { to: '/admin/builder',        label: 'Page Builder',   icon: 'dashboard_customize',  minRole: 'operator' },
-    { to: '/admin/branding',       label: 'Branding',       icon: 'palette',              minRole: 'branding' },
-    { to: '/admin/localization',   label: 'Localization',   icon: 'translate',            minRole: 'branding' },
-    { to: '/admin/notifications',   label: 'Notifications',  icon: 'notifications',        minRole: 'operator' },
-    { to: '/admin/users',          label: 'Users',          icon: 'group',                minRole: 'admin'    },
-    { to: '/admin/vault',          label: 'Vault',          icon: 'shield_lock',          minRole: 'admin'    },
+  type NavItem = { to: string; label: string; icon: string; minRole: string }
+  type NavSection = { label: string; items: NavItem[] }
+
+  const ALL_SECTIONS: NavSection[] = [
+    {
+      label: 'Monitoring',
+      items: [
+        { to: '/admin/',            label: 'Dashboard',    icon: 'dashboard',            minRole: 'operator' },
+        { to: '/admin/monitors',    label: 'Monitors',     icon: 'radio_button_checked', minRole: 'operator' },
+        { to: '/admin/incidents',   label: 'Incidents',    icon: 'warning',              minRole: 'operator' },
+        { to: '/admin/maintenance', label: 'Maintenance',  icon: 'construction',         minRole: 'operator' },
+      ],
+    },
+    {
+      label: 'Configure',
+      items: [
+        { to: '/admin/notifications', label: 'Notifications', icon: 'notifications',       minRole: 'operator' },
+        { to: '/admin/builder',       label: 'Page Builder',  icon: 'dashboard_customize', minRole: 'operator' },
+        { to: '/admin/branding',      label: 'Branding',      icon: 'palette',             minRole: 'branding' },
+        { to: '/admin/localization',  label: 'Localization',  icon: 'translate',           minRole: 'branding' },
+      ],
+    },
+    {
+      label: 'Administration',
+      items: [
+        { to: '/admin/users', label: 'Users', icon: 'group',        minRole: 'admin' },
+        { to: '/admin/vault', label: 'Vault', icon: 'shield_lock',  minRole: 'admin' },
+      ],
+    },
   ]
 
-  const navItems = ALL_NAV.filter((item) => userRank >= (ROLE_RANK[item.minRole] ?? 99))
+  const navSections = ALL_SECTIONS
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => userRank >= (ROLE_RANK[item.minRole] ?? 99)),
+    }))
+    .filter((section) => section.items.length > 0)
 
   function handleLogout() {
     clearToken()
@@ -55,54 +78,66 @@ export default function Layout() {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/admin/'}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-200 hover:translate-x-1"
-              style={({ isActive }) => isActive
-                ? {
-                    background: 'var(--m3-surface-container-lowest)',
-                    color: 'var(--m3-on-surface)',
-                    fontWeight: 600,
-                    boxShadow: '0 1px 4px rgba(19,27,46,0.08)',
-                  }
-                : {
-                    color: 'var(--m3-secondary)',
-                  }
-              }
-              onMouseEnter={(e) => {
-                const el = e.currentTarget
-                if (!el.style.boxShadow || el.style.boxShadow === 'none') {
-                  el.style.background = hoverBg
-                  el.style.color = 'var(--m3-on-surface)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                const el = e.currentTarget
-                if (!el.style.boxShadow || el.style.boxShadow === 'none') {
-                  el.style.background = ''
-                  el.style.color = 'var(--m3-secondary)'
-                }
-              }}
-            >
-              {({ isActive }) => (
-                <>
-                  <span
-                    className="material-symbols-outlined flex-shrink-0"
-                    style={{
-                      fontSize: '20px',
-                      fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0",
+        <nav className="flex-1 px-3 overflow-y-auto pb-2">
+          {navSections.map((section, si) => (
+            <div key={section.label} className={si > 0 ? 'mt-4' : ''}>
+              <p
+                className="px-4 pb-1 font-mono uppercase tracking-widest"
+                style={{ fontSize: '10px', color: 'var(--m3-outline)', letterSpacing: '0.1em' }}
+              >
+                {section.label}
+              </p>
+              <div className="space-y-0.5">
+                {section.items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === '/admin/'}
+                    className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 hover:translate-x-1"
+                    style={({ isActive }) => isActive
+                      ? {
+                          background: 'var(--m3-surface-container-lowest)',
+                          color: 'var(--m3-on-surface)',
+                          fontWeight: 600,
+                          boxShadow: '0 1px 4px rgba(19,27,46,0.08)',
+                        }
+                      : {
+                          color: 'var(--m3-secondary)',
+                        }
+                    }
+                    onMouseEnter={(e) => {
+                      const el = e.currentTarget
+                      if (!el.style.boxShadow || el.style.boxShadow === 'none') {
+                        el.style.background = hoverBg
+                        el.style.color = 'var(--m3-on-surface)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      const el = e.currentTarget
+                      if (!el.style.boxShadow || el.style.boxShadow === 'none') {
+                        el.style.background = ''
+                        el.style.color = 'var(--m3-secondary)'
+                      }
                     }}
                   >
-                    {item.icon}
-                  </span>
-                  <span className="font-sans">{item.label}</span>
-                </>
-              )}
-            </NavLink>
+                    {({ isActive }) => (
+                      <>
+                        <span
+                          className="material-symbols-outlined flex-shrink-0"
+                          style={{
+                            fontSize: '20px',
+                            fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0",
+                          }}
+                        >
+                          {item.icon}
+                        </span>
+                        <span className="font-sans">{item.label}</span>
+                      </>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 
