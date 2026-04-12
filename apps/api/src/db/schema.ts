@@ -154,6 +154,13 @@ export const maintenanceWindowMonitors = sqliteTable('maintenance_window_monitor
   pk: primaryKey({ columns: [t.windowId, t.monitorId] }),
 }))
 
+export const monitorDependencies = sqliteTable('monitor_dependencies', {
+  dependentId: integer('dependent_id').notNull(),
+  dependsOnId: integer('depends_on_id').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.dependentId, t.dependsOnId] }),
+}))
+
 export const branding = sqliteTable('branding', {
   id: integer('id').primaryKey(),
   siteName: text('site_name').notNull().default('Status Page'),

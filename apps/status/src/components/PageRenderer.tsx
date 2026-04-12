@@ -21,12 +21,14 @@ interface Props {
   activeIncidents?: Incident[]
   allIncidents?: Incident[]
   maintenanceMonitorIds?: Set<number>
+  dependencyMap?: Record<number, number[]>
 }
 
 export function PageRenderer({
   tree, monitors, statusMap,
   activeIncidents = [], allIncidents = [],
   maintenanceMonitorIds = new Set(),
+  dependencyMap = {},
 }: Props) {
   const sorted = [...tree.children].sort((a, b) => {
     const ay = a.grid?.y ?? 0, ax = a.grid?.x ?? 0
@@ -57,6 +59,7 @@ export function PageRenderer({
             activeIncidents={activeIncidents}
             allIncidents={allIncidents}
             maintenanceMonitorIds={maintenanceMonitorIds}
+            dependencyMap={dependencyMap}
           />
         </div>
       ))}
@@ -65,7 +68,7 @@ export function PageRenderer({
 }
 
 function NodeRenderer({
-  node, monitors, statusMap, activeIncidents, allIncidents, maintenanceMonitorIds,
+  node, monitors, statusMap, activeIncidents, allIncidents, maintenanceMonitorIds, dependencyMap,
 }: {
   node: LayoutNode
   monitors: Monitor[]
@@ -73,6 +76,7 @@ function NodeRenderer({
   activeIncidents: Incident[]
   allIncidents: Incident[]
   maintenanceMonitorIds: Set<number>
+  dependencyMap: Record<number, number[]>
 }) {
   if (node.type === 'divider') {
     return (
@@ -118,6 +122,8 @@ function NodeRenderer({
     const live = statusMap[monitor.id]
     const liveMonitor = { ...monitor, currentStatus: live?.status ?? monitor.currentStatus }
     const inMaintenance = maintenanceMonitorIds.has(monitor.id)
+    const causingIds = liveMonitor.currentStatus === 'affected' ? (dependencyMap[monitor.id] ?? []) : []
+    const causingMonitors = causingIds.map((id) => monitors.find((m) => m.id === id)).filter(Boolean) as Monitor[]
 
     if ((monNode.cardVariant ?? 'default') === 'compact') {
       return (
@@ -127,6 +133,7 @@ function NodeRenderer({
           showResponseTime={monNode.showResponseTime}
           showMonitorType={monNode.showMonitorType ?? false}
           inMaintenance={inMaintenance}
+          causingMonitors={causingMonitors}
         />
       )
     }
@@ -143,6 +150,7 @@ function NodeRenderer({
         showUptimePct={monNode.showUptimePct ?? false}
         gridW={monNode.grid?.w ?? 3}
         inMaintenance={inMaintenance}
+        causingMonitors={causingMonitors}
       />
     )
   }
@@ -154,6 +162,7 @@ function NodeRenderer({
         monitors={monitors}
         statusMap={statusMap}
         maintenanceMonitorIds={maintenanceMonitorIds}
+        dependencyMap={dependencyMap}
       />
     )
   }
@@ -182,6 +191,7 @@ function ServiceMonitorCard({
   showUptimePct = false,
   gridW = 3,
   inMaintenance = false,
+  causingMonitors = [],
 }: {
   monitor: Monitor
   responseMs: number | null
@@ -193,6 +203,7 @@ function ServiceMonitorCard({
   showUptimePct?: boolean
   gridW?: number
   inMaintenance?: boolean
+  causingMonitors?: Monitor[]
 }) {
   const [overallPct, setOverallPct] = useState<number | null>(null)
 
@@ -200,13 +211,14 @@ function ServiceMonitorCard({
   const isUp       = monitor.currentStatus === 'up'
   const isDown     = monitor.currentStatus === 'down'
   const isDegraded = monitor.currentStatus === 'degraded'
+  const isAffected = monitor.currentStatus === 'affected'
 
-  const statusLabel   = isUp ? t('status.operational') : isDown ? t('status.outage') : isDegraded ? t('status.degraded') : t('status.checking')
-  const statusBg      = isUp ? 'rgba(34,197,94,0.12)' : isDown ? '#ffdad6' : isDegraded ? 'rgba(234,179,8,0.12)' : 'var(--m3-surface-container)'
-  const statusColor   = isUp ? '#166534' : isDown ? '#ba1a1a' : isDegraded ? '#854d0e' : 'var(--m3-secondary)'
-  const dotColor      = isUp ? '#22c55e'  : isDown ? '#ba1a1a' : isDegraded ? '#eab308' : 'var(--m3-secondary)'
-  const barColor      = isDown ? '#ba1a1a' : isDegraded ? '#eab308' : 'var(--bsp-up)'
-  const barColorLight = isDown ? '#f28b82' : isDegraded ? '#fcd34d' : '#4ade80'
+  const statusLabel   = isUp ? t('status.operational') : isDown ? t('status.outage') : isDegraded ? t('status.degraded') : isAffected ? t('status.affected') : t('status.checking')
+  const statusBg      = isUp ? 'rgba(34,197,94,0.12)' : isDown ? '#ffdad6' : isDegraded ? 'rgba(234,179,8,0.12)' : isAffected ? 'rgba(234,179,8,0.12)' : 'var(--m3-surface-container)'
+  const statusColor   = isUp ? '#166534' : isDown ? '#ba1a1a' : isDegraded ? '#854d0e' : isAffected ? '#854d0e' : 'var(--m3-secondary)'
+  const dotColor      = isUp ? '#22c55e'  : isDown ? '#ba1a1a' : isDegraded ? '#eab308' : isAffected ? '#eab308' : 'var(--m3-secondary)'
+  const barColor      = isDown ? '#ba1a1a' : isDegraded || isAffected ? '#eab308' : 'var(--bsp-up)'
+  const barColorLight = isDown ? '#f28b82' : isDegraded || isAffected ? '#fcd34d' : '#4ade80'
 
   const uptimeLabel = (overallPct !== null && showUptimePct)
     ? t('uptime.pct', { pct: overallPct.toFixed(1) })
@@ -295,6 +307,17 @@ function ServiceMonitorCard({
             MAINTENANCE
           </span>
         )}
+        {isAffected && causingMonitors.length > 0 && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '3px',
+            fontSize: '10px', fontWeight: 600, letterSpacing: '0.03em',
+            padding: '2px 7px', borderRadius: '999px',
+            background: 'rgba(234,179,8,0.12)', color: '#92400e',
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>link</span>
+            {t('status.affectedBy')}: {causingMonitors.map((m) => m.name).join(', ')}
+          </span>
+        )}
       </div>
     </div>
   )
@@ -353,7 +376,7 @@ function ServiceMonitorCard({
    COMPACT MONITOR ROW  (slim — for compact variant and group children)
    ───────────────────────────────────────────────────────────────────── */
 function CompactMonitorRow({
-  monitor, responseMs, showResponseTime, showMonitorType = false, nested = false, inMaintenance = false,
+  monitor, responseMs, showResponseTime, showMonitorType = false, nested = false, inMaintenance = false, causingMonitors = [],
 }: {
   monitor: Monitor
   responseMs: number | null
@@ -361,20 +384,22 @@ function CompactMonitorRow({
   showMonitorType?: boolean
   nested?: boolean
   inMaintenance?: boolean
+  causingMonitors?: Monitor[]
 }) {
   const { t } = useLocale()
   const isUp       = monitor.currentStatus === 'up'
   const isDown     = monitor.currentStatus === 'down'
   const isDegraded = monitor.currentStatus === 'degraded'
+  const isAffected = monitor.currentStatus === 'affected'
 
-  const statusLabel = isUp ? t('status.operational') : isDown ? t('status.outage') : isDegraded ? t('status.degraded') : t('status.checking')
+  const statusLabel = isUp ? t('status.operational') : isDown ? t('status.outage') : isDegraded ? t('status.degraded') : isAffected ? t('status.affected') : t('status.checking')
   const statusBg    = isUp
     ? 'rgba(34,197,94,0.1)'
     : isDown ? '#ffdad6'
-    : isDegraded ? 'rgba(234,179,8,0.12)'
+    : isDegraded || isAffected ? 'rgba(234,179,8,0.12)'
     : 'var(--m3-surface-container)'
-  const statusColor = isUp ? '#166534' : isDown ? '#ba1a1a' : isDegraded ? '#854d0e' : 'var(--m3-secondary)'
-  const dotColor    = isUp ? '#22c55e'  : isDown ? '#ba1a1a' : isDegraded ? '#eab308' : 'var(--m3-outline)'
+  const statusColor = isUp ? '#166634' : isDown ? '#ba1a1a' : isDegraded || isAffected ? '#854d0e' : 'var(--m3-secondary)'
+  const dotColor    = isUp ? '#22c55e'  : isDown ? '#ba1a1a' : isDegraded || isAffected ? '#eab308' : 'var(--m3-outline)'
 
   return (
     <div
@@ -390,7 +415,7 @@ function CompactMonitorRow({
     >
       {/* Status dot */}
       <div className="relative flex-shrink-0" style={{ width: 8, height: 8 }}>
-        {(isDown || isDegraded) && (
+        {(isDown || isDegraded || isAffected) && (
           <span
             className="monitor-dot-ring"
             style={{ background: dotColor, opacity: 0.4 }}
@@ -402,12 +427,19 @@ function CompactMonitorRow({
         />
       </div>
 
-      {/* Name */}
-      <span
-        className="bsp-monitor-name font-sans font-medium text-sm flex-1 truncate"
-        style={{ color: 'var(--bsp-text)' }}
-      >
-        {monitor.name}
+      {/* Name + caused-by chip (stacked when affected) */}
+      <span className="bsp-monitor-name font-sans font-medium text-sm flex-1 min-w-0" style={{ color: 'var(--bsp-text)' }}>
+        <span className="truncate block">{monitor.name}</span>
+        {isAffected && causingMonitors.length > 0 && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '3px',
+            fontSize: '10px', fontWeight: 600,
+            color: '#92400e', marginTop: '2px',
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '10px' }}>link</span>
+            {t('status.affectedBy')}: {causingMonitors.map((m) => m.name).join(', ')}
+          </span>
+        )}
       </span>
 
       {/* Type */}
@@ -451,11 +483,12 @@ function CompactMonitorRow({
 /* ─────────────────────────────────────────────────────────────────────
    GROUP BLOCK  (header with aggregate + compact child rows)
    ───────────────────────────────────────────────────────────────────── */
-function GroupBlock({ groupNode, monitors, statusMap, maintenanceMonitorIds = new Set() }: {
+function GroupBlock({ groupNode, monitors, statusMap, maintenanceMonitorIds = new Set(), dependencyMap = {} }: {
   groupNode: GroupNode
   monitors: Monitor[]
   statusMap: Record<number, StatusInfo>
   maintenanceMonitorIds?: Set<number>
+  dependencyMap?: Record<number, number[]>
 }) {
   const [collapsed, setCollapsed] = useState(false)
 
@@ -470,8 +503,8 @@ function GroupBlock({ groupNode, monitors, statusMap, maintenanceMonitorIds = ne
     .filter(Boolean) as Monitor[]
 
   const { t } = useLocale()
-  const allDown     = liveMonitors.length > 0 && liveMonitors.every((m) => m.currentStatus === 'down')
-  const someDown    = !allDown && liveMonitors.some((m) => m.currentStatus === 'down')
+  const allDown     = liveMonitors.length > 0 && liveMonitors.every((m) => m.currentStatus === 'down' || m.currentStatus === 'affected')
+  const someDown    = !allDown && liveMonitors.some((m) => m.currentStatus === 'down' || m.currentStatus === 'affected')
   const anyDegraded = liveMonitors.some((m) => m.currentStatus === 'degraded')
   const aggStatus   = allDown ? 'down' : someDown ? 'partial' : anyDegraded ? 'degraded' : 'up'
 
@@ -565,6 +598,8 @@ function GroupBlock({ groupNode, monitors, statusMap, maintenanceMonitorIds = ne
               const live = statusMap[m.id]
               const liveMonitor = { ...m, currentStatus: live?.status ?? m.currentStatus }
               const isFullCard = (monNode.cardVariant ?? 'compact') === 'default'
+              const causingIds = liveMonitor.currentStatus === 'affected' ? (dependencyMap[m.id] ?? []) : []
+              const causingMonitors = causingIds.map((id) => monitors.find((mon) => mon.id === id)).filter(Boolean) as Monitor[]
 
               return (
                 <div key={child.id} style={borderStyle}>
@@ -581,6 +616,7 @@ function GroupBlock({ groupNode, monitors, statusMap, maintenanceMonitorIds = ne
                         showUptimePct={monNode.showUptimePct ?? false}
                         gridW={groupNode.grid?.w ?? 3}
                         inMaintenance={maintenanceMonitorIds.has(m.id)}
+                        causingMonitors={causingMonitors}
                       />
                     </div>
                   ) : (
@@ -591,6 +627,7 @@ function GroupBlock({ groupNode, monitors, statusMap, maintenanceMonitorIds = ne
                       showMonitorType={monNode.showMonitorType ?? false}
                       nested
                       inMaintenance={maintenanceMonitorIds.has(m.id)}
+                      causingMonitors={causingMonitors}
                     />
                   )}
                 </div>

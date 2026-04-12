@@ -173,6 +173,16 @@ CREATE TABLE IF NOT EXISTS maintenance_window_monitors (
 );
 `
 
+const dependenciesMigration = `
+CREATE TABLE IF NOT EXISTS monitor_dependencies (
+  dependent_id  INTEGER NOT NULL,
+  depends_on_id INTEGER NOT NULL,
+  PRIMARY KEY (dependent_id, depends_on_id),
+  FOREIGN KEY (dependent_id)  REFERENCES monitors(id) ON DELETE CASCADE,
+  FOREIGN KEY (depends_on_id) REFERENCES monitors(id) ON DELETE CASCADE
+);
+`
+
 const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `DROP TABLE IF EXISTS monitor_groups`, desc: 'drop monitor_groups (unused)' },
   { sql: `ALTER TABLE monitors DROP COLUMN group_id`, desc: 'monitors: drop legacy group_id' },
@@ -199,6 +209,7 @@ export function runMigrations(): void {
   sqlite.exec(migrations)
   sqlite.exec(auditMigration)
   sqlite.exec(maintenanceMigration)
+  sqlite.exec(dependenciesMigration)
   for (const { sql, desc } of columnMigrations) {
     try { sqlite.exec(sql) } catch { /* column already exists */ }
     console.log(`✓ Column migration: ${desc}`)

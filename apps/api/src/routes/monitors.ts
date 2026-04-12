@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify'
 import { randomBytes } from 'crypto'
 import { db } from '../db/client.js'
-import { monitors, monitorResults } from '../db/schema.js'
-import { eq, desc, gte, and } from 'drizzle-orm'
+import { monitors, monitorResults, monitorDependencies } from '../db/schema.js'
+import { eq, desc, gte, and, inArray } from 'drizzle-orm'
 import { runCheck } from '../workers/scheduler.js'
 import { testHttps, testSqlServer } from '../workers/testRunner.js'
 import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
@@ -123,6 +123,31 @@ export async function monitorRoutes(app: FastifyInstance) {
       .returning()
     const result = results[0]!
     return { ...result, config: JSON.parse(result.config) }
+  })
+
+  app.get<{ Params: { id: string } }>('/:id/dependencies', async (req) => {
+    const id = Number(req.params.id)
+    const deps = await db.select().from(monitorDependencies).where(eq(monitorDependencies.dependentId, id))
+    return { dependsOnIds: deps.map((d) => d.dependsOnId) }
+  })
+
+  app.put<{ Params: { id: string }; Body: { dependsOnIds: number[] } }>('/:id/dependencies', async (req, reply) => {
+    const id = Number(req.params.id)
+    const existing = (await db.select().from(monitors).where(eq(monitors.id, id)))[0]
+    if (!existing) return reply.code(404).send({ error: 'Not found' })
+
+    const safeIds = (req.body.dependsOnIds ?? []).filter((depId) => depId !== id)
+
+    await db.delete(monitorDependencies).where(eq(monitorDependencies.dependentId, id))
+    if (safeIds.length > 0) {
+      // Only insert IDs that actually reference existing monitors
+      const existingTargets = await db.select().from(monitors).where(inArray(monitors.id, safeIds))
+      const validIds = existingTargets.map((m) => m.id)
+      if (validIds.length > 0) {
+        await db.insert(monitorDependencies).values(validIds.map((depId) => ({ dependentId: id, dependsOnId: depId })))
+      }
+    }
+    return { ok: true }
   })
 
   app.get<{ Params: { id: string }; Querystring: { days?: string } }>('/:id/history', async (req) => {

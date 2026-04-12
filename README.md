@@ -116,6 +116,16 @@ The audit log page (admin-only) lets you filter by **user**, **entity type**, **
 - **Full branding** — site name, logo, favicon, 13 theme colors, and a custom CSS field for when you really want to go off
 - **Dark mode** — because it's not optional anymore
 
+### 🔗 Monitor dependencies
+
+Not every outage is what it looks like. When your API goes down because the database went down, you don't want three alerts — you want one, for the actual root cause.
+
+BetterStatusPage lets you declare that **monitor A depends on monitor B**. When B goes down, A automatically shows **Dependency Issue** instead of Down — and its alert is suppressed, because B already fired it. Once B recovers, A returns to its normal status on the next check.
+
+On the public status page, affected monitors display a **"Caused by: Database"** chip so visitors understand the hierarchy at a glance, not just a wall of red dots.
+
+Configure it per monitor in the admin panel → monitor edit → **Depends on** tab.
+
 ### ⚡ Real-time, no refresh needed
 
 Status changes propagate to both the admin dashboard and the public page instantly via **Server-Sent Events**. The moment a monitor flips from 🟢 to 🔴, everyone sees it. No polling, no page refresh, no "wait, is this stale?"

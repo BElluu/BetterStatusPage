@@ -15,6 +15,8 @@ export async function sendNotifications(
   errorMessage: string | null,
 ) {
   const isDown = newStatus === 'down' || newStatus === 'degraded'
+  // 'affected' = monitor failed but a dependency is already down — suppress alert (root cause fires its own)
+  // Recovery from 'affected' also suppressed — root cause recovery notification is enough
   const isRecovery = newStatus === 'up' && (prevStatus === 'down' || prevStatus === 'degraded')
   if (!isDown && !isRecovery) return
 

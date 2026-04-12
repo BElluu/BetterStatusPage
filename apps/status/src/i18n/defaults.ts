@@ -7,6 +7,8 @@ export const EN_DEFAULTS: Record<TranslationKey, string> = {
   'status.degraded':       'Degraded',
   'status.checking':       'Checking',
   'status.pending':        'Checking',
+  'status.affected':       'Dependency Issue',
+  'status.affectedBy':     'Caused by',
 
   'overall.allOperational':      'All systems operational.',
   'overall.majorOutage':         'Major Outage.',

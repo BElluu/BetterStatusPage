@@ -1,10 +1,11 @@
 import type { MonitorStatus } from '@bsp/shared'
 
 const configs: Record<MonitorStatus, { label: string; color: string; bg: string }> = {
-  up:       { label: 'Operational', color: 'var(--m3-up)',       bg: 'var(--m3-up-bg)' },
-  down:     { label: 'Down',        color: 'var(--m3-down)',     bg: 'var(--m3-down-bg)' },
-  degraded: { label: 'Degraded',    color: 'var(--m3-degraded)', bg: 'var(--m3-degraded-bg)' },
-  pending:  { label: 'Pending',     color: 'var(--m3-secondary)', bg: 'var(--m3-surface-container)' },
+  up:       { label: 'Operational',      color: 'var(--m3-up)',       bg: 'var(--m3-up-bg)' },
+  down:     { label: 'Down',            color: 'var(--m3-down)',     bg: 'var(--m3-down-bg)' },
+  degraded: { label: 'Degraded',        color: 'var(--m3-degraded)', bg: 'var(--m3-degraded-bg)' },
+  pending:  { label: 'Pending',         color: 'var(--m3-secondary)', bg: 'var(--m3-surface-container)' },
+  affected: { label: 'Dep. Issue',      color: 'var(--m3-degraded)', bg: 'var(--m3-degraded-bg)' },
 }
 
 export function StatusBadge({ status }: { status: MonitorStatus }) {

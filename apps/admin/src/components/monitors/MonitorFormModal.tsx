@@ -58,7 +58,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
   )
   const [retries, setRetries]           = useState(monitor?.retries ?? 1)
   const [tags, setTags]                 = useState<MonitorTag[]>(monitor?.tags ?? [])
-  const [sidePanel, setSidePanel] = useState<'request' | 'auth' | 'tags' | 'channels' | null>(null)
+  const [sidePanel, setSidePanel] = useState<'request' | 'auth' | 'tags' | 'channels' | 'dependencies' | null>(null)
   const [webhookToken, setWebhookToken] = useState<string | null>(monitor?.webhookToken ?? null)
   const [resettingToken, setResettingToken] = useState(false)
   const [copied, setCopied]             = useState(false)
@@ -71,13 +71,19 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
   const [secretsByVault, setSecretsByVault] = useState<Record<number, SecretSummary[]>>({})
   const [channels, setChannels]             = useState<NotificationChannel[]>([])
   const [selectedChannelIds, setSelectedChannelIds] = useState<Set<number>>(new Set())
+  const [allMonitors, setAllMonitors]       = useState<{ id: number; name: string }[]>([])
+  const [selectedDependsOnIds, setSelectedDependsOnIds] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     api.get<VaultSummary[]>('/admin/vaults').then(setVaults).catch(() => {})
     api.get<NotificationChannel[]>('/admin/notifications/channels').then(setChannels).catch(() => {})
+    api.get<{ id: number; name: string }[]>('/admin/monitors').then(setAllMonitors).catch(() => {})
     if (monitor) {
       api.get<number[]>(`/admin/notifications/monitor/${monitor.id}/channels`)
         .then((ids) => setSelectedChannelIds(new Set(ids)))
+        .catch(() => {})
+      api.get<{ dependsOnIds: number[] }>(`/admin/monitors/${monitor.id}/dependencies`)
+        .then((r) => setSelectedDependsOnIds(new Set(r.dependsOnIds)))
         .catch(() => {})
     }
   }, [])
@@ -166,9 +172,11 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
       if (isEdit) {
         await api.patch(`/admin/monitors/${monitor.id}`, body)
         await api.put(`/admin/notifications/monitor/${monitor.id}/channels`, { channelIds: [...selectedChannelIds] })
+        await api.put(`/admin/monitors/${monitor.id}/dependencies`, { dependsOnIds: [...selectedDependsOnIds] })
       } else {
         const created = await api.post<{ id: number; webhookToken?: string | null }>('/admin/monitors', body)
         await api.put(`/admin/notifications/monitor/${created.id}/channels`, { channelIds: [...selectedChannelIds] })
+        await api.put(`/admin/monitors/${created.id}/dependencies`, { dependsOnIds: [...selectedDependsOnIds] })
         if (created.webhookToken) setWebhookToken(created.webhookToken)
         if (type !== 'webhook') { onSaved(); return }
         // webhook: stay open so user can copy the URL before closing
@@ -535,10 +543,11 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
       {/* ── Side panel ─────────────────────────────────────────────────── */}
       {sidePanel && (() => {
         const PANEL_LABELS: Record<string, { icon: string; label: string }> = {
-          auth:     { icon: 'lock',          label: 'Auth' },
-          request:  { icon: 'tune',          label: 'Request' },
-          tags:     { icon: 'label',         label: 'Tags' },
-          channels: { icon: 'notifications', label: 'Alerts' },
+          auth:         { icon: 'lock',          label: 'Auth' },
+          request:      { icon: 'tune',          label: 'Request' },
+          tags:         { icon: 'label',         label: 'Tags' },
+          channels:     { icon: 'notifications', label: 'Alerts' },
+          dependencies: { icon: 'account_tree',  label: 'Depends on' },
         }
         const current = PANEL_LABELS[sidePanel]!
         return (
@@ -685,6 +694,43 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
                 </div>
               )}
 
+              {/* ── Dependencies ── */}
+              {sidePanel === 'dependencies' && (
+                <div className="space-y-3">
+                  <div
+                    className="flex items-start gap-2 rounded-lg px-3 py-2"
+                    style={{ background: 'rgba(57,128,244,0.08)', border: '1px solid rgba(57,128,244,0.20)' }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#3980f4', lineHeight: '20px' }}>info</span>
+                    <p className="text-xs" style={{ color: 'var(--m3-on-surface-variant)' }}>
+                      If a selected dependency goes <strong>down</strong>, this monitor will show <strong>Affected</strong> instead of Down — suppressing duplicate alerts for the same root cause.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    {allMonitors.filter((m) => m.id !== monitor?.id).length === 0 && (
+                      <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>No other monitors available.</p>
+                    )}
+                    {allMonitors
+                      .filter((m) => m.id !== monitor?.id)
+                      .map((m) => (
+                        <label key={m.id} className="flex items-center gap-3 cursor-pointer select-none rounded-lg px-3 py-2 transition-colors"
+                          style={{ border: '1px solid var(--m3-outline-variant)' }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--m3-surface-container)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = '')}
+                        >
+                          <input type="checkbox" checked={selectedDependsOnIds.has(m.id)}
+                            onChange={(e) => { setSelectedDependsOnIds((prev) => { const next = new Set(prev); if (e.target.checked) next.add(m.id); else next.delete(m.id); return next }) }}
+                            className="w-4 h-4 rounded accent-[color:var(--m3-primary)]"
+                          />
+                          <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '16px', color: 'var(--m3-secondary)' }}>monitor_heart</span>
+                          <span className="text-sm flex-1" style={{ color: 'var(--m3-on-surface)' }}>{m.name}</span>
+                        </label>
+                      ))
+                    }
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         )
@@ -697,8 +743,9 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
             { key: 'auth' as const,     icon: 'lock',          label: 'Auth',    badge: authType !== 'none' ? authType.slice(0, 1).toUpperCase() : null },
             { key: 'request' as const,  icon: 'tune',          label: 'Request', badge: headerRows.length > 0 ? String(headerRows.length) : null },
           ] : []),
-          { key: 'tags' as const,     icon: 'label',         label: 'Tags',   badge: tags.length > 0 ? String(tags.length) : null },
-          { key: 'channels' as const, icon: 'notifications', label: 'Alerts', badge: selectedChannelIds.size > 0 ? String(selectedChannelIds.size) : null },
+          { key: 'tags' as const,         icon: 'label',         label: 'Tags',     badge: tags.length > 0 ? String(tags.length) : null },
+          { key: 'channels' as const,     icon: 'notifications', label: 'Alerts',   badge: selectedChannelIds.size > 0 ? String(selectedChannelIds.size) : null },
+          { key: 'dependencies' as const, icon: 'account_tree',  label: 'Depends on', badge: selectedDependsOnIds.size > 0 ? String(selectedDependsOnIds.size) : null },
         ]
         return (
           <div style={{ flex: '0 0 44px', borderLeft: '1px solid var(--m3-outline-variant)', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
@@ -1168,7 +1215,7 @@ const TAG_PALETTE = [
 
 function AddTagRow({ onAdd, existingTags = [] }: { onAdd: (t: MonitorTag) => void; existingTags?: MonitorTag[] }) {
   const [label, setLabel] = useState('')
-  const [color, setColor] = useState(TAG_PALETTE[0])
+  const [color, setColor] = useState(TAG_PALETTE[0]!)
   const [open, setOpen] = useState(false)
 
   const suggestions = label.trim()
