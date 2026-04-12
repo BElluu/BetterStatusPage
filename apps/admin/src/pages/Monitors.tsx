@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { Monitor } from '@bsp/shared'
+import type { Monitor, MonitorStatus } from '@bsp/shared'
 import { StatusBadge } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
 import { ConfirmModal } from '../components/ConfirmModal'
@@ -29,8 +29,31 @@ export default function MonitorsPage() {
   const { data: monitors = [], isLoading } = useQuery<Monitor[]>({
     queryKey: ['monitors'],
     queryFn: () => api.get('/admin/monitors'),
-    refetchInterval: 15_000,
+    refetchInterval: 30_000,
   })
+
+  // Live updates via SSE — updates status and lastCheckedAt instantly on every check
+  useEffect(() => {
+    let es: EventSource | null = null
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let closed = false
+    function connect() {
+      if (closed) return
+      es = new EventSource('/api/v1/public/events')
+      es.addEventListener('monitor.status', (e) => {
+        const data = JSON.parse(e.data) as { monitorId: number; status: MonitorStatus; responseMs: number | null; checkedAt: number }
+        qc.setQueryData<Monitor[]>(['monitors'], (old) =>
+          old?.map((m) => m.id === data.monitorId
+            ? { ...m, currentStatus: data.status, lastCheckedAt: data.checkedAt }
+            : m,
+          ),
+        )
+      })
+      es.onerror = () => { es?.close(); es = null; if (!closed) retryTimer = setTimeout(connect, 2000) }
+    }
+    connect()
+    return () => { closed = true; if (retryTimer) clearTimeout(retryTimer); es?.close() }
+  }, [qc])
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/admin/monitors/${id}`),

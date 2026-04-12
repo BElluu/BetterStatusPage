@@ -60,21 +60,23 @@ export async function runCheck(monitor: typeof monitors.$inferSelect) {
     if (hasDownDep) result = { ...result, status: 'affected' }
   }
 
-  const now = Date.now()
+  const checkedAt = Date.now()
 
   await db.insert(monitorResults).values({
     monitorId: monitor.id,
     status: result.status,
     responseMs: result.responseMs,
-    checkedAt: now,
+    checkedAt,
     errorMessage: result.error,
   })
 
   const prevStatus = monitor.currentStatus
-  await db.update(monitors).set({ currentStatus: result.status, lastCheckedAt: now, updatedAt: now }).where(eq(monitors.id, monitor.id))
+  await db.update(monitors).set({ currentStatus: result.status, lastCheckedAt: checkedAt, updatedAt: checkedAt }).where(eq(monitors.id, monitor.id))
+
+  // Always broadcast so the admin UI can update lastCheckedAt and status in real-time.
+  sseService.broadcast('monitor.status', { monitorId: monitor.id, status: result.status, responseMs: result.responseMs, checkedAt })
 
   if (prevStatus !== result.status) {
-    sseService.broadcast('monitor.status', { monitorId: monitor.id, status: result.status, responseMs: result.responseMs, checkedAt: now })
     isInMaintenance(monitor.id).then((inMaintenance) => {
       if (inMaintenance) return
       sendNotifications(monitor, result.status, prevStatus, result.error).catch((err) =>
