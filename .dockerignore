@@ -1,0 +1,12 @@
+node_modules
+apps/api/dist
+apps/admin/dist
+apps/status/dist
+apps/admin/tsconfig.tsbuildinfo
+apps/status/tsconfig.tsbuildinfo
+data
+.env
+.git
+.gitignore
+*.md
+docs
