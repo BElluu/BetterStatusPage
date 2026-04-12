@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode,
-  IncidentsNode, Monitor, MonitorStatus, Incident,
+  IncidentsNode, ChartNode, Monitor, MonitorStatus, Incident,
 } from '@bsp/shared'
 import Markdown from 'react-markdown'
 import { IncidentCard } from './IncidentCard'
 import { useLocale } from '../i18n/LocaleContext'
+import { ResponseTimeChart } from './ResponseTimeChart'
 
 interface StatusInfo {
   status: MonitorStatus
@@ -175,6 +176,43 @@ function NodeRenderer({
         allIncidents={allIncidents}
         monitors={monitors}
       />
+    )
+  }
+
+  if (node.type === 'chart') {
+    const n = node as ChartNode
+    const monitor = monitors.find((m) => m.id === n.monitorId)
+    const rowH = 44
+    const heightPx = (n.chartH ?? 5) * rowH + ((n.chartH ?? 5) - 1) * 10
+    return (
+      <div
+        style={{
+          background: 'var(--m3-surface-container-low)',
+          border: '1px solid var(--m3-outline-variant)',
+          borderRadius: '16px',
+          padding: '16px 12px 12px',
+          height: heightPx,
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, paddingLeft: 48 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)', fontFamily: 'Manrope, sans-serif' }}>
+            {n.title || monitor?.name || `Monitor #${n.monitorId}`}
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--m3-secondary)' }}>
+            {n.aggregation.toUpperCase()} · last {n.hours < 24 ? `${n.hours}h` : n.hours === 24 ? '24h' : n.hours === 48 ? '2d' : '7d'}
+          </span>
+        </div>
+        <div style={{ height: heightPx - 52 }}>
+          <ResponseTimeChart
+            monitorId={n.monitorId}
+            hours={n.hours}
+            buckets={n.buckets}
+            aggregation={n.aggregation}
+            showArea={n.showArea ?? true}
+          />
+        </div>
+      </div>
     )
   }
 

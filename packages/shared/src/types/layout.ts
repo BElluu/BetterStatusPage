@@ -1,4 +1,4 @@
-export type NodeType = 'page' | 'group' | 'monitor' | 'text' | 'divider' | 'incidents'
+export type NodeType = 'page' | 'group' | 'monitor' | 'text' | 'divider' | 'incidents' | 'chart'
 
 export interface GridPos {
   x: number
@@ -57,5 +57,21 @@ export interface IncidentsNode extends BaseNode {
   filter?: 'active' | 'resolved' | 'all'
 }
 
-export type LayoutNode = GroupNode | MonitorNode | TextNode | DividerNode | IncidentsNode
+export interface ChartNode extends BaseNode {
+  type: 'chart'
+  monitorId: number
+  title?: string
+  /** Hours of history to display: 1 | 3 | 6 | 12 | 24 | 48 | 168 */
+  hours: number
+  /** Number of data-point buckets: 20 | 30 | 50 */
+  buckets: number
+  /** Which aggregated value to plot as the primary line */
+  aggregation: 'avg' | 'p95' | 'max'
+  /** Fill area under the line */
+  showArea?: boolean
+  /** RGL row-height units (3 = small, 5 = medium, 7 = large) */
+  chartH?: number
+}
+
+export type LayoutNode = GroupNode | MonitorNode | TextNode | DividerNode | IncidentsNode | ChartNode
 export type LayoutTree = PageNode
