@@ -1,5 +1,5 @@
 export type MonitorType = 'https' | 'ping' | 'dns' | 'sqlserver' | 'webhook'
-export type MonitorStatus = 'up' | 'down' | 'degraded' | 'pending'
+export type MonitorStatus = 'up' | 'down' | 'degraded' | 'pending' | 'affected'
 export type HttpsAuthType = 'none' | 'basic' | 'oauth2' | 'cas'
 
 /** Reference to a vault secret, with optional field mapping for json-type secrets */

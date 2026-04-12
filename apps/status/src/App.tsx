@@ -8,11 +8,17 @@ import { PageRenderer } from './components/PageRenderer'
 import { IncidentCard } from './components/IncidentCard'
 import { LanguageSwitcher } from './components/LanguageSwitcher'
 
+interface MonitorDependency {
+  dependentId: number
+  dependsOnId: number
+}
+
 interface PublicStatus {
   branding: Branding | null
   monitors: Monitor[]
   activeIncidents: Incident[]
   activeMaintenanceWindows: MaintenanceWindow[]
+  monitorDependencies: MonitorDependency[]
 }
 
 interface PublicLayout {
@@ -69,6 +75,17 @@ export default function App() {
   const monitors = status?.monitors ?? []
   const activeIncidents = status?.activeIncidents ?? []
   const activeMaintenanceWindows = status?.activeMaintenanceWindows ?? []
+  const monitorDependencies = status?.monitorDependencies ?? []
+
+  // dependencyMap: monitorId -> array of IDs it depends on
+  const dependencyMap = useMemo(() => {
+    const map: Record<number, number[]> = {}
+    for (const dep of monitorDependencies) {
+      if (!map[dep.dependentId]) map[dep.dependentId] = []
+      map[dep.dependentId]!.push(dep.dependsOnId)
+    }
+    return map
+  }, [monitorDependencies])
 
   const liveMonitors = monitors.map((m) => ({
     ...m,
@@ -96,8 +113,8 @@ export default function App() {
   const brandingEnabled = !!(branding?.enabled)
 
   const allUp = visibleMonitors.length === 0 || visibleMonitors.every((m) => m.currentStatus === 'up' || m.currentStatus === 'pending')
-  const allDown = visibleMonitors.length > 0 && visibleMonitors.every((m) => m.currentStatus === 'down')
-  const someDown = !allDown && visibleMonitors.some((m) => m.currentStatus === 'down')
+  const allDown = visibleMonitors.length > 0 && visibleMonitors.every((m) => m.currentStatus === 'down' || m.currentStatus === 'affected')
+  const someDown = !allDown && visibleMonitors.some((m) => m.currentStatus === 'down' || m.currentStatus === 'affected')
   const anyDegraded = visibleMonitors.some((m) => m.currentStatus === 'degraded')
   const hasActiveIncidents = layoutHasIncidents && activeIncidents.length > 0
 
@@ -265,6 +282,7 @@ export default function App() {
               activeIncidents={activeIncidents}
               allIncidents={incidents}
               maintenanceMonitorIds={maintenanceMonitorIds}
+              dependencyMap={dependencyMap}
             />
           </section>
         ) : tree !== undefined ? (

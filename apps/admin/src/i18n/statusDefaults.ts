@@ -8,6 +8,8 @@ export const EN_DEFAULTS: Record<TranslationKey, string> = {
   'status.degraded':       'Degraded',
   'status.checking':       'Checking',
   'status.pending':        'Checking',
+  'status.affected':       'Dependency Issue',
+  'status.affectedBy':     'Caused by',
 
   'overall.allOperational':      'All systems operational.',
   'overall.majorOutage':         'Major Outage.',
@@ -20,6 +22,8 @@ export const EN_DEFAULTS: Record<TranslationKey, string> = {
   'page.monitoredLine':     '{n} services monitored in real time.',
   'page.incidentLine':      '{n} active incidents.',
   'page.groupServiceCount': '{n} services',
+  'page.notConfigured':     'This page has not been configured yet.',
+  'page.notConfiguredHint': 'Set up the layout in the admin panel to display your monitors here.',
 
   'section.systemEvents': 'System Events',
   'tab.active':           'Active',

@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
 import {
   monitors, incidents, incidentUpdates, incidentMonitors, monitorResults, layout, branding,
-  maintenanceWindows, maintenanceWindowMonitors,
+  maintenanceWindows, maintenanceWindowMonitors, monitorDependencies,
 } from '../db/schema.js'
 import { eq, desc, gte, ne, inArray, and, lte } from 'drizzle-orm'
 import { sseService } from '../services/sse.service.js'
@@ -28,7 +28,9 @@ export async function publicRoutes(app: FastifyInstance) {
       return { ...win, monitorIds: links.map((l) => l.monitorId) }
     }))
 
-    return { branding: brandingRow, monitors: allMonitors, activeIncidents, activeMaintenanceWindows }
+    const allDependencies = await db.select().from(monitorDependencies)
+
+    return { branding: brandingRow, monitors: allMonitors, activeIncidents, activeMaintenanceWindows, monitorDependencies: allDependencies }
   })
 
   app.get('/layout', async () => {

@@ -1,13 +1,13 @@
 import cron from 'node-cron'
 import { db } from '../db/client.js'
-import { monitors, monitorResults, maintenanceWindows, maintenanceWindowMonitors } from '../db/schema.js'
+import { monitors, monitorResults, maintenanceWindows, maintenanceWindowMonitors, monitorDependencies } from '../db/schema.js'
 import { sseService } from '../services/sse.service.js'
 import { checkHttps } from './https.js'
 import { checkPing } from './ping.js'
 import { checkDns } from './dns.js'
 import { checkSqlServer } from './sqlserver.js'
 import { sendNotifications } from './notifier.js'
-import { lt, eq, and, lte, gte } from 'drizzle-orm'
+import { lt, eq, and, lte, gte, inArray } from 'drizzle-orm'
 import type { HttpsConfig, PingConfig, DnsConfig, SqlServerConfig, MonitorStatus } from '@bsp/shared'
 
 async function isInMaintenance(monitorId: number): Promise<boolean> {
@@ -46,6 +46,18 @@ export async function runCheck(monitor: typeof monitors.$inferSelect) {
     }
   } catch (err) {
     result = { status: 'down', responseMs: null, error: err instanceof Error ? err.message : String(err) }
+  }
+
+  // If any declared dependency is down/degraded/affected, mark this monitor as 'affected'
+  // regardless of its own check result — the root-cause monitor fires the alert.
+  const deps = await db.select().from(monitorDependencies).where(eq(monitorDependencies.dependentId, monitor.id))
+  if (deps.length > 0) {
+    const depIds = deps.map((d) => d.dependsOnId)
+    const depMonitors = await db.select().from(monitors).where(inArray(monitors.id, depIds))
+    const hasDownDep = depMonitors.some((d) =>
+      d.currentStatus === 'down' || d.currentStatus === 'degraded' || d.currentStatus === 'affected',
+    )
+    if (hasDownDep) result = { ...result, status: 'affected' }
   }
 
   const now = Date.now()

@@ -5,6 +5,8 @@ export type TranslationKey =
   | 'status.degraded'
   | 'status.checking'
   | 'status.pending'
+  | 'status.affected'
+  | 'status.affectedBy'
   | 'overall.allOperational'
   | 'overall.majorOutage'
   | 'overall.partialOutage'
