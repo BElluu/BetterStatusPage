@@ -311,20 +311,16 @@ pm2 start npm --name "bsp" -- start
 pm2 save && pm2 startup
 ```
 
-### With Docker
+### With Docker Compose (recommended)
 
-No official image yet, but it's just a Node.js process:
-
-```dockerfile
-FROM node:22-alpine
-WORKDIR /app
-COPY . .
-RUN npm ci && npm run build
-EXPOSE 3000
-CMD ["npm", "start"]
+```bash
+cp .env.example .env   # fill in JWT_SECRET and VAULT_ENCRYPTION_KEY
+docker compose up -d --build
 ```
 
-Mount a volume at your `DATABASE_PATH` and `UPLOAD_DIR` to keep data across container restarts. (You knew that already.)
+Data (SQLite database + uploads) is stored in a named Docker volume (`bsp_data`) and survives container rebuilds, restarts, and image upgrades. It is only deleted if you explicitly run `docker compose down -v`.
+
+See **[docs/deployment.md](docs/deployment.md)** for the full deployment guide, including Nginx + SSL setup, bare-metal install, PM2, backups, and firewall configuration.
 
 ---
 
