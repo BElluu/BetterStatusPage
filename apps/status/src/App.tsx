@@ -222,17 +222,17 @@ export default function App() {
 
       {/* ── Maintenance Banner ── */}
       {activeMaintenanceWindows.length > 0 && (
-        <div style={{ background: 'rgba(234,179,8,0.12)', borderBottom: '1px solid rgba(234,179,8,0.3)' }}>
+        <div style={{ background: 'var(--bsp-maintenance-bg)', borderBottom: '1px solid var(--bsp-maintenance-border)' }}>
           <div className="max-w-[1440px] mx-auto px-8 py-3 flex flex-col gap-2">
             {activeMaintenanceWindows.map((win) => (
               <div key={win.id} className="flex items-start gap-3">
-                <span className="material-symbols-outlined flex-shrink-0 mt-0.5" style={{ fontSize: '18px', color: '#854d0e' }}>construction</span>
+                <span className="material-symbols-outlined flex-shrink-0 mt-0.5" style={{ fontSize: '18px', color: 'var(--bsp-maintenance-text)' }}>construction</span>
                 <div>
-                  <span className="font-semibold text-sm" style={{ color: '#854d0e' }}>{win.name}</span>
+                  <span className="font-semibold text-sm" style={{ color: 'var(--bsp-maintenance-text)' }}>{win.name}</span>
                   {win.description && (
-                    <span className="text-sm ml-2" style={{ color: '#92400e' }}>{win.description}</span>
+                    <span className="text-sm ml-2" style={{ color: 'var(--bsp-maintenance-muted)' }}>{win.description}</span>
                   )}
-                  <span className="text-xs ml-2" style={{ color: '#92400e', opacity: 0.8 }}>
+                  <span className="text-xs ml-2" style={{ color: 'var(--bsp-maintenance-muted)', opacity: 0.8 }}>
                     until {new Date(win.endsAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
