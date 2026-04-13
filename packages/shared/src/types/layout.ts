@@ -31,7 +31,6 @@ export interface MonitorNode extends BaseNode {
   type: 'monitor'
   monitorId: number
   showUptimeBar: boolean
-  showResponseTime: boolean
   uptimeBarPosition?: 'right' | 'below'
   showMonitorType?: boolean
   showUptimePct?: boolean
@@ -69,6 +68,8 @@ export interface ChartNode extends BaseNode {
   aggregation: 'avg' | 'p95' | 'max'
   /** Fill area under the line */
   showArea?: boolean
+  /** Show monitor type (HTTPS, TCP, etc.) in the top-left corner */
+  showMonitorType?: boolean
   /** RGL row-height units (3 = small, 5 = medium, 7 = large) */
   chartH?: number
 }

@@ -117,11 +117,18 @@ export function ResponseTimeChart({ monitorId, hours, buckets, aggregation, show
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
+    const fetchData = () => {
+      fetch(`/api/v1/public/monitor/${monitorId}/history?hours=${hours}&buckets=${buckets}`)
+        .then((r) => r.json())
+        .then((res: { buckets: HistoryBucket[] }) => { if (!cancelled) { setData(res.buckets); setLoading(false) } })
+        .catch(() => { if (!cancelled) setLoading(false) })
+    }
+
     setLoading(true)
-    fetch(`/api/v1/public/monitor/${monitorId}/history?hours=${hours}&buckets=${buckets}`)
-      .then((r) => r.json())
-      .then((res: { buckets: HistoryBucket[] }) => { setData(res.buckets); setLoading(false) })
-      .catch(() => setLoading(false))
+    fetchData()
+    const interval = setInterval(fetchData, 5 * 60_000)
+    return () => { cancelled = true; clearInterval(interval) }
   }, [monitorId, hours, buckets])
 
   const aggKey = aggregation as keyof HistoryBucket

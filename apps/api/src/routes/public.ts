@@ -158,7 +158,7 @@ export async function publicRoutes(app: FastifyInstance) {
         const bucket: ResultRow[] = results.filter((r: ResultRow) => r.checkedAt >= bucketStart && r.checkedAt < bucketEnd)
 
         if (bucket.length === 0) {
-          return { ts: Math.round(bucketStart), avg: null, min: null, max: null, p95: null, count: 0, status: null as string | null }
+          return { ts: Math.round(bucketEnd), avg: null, min: null, max: null, p95: null, count: 0, status: null as string | null }
         }
 
         const times = bucket
@@ -175,7 +175,7 @@ export async function publicRoutes(app: FastifyInstance) {
           return (STATUS_PRIORITY[r.status] ?? 9) < (STATUS_PRIORITY[worst] ?? 9) ? r.status : worst
         }, bucket[0]!.status)
 
-        return { ts: Math.round(bucketStart), avg, min, max, p95, count: bucket.length, status: dominantStatus }
+        return { ts: Math.round(bucketEnd), avg, min, max, p95, count: bucket.length, status: dominantStatus }
       })
 
       return { monitorId, hours, buckets: output }
