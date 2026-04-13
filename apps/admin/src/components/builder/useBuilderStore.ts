@@ -184,7 +184,7 @@ const DEFAULT_GRIDS: Record<string, GridPos> = {
   text:      { x: 0, y: 0, w: 3, h: 2 },
   divider:   { x: 0, y: 0, w: 3, h: 1 },
   incidents: { x: 0, y: 0, w: 3, h: 1 },
-  chart:     { x: 0, y: 0, w: 3, h: 5 },
+  chart:     { x: 0, y: 0, w: 3, h: 1 },
 }
 
 export function defaultGrid(type: string): GridPos {
@@ -192,7 +192,7 @@ export function defaultGrid(type: string): GridPos {
 }
 
 export function createMonitorNode(monitorId: number): Omit<MonitorNode, 'id'> {
-  return { type: 'monitor', monitorId, showUptimeBar: true, showResponseTime: true, uptimeBarPosition: 'right', showMonitorType: false, showUptimePct: false, cardVariant: 'default' }
+  return { type: 'monitor', monitorId, showUptimeBar: true, uptimeBarPosition: 'right', showMonitorType: false, showUptimePct: false, cardVariant: 'default' }
 }
 
 export function createGroupNode(label: string): Omit<GroupNode, 'id'> {

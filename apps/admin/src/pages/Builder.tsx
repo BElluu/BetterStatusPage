@@ -116,13 +116,10 @@ export default function BuilderPage() {
       const g = node.grid ?? { ...defaultGrid(node.type), y: i * 3 }
       const h = node.type === 'group'
         ? 2 + (node as GroupNode).children.length   // header row + 1 per child
-        : (node.type === 'monitor' || node.type === 'incidents' || node.type === 'divider')
+        : (node.type === 'monitor' || node.type === 'incidents' || node.type === 'divider' || node.type === 'chart')
         ? 1                                          // always compact — ignore stored h
-        : node.type === 'chart'
-        ? (node as ChartNode).chartH ?? 5           // chart: stored height
         : g.h                                        // text: auto-sized from content
-      const isChart = node.type === 'chart'
-      return { i: node.id, x: g.x, y: g.y, w: g.w, h, minH: isChart ? 3 : h, maxH: isChart ? 12 : h, minW: 1, maxW: 3 }
+      return { i: node.id, x: g.x, y: g.y, w: g.w, h, minH: h, maxH: h, minW: 1, maxW: 3 }
     }),
     [tree.children],
   )
@@ -145,13 +142,6 @@ export default function BuilderPage() {
 
   function handleLayoutChange(newLayout: Layout) {
     applyGridLayout(newLayout.map(({ i, x, y, w, h }) => ({ i, x, y, w, h })))
-    // Sync chartH for chart nodes so stored height matches RGL h
-    for (const item of newLayout) {
-      const node = findNode(tree.children, item.i)
-      if (node?.type === 'chart' && (node as ChartNode).chartH !== item.h) {
-        useBuilderStore.getState().updateNode(item.i, { chartH: item.h } as Partial<ChartNode>)
-      }
-    }
   }
 
   // Drop from toolbox
@@ -532,19 +522,16 @@ function NodeCard(props: NodeCardProps) {
     const n = node as ChartNode
     const monitor = props.monitors.find((m) => m.id === n.monitorId)
     const rangeLabel = n.hours < 24 ? `${n.hours}h` : n.hours === 24 ? '24h' : n.hours === 48 ? '2d' : '7d'
+    const sizeLabel = n.chartH === 3 ? 'S' : n.chartH === 7 ? 'L' : 'M'
     return (
-      <div className={`relative h-full flex flex-col rounded-lg bg-surface-container-low overflow-hidden ${ring}`} onClick={onSelect}>
+      <div className={`relative h-full flex items-center gap-2 px-3 rounded-lg bg-surface-container-low ${ring}`} onClick={onSelect}>
         <DeleteBtn onDelete={onDelete} />
-        <div className="flex items-center gap-2 px-3 py-2 shrink-0">
-          <span className="drag-handle cursor-grab text-secondary hover:text-on-surface-variant shrink-0">⠿</span>
-          <span className="text-secondary font-mono text-xs shrink-0">↗</span>
-          <span className="flex-1 text-sm text-on-surface truncate pr-5">{monitor?.name ?? `#${n.monitorId}`}</span>
-          <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 py-0.5 rounded shrink-0">{n.aggregation}</span>
-          <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 py-0.5 rounded shrink-0">{rangeLabel}</span>
-        </div>
-        <div className="flex-1 flex items-center justify-center" style={{ background: 'var(--m3-surface-container)' }}>
-          <span className="text-[10px] text-secondary">Chart preview not shown in builder</span>
-        </div>
+        <span className="drag-handle cursor-grab text-secondary hover:text-on-surface-variant shrink-0">⠿</span>
+        <span className="text-secondary font-mono text-xs shrink-0">↗</span>
+        <span className="flex-1 text-sm text-on-surface truncate pr-5">{monitor?.name ?? `#${n.monitorId}`}</span>
+        <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 py-0.5 rounded shrink-0">{sizeLabel}</span>
+        <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 py-0.5 rounded shrink-0">{n.aggregation}</span>
+        <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 py-0.5 rounded shrink-0">{rangeLabel}</span>
       </div>
     )
   }
@@ -783,8 +770,6 @@ function PropertiesPanel({
           </>
         )}
 
-        <Toggle label="Response time" checked={n.showResponseTime}
-          onChange={(v) => onUpdate({ showResponseTime: v } as Partial<MonitorNode>)} />
         <Toggle label="Show monitor type" checked={n.showMonitorType ?? false}
           onChange={(v) => onUpdate({ showMonitorType: v } as Partial<MonitorNode>)} />
       </div>
@@ -934,6 +919,11 @@ function PropertiesPanel({
           label="Fill area under line"
           checked={n.showArea ?? true}
           onChange={(v) => onUpdate({ showArea: v } as Partial<ChartNode>)}
+        />
+        <Toggle
+          label="Show monitor type"
+          checked={n.showMonitorType ?? false}
+          onChange={(v) => onUpdate({ showMonitorType: v } as Partial<ChartNode>)}
         />
       </div>
     )
