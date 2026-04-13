@@ -129,6 +129,59 @@ export async function publicRoutes(app: FastifyInstance) {
     return { monitorId, days: summaryDays, overallUptimePct }
   })
 
+  app.get<{ Params: { id: string }; Querystring: { hours?: string; buckets?: string } }>(
+    '/monitor/:id/history',
+    async (req, reply) => {
+      const monitorId = Number(req.params.id)
+      const hours   = Math.min(Math.max(Number(req.query.hours   ?? 24),  1), 168)
+      const nBuckets = Math.min(Math.max(Number(req.query.buckets ?? 30), 10), 100)
+
+      const monitor = (await db.select().from(monitors).where(eq(monitors.id, monitorId)))[0]
+      if (!monitor) return reply.code(404).send({ error: 'Not found' })
+
+      const now   = Date.now()
+      const since = now - hours * 3_600_000
+
+      const results = await db
+        .select({ status: monitorResults.status, responseMs: monitorResults.responseMs, checkedAt: monitorResults.checkedAt })
+        .from(monitorResults)
+        .where(and(eq(monitorResults.monitorId, monitorId), gte(monitorResults.checkedAt, since)))
+        .orderBy(monitorResults.checkedAt)
+
+      type ResultRow = { status: string; responseMs: number | null; checkedAt: number }
+      const bucketSize = (now - since) / nBuckets
+      const STATUS_PRIORITY: Record<string, number> = { down: 0, degraded: 1, affected: 2, up: 3, pending: 4 }
+
+      const output = Array.from({ length: nBuckets }, (_, i) => {
+        const bucketStart = since + i * bucketSize
+        const bucketEnd   = bucketStart + bucketSize
+        const bucket: ResultRow[] = results.filter((r: ResultRow) => r.checkedAt >= bucketStart && r.checkedAt < bucketEnd)
+
+        if (bucket.length === 0) {
+          return { ts: Math.round(bucketEnd), avg: null, min: null, max: null, p95: null, count: 0, status: null as string | null }
+        }
+
+        const times = bucket
+          .map((r: ResultRow) => r.responseMs)
+          .filter((v): v is number => v !== null)
+          .sort((a: number, b: number) => a - b)
+
+        const avg = times.length ? Math.round(times.reduce((a: number, b: number) => a + b, 0) / times.length) : null
+        const min = times.length ? times[0]! : null
+        const max = times.length ? times[times.length - 1]! : null
+        const p95 = times.length ? times[Math.min(Math.floor(times.length * 0.95), times.length - 1)]! : null
+
+        const dominantStatus = bucket.reduce((worst: string, r: ResultRow) => {
+          return (STATUS_PRIORITY[r.status] ?? 9) < (STATUS_PRIORITY[worst] ?? 9) ? r.status : worst
+        }, bucket[0]!.status)
+
+        return { ts: Math.round(bucketEnd), avg, min, max, p95, count: bucket.length, status: dominantStatus }
+      })
+
+      return { monitorId, hours, buckets: output }
+    },
+  )
+
   app.get('/events', async (req, reply) => {
     reply.raw.setHeader('Content-Type', 'text/event-stream')
     reply.raw.setHeader('Cache-Control', 'no-cache')

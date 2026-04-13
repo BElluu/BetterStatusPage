@@ -147,7 +147,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
   }
 
   async function handleTest() {
-    if (type !== 'https' && type !== 'sqlserver') return
+    if (type !== 'https' && type !== 'sqlserver' && type !== 'ping' && type !== 'dns') return
     setTesting(true)
     setTestResult(null)
     try {
@@ -510,7 +510,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
             >
               {(type === 'webhook' && !isEdit && webhookToken) ? 'Close' : 'Cancel'}
             </button>
-            {(type === 'https' || type === 'sqlserver') && (
+            {(type === 'https' || type === 'sqlserver' || type === 'ping' || type === 'dns') && (
               <button type="button" onClick={handleTest} disabled={testing || loading}
                 className="px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5"
                 style={{

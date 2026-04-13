@@ -4,9 +4,9 @@ import { db } from '../db/client.js'
 import { monitors, monitorResults, monitorDependencies } from '../db/schema.js'
 import { eq, desc, gte, and, inArray } from 'drizzle-orm'
 import { runCheck } from '../workers/scheduler.js'
-import { testHttps, testSqlServer } from '../workers/testRunner.js'
+import { testHttps, testSqlServer, testPing, testDns } from '../workers/testRunner.js'
 import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
-import type { HttpsConfig, SqlServerConfig } from '@bsp/shared'
+import type { HttpsConfig, SqlServerConfig, PingConfig, DnsConfig } from '@bsp/shared'
 
 function generateWebhookToken(): string {
   return randomBytes(24).toString('hex')
@@ -99,6 +99,8 @@ export async function monitorRoutes(app: FastifyInstance) {
     const { type, config, timeoutMs = 10000 } = req.body
     if (type === 'https') return testHttps(config as HttpsConfig, timeoutMs)
     if (type === 'sqlserver') return testSqlServer(config as SqlServerConfig, timeoutMs)
+    if (type === 'ping') return testPing(config as PingConfig, timeoutMs)
+    if (type === 'dns') return testDns(config as DnsConfig, timeoutMs)
     return reply.code(400).send({ error: `Test not supported for monitor type: ${type}` })
   })
 
