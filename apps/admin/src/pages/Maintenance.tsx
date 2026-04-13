@@ -39,6 +39,7 @@ export default function MaintenancePage() {
   const [showCreate, setShowCreate] = useState(false)
   const [editing, setEditing] = useState<MaintenanceWindow | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<MaintenanceWindow | null>(null)
+  const [confirmEndEarly, setConfirmEndEarly] = useState<MaintenanceWindow | null>(null)
 
   const { data: windows = [] } = useQuery<MaintenanceWindow[]>({
     queryKey: ['maintenance'],
@@ -53,6 +54,11 @@ export default function MaintenancePage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/admin/maintenance/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['maintenance'] }),
+  })
+
+  const endEarlyMutation = useMutation({
+    mutationFn: (id: number) => api.patch(`/admin/maintenance/${id}`, { endsAt: Date.now() }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['maintenance'] }),
   })
 
@@ -198,6 +204,17 @@ export default function MaintenancePage() {
               </div>
 
               <div className="flex gap-2 flex-shrink-0">
+                {isActive && (
+                  <button
+                    onClick={() => setConfirmEndEarly(win)}
+                    className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors"
+                    style={{ color: 'var(--m3-primary)', background: 'var(--m3-primary-fixed)' }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.8' }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
+                  >
+                    End now
+                  </button>
+                )}
                 <button
                   onClick={() => setEditing(win)}
                   className="text-xs px-3 py-1.5 rounded-lg transition-colors"
@@ -252,6 +269,17 @@ export default function MaintenancePage() {
           message={`Delete "${confirmDelete.name}"? This cannot be undone.`}
           onConfirm={() => { deleteMutation.mutate(confirmDelete.id); setConfirmDelete(null) }}
           onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+
+      {confirmEndEarly && (
+        <ConfirmModal
+          title="End maintenance early"
+          message={`End "${confirmEndEarly.name}" now? The end time will be set to the current time.`}
+          confirmLabel="End now"
+          danger={false}
+          onConfirm={() => { endEarlyMutation.mutate(confirmEndEarly.id); setConfirmEndEarly(null) }}
+          onCancel={() => setConfirmEndEarly(null)}
         />
       )}
     </div>
