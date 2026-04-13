@@ -57,7 +57,7 @@ export default function App() {
   const { data: status } = useQuery<PublicStatus>({
     queryKey: ['public-status'],
     queryFn: () => fetch('/api/v1/public/status').then((r) => r.json()),
-    refetchInterval: 60_000,
+    refetchInterval: 5 * 60_000,
   })
 
   const { data: layoutData } = useQuery<PublicLayout>({

@@ -13,10 +13,10 @@ import { CSS } from '@dnd-kit/utilities'
 import { api } from '../api/client'
 import {
   useBuilderStore, createMonitorNode, createGroupNode, createTextNode, createIncidentsNode,
-  defaultGrid, findNode,
+  createChartNode, defaultGrid, findNode,
 } from '../components/builder/useBuilderStore'
 import type {
-  Monitor, LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode, IncidentsNode, GridPos,
+  Monitor, LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode, IncidentsNode, ChartNode, GridPos,
 } from '@bsp/shared'
 
 // ── Prune monitor nodes that reference deleted monitors ───────────────────────
@@ -116,7 +116,7 @@ export default function BuilderPage() {
       const g = node.grid ?? { ...defaultGrid(node.type), y: i * 3 }
       const h = node.type === 'group'
         ? 2 + (node as GroupNode).children.length   // header row + 1 per child
-        : (node.type === 'monitor' || node.type === 'incidents' || node.type === 'divider')
+        : (node.type === 'monitor' || node.type === 'incidents' || node.type === 'divider' || node.type === 'chart')
         ? 1                                          // always compact — ignore stored h
         : g.h                                        // text: auto-sized from content
       return { i: node.id, x: g.x, y: g.y, w: g.w, h, minH: h, maxH: h, minW: 1, maxW: 3 }
@@ -170,6 +170,9 @@ export default function BuilderPage() {
       insertRootNode({ type: 'divider', grid } as Omit<LayoutNode, 'id'>, dropY)
     } else if (type === 'incidents') {
       insertRootNode({ ...createIncidentsNode(), grid }, dropY)
+    } else if (type === 'chart') {
+      const monitorId = Number(de.dataTransfer?.getData('monitorId'))
+      if (monitorId) insertRootNode({ ...createChartNode(monitorId), grid }, dropY)
     }
   }
 
@@ -263,6 +266,32 @@ export default function BuilderPage() {
               ))}
             </div>
           </section>
+
+          {/* Charts */}
+          {monitors.some((m) => ['https', 'ping', 'sqlserver'].includes(m.type)) && (
+            <section>
+              <p className="text-[10px] uppercase tracking-wider text-secondary mb-1.5">Charts</p>
+              <div className="space-y-1">
+                {monitors.filter((m) => ['https', 'ping', 'sqlserver'].includes(m.type)).map((m) => (
+                  <div
+                    key={m.id}
+                    draggable
+                    onDragStart={(e) => {
+                      handleToolboxDragStart('chart')
+                      e.dataTransfer.setData('nodeType', 'chart')
+                      e.dataTransfer.setData('monitorId', String(m.id))
+                      e.dataTransfer.effectAllowed = 'copy'
+                    }}
+                    className="flex items-center gap-2 px-2 py-1.5 bg-surface-container hover:bg-surface-container-high rounded text-sm text-on-surface-variant cursor-grab active:cursor-grabbing select-none"
+                  >
+                    <span className="text-secondary font-mono text-xs">↗</span>
+                    <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 rounded shrink-0">{m.type}</span>
+                    <span className="truncate">{m.name}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
 
         {/* ── Properties (below toolbox, when element selected) ── */}
@@ -485,6 +514,24 @@ function NodeCard(props: NodeCardProps) {
         <span className="drag-handle cursor-grab text-secondary hover:text-on-surface-variant shrink-0">⠿</span>
         <span className="material-symbols-outlined text-secondary shrink-0" style={{ fontSize: '16px' }}>warning</span>
         <span className="flex-1 text-sm text-on-surface truncate pr-5">Incydenty · {filterLabel}</span>
+      </div>
+    )
+  }
+
+  if (node.type === 'chart') {
+    const n = node as ChartNode
+    const monitor = props.monitors.find((m) => m.id === n.monitorId)
+    const rangeLabel = n.hours < 24 ? `${n.hours}h` : n.hours === 24 ? '24h' : n.hours === 48 ? '2d' : '7d'
+    const sizeLabel = n.chartH === 3 ? 'S' : n.chartH === 7 ? 'L' : 'M'
+    return (
+      <div className={`relative h-full flex items-center gap-2 px-3 rounded-lg bg-surface-container-low ${ring}`} onClick={onSelect}>
+        <DeleteBtn onDelete={onDelete} />
+        <span className="drag-handle cursor-grab text-secondary hover:text-on-surface-variant shrink-0">⠿</span>
+        <span className="text-secondary font-mono text-xs shrink-0">↗</span>
+        <span className="flex-1 text-sm text-on-surface truncate pr-5">{monitor?.name ?? `#${n.monitorId}`}</span>
+        <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 py-0.5 rounded shrink-0">{sizeLabel}</span>
+        <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 py-0.5 rounded shrink-0">{n.aggregation}</span>
+        <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 py-0.5 rounded shrink-0">{rangeLabel}</span>
       </div>
     )
   }
@@ -723,8 +770,6 @@ function PropertiesPanel({
           </>
         )}
 
-        <Toggle label="Response time" checked={n.showResponseTime}
-          onChange={(v) => onUpdate({ showResponseTime: v } as Partial<MonitorNode>)} />
         <Toggle label="Show monitor type" checked={n.showMonitorType ?? false}
           onChange={(v) => onUpdate({ showMonitorType: v } as Partial<MonitorNode>)} />
       </div>
@@ -778,6 +823,108 @@ function PropertiesPanel({
           <option value="active">Active only</option>
           <option value="resolved">Resolved only</option>
         </select>
+      </div>
+    )
+  }
+
+  if (node.type === 'chart') {
+    const n = node as ChartNode
+    const compatibleMonitors = monitors.filter((m) => ['https', 'ping', 'sqlserver'].includes(m.type))
+    return (
+      <div className="space-y-3">
+        <Label>Monitor</Label>
+        <select
+          value={n.monitorId}
+          onChange={(e) => onUpdate({ monitorId: Number(e.target.value) } as Partial<ChartNode>)}
+          className={cls}
+        >
+          {compatibleMonitors.map((m) => (
+            <option key={m.id} value={m.id}>[{m.type.toUpperCase()}] {m.name}</option>
+          ))}
+        </select>
+
+        <Label>Title (optional)</Label>
+        <input
+          value={n.title ?? ''}
+          onChange={(e) => onUpdate({ title: e.target.value || undefined } as Partial<ChartNode>)}
+          className={cls}
+          placeholder="Leave empty to use monitor name"
+        />
+
+        <Label>Time range</Label>
+        <select
+          value={n.hours}
+          onChange={(e) => onUpdate({ hours: Number(e.target.value) } as Partial<ChartNode>)}
+          className={cls}
+        >
+          <option value={1}>Last 1 hour</option>
+          <option value={3}>Last 3 hours</option>
+          <option value={6}>Last 6 hours</option>
+          <option value={12}>Last 12 hours</option>
+          <option value={24}>Last 24 hours</option>
+          <option value={48}>Last 2 days</option>
+          <option value={168}>Last 7 days</option>
+        </select>
+
+        <Label>Data points</Label>
+        <select
+          value={n.buckets}
+          onChange={(e) => onUpdate({ buckets: Number(e.target.value) } as Partial<ChartNode>)}
+          className={cls}
+        >
+          <option value={20}>20 — sparse</option>
+          <option value={30}>30 — balanced</option>
+          <option value={50}>50 — dense</option>
+        </select>
+
+        <Label>Aggregation</Label>
+        <div className="flex gap-1">
+          {(['avg', 'p95', 'max'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onUpdate({ aggregation: v } as Partial<ChartNode>)}
+              className="flex-1 text-xs py-1.5 rounded transition-all"
+              style={
+                n.aggregation === v
+                  ? { background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }
+                  : { background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }
+              }
+            >
+              {v.toUpperCase()}
+            </button>
+          ))}
+        </div>
+
+        <Label>Chart height</Label>
+        <div className="flex gap-1">
+          {([3, 5, 7] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onUpdate({ chartH: v } as Partial<ChartNode>)}
+              className="flex-1 text-xs py-1.5 rounded transition-all"
+              style={
+                (n.chartH ?? 5) === v
+                  ? { background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }
+                  : { background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }
+              }
+            >
+              {v === 3 ? 'S' : v === 5 ? 'M' : 'L'}
+            </button>
+          ))}
+        </div>
+
+        <Toggle
+          label="Fill area under line"
+          checked={n.showArea ?? true}
+          onChange={(v) => onUpdate({ showArea: v } as Partial<ChartNode>)}
+        />
+        <Toggle
+          label="Show monitor type"
+          checked={n.showMonitorType ?? false}
+          onChange={(v) => onUpdate({ showMonitorType: v } as Partial<ChartNode>)}
+        />
       </div>
     )
   }

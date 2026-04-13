@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode,
-  IncidentsNode, Monitor, MonitorStatus, Incident,
+  IncidentsNode, ChartNode, Monitor, MonitorStatus, Incident,
 } from '@bsp/shared'
 import Markdown from 'react-markdown'
 import { IncidentCard } from './IncidentCard'
 import { useLocale } from '../i18n/LocaleContext'
+import { ResponseTimeChart } from './ResponseTimeChart'
 
 interface StatusInfo {
   status: MonitorStatus
@@ -41,7 +42,8 @@ export function PageRenderer({
       style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '24px',
+        columnGap: '24px',
+        rowGap: '10px',
       }}
     >
       {sorted.map((node) => (
@@ -49,7 +51,9 @@ export function PageRenderer({
           key={node.id}
           style={{
             gridColumn: `${(node.grid?.x ?? 0) + 1} / span ${node.grid?.w ?? 3}`,
+            gridRow: `${(node.grid?.y ?? 0) + 1} / span ${node.grid?.h ?? 1}`,
             minWidth: 0,
+            alignSelf: 'start',
           }}
         >
           <NodeRenderer
@@ -130,7 +134,6 @@ function NodeRenderer({
         <CompactMonitorRow
           monitor={liveMonitor}
           responseMs={live?.responseMs ?? null}
-          showResponseTime={monNode.showResponseTime}
           showMonitorType={monNode.showMonitorType ?? false}
           inMaintenance={inMaintenance}
           causingMonitors={causingMonitors}
@@ -144,7 +147,6 @@ function NodeRenderer({
         responseMs={live?.responseMs ?? null}
         monitorId={monitor.id}
         showUptimeBar={monNode.showUptimeBar}
-        showResponseTime={monNode.showResponseTime}
         showMonitorType={monNode.showMonitorType ?? false}
         uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
         showUptimePct={monNode.showUptimePct ?? false}
@@ -178,6 +180,55 @@ function NodeRenderer({
     )
   }
 
+  if (node.type === 'chart') {
+    const n = node as ChartNode
+    const monitor = monitors.find((m) => m.id === n.monitorId)
+    const rowH = 44
+    const heightPx = (n.chartH ?? 5) * rowH + ((n.chartH ?? 5) - 1) * 10
+    return (
+      <div
+        style={{
+          background: 'var(--m3-surface-container-low)',
+          border: '1px solid var(--m3-outline-variant)',
+          borderRadius: '16px',
+          padding: '16px 12px 12px',
+          height: heightPx,
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ width: 48, flexShrink: 0 }}>
+            {n.showMonitorType && monitor && (
+              <span
+                className="font-mono text-[10px] uppercase flex-shrink-0 px-1.5 py-0.5 rounded"
+                style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
+              >
+                {monitor.type}
+              </span>
+            )}
+          </div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)', fontFamily: 'Manrope, sans-serif' }}>
+              {n.title || monitor?.name || `Monitor #${n.monitorId}`}
+            </span>
+            <span style={{ fontSize: 11, color: 'var(--m3-secondary)' }}>
+              {n.aggregation.toUpperCase()} · last {n.hours < 24 ? `${n.hours}h` : n.hours === 24 ? '24h' : n.hours === 48 ? '2d' : '7d'}
+            </span>
+          </div>
+        </div>
+        <div style={{ height: heightPx - 52 }}>
+          <ResponseTimeChart
+            monitorId={n.monitorId}
+            hours={n.hours}
+            buckets={n.buckets}
+            aggregation={n.aggregation}
+            showArea={n.showArea ?? true}
+          />
+        </div>
+      </div>
+    )
+  }
+
   return null
 }
 
@@ -186,7 +237,7 @@ function NodeRenderer({
    ───────────────────────────────────────────────────────────────────── */
 function ServiceMonitorCard({
   monitor, responseMs, monitorId,
-  showUptimeBar, showResponseTime,
+  showUptimeBar, showMonitorType = false,
   uptimeBarPosition = 'right',
   showUptimePct = false,
   gridW = 3,
@@ -197,7 +248,6 @@ function ServiceMonitorCard({
   responseMs: number | null
   monitorId: number
   showUptimeBar: boolean
-  showResponseTime: boolean
   showMonitorType?: boolean
   uptimeBarPosition?: 'right' | 'below'
   showUptimePct?: boolean
@@ -289,13 +339,14 @@ function ServiceMonitorCard({
         {monitor.name}
       </h3>
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
-        <p
-          className="font-mono uppercase"
-          style={{ fontSize: '11px', letterSpacing: '0.09em', color: 'var(--m3-secondary)', margin: 0 }}
-        >
-          {monitor.type.toUpperCase()}
-          {showResponseTime && responseMs !== null && ` · ${responseMs}ms`}
-        </p>
+        {showMonitorType && (
+          <p
+            className="font-mono uppercase"
+            style={{ fontSize: '11px', letterSpacing: '0.09em', color: 'var(--m3-secondary)', margin: 0 }}
+          >
+            {monitor.type.toUpperCase()}
+          </p>
+        )}
         {inMaintenance && (
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: '3px',
@@ -376,11 +427,10 @@ function ServiceMonitorCard({
    COMPACT MONITOR ROW  (slim — for compact variant and group children)
    ───────────────────────────────────────────────────────────────────── */
 function CompactMonitorRow({
-  monitor, responseMs, showResponseTime, showMonitorType = false, nested = false, inMaintenance = false, causingMonitors = [],
+  monitor, responseMs, showMonitorType = false, nested = false, inMaintenance = false, causingMonitors = [],
 }: {
   monitor: Monitor
   responseMs: number | null
-  showResponseTime: boolean
   showMonitorType?: boolean
   nested?: boolean
   inMaintenance?: boolean
@@ -449,13 +499,6 @@ function CompactMonitorRow({
           style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
         >
           {monitor.type}
-        </span>
-      )}
-
-      {/* Response time */}
-      {showResponseTime && responseMs !== null && (
-        <span className="font-mono text-xs flex-shrink-0" style={{ color: 'var(--m3-secondary)' }}>
-          {responseMs}ms
         </span>
       )}
 
@@ -610,7 +653,6 @@ function GroupBlock({ groupNode, monitors, statusMap, maintenanceMonitorIds = ne
                         responseMs={live?.responseMs ?? null}
                         monitorId={m.id}
                         showUptimeBar={monNode.showUptimeBar}
-                        showResponseTime={monNode.showResponseTime}
                         showMonitorType={monNode.showMonitorType ?? false}
                         uptimeBarPosition={monNode.uptimeBarPosition ?? 'right'}
                         showUptimePct={monNode.showUptimePct ?? false}
@@ -623,7 +665,6 @@ function GroupBlock({ groupNode, monitors, statusMap, maintenanceMonitorIds = ne
                     <CompactMonitorRow
                       monitor={liveMonitor}
                       responseMs={live?.responseMs ?? null}
-                      showResponseTime={monNode.showResponseTime}
                       showMonitorType={monNode.showMonitorType ?? false}
                       nested
                       inMaintenance={maintenanceMonitorIds.has(m.id)}

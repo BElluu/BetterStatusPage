@@ -1,6 +1,38 @@
 import type { HttpsConfig } from '@bsp/shared'
 import type { MonitorStatus } from '@bsp/shared'
 import { resolveVaultSecret } from './resolveSecret.js'
+import { Agent, fetch as httpFetch } from 'undici'
+import { lookup as dnsLookup } from 'dns'
+
+// Application-level DNS cache — avoids repeated resolver round-trips between checks.
+const dnsCache = new Map<string, { address: string; family: number; expires: number }>()
+
+function cachedLookup(
+  hostname: string,
+  options: Parameters<typeof dnsLookup>[1],
+  callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
+): void {
+  const family = typeof options === 'object' ? (options.family ?? 0) : (options ?? 0)
+  const key = `${hostname}:${family}`
+  const hit = dnsCache.get(key)
+  if (hit && hit.expires > Date.now()) {
+    callback(null, hit.address, hit.family)
+    return
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dnsLookup(hostname, options as any, (err, address, fam) => {
+    if (!err && address) dnsCache.set(key, { address, family: fam, expires: Date.now() + 5 * 60_000 })
+    callback(err, address, fam)
+  })
+}
+
+// Persistent connection pool — reuses TCP/TLS connections and caches DNS lookups
+// between checks, keeping measured response times accurate.
+const httpAgent = new Agent({
+  connect: { lookup: cachedLookup },
+  keepAliveTimeout: 5 * 60_000,
+  keepAliveMaxTimeout: 30 * 60_000,
+})
 
 /**
  * Resolves the auth config into HTTP headers and (for CAS) a modified URL.
@@ -46,10 +78,11 @@ async function resolveAuth(
     })
     if (cfg.scope) params.set('scope', cfg.scope)
 
-    const tokenRes = await fetch(tokenUrl, {
+    const tokenRes = await httpFetch(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params.toString(),
+      dispatcher: httpAgent,
     })
     if (!tokenRes.ok) {
       throw new Error(`OAuth2 token request failed with HTTP ${tokenRes.status}`)
@@ -81,10 +114,11 @@ async function resolveAuth(
       let nextUrl = serviceUrl
       for (let hops = 0; hops < 10; hops++) {
         const cookieHeader = [...probeCookies.entries()].map(([k, v]) => `${k}=${v}`).join('; ')
-        const r = await fetch(nextUrl, {
+        const r = await httpFetch(nextUrl, {
           redirect: 'manual',
           ...(cookieHeader ? { headers: { Cookie: cookieHeader } } : {}),
           signal: AbortSignal.timeout(5000),
+          dispatcher: httpAgent,
         })
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const setCookies: string[] = (r.headers as any).getSetCookie?.() ?? []
@@ -104,20 +138,22 @@ async function resolveAuth(
     } catch { /* keep original service URL */ }
 
     // Step 2: obtain TGT
-    const tgtRes = await fetch(`${casServerUrl}/v1/tickets`, {
+    const tgtRes = await httpFetch(`${casServerUrl}/v1/tickets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ username, password }).toString(),
+      dispatcher: httpAgent,
     })
     if (!tgtRes.ok) throw new Error(`CAS: TGT request failed with HTTP ${tgtRes.status}`)
     const tgtUrl = tgtRes.headers.get('location')
     if (!tgtUrl) throw new Error('CAS: no Location header in TGT response')
 
     // Step 3: obtain service ticket for the exact service URL discovered above
-    const stRes = await fetch(tgtUrl, {
+    const stRes = await httpFetch(tgtUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ service: effectiveServiceUrl }).toString(),
+      dispatcher: httpAgent,
     })
     if (!stRes.ok) throw new Error(`CAS: service ticket request failed with HTTP ${stRes.status}`)
     const ticket = (await stRes.text()).trim()
@@ -145,7 +181,8 @@ export async function checkHttps(
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
 
-    let res: Response
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let res: any
     if (cookieJar) {
       const jar = new Map<string, string>(cookieJar)
 
@@ -153,9 +190,9 @@ export async function checkHttps(
         const h = [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ')
         return h ? { Cookie: h } : {}
       }
-      function collectJarCookies(r: Response) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const sc: string[] = (r.headers as any).getSetCookie?.() ?? []
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      function collectJarCookies(r: any) {
+        const sc: string[] = r.headers.getSetCookie?.() ?? []
         for (const c of sc) {
           const kv = c.split(';')[0]?.trim() ?? ''
           const eq = kv.indexOf('=')
@@ -166,11 +203,12 @@ export async function checkHttps(
       // Phase 1: RegisterServiceTicket — single GET to {serviceUrl}?ticket={st}.
       // nginx validates the ticket and sets NGXCAS in the response (even on a 302).
       // Do NOT follow the redirect; we only need the cookies from this response.
-      res = await fetch(url, {
+      res = await httpFetch(url, {
         method: 'GET',
         headers: { ...jarCookieHdr() },
         signal: controller.signal,
         redirect: 'manual',
+        dispatcher: httpAgent,
       })
       collectJarCookies(res)
 
@@ -179,12 +217,13 @@ export async function checkHttps(
       // and get a fresh ticket; NGINX will pass it to the app (NGXCAS is already valid).
       let currentUrl2 = config.url
       for (let hops = 0; hops < 10; hops++) {
-        res = await fetch(currentUrl2, {
+        res = await httpFetch(currentUrl2, {
           method: config.method ?? 'GET',
           headers: { ...(config.headers ?? {}), ...authHeaders, ...jarCookieHdr() },
           body: config.body ?? undefined,
           signal: controller.signal,
           redirect: 'manual',
+          dispatcher: httpAgent,
         })
         collectJarCookies(res)
         if (res.status < 300 || res.status >= 400) break
@@ -194,10 +233,11 @@ export async function checkHttps(
         if (casState && next.startsWith(`${casState.casServerUrl}/login`)) {
           const svc = new URL(next).searchParams.get('service')
           if (svc) {
-            const stRes2 = await fetch(casState.tgtUrl, {
+            const stRes2 = await httpFetch(casState.tgtUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
               body: new URLSearchParams({ service: svc }).toString(),
+              dispatcher: httpAgent,
             })
             if (!stRes2.ok) throw new Error(`CAS app-level ticket failed HTTP ${stRes2.status}`)
             const ticket2 = (await stRes2.text()).trim()
@@ -210,12 +250,13 @@ export async function checkHttps(
         currentUrl2 = next
       }
     } else {
-      res = await fetch(url, {
+      res = await httpFetch(url, {
         method: config.method ?? 'GET',
         headers: { ...(config.headers ?? {}), ...authHeaders },
         body: config.body ?? undefined,
         signal: controller.signal,
         redirect: 'follow',
+        dispatcher: httpAgent,
       })
     }
     clearTimeout(timer)

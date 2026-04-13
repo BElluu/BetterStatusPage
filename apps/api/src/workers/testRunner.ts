@@ -1,5 +1,7 @@
-import type { HttpsConfig, SqlServerConfig } from '@bsp/shared'
+import type { HttpsConfig, SqlServerConfig, PingConfig, DnsConfig } from '@bsp/shared'
 import { resolveVaultSecret } from './resolveSecret.js'
+import net from 'net'
+import { Resolver } from 'dns/promises'
 
 export interface TestStep {
   label: string
@@ -468,6 +470,72 @@ export async function testSqlServer(config: SqlServerConfig, timeoutMs: number):
   }
 
   return { overall: 'ok', steps, totalMs: Date.now() - totalStart }
+}
+
+// ── Ping (TCP) ────────────────────────────────────────────────────────────────
+
+export async function testPing(config: PingConfig, timeoutMs: number): Promise<TestResult> {
+  const steps: TestStep[] = []
+  const totalStart = Date.now()
+  const port = config.port ?? 80
+  const t = Date.now()
+  try {
+    const responseMs = await new Promise<number>((resolve, reject) => {
+      const socket = new net.Socket()
+      socket.setTimeout(timeoutMs)
+      socket.on('connect', () => { resolve(Date.now() - t); socket.destroy() })
+      socket.on('timeout', () => { socket.destroy(); reject(new Error('TCP connect timed out')) })
+      socket.on('error', reject)
+      socket.connect(port, config.host)
+    })
+    steps.push({ label: `TCP connect to ${config.host}:${port}`, status: 'ok', durationMs: responseMs })
+    return { overall: 'ok', steps, totalMs: Date.now() - totalStart }
+  } catch (err) {
+    steps.push({ label: `TCP connect to ${config.host}:${port} failed`, status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
+    return { overall: 'error', steps, totalMs: Date.now() - totalStart }
+  }
+}
+
+// ── DNS ───────────────────────────────────────────────────────────────────────
+
+export async function testDns(config: DnsConfig, timeoutMs: number): Promise<TestResult> {
+  const steps: TestStep[] = []
+  const totalStart = Date.now()
+  const resolver = new Resolver()
+  if (config.resolver) {
+    resolver.setServers([config.resolver])
+    steps.push({ label: `Custom resolver: ${config.resolver}`, status: 'info' })
+  }
+  const t = Date.now()
+  try {
+    const records: string[] = await Promise.race([
+      (async () => {
+        switch (config.recordType) {
+          case 'A':     return resolver.resolve4(config.hostname)
+          case 'AAAA':  return resolver.resolve6(config.hostname)
+          case 'MX':    return (await resolver.resolveMx(config.hostname)).map(r => r.exchange)
+          case 'CNAME': return resolver.resolveCname(config.hostname)
+          case 'TXT':   return (await resolver.resolveTxt(config.hostname)).map(r => r.join(''))
+          default:      return resolver.resolve(config.hostname)
+        }
+      })(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('DNS query timed out')), timeoutMs)),
+    ])
+    const responseMs = Date.now() - t
+    steps.push({ label: `DNS ${config.recordType} for ${config.hostname}`, status: 'ok', detail: records.join(', '), durationMs: responseMs })
+    if (config.expectedValue) {
+      if (records.some(r => r.includes(config.expectedValue!))) {
+        steps.push({ label: `Expected value "${config.expectedValue}" found`, status: 'ok' })
+      } else {
+        steps.push({ label: `Expected value "${config.expectedValue}" not found`, status: 'error', detail: `Got: ${records.join(', ')}` })
+        return { overall: 'error', steps, totalMs: Date.now() - totalStart }
+      }
+    }
+    return { overall: 'ok', steps, totalMs: Date.now() - totalStart }
+  } catch (err) {
+    steps.push({ label: `DNS ${config.recordType} query for ${config.hostname} failed`, status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
+    return { overall: 'error', steps, totalMs: Date.now() - totalStart }
+  }
 }
 
 function errMsg(err: unknown): string {
