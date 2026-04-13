@@ -264,9 +264,9 @@ function ServiceMonitorCard({
   const isAffected = monitor.currentStatus === 'affected'
 
   const statusLabel   = isUp ? t('status.operational') : isDown ? t('status.outage') : isDegraded ? t('status.degraded') : isAffected ? t('status.affected') : t('status.checking')
-  const statusBg      = isUp ? 'rgba(34,197,94,0.12)' : isDown ? '#ffdad6' : isDegraded ? 'rgba(234,179,8,0.12)' : isAffected ? 'rgba(234,179,8,0.12)' : 'var(--m3-surface-container)'
-  const statusColor   = isUp ? '#166534' : isDown ? '#ba1a1a' : isDegraded ? '#854d0e' : isAffected ? '#854d0e' : 'var(--m3-secondary)'
-  const dotColor      = isUp ? '#22c55e'  : isDown ? '#ba1a1a' : isDegraded ? '#eab308' : isAffected ? '#eab308' : 'var(--m3-secondary)'
+  const statusBg      = isUp ? 'rgba(34,197,94,0.12)' : isDown ? '#ffdad6' : isDegraded ? 'rgba(234,179,8,0.12)' : isAffected ? 'rgba(249,115,22,0.18)' : 'var(--m3-surface-container)'
+  const statusColor   = isUp ? '#166534' : isDown ? '#ba1a1a' : isDegraded ? '#854d0e' : isAffected ? '#ea580c' : 'var(--m3-secondary)'
+  const dotColor      = isUp ? '#22c55e'  : isDown ? '#ba1a1a' : isDegraded ? '#eab308' : isAffected ? '#ea580c' : 'var(--m3-secondary)'
   const barColor      = isDown ? '#ba1a1a' : isDegraded || isAffected ? '#eab308' : 'var(--bsp-up)'
   const barColorLight = isDown ? '#f28b82' : isDegraded || isAffected ? '#fcd34d' : '#4ade80'
 
@@ -352,7 +352,7 @@ function ServiceMonitorCard({
             display: 'inline-flex', alignItems: 'center', gap: '3px',
             fontSize: '10px', fontWeight: 700, letterSpacing: '0.04em',
             padding: '2px 7px', borderRadius: '999px',
-            background: 'rgba(234,179,8,0.15)', color: '#854d0e',
+            background: 'var(--bsp-maintenance-chip-bg)', color: 'var(--bsp-maintenance-text)',
           }}>
             <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>construction</span>
             MAINTENANCE
@@ -363,7 +363,7 @@ function ServiceMonitorCard({
             display: 'inline-flex', alignItems: 'center', gap: '3px',
             fontSize: '10px', fontWeight: 600, letterSpacing: '0.03em',
             padding: '2px 7px', borderRadius: '999px',
-            background: 'rgba(234,179,8,0.12)', color: '#92400e',
+            background: 'rgba(249,115,22,0.18)', color: '#ea580c',
           }}>
             <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>link</span>
             {t('status.affectedBy')}: {causingMonitors.map((m) => m.name).join(', ')}
@@ -446,10 +446,11 @@ function CompactMonitorRow({
   const statusBg    = isUp
     ? 'rgba(34,197,94,0.1)'
     : isDown ? '#ffdad6'
-    : isDegraded || isAffected ? 'rgba(234,179,8,0.12)'
+    : isDegraded ? 'rgba(234,179,8,0.12)'
+    : isAffected ? 'rgba(249,115,22,0.18)'
     : 'var(--m3-surface-container)'
-  const statusColor = isUp ? '#166634' : isDown ? '#ba1a1a' : isDegraded || isAffected ? '#854d0e' : 'var(--m3-secondary)'
-  const dotColor    = isUp ? '#22c55e'  : isDown ? '#ba1a1a' : isDegraded || isAffected ? '#eab308' : 'var(--m3-outline)'
+  const statusColor = isUp ? '#166634' : isDown ? '#ba1a1a' : isDegraded ? '#854d0e' : isAffected ? '#ea580c' : 'var(--m3-secondary)'
+  const dotColor    = isUp ? '#22c55e'  : isDown ? '#ba1a1a' : isDegraded ? '#eab308' : isAffected ? '#ea580c' : 'var(--m3-outline)'
 
   return (
     <div
@@ -484,7 +485,7 @@ function CompactMonitorRow({
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: '3px',
             fontSize: '10px', fontWeight: 600,
-            color: '#92400e', marginTop: '2px',
+            color: '#ea580c', marginTop: '2px',
           }}>
             <span className="material-symbols-outlined" style={{ fontSize: '10px' }}>link</span>
             {t('status.affectedBy')}: {causingMonitors.map((m) => m.name).join(', ')}
@@ -506,7 +507,7 @@ function CompactMonitorRow({
       {inMaintenance && (
         <span
           className="flex-shrink-0 flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full"
-          style={{ background: 'rgba(234,179,8,0.15)', color: '#854d0e' }}
+          style={{ background: 'var(--bsp-maintenance-chip-bg)', color: 'var(--bsp-maintenance-text)' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>construction</span>
         </span>

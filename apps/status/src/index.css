@@ -41,6 +41,13 @@
   --m3-degraded-bg: rgba(234, 179, 8, 0.12);
   --m3-degraded-bar: #eab308;
 
+  /* Maintenance colors */
+  --bsp-maintenance-bg:     rgba(59, 130, 246, 0.1);
+  --bsp-maintenance-border: rgba(59, 130, 246, 0.25);
+  --bsp-maintenance-text:   #1d4ed8;
+  --bsp-maintenance-muted:  #1e40af;
+  --bsp-maintenance-chip-bg: rgba(59, 130, 246, 0.13);
+
   /* BSP branding aliases — map to M3 defaults */
   --bsp-bg:          var(--m3-surface);
   --bsp-card-bg:     var(--m3-surface-container-low);
@@ -94,6 +101,13 @@ html.dark {
   --m3-degraded:  #ffb950;
   --m3-degraded-bg: rgba(234, 179, 8, 0.15);
   --m3-degraded-bar: #fbbf24;
+
+  /* Maintenance colors — lighter for dark theme */
+  --bsp-maintenance-bg:     rgba(96, 165, 250, 0.12);
+  --bsp-maintenance-border: rgba(96, 165, 250, 0.28);
+  --bsp-maintenance-text:   #93c5fd;
+  --bsp-maintenance-muted:  #7dd3fc;
+  --bsp-maintenance-chip-bg: rgba(96, 165, 250, 0.15);
 }
 
 /* ── Base ─────────────────────────────────────────────────────────── */
