@@ -86,9 +86,10 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
         .then((r) => setSelectedDependsOnIds(new Set(r.dependsOnIds)))
         .catch(() => {})
     }
-  }, [])
+  }, [monitor])
 
   // Pre-load secrets for any vault already configured in the monitor being edited
+  // The initial monitor configuration is immutable for the lifetime of the modal.
   useEffect(() => {
     if (!monitor) return
     const cfg = monitor.config as unknown as Record<string, unknown>

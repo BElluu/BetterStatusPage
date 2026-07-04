@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify'
+import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import jwt from '@fastify/jwt'
 import multipart from '@fastify/multipart'
@@ -27,6 +27,7 @@ import { publicRoutes } from './routes/public.js'
 import { publicLocaleRoutes, adminLocaleRoutes } from './routes/locales.js'
 import { webhookRoutes } from './routes/webhook.js'
 import { startScheduler } from './workers/scheduler.js'
+import { requireAuth, requireRole } from './middleware/auth.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -61,7 +62,7 @@ await app.register(multipart, {
 })
 
 // Serve uploaded files
-const uploadsDir = process.env['UPLOAD_DIR'] ?? path.join(process.cwd(), 'data', 'uploads')
+const uploadsDir = path.resolve(process.env['UPLOAD_DIR'] ?? path.join(process.cwd(), 'data', 'uploads'))
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true })
 }
@@ -81,24 +82,6 @@ app.addHook('onSend', (_req, reply, _payload, done) => {
   }
   done()
 })
-
-// Auth middleware
-async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
-  try { await req.jwtVerify() } catch { return reply.code(401).send({ error: 'Unauthorized' }) }
-}
-
-// role hierarchy: admin > operator > branding
-function requireRole(...allowed: string[]) {
-  return async (req: FastifyRequest, reply: FastifyReply) => {
-    try {
-      await req.jwtVerify()
-      const { role } = req.user as { role: string }
-      if (role !== 'admin' && !allowed.includes(role)) {
-        return reply.code(403).send({ error: 'Forbidden' })
-      }
-    } catch { return reply.code(401).send({ error: 'Unauthorized' }) }
-  }
-}
 
 // Initialize DB only when setup has been completed
 if (isSetupComplete()) {
