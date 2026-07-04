@@ -26,6 +26,10 @@ interface PublicLayout {
   branding: Branding | null
 }
 
+const EMPTY_MONITORS: Monitor[] = []
+const EMPTY_MAINTENANCE_WINDOWS: MaintenanceWindow[] = []
+const EMPTY_MONITOR_DEPENDENCIES: MonitorDependency[] = []
+
 function collectLayoutMonitorIds(nodes: LayoutNode[]): Set<number> {
   const ids = new Set<number>()
   for (const node of nodes) {
@@ -72,10 +76,10 @@ export default function App() {
 
   const branding = layoutData?.branding ?? status?.branding
   const tree = layoutData?.tree
-  const monitors = status?.monitors ?? []
+  const monitors = status?.monitors ?? EMPTY_MONITORS
   const activeIncidents = status?.activeIncidents ?? []
-  const activeMaintenanceWindows = status?.activeMaintenanceWindows ?? []
-  const monitorDependencies = status?.monitorDependencies ?? []
+  const activeMaintenanceWindows = status?.activeMaintenanceWindows ?? EMPTY_MAINTENANCE_WINDOWS
+  const monitorDependencies = status?.monitorDependencies ?? EMPTY_MONITOR_DEPENDENCIES
 
   // dependencyMap: monitorId -> array of IDs it depends on
   const dependencyMap = useMemo(() => {
@@ -390,6 +394,8 @@ export default function App() {
 }
 
 /* ── Service Card (bento monitor tile) ───────────────────────────── */
+// Retained as an alternate card design for the status page.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ServiceCard({
   monitor,
   responseMs,

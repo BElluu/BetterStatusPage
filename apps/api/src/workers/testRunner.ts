@@ -6,12 +6,12 @@ import { Resolver } from 'dns/promises'
 export interface TestStep {
   label: string
   status: 'ok' | 'error' | 'info'
-  detail?: string
+  detail?: string | undefined
   /** Full content for steps where detail is truncated (e.g. body preview) */
-  fullContent?: string
+  fullContent?: string | undefined
   /** Cookie jar snapshot at this point (name → value), for diagnostic downloads */
-  cookies?: Record<string, string>
-  durationMs?: number
+  cookies?: Record<string, string> | undefined
+  durationMs?: number | undefined
 }
 
 export interface TestResult {
@@ -290,7 +290,7 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
       res = await fetch(currentUrl2, {
         method: config.method ?? 'GET',
         headers: { ...(config.headers ?? {}), ...authHeaders, ...cookieHdr() },
-        body: config.body ?? undefined,
+        ...(config.body !== undefined ? { body: config.body } : {}),
         signal: controller.signal,
         redirect: 'manual',
       })

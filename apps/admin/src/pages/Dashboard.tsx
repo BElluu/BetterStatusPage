@@ -25,7 +25,6 @@ export default function DashboardPage() {
   const activeIncidents = incidents.filter((i) => i.status !== 'resolved')
   const recentActivity  = incidents.slice(0, 5)
 
-  const allOperational = down === 0 && degraded === 0 && monitors.length > 0
   const allDown = down > 0 && down === monitors.length
   const globalStatus = allDown
     ? 'Major Outage Detected'

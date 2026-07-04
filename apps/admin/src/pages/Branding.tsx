@@ -372,7 +372,7 @@ function LivePreview({ form, logoUrl }: { form: BrandingForm; logoUrl: string | 
   }
 
   // Uptime bars row — gradient matching actual app
-  const UptimeBars = ({ color, barCount = 30 }: { color: string; barCount?: number }) => {
+  const _UptimeBars = ({ color, barCount = 30 }: { color: string; barCount?: number }) => {
     const lightColor = lighten(color)
     return (
       <div style={{ display: 'flex', height: '40px', gap: '2px' }}>

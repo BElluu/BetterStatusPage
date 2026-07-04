@@ -18,7 +18,7 @@ const MIME_TO_EXT: Record<string, string> = {
   'image/webp': '.webp',
 }
 
-function detectImageMime(buf: Buffer): string | null {
+export function detectImageMime(buf: Buffer): string | null {
   for (const { mime, magic } of ALLOWED_MIME_MAGIC) {
     if (magic.every((byte, i) => buf[i] === byte)) {
       if (mime === 'image/webp') {
@@ -33,7 +33,7 @@ function detectImageMime(buf: Buffer): string | null {
   return null
 }
 
-const UPLOAD_DIR = process.env['UPLOAD_DIR'] ?? './data/uploads'
+const UPLOAD_DIR = path.resolve(process.env['UPLOAD_DIR'] ?? './data/uploads')
 
 const DEFAULTS = {
   siteName: 'Status Page',

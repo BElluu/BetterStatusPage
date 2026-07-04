@@ -42,7 +42,6 @@ function fmtMs(ms: number): string {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ChartTooltip({ active, payload, hours }: { active?: boolean; payload?: readonly any[]; hours: number }) {
   if (!active || !payload?.length) return null
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
   const b = payload[0]?.payload as HistoryBucket | undefined
   if (!b) return null
   if (!b.count) return null
