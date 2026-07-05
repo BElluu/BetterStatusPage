@@ -7,7 +7,11 @@ import { startScheduler } from '../workers/scheduler.js'
 import { users, branding, layout } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
 
-export async function setupRoutes(app: FastifyInstance) {
+interface SetupRouteOptions {
+  startScheduler?: () => void
+}
+
+export async function setupRoutes(app: FastifyInstance, options: SetupRouteOptions = {}) {
   app.get('/status', async () => {
     return { needsSetup: !isSetupComplete() }
   })
@@ -51,7 +55,8 @@ export async function setupRoutes(app: FastifyInstance) {
 
     // Mark setup as complete and start the monitor scheduler
     writeSetupComplete('sqlite')
-    startScheduler()
+    const startMonitoring = options.startScheduler ?? startScheduler
+    startMonitoring()
 
     const [user] = await db.select().from(users).where(eq(users.email, email))
     const token = app.jwt.sign({ userId: user!.id, email: user!.email, role: user!.role })

@@ -234,10 +234,28 @@ Three things start:
 
 Open the admin URL and you'll be greeted by a setup wizard. Create your admin account, and you're in.
 
+### Quality checks
+
+```bash
+npm run lint            # ESLint for API, shared types, and both React apps
+npm test                # API integration tests + frontend component tests
+npm run test:coverage   # frontend coverage report with enforced thresholds
+npm run build           # strict TypeScript and production builds for all workspaces
+```
+
+Browser smoke tests use Playwright. Install Chromium once, then run the suite:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+The E2E suite stores runtime data under `.e2e/`. GitHub Actions runs lint, tests, coverage, builds, Playwright E2E, and a production Docker smoke test on pull requests and pushes to `main`.
+
 ### Production
 
 ```bash
-npm run build   # builds both frontends
+npm run build   # builds the API and both frontends
 npm start       # starts the API, which serves them as static files
 ```
 
@@ -399,7 +417,8 @@ Found a bug? Have an idea? PRs are welcome — just open an issue first for anyt
 1. Fork
 2. `git checkout -b feature/your-idea`
 3. Build something cool
-4. Open a PR
+4. Run `npm run lint && npm test && npm run build`
+5. Open a PR
 
 ---
 

@@ -177,19 +177,24 @@ async function sendTeams(
   vars: Record<string, string>,
 ) {
   const status = vars['status'] as keyof typeof TEAMS_COLORS
+  const statusText = vars['status'] ?? 'unknown'
+  const monitorName = vars['monitor_name'] ?? 'Unknown monitor'
+  const previousStatus = vars['previous_status'] ?? 'unknown'
+  const monitorType = vars['monitor_type'] ?? 'unknown'
+  const checkedAt = vars['checked_at'] ?? 'unknown'
   const themeColor = TEAMS_COLORS[status] ?? TEAMS_COLORS.down
   const statusEmoji = status === 'down' ? '🔴' : status === 'degraded' ? '🟡' : '🟢'
 
   const summary = config.summary
     ? substituteVars(config.summary, vars)
-    : `Monitor ${vars['monitor_name']} is ${vars['status'].toUpperCase()}`
+    : `Monitor ${monitorName} is ${statusText.toUpperCase()}`
 
   const facts: { name: string; value: string }[] = [
-    { name: 'Status', value: vars['status'] },
-    { name: 'Previous status', value: vars['previous_status'] },
-    { name: 'Monitor type', value: vars['monitor_type'] },
+    { name: 'Status', value: statusText },
+    { name: 'Previous status', value: previousStatus },
+    { name: 'Monitor type', value: monitorType },
     ...(vars['error_message'] ? [{ name: 'Error', value: vars['error_message'] }] : []),
-    { name: 'Checked at', value: vars['checked_at'] },
+    { name: 'Checked at', value: checkedAt },
   ]
 
   const payload = {
@@ -198,8 +203,8 @@ async function sendTeams(
     themeColor,
     summary,
     sections: [{
-      activityTitle: `${statusEmoji} **${vars['monitor_name']}** is **${vars['status'].toUpperCase()}**`,
-      activitySubtitle: `Previously: **${vars['previous_status']}**`,
+      activityTitle: `${statusEmoji} **${monitorName}** is **${statusText.toUpperCase()}**`,
+      activitySubtitle: `Previously: **${previousStatus}**`,
       facts,
       markdown: true,
     }],
@@ -221,10 +226,12 @@ async function sendSlack(
   vars: Record<string, string>,
 ) {
   const status = vars['status'] as keyof typeof SLACK_COLORS
+  const statusText = vars['status'] ?? 'unknown'
+  const monitorName = vars['monitor_name'] ?? 'Unknown monitor'
   const color = SLACK_COLORS[status] ?? SLACK_COLORS.down
   const statusEmoji = status === 'down' ? '🔴' : status === 'degraded' ? '🟡' : '🟢'
 
-  const fallbackText = `${statusEmoji} Monitor *${vars['monitor_name']}* is *${vars['status'].toUpperCase()}*`
+  const fallbackText = `${statusEmoji} Monitor *${monitorName}* is *${statusText.toUpperCase()}*`
 
   const fields = [
     { type: 'mrkdwn', text: `*Status:*\n${vars['status']}` },

@@ -13,6 +13,7 @@ COPY apps/status/package*.json     ./apps/status/
 RUN npm ci
 
 # Copy source and build everything
+COPY tsconfig.base.json ./
 COPY packages/ ./packages/
 COPY apps/     ./apps/
 

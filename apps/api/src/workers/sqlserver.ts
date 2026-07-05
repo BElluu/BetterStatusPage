@@ -7,12 +7,10 @@ export async function checkSqlServer(
   timeoutMs: number,
 ): Promise<{ status: MonitorStatus; responseMs: number | null; error: string | null }> {
   const start = Date.now()
-  let sql: typeof import('mssql') | null = null
-
   try {
     // mssql is CJS; in an ESM package (.default needed for proper interop)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    sql = await import('mssql').then((m: any) => m.default ?? m) as typeof import('mssql')
+    const sql = await import('mssql').then((m: any) => m.default ?? m) as typeof import('mssql')
 
     let pool: import('mssql').ConnectionPool
 

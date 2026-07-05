@@ -23,7 +23,7 @@ export default function SetupPage() {
         else setChecking(false)
       })
       .catch(() => setChecking(false))
-  }, [])
+  }, [navigate])
 
   // Step 2 fields
   const [email, setEmail]         = useState('')
