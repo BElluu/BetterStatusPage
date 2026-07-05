@@ -8,7 +8,10 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "db:migrate": "tsx src/db/migrate.ts",
-    "db:seed": "tsx src/db/seed.ts"
+    "db:seed": "tsx src/db/seed.ts",
+    "backup": "node dist/cli/backup.js",
+    "backup:verify": "node dist/cli/backup.js --verify",
+    "restore": "node dist/cli/restore.js"
   },
   "dependencies": {
     "@bsp/shared": "*",

@@ -241,6 +241,7 @@ npm run lint            # ESLint for API, shared types, and both React apps
 npm test                # API integration tests + frontend component tests
 npm run test:coverage   # frontend coverage report with enforced thresholds
 npm run build           # strict TypeScript and production builds for all workspaces
+npm run backup          # create a consistent database + uploads backup (after build)
 ```
 
 Browser smoke tests use Playwright. Install Chromium once, then run the suite:
