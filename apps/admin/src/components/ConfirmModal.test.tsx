@@ -40,4 +40,19 @@ describe('ConfirmModal', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onCancel).toHaveBeenCalledOnce()
   })
+
+  it('requires the exact confirmation text when configured', async () => {
+    const user = userEvent.setup()
+    const onConfirm = vi.fn()
+    render(<ConfirmModal title="Delete backup" message="Permanent action" confirmationText="backup.backup" onConfirm={onConfirm} onCancel={vi.fn()} />)
+
+    const confirm = screen.getByRole('button', { name: 'Delete' })
+    expect(confirm).toBeDisabled()
+    await user.type(screen.getByRole('textbox'), 'wrong')
+    expect(confirm).toBeDisabled()
+    await user.clear(screen.getByRole('textbox'))
+    await user.type(screen.getByRole('textbox'), 'backup.backup')
+    await user.click(confirm)
+    expect(onConfirm).toHaveBeenCalledOnce()
+  })
 })

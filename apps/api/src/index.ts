@@ -28,6 +28,10 @@ import { publicLocaleRoutes, adminLocaleRoutes } from './routes/locales.js'
 import { webhookRoutes } from './routes/webhook.js'
 import { startScheduler } from './workers/scheduler.js'
 import { requireAuth, requireRole } from './middleware/auth.js'
+import { uploadDir } from './config.js'
+import { backupRoutes } from './routes/backups.js'
+import { restartBackupScheduler } from './workers/backupScheduler.js'
+import { acquireAppLock } from './services/appLock.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -62,7 +66,7 @@ await app.register(multipart, {
 })
 
 // Serve uploaded files
-const uploadsDir = path.resolve(process.env['UPLOAD_DIR'] ?? path.join(process.cwd(), 'data', 'uploads'))
+const uploadsDir = uploadDir()
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true })
 }
@@ -137,6 +141,7 @@ await app.register(async (adminApp) => {
     await sub.register(userRoutes,   { prefix: '/users' })
     await sub.register(vaultRoutes,  { prefix: '/vaults' })
     await sub.register(auditRoutes,  { prefix: '/audit' })
+    await sub.register(backupRoutes, { prefix: '/backups' })
   })
 }, { prefix: '/api/v1/admin' })
 
@@ -164,7 +169,23 @@ if (process.env['NODE_ENV'] === 'production') {
 }
 
 const port = Number(process.env['PORT'] ?? 3000)
-await app.listen({ port, host: '0.0.0.0' })
+const releaseAppLock = acquireAppLock()
+app.addHook('onClose', async () => releaseAppLock())
+try {
+  await app.listen({ port, host: '0.0.0.0' })
+} catch (error) {
+  releaseAppLock()
+  throw error
+}
 console.log(`✓ API running on http://localhost:${port}`)
 
-if (isSetupComplete()) startScheduler()
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.once(signal, () => {
+    app.close().finally(() => process.exit(0)).catch(() => process.exit(1))
+  })
+}
+
+if (isSetupComplete()) {
+  startScheduler()
+  restartBackupScheduler()
+}

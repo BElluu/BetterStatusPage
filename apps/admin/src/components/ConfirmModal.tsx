@@ -1,10 +1,12 @@
 import { createPortal } from 'react-dom'
+import { useState } from 'react'
 
 interface ConfirmModalProps {
   title: string
   message: string
   confirmLabel?: string
   danger?: boolean
+  confirmationText?: string
   onConfirm: () => void
   onCancel: () => void
 }
@@ -14,9 +16,13 @@ export function ConfirmModal({
   message,
   confirmLabel = 'Delete',
   danger = true,
+  confirmationText,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
+  const [typedConfirmation, setTypedConfirmation] = useState('')
+  const canConfirm = !confirmationText || typedConfirmation === confirmationText
+
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
@@ -34,6 +40,18 @@ export function ConfirmModal({
         <p className="text-sm" style={{ color: 'var(--m3-on-surface-variant)' }}>
           {message}
         </p>
+        {confirmationText && (
+          <label className="block space-y-2 text-sm" style={{ color: 'var(--m3-on-surface-variant)' }}>
+            <span>Type <strong className="font-mono">{confirmationText}</strong> to confirm:</span>
+            <input
+              autoFocus
+              value={typedConfirmation}
+              onChange={(event) => setTypedConfirmation(event.target.value)}
+              className="w-full rounded-xl px-3 py-2 outline-none"
+              style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-on-surface)', border: '1px solid var(--m3-outline-variant)' }}
+            />
+          </label>
+        )}
         <div className="flex justify-end gap-2 pt-2">
           <button
             onClick={onCancel}
@@ -44,10 +62,13 @@ export function ConfirmModal({
           </button>
           <button
             onClick={onConfirm}
+            disabled={!canConfirm}
             className="px-5 py-2 rounded-full text-sm font-bold transition-colors"
             style={{
               background: danger ? 'var(--m3-error)' : 'var(--m3-primary)',
               color: danger ? 'var(--m3-on-error)' : 'var(--m3-on-primary)',
+              opacity: canConfirm ? 1 : 0.5,
+              cursor: canConfirm ? 'pointer' : 'not-allowed',
             }}
           >
             {confirmLabel}
