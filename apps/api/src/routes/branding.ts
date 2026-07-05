@@ -3,6 +3,7 @@ import { db } from '../db/client.js'
 import { branding } from '../db/schema.js'
 import path from 'path'
 import fs from 'fs'
+import { uploadDir } from '../config.js'
 
 const ALLOWED_MIME_MAGIC: Array<{ mime: string; magic: number[] }> = [
   { mime: 'image/jpeg', magic: [0xFF, 0xD8, 0xFF] },
@@ -32,8 +33,6 @@ export function detectImageMime(buf: Buffer): string | null {
   }
   return null
 }
-
-const UPLOAD_DIR = path.resolve(process.env['UPLOAD_DIR'] ?? './data/uploads')
 
 const DEFAULTS = {
   siteName: 'Status Page',
@@ -104,11 +103,12 @@ export async function brandingRoutes(app: FastifyInstance) {
     const mime = detectImageMime(buf)
     if (!mime) return reply.code(400).send({ error: 'Invalid image. Allowed types: JPEG, PNG, GIF, WebP' })
 
-    if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true })
+    const uploads = uploadDir()
+    if (!fs.existsSync(uploads)) fs.mkdirSync(uploads, { recursive: true })
 
     const ext = MIME_TO_EXT[mime]!
     const filename = `logo${ext}`
-    fs.writeFileSync(path.join(UPLOAD_DIR, filename), buf)
+    fs.writeFileSync(path.join(uploads, filename), buf)
 
     const logoUrl = `/uploads/${filename}`
     const existing = (await db.select().from(branding))[0]

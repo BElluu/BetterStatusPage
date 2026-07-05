@@ -18,7 +18,10 @@
     "test:e2e": "playwright test",
     "db:migrate": "npm run db:migrate -w apps/api",
     "db:seed": "npm run db:seed -w apps/api",
-    "setup": "npm run db:migrate && npm run db:seed"
+    "setup": "npm run db:migrate && npm run db:seed",
+    "backup": "npm run backup -w apps/api --",
+    "backup:verify": "npm run backup:verify -w apps/api --",
+    "restore": "npm run restore -w apps/api --"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

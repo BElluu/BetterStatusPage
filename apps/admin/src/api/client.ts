@@ -77,4 +77,15 @@ export const api = {
   put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
   delete: (path: string) => request<void>('DELETE', path),
   upload: <T>(path: string, formData: FormData) => request<T>('POST', path, formData, true),
+  download: async (path: string, filename: string) => {
+    const token = getToken()
+    const res = await fetch(`${BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    if (!res.ok) throw new Error('Download failed')
+    const url = URL.createObjectURL(await res.blob())
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(url)
+  },
 }

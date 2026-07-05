@@ -40,6 +40,7 @@ export default function Layout() {
         { to: '/admin/users',     label: 'Users',     icon: 'group',        minRole: 'admin' },
         { to: '/admin/vault',     label: 'Vault',     icon: 'shield_lock',  minRole: 'admin' },
         { to: '/admin/audit-log', label: 'Audit Log', icon: 'policy',       minRole: 'admin' },
+        { to: '/admin/backups',   label: 'Backups',   icon: 'backup',       minRole: 'admin' },
       ],
     },
   ]
