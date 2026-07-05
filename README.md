@@ -59,6 +59,8 @@ All channels support template variables like `{{monitor_name}}`, `{{status}}`, `
 
 Recovery notifications are optional per channel — because sometimes you want to know when things come back up, and sometimes you just want to sleep.
 
+Every delivery is persisted with its individual attempts. Failed sends retry automatically after 1 and 5 minutes, then remain visible in the admin delivery history for manual retry. Delivery history is retained for 180 days.
+
 > See **[docs/discord-integration.md](docs/discord-integration.md)** for a step-by-step Discord setup guide.
 > See **[docs/teams-integration.md](docs/teams-integration.md)** for a step-by-step Microsoft Teams setup guide.
 > See **[docs/slack-integration.md](docs/slack-integration.md)** for a step-by-step Slack setup guide.

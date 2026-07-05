@@ -2,11 +2,14 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { NotificationChannel, SmtpSettings, VaultRef } from '@bsp/shared'
+import type { NotificationChannel, NotificationDelivery, NotificationDeliveryAttempt, SmtpSettings, VaultRef } from '@bsp/shared'
 import ChannelFormModal from '../components/notifications/ChannelFormModal'
 import { ConfirmModal } from '../components/ConfirmModal'
+import { Link } from 'react-router-dom'
+import { useAdminLocale } from '../i18n/LocaleContext'
 
 export default function NotificationsPage() {
+  const { t } = useAdminLocale()
   const qc = useQueryClient()
   const [editingChannel, setEditingChannel] = useState<NotificationChannel | null>(null)
   const [showCreate, setShowCreate]         = useState(false)
@@ -32,14 +35,22 @@ export default function NotificationsPage() {
   return (
     <div className="p-8 space-y-6 fade-up">
       {/* Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="font-headline font-bold text-2xl" style={{ color: 'var(--m3-on-surface)' }}>Notifications</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
             Alert channels fired when a monitor changes status
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to="/admin/notifications/history"
+            className="text-sm font-semibold px-4 py-2.5 rounded-lg transition-all flex items-center gap-1.5"
+            style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface)', border: '1px solid var(--m3-outline-variant)' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>history</span>
+            {t('notifications.deliveryHistory')}
+          </Link>
           <button
             onClick={() => setShowSmtp(true)}
             className="text-sm font-semibold px-4 py-2.5 rounded-lg transition-all flex items-center gap-1.5"
@@ -185,6 +196,103 @@ export default function NotificationsPage() {
       {showSmtp && <SmtpModal onClose={() => setShowSmtp(false)} />}
     </div>
   )
+}
+
+interface DeliveryListResponse {
+  deliveries: NotificationDelivery[]
+  total: number
+  page: number
+  pages: number
+}
+
+export function DeliveryHistory({ channels }: { channels: NotificationChannel[] }) {
+  const { t } = useAdminLocale()
+  const qc = useQueryClient()
+  const [page, setPage] = useState(1)
+  const [status, setStatus] = useState('')
+  const [channelId, setChannelId] = useState('')
+  const [eventType, setEventType] = useState('')
+  const [expanded, setExpanded] = useState<number | null>(null)
+  const params = new URLSearchParams({ page: String(page), limit: '20' })
+  if (status) params.set('status', status)
+  if (channelId) params.set('channelId', channelId)
+  if (eventType) params.set('eventType', eventType)
+
+  const { data, isLoading } = useQuery<DeliveryListResponse>({
+    queryKey: ['notification-deliveries', page, status, channelId, eventType],
+    queryFn: () => api.get(`/admin/notifications/deliveries?${params}`),
+    refetchInterval: 30_000,
+  })
+  const detail = useQuery<NotificationDelivery & { attempts: NotificationDeliveryAttempt[] }>({
+    queryKey: ['notification-delivery', expanded],
+    queryFn: () => api.get(`/admin/notifications/deliveries/${expanded}`),
+    enabled: expanded !== null,
+  })
+  const retry = useMutation({
+    mutationFn: (id: number) => api.post(`/admin/notifications/deliveries/${id}/retry`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['notification-deliveries'] })
+      qc.invalidateQueries({ queryKey: ['notification-delivery'] })
+    },
+  })
+
+  function changeFilter(setter: (value: string) => void, value: string) {
+    setter(value)
+    setPage(1)
+    setExpanded(null)
+  }
+
+  return <section className="space-y-4 pt-2">
+    <div className="overflow-x-auto pb-1">
+      <div className="grid grid-cols-3 gap-2 min-w-[560px]">
+        <select aria-label={t('notifications.history.status')} className="input-sig text-sm min-w-32" value={status} onChange={(e) => changeFilter(setStatus, e.target.value)}>
+          <option value="">{t('notifications.history.allStatuses')}</option><option value="pending">{t('common.pending')}</option><option value="delivered">{t('notifications.history.delivered')}</option><option value="failed">{t('notifications.history.failed')}</option>
+        </select>
+        <select aria-label={t('notifications.history.channel')} className="input-sig text-sm min-w-40" value={channelId} onChange={(e) => changeFilter(setChannelId, e.target.value)}>
+          <option value="">{t('notifications.history.allChannels')}</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
+        </select>
+        <select aria-label={t('notifications.history.event')} className="input-sig text-sm min-w-32" value={eventType} onChange={(e) => changeFilter(setEventType, e.target.value)}>
+          <option value="">{t('notifications.history.allEvents')}</option><option value="alert">{t('notifications.history.alert')}</option><option value="recovery">{t('notifications.history.recovery')}</option><option value="test">{t('notifications.history.test')}</option>
+        </select>
+      </div>
+    </div>
+
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
+      {isLoading ? <p className="p-6 text-sm" style={{ color: 'var(--m3-secondary)' }}>{t('notifications.history.loading')}</p>
+        : !data?.deliveries.length ? <div className="p-10 text-center"><span className="material-symbols-outlined" style={{ fontSize: '36px', color: 'var(--m3-outline)' }}>outbox</span><p className="text-sm mt-2" style={{ color: 'var(--m3-secondary)' }}>{t('notifications.history.empty')}</p></div>
+          : <div className="overflow-x-auto"><table className="w-full text-sm min-w-[850px]">
+            <thead><tr style={{ background: 'var(--m3-surface-container)', borderBottom: '1px solid var(--m3-outline-variant)' }}>{[t('notifications.history.time'), t('notifications.history.monitor'), t('notifications.history.channel'), t('notifications.history.event'), t('notifications.history.attempts'), t('notifications.history.status'), ''].map((label) => <th key={label} className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>{label}</th>)}</tr></thead>
+            <tbody>{data.deliveries.map((delivery) => <DeliveryRow key={delivery.id} delivery={delivery} expanded={expanded === delivery.id} {...(expanded === delivery.id && detail.data ? { detail: detail.data } : {})} onToggle={() => setExpanded(expanded === delivery.id ? null : delivery.id)} onRetry={() => retry.mutate(delivery.id)} retrying={retry.isPending} />)}</tbody>
+          </table></div>}
+    </div>
+    {data && data.pages > 1 && <div className="flex items-center justify-between text-sm"><span style={{ color: 'var(--m3-secondary)' }}>{t('notifications.history.deliveriesCount', { n: data.total })}</span><div className="flex items-center gap-2"><button className="px-3 py-1.5 rounded-lg" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>{t('notifications.history.previous')}</button><span>{t('notifications.history.pageOf', { page, pages: data.pages })}</span><button className="px-3 py-1.5 rounded-lg" disabled={page >= data.pages} onClick={() => setPage((value) => value + 1)}>{t('notifications.history.next')}</button></div></div>}
+  </section>
+}
+
+function DeliveryRow({ delivery, expanded, detail, onToggle, onRetry, retrying }: { delivery: NotificationDelivery; expanded: boolean; detail?: NotificationDelivery & { attempts: NotificationDeliveryAttempt[] }; onToggle: () => void; onRetry: () => void; retrying: boolean }) {
+  const { t } = useAdminLocale()
+  const statusName = (status: string) => status === 'up' ? t('common.operational') : status === 'down' ? t('common.down') : status === 'degraded' ? t('common.degraded') : status === 'pending' ? t('common.pending') : status === 'affected' ? t('notifications.history.affected') : status
+  const statusColor = delivery.status === 'delivered' ? '#10b981' : delivery.status === 'failed' ? 'var(--m3-error)' : '#f59e0b'
+  const statusLabel = delivery.status === 'delivered' ? t('notifications.history.delivered') : delivery.status === 'failed' ? t('notifications.history.failed') : t('common.pending')
+  const eventLabel = delivery.eventType === 'alert' ? t('notifications.history.alert') : delivery.eventType === 'recovery' ? t('notifications.history.recovery') : t('notifications.history.test')
+  return <>
+    <tr className="cursor-pointer" onClick={onToggle} style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
+      <td className="px-4 py-3 whitespace-nowrap" style={{ color: 'var(--m3-secondary)' }}>{new Date(delivery.createdAt).toLocaleString()}</td>
+      <td className="px-4 py-3"><p className="font-medium">{delivery.monitorName}</p><p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>{statusName(delivery.previousStatus)} → {statusName(delivery.targetStatus)}</p></td>
+      <td className="px-4 py-3"><p>{delivery.channelName}</p><p className="text-xs capitalize" style={{ color: 'var(--m3-secondary)' }}>{delivery.channelType}</p></td>
+      <td className="px-4 py-3">{eventLabel}</td>
+      <td className="px-4 py-3">{delivery.attemptCount}</td>
+      <td className="px-4 py-3"><span className="inline-flex items-center gap-1.5 text-xs font-semibold"><span className="w-2 h-2 rounded-full" style={{ background: statusColor }} />{statusLabel}</span></td>
+      <td className="px-4 py-3 text-right"><span className="material-symbols-outlined" style={{ color: 'var(--m3-secondary)', fontSize: '18px' }}>{expanded ? 'expand_less' : 'expand_more'}</span></td>
+    </tr>
+    {expanded && <tr><td colSpan={7} className="px-4 py-4" style={{ background: 'var(--m3-surface-container)' }}>
+      {delivery.lastError && <div className="rounded-xl px-3 py-2 mb-3 text-sm" style={{ background: 'var(--m3-error-container)', color: 'var(--m3-on-error-container)' }}>{delivery.lastError}</div>}
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-2 flex-1"><p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>{t('notifications.history.attempts')}</p>{!detail ? <p className="text-sm">{t('common.loading')}</p> : detail.attempts.map((attempt) => <div key={attempt.id} className="flex flex-wrap gap-x-4 gap-y-1 text-xs"><span className="font-semibold">#{attempt.attemptNumber}</span><span style={{ color: attempt.status === 'delivered' ? '#10b981' : 'var(--m3-error)' }}>{attempt.status === 'delivered' ? t('notifications.history.delivered') : t('notifications.history.failed')}</span><span style={{ color: 'var(--m3-secondary)' }}>{new Date(attempt.completedAt).toLocaleString()}</span>{attempt.error && <span style={{ color: 'var(--m3-secondary)' }}>{attempt.error}</span>}</div>)}</div>
+        {delivery.status === 'failed' && <button type="button" disabled={retrying} onClick={(event) => { event.stopPropagation(); onRetry() }} className="px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap" style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)', opacity: retrying ? 0.6 : 1 }}>{retrying ? t('notifications.history.retrying') : t('notifications.history.retryNow')}</button>}
+      </div>
+    </td></tr>}
+  </>
 }
 
 function ActionBtn({ icon, title, onClick, danger }: { icon: string; title: string; onClick: () => void; danger?: boolean }) {

@@ -7,17 +7,22 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 import { SMTPServer } from 'smtp-server'
 import { db, initDb, sqlite } from '../src/db/client.js'
 import { runMigrations } from '../src/db/migrate.js'
-import { monitorNotificationChannels, monitors, notificationChannels, smtpSettings } from '../src/db/schema.js'
-import { sendNotifications } from '../src/workers/notifier.js'
+import { monitorNotificationChannels, monitors, notificationChannels, notificationDeliveries, notificationDeliveryAttempts, smtpSettings } from '../src/db/schema.js'
+import { processDueNotificationDeliveries, purgeOldNotificationDeliveries, retryNotificationDelivery, sendNotifications } from '../src/workers/notifier.js'
 
 const dataDir = mkdtempSync(join(tmpdir(), 'bsp-notifier-test-'))
 process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
 const requests: Array<{ url: string; body: string }> = []
+let flakyFailuresRemaining = 0
 const server = createServer((request, response) => {
   const chunks: Buffer[] = []
   request.on('data', (chunk: Buffer) => chunks.push(chunk))
   request.on('end', () => {
     requests.push({ url: request.url ?? '', body: Buffer.concat(chunks).toString() })
+    if (request.url === '/flaky' && flakyFailuresRemaining-- > 0) {
+      response.writeHead(500).end()
+      return
+    }
     response.writeHead(204).end()
   })
 })
@@ -50,6 +55,9 @@ before(async () => {
 beforeEach(async () => {
   requests.length = 0
   emails.length = 0
+  flakyFailuresRemaining = 0
+  await db.delete(notificationDeliveryAttempts)
+  await db.delete(notificationDeliveries)
   await db.delete(monitorNotificationChannels)
   await db.delete(notificationChannels)
   await db.delete(monitors)
@@ -93,6 +101,10 @@ describe('notification delivery', () => {
     assert.equal(emails.length, 1)
     assert.match(emails[0]!, /Subject: Checkout API down/)
     assert.match(emails[0]!, /connection failed/)
+    const deliveries = await db.select().from(notificationDeliveries)
+    assert.equal(deliveries.length, 5)
+    assert.ok(deliveries.every((delivery) => delivery.status === 'delivered' && delivery.attemptCount === 1))
+    assert.equal((await db.select().from(notificationDeliveryAttempts)).length, 5)
   })
 
   it('respects recovery flags and suppresses affected transitions', async () => {
@@ -110,5 +122,44 @@ describe('notification delivery', () => {
     await sendNotifications(monitor!, 'up', 'down', null)
     await sendNotifications(monitor!, 'affected', 'up', null)
     assert.equal(requests.length, 0)
+    assert.equal((await db.select().from(notificationDeliveries)).length, 0)
+  })
+
+  it('retries with backoff, records every attempt, and supports manual retry', async () => {
+    const now = Date.now()
+    const [monitor] = await db.insert(monitors).values({
+      name: 'Flaky API', type: 'https', intervalSecs: 60, timeoutMs: 1_000, retries: 1,
+      config: '{}', currentStatus: 'up', tags: '[]', createdAt: now, updatedAt: now,
+    }).returning()
+    const [channel] = await db.insert(notificationChannels).values({
+      name: 'Flaky webhook', type: 'webhook', config: JSON.stringify({ url: `${baseUrl}/flaky`, method: 'POST' }),
+      enabled: 1, notifyOnRecovery: 1, createdAt: now, updatedAt: now,
+    }).returning()
+    await db.insert(monitorNotificationChannels).values({ monitorId: monitor!.id, channelId: channel!.id })
+    flakyFailuresRemaining = 3
+
+    await sendNotifications(monitor!, 'down', 'up', 'timeout')
+    let [delivery] = await db.select().from(notificationDeliveries)
+    assert.equal(delivery!.status, 'pending')
+    assert.equal(delivery!.attemptCount, 1)
+
+    await processDueNotificationDeliveries(now + 2 * 60_000)
+    await processDueNotificationDeliveries(now + 10 * 60_000)
+    ;[delivery] = await db.select().from(notificationDeliveries)
+    assert.equal(delivery!.status, 'failed')
+    assert.equal(delivery!.attemptCount, 3)
+    assert.equal((await db.select().from(notificationDeliveryAttempts)).length, 3)
+
+    flakyFailuresRemaining = 0
+    assert.equal(await retryNotificationDelivery(delivery!.id), true)
+    ;[delivery] = await db.select().from(notificationDeliveries)
+    assert.equal(delivery!.status, 'delivered')
+    assert.equal(delivery!.attemptCount, 4)
+    assert.equal((await db.select().from(notificationDeliveryAttempts)).length, 4)
+
+    await db.update(notificationDeliveries).set({ createdAt: now - 181 * 24 * 60 * 60 * 1000 })
+    await purgeOldNotificationDeliveries(now)
+    assert.equal((await db.select().from(notificationDeliveries)).length, 0)
+    assert.equal((await db.select().from(notificationDeliveryAttempts)).length, 0)
   })
 })
