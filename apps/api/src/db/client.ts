@@ -1,10 +1,11 @@
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/sqlite-proxy'
+import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import * as schema from './schema.js'
 import path from 'path'
 import fs from 'fs'
 
-type DrizzleDb = ReturnType<typeof buildDrizzle>
+type DrizzleDb = SqliteRemoteDatabase<typeof schema>
 type P = string | number | bigint | null | Uint8Array
 
 let _sqlite: DatabaseSync | null = null
@@ -47,7 +48,7 @@ export const sqlite: DatabaseSync = new Proxy({} as DatabaseSync, {
   get(_, prop) {
     if (!_sqlite) throw new Error('DB not initialized — call initDb() first')
     const value = Reflect.get(_sqlite, prop, _sqlite)
-    return typeof value === 'function' ? (value as Function).bind(_sqlite) : value
+    return typeof value === 'function' ? value.bind(_sqlite) : value
   },
 })
 
@@ -56,6 +57,6 @@ export const db: DrizzleDb = new Proxy({} as DrizzleDb, {
   get(_, prop) {
     if (!_db) throw new Error('DB not initialized — call initDb() first')
     const value = Reflect.get(_db, prop, _db)
-    return typeof value === 'function' ? (value as Function).bind(_db) : value
+    return typeof value === 'function' ? value.bind(_db) : value
   },
 })

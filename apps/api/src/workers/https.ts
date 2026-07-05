@@ -3,27 +3,33 @@ import type { MonitorStatus } from '@bsp/shared'
 import { resolveVaultSecret } from './resolveSecret.js'
 import { Agent, fetch as httpFetch } from 'undici'
 import { lookup as dnsLookup } from 'dns'
+import type { LookupFunction } from 'net'
 
 // Application-level DNS cache — avoids repeated resolver round-trips between checks.
 const dnsCache = new Map<string, { address: string; family: number; expires: number }>()
 
-function cachedLookup(
-  hostname: string,
-  options: Parameters<typeof dnsLookup>[1],
-  callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
-): void {
-  const family = typeof options === 'object' ? (options.family ?? 0) : (options ?? 0)
+const cachedLookup: LookupFunction = (hostname, options, callback): void => {
+  const family = options.family ?? 0
   const key = `${hostname}:${family}`
   const hit = dnsCache.get(key)
   if (hit && hit.expires > Date.now()) {
-    callback(null, hit.address, hit.family)
+    if (options.all) callback(null, [{ address: hit.address, family: hit.family }])
+    else callback(null, hit.address, hit.family)
     return
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  dnsLookup(hostname, options as any, (err, address, fam) => {
-    if (!err && address) dnsCache.set(key, { address, family: fam, expires: Date.now() + 5 * 60_000 })
-    callback(err, address, fam)
-  })
+  if (options.all) {
+    dnsLookup(hostname, { ...options, all: true }, (err, addresses) => {
+      const resolved = addresses ?? []
+      const first = resolved[0]
+      if (!err && first) dnsCache.set(key, { ...first, expires: Date.now() + 5 * 60_000 })
+      callback(err, resolved)
+    })
+  } else {
+    dnsLookup(hostname, { ...options, all: false }, (err, address, fam) => {
+      if (!err && address) dnsCache.set(key, { address, family: fam, expires: Date.now() + 5 * 60_000 })
+      callback(err, address, fam)
+    })
+  }
 }
 
 // Persistent connection pool — reuses TCP/TLS connections and caches DNS lookups
@@ -220,7 +226,7 @@ export async function checkHttps(
         res = await httpFetch(currentUrl2, {
           method: config.method ?? 'GET',
           headers: { ...(config.headers ?? {}), ...authHeaders, ...jarCookieHdr() },
-          body: config.body ?? undefined,
+          ...(config.body !== undefined ? { body: config.body } : {}),
           signal: controller.signal,
           redirect: 'manual',
           dispatcher: httpAgent,
@@ -253,7 +259,7 @@ export async function checkHttps(
       res = await httpFetch(url, {
         method: config.method ?? 'GET',
         headers: { ...(config.headers ?? {}), ...authHeaders },
-        body: config.body ?? undefined,
+        ...(config.body !== undefined ? { body: config.body } : {}),
         signal: controller.signal,
         redirect: 'follow',
         dispatcher: httpAgent,

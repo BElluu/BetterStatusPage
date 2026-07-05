@@ -10,8 +10,7 @@ import { sendNotifications } from './notifier.js'
 import { lt, eq, and, lte, gte, inArray } from 'drizzle-orm'
 import type { HttpsConfig, PingConfig, DnsConfig, SqlServerConfig, MonitorStatus } from '@bsp/shared'
 
-async function isInMaintenance(monitorId: number): Promise<boolean> {
-  const now = Date.now()
+export async function isInMaintenance(monitorId: number, now = Date.now()): Promise<boolean> {
   const activeWindows = await db.select().from(maintenanceWindows).where(
     and(lte(maintenanceWindows.startsAt, now), gte(maintenanceWindows.endsAt, now)),
   )
@@ -26,10 +25,21 @@ async function isInMaintenance(monitorId: number): Promise<boolean> {
 }
 
 const CONCURRENCY = 20
+type MonitorRow = typeof monitors.$inferSelect
+
+export function getDueMonitors(allMonitors: MonitorRow[], now = Date.now()): MonitorRow[] {
+  return allMonitors.filter((monitor) =>
+    !monitor.lastCheckedAt || monitor.lastCheckedAt + monitor.intervalSecs * 1000 <= now,
+  )
+}
 
 export async function runCheck(monitor: typeof monitors.$inferSelect) {
   const config = JSON.parse(monitor.config) as HttpsConfig | PingConfig | DnsConfig | SqlServerConfig
-  let result: { status: MonitorStatus; responseMs: number | null; error: string | null }
+  let result: { status: MonitorStatus; responseMs: number | null; error: string | null } = {
+    status: 'down',
+    responseMs: null,
+    error: 'Monitor check did not run',
+  }
 
   const maxAttempts = (monitor.retries ?? 1)
   try {
@@ -86,27 +96,27 @@ export async function runCheck(monitor: typeof monitors.$inferSelect) {
   }
 }
 
-async function tick() {
+export async function runSchedulerTick(run: (monitor: MonitorRow) => Promise<unknown> = runCheck) {
   const now = Date.now()
   const allMonitors = await db.select().from(monitors)
-  const due = allMonitors.filter((m) => !m.lastCheckedAt || m.lastCheckedAt + m.intervalSecs * 1000 <= now)
+  const due = getDueMonitors(allMonitors, now)
   if (due.length === 0) return
 
   for (let i = 0; i < due.length; i += CONCURRENCY) {
     const chunk = due.slice(i, i + CONCURRENCY)
-    await Promise.allSettled(chunk.map(runCheck))
+    await Promise.allSettled(chunk.map(run))
   }
 }
 
-async function purgeOldResults() {
-  const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000
+export async function purgeOldResults(now = Date.now()) {
+  const cutoff = now - 90 * 24 * 60 * 60 * 1000
   await db.delete(monitorResults).where(lt(monitorResults.checkedAt, cutoff))
   console.log('[scheduler] Purged old monitor results')
 }
 
 export function startScheduler() {
   cron.schedule('*/10 * * * * *', () => {
-    tick().catch((err) => console.error('[scheduler] tick error:', err))
+    runSchedulerTick().catch((err) => console.error('[scheduler] tick error:', err))
   })
   cron.schedule('0 2 * * *', () => {
     purgeOldResults().catch(console.error)

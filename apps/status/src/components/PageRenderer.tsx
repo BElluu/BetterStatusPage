@@ -236,7 +236,7 @@ function NodeRenderer({
    SERVICE MONITOR CARD  (large variant — matches design exactly)
    ───────────────────────────────────────────────────────────────────── */
 function ServiceMonitorCard({
-  monitor, responseMs, monitorId,
+  monitor, responseMs: _responseMs, monitorId,
   showUptimeBar, showMonitorType = false,
   uptimeBarPosition = 'right',
   showUptimePct = false,
@@ -415,7 +415,7 @@ function ServiceMonitorCard({
             barColorLight={barColorLight}
             isDown={isDown}
             isDegraded={isDegraded}
-            onData={(pct) => setOverallPct(pct)}
+            onData={setOverallPct}
           />
         </div>
       )}
@@ -427,7 +427,7 @@ function ServiceMonitorCard({
    COMPACT MONITOR ROW  (slim — for compact variant and group children)
    ───────────────────────────────────────────────────────────────────── */
 function CompactMonitorRow({
-  monitor, responseMs, showMonitorType = false, nested = false, inMaintenance = false, causingMonitors = [],
+  monitor, responseMs: _responseMs, showMonitorType = false, nested = false, inMaintenance = false, causingMonitors = [],
 }: {
   monitor: Monitor
   responseMs: number | null
@@ -705,7 +705,6 @@ function IncidentsBlock({ config, activeIncidents, allIncidents, monitors }: {
   allIncidents: Incident[]
   monitors: Monitor[]
 }) {
-  const { t } = useLocale()
   const filter = config.filter ?? 'all'
   const limit  = config.limit ?? 5
 
@@ -834,7 +833,7 @@ function UptimeBars({ monitorId, barColor, barColorLight, isDown, isDegraded, on
         onData?.(res.overallUptimePct)
       })
       .catch(() => {})
-  }, [monitorId])
+  }, [monitorId, onData])
 
   const barColorOf = (day: UptimeDay) =>
     day.status === 'up' ? `linear-gradient(to top, ${barColor}, ${barColorLight})`

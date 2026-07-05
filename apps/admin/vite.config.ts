@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   base: '/admin/',
   server: {
+    host: '127.0.0.1',
     port: 5173,
     proxy: {
       '/api/v1/public/events': {
