@@ -149,6 +149,7 @@ if (process.env['NODE_ENV'] === 'production') {
     root: adminDist,
     prefix: '/admin/',
     decorateReply: false,
+    wildcard: false,
   })
 
   app.get('/admin/*', (_, reply) => reply.sendFile('index.html', adminDist))
