@@ -49,5 +49,8 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV DATABASE_PATH=/app/data/db.sqlite
 ENV UPLOAD_DIR=/app/data/uploads
+ENV BACKUP_DIR=/app/backups
+
+RUN mkdir -p /app/backups
 
 CMD ["node", "apps/api/dist/index.js"]

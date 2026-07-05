@@ -4,6 +4,7 @@ import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import * as schema from './schema.js'
 import path from 'path'
 import fs from 'fs'
+import { databasePath } from '../config.js'
 
 type DrizzleDb = SqliteRemoteDatabase<typeof schema>
 type P = string | number | bigint | null | Uint8Array
@@ -34,13 +35,19 @@ function buildDrizzle(raw: DatabaseSync): DrizzleDb {
 /** Call once — opens the SQLite file and wires up Drizzle. */
 export function initDb(): void {
   if (_sqlite) return
-  const dbPath = process.env['DATABASE_PATH'] ?? './data/db.sqlite'
+  const dbPath = databasePath()
   const dir = path.dirname(dbPath)
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
   _sqlite = new DatabaseSync(dbPath)
   _sqlite.exec('PRAGMA journal_mode = WAL')
   _sqlite.exec('PRAGMA foreign_keys = ON')
   _db = buildDrizzle(_sqlite)
+}
+
+export function closeDb(): void {
+  _sqlite?.close()
+  _sqlite = null
+  _db = null
 }
 
 /** Raw node:sqlite handle — only accessible after initDb(). */

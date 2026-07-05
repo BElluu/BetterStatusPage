@@ -9,8 +9,10 @@ services:
       PORT: "3000"
       DATABASE_PATH: /app/data/db.sqlite
       UPLOAD_DIR: /app/data/uploads
+      BACKUP_DIR: /app/backups
     volumes:
       - bsp_data:/app/data
+      - bsp_backups:/app/backups
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/v1/public/status"]
@@ -21,4 +23,6 @@ services:
 
 volumes:
   bsp_data:
+    driver: local
+  bsp_backups:
     driver: local

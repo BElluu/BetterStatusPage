@@ -61,7 +61,7 @@ docker compose pull && docker compose up -d --build  # update to latest
 
 ### Where is my data?
 
-Everything lives in the `bsp_data` Docker named volume, mounted at `/app/data` inside the container:
+Application data lives in the `bsp_data` Docker named volume, mounted at `/app/data` inside the container:
 
 ```
 /app/data/
@@ -70,21 +70,7 @@ Everything lives in the `bsp_data` Docker named volume, mounted at `/app/data` i
 └── uploads/        # uploaded logos and favicons
 ```
 
-Named volumes survive `docker compose down`, container rebuilds, and image upgrades. The data is **not** deleted unless you explicitly run `docker compose down -v`.
-
-To back up:
-
-```bash
-docker compose exec app sh -c "cp /app/data/db.sqlite /tmp/db.backup.sqlite"
-docker cp $(docker compose ps -q app):/tmp/db.backup.sqlite ./db.backup.sqlite
-```
-
-Or simpler — find the volume on disk and copy it directly:
-
-```bash
-docker volume inspect bettterstatuspage_bsp_data   # shows Mountpoint path
-sudo cp <mountpoint>/db.sqlite ./db.backup.sqlite
-```
+Generated archives live in a separate `bsp_backups` volume mounted at `/app/backups`. Both volumes survive `docker compose down`, container rebuilds, and image upgrades. Use the backup commands below instead of copying the active WAL database or its volume directly.
 
 ---
 
@@ -388,6 +374,7 @@ pm2 restart bsp
 | `ADMIN_PASSWORD` | Setup only | Password for the first admin account. Can be changed in the UI afterwards. |
 | `DATABASE_PATH` | No | Path to the SQLite file. Default: `./data/db.sqlite` |
 | `UPLOAD_DIR` | No | Directory for uploaded files (logos, favicons). Default: `./data/uploads` |
+| `BACKUP_DIR` | No | Directory for generated backup archives. Default: `./data/backups` |
 | `ALLOWED_ORIGINS` | No | Comma-separated CORS origins. Leave unset if Nginx handles CORS, or in single-domain setups. |
 
 Generate secrets:
@@ -404,29 +391,44 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ## Backups
 
-The entire state of BetterStatusPage is in two places:
+BetterStatusPage creates a consistent SQLite snapshot with `VACUUM INTO`; do not copy a live `db.sqlite` directly while WAL mode is active. A `bsp-backup-TIMESTAMP.backup` archive contains the database, `setup.json`, uploads, a versioned manifest, and SHA-256 checksums.
 
-| What | Where | How to back up |
-|------|-------|----------------|
-| Database | `DATABASE_PATH` (default `./data/db.sqlite`) | Copy the file. SQLite supports hot backups — you can copy a live database safely. |
-| Uploads | `UPLOAD_DIR` (default `./data/uploads`) | Copy the directory. |
-| Encryption key | `VAULT_ENCRYPTION_KEY` in `.env` | Store it somewhere safe separately — without it, vault secrets are lost even if you have the DB. |
-
-For automated backups, a simple cron job:
+Build the application before using the CLI, then create or verify a backup:
 
 ```bash
-# /etc/cron.daily/bsp-backup
-#!/bin/bash
-DEST=/var/backups/bsp/$(date +%Y-%m-%d)
-mkdir -p "$DEST"
-cp /path/to/data/db.sqlite "$DEST/db.sqlite"
-cp -r /path/to/data/uploads "$DEST/uploads"
-find /var/backups/bsp -maxdepth 1 -type d -mtime +30 -exec rm -rf {} +
+npm run build
+npm run backup -- --output ./backups
+npm run backup:verify -- --input ./backups/bsp-backup-TIMESTAMP.backup
 ```
 
+The admin **Backups** page can create, download, validate, delete, and schedule backups. Automatic backups support daily or weekly execution and count-based retention.
+
+Restore is deliberately offline. Stop the application first:
+
 ```bash
-sudo chmod +x /etc/cron.daily/bsp-backup
+pm2 stop bsp
+npm run restore -- --input ./backups/bsp-backup-TIMESTAMP.backup --vault-encryption-key YOUR_64_CHARACTER_HEX_KEY
+pm2 start bsp
 ```
+
+The restore validates every checksum, runs SQLite integrity checks, creates a safety backup of the current state, atomically replaces the data, runs migrations, and rolls back if migration fails.
+
+Docker Compose uses a separate `bsp_backups` volume, so deleting the application data volume does not delete backup archives:
+
+```bash
+# Online backup
+docker compose exec app node apps/api/dist/cli/backup.js
+
+# List available archives
+docker compose run --rm app ls -lh /app/backups
+
+# Offline restore
+docker compose stop app
+docker compose run --rm app node apps/api/dist/cli/restore.js --input /app/backups/bsp-backup-TIMESTAMP.backup --vault-encryption-key YOUR_64_CHARACTER_HEX_KEY
+docker compose up -d app
+```
+
+`VAULT_ENCRYPTION_KEY` and `.env` are never included. Keep the key separately. Restore requires the key explicitly and rejects malformed or mismatched values.
 
 ---
 
