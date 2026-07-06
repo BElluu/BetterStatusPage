@@ -64,7 +64,7 @@ export default function IncidentsPage() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 py-3 px-4 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98]"
+          className="btn-primary flex items-center gap-2 py-3 px-4 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98]"
           style={{ background: 'var(--m3-on-surface)', color: 'var(--m3-surface)' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_circle</span>
@@ -230,7 +230,7 @@ export default function IncidentsPage() {
                             if (!updateBody.trim()) return
                             postUpdateMutation.mutate({ id: incident.id, body: updateBody, status: updateStatus })
                           }}
-                          className="text-sm font-semibold px-4 py-2 rounded-lg transition-all"
+                          className="btn-primary text-sm font-semibold px-4 py-2 rounded-lg transition-all"
                           style={{
                             background: 'var(--m3-primary)',
                             color: 'var(--m3-on-primary)',
@@ -373,7 +373,7 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
                         ? [...selectedMonitors, m.id]
                         : selectedMonitors.filter((id) => id !== m.id))
                     }}
-                    style={{ accentColor: 'var(--m3-primary)' }}
+                    style={{ accentColor: 'var(--admin-control-accent)' }}
                   />
                   <span style={{ color: 'var(--m3-on-surface)' }}>{m.name}</span>
                 </label>
@@ -398,7 +398,7 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
             <button
               type="submit"
               disabled={loading}
-              className="text-sm font-semibold px-4 py-2 rounded-lg transition-all"
+              className="btn-primary text-sm font-semibold px-4 py-2 rounded-lg transition-all"
               style={{
                 background: loading ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
                 color: loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',

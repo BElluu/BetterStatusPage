@@ -12,9 +12,9 @@ interface AuditPage {
 }
 
 const ACTION_COLORS: Record<AuditAction, { bg: string; color: string; label: string }> = {
-  create: { bg: 'rgba(16,185,129,0.12)', color: '#065f46', label: 'Create' },
-  update: { bg: 'rgba(99,102,241,0.12)', color: '#3730a3', label: 'Update' },
-  delete: { bg: 'rgba(239,68,68,0.12)',  color: '#991b1b', label: 'Delete' },
+  create: { bg: 'var(--audit-create-bg)', color: 'var(--audit-create-text)', label: 'Create' },
+  update: { bg: 'var(--audit-update-bg)', color: 'var(--audit-update-text)', label: 'Update' },
+  delete: { bg: 'var(--audit-delete-bg)', color: 'var(--audit-delete-text)', label: 'Delete' },
 }
 
 const ENTITY_LABELS: Record<AuditEntityType, string> = {

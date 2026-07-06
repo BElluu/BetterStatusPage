@@ -94,7 +94,7 @@ export default function MaintenancePage() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 py-3 px-4 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98]"
+          className="btn-primary flex items-center gap-2 py-3 px-4 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98]"
           style={{ background: 'var(--m3-on-surface)', color: 'var(--m3-surface)' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_circle</span>
@@ -450,7 +450,7 @@ function MaintenanceModal({
                     type="checkbox"
                     checked={allMonitors}
                     onChange={(e) => setAllMonitors(e.target.checked)}
-                    style={{ accentColor: 'var(--m3-primary)' }}
+                    style={{ accentColor: 'var(--admin-control-accent)' }}
                   />
                   All monitors
                 </label>
@@ -469,7 +469,7 @@ function MaintenanceModal({
                         type="checkbox"
                         checked={selectedMonitors.includes(m.id)}
                         onChange={() => toggleMonitor(m.id)}
-                        style={{ accentColor: 'var(--m3-primary)' }}
+                        style={{ accentColor: 'var(--admin-control-accent)' }}
                       />
                       <span style={{ color: 'var(--m3-on-surface)' }}>{m.name}</span>
                       <span className="ml-auto font-mono text-xs" style={{ color: 'var(--m3-outline)' }}>{m.type}</span>
@@ -505,7 +505,7 @@ function MaintenanceModal({
               <button
                 type="submit"
                 disabled={loading}
-                className="text-sm font-semibold px-4 py-2 rounded-lg transition-all"
+                className="btn-primary text-sm font-semibold px-4 py-2 rounded-lg transition-all"
                 style={{
                   background: loading ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
                   color: loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
