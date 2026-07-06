@@ -268,7 +268,7 @@ export default function BrandingPage() {
           <button
             onClick={() => saveMutation.mutate()}
             disabled={saveMutation.isPending}
-            className="flex-1 text-sm font-semibold py-2 rounded-lg transition-all"
+            className="btn-primary flex-1 text-sm font-semibold py-2 rounded-lg transition-all"
             style={{
               background: saveMutation.isPending ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
               color: saveMutation.isPending ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',

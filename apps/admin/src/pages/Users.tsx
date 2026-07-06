@@ -71,7 +71,7 @@ export default function UsersPage() {
         </div>
         <button
           onClick={() => { setShowCreate(true); setError('') }}
-          className="flex items-center gap-2 py-3 px-4 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98]"
+          className="btn-primary flex items-center gap-2 py-3 px-4 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98]"
           style={{ background: 'var(--m3-on-surface)', color: 'var(--m3-surface)' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>person_add</span>
@@ -98,7 +98,7 @@ export default function UsersPage() {
             <button
               onClick={() => newEmail && createMutation.mutate(newEmail)}
               disabled={!newEmail || createMutation.isPending}
-              className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+              className="btn-primary px-4 py-2 rounded-xl text-sm font-semibold transition-all"
               style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }}
             >
               {createMutation.isPending ? 'Creating…' : 'Create'}

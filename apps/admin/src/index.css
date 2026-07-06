@@ -56,6 +56,25 @@
 
   --color-primary: var(--bsp-primary);
   --color-accent:  var(--bsp-accent);
+
+  /* Semantic action colors stay neutral and consistent across admin pages. */
+  --admin-action-primary:       #dbe7ff;
+  --admin-action-primary-hover: #c9d9ff;
+  --admin-on-action-primary:    #172033;
+  --admin-action-focus:         rgba(73, 124, 255, 0.28);
+  --admin-selection:            var(--m3-primary-fixed);
+  --admin-selection-hover:      #cdd8fa;
+  --admin-on-selection:         var(--m3-primary);
+  --admin-selection-border:     #aab8dc;
+  --admin-control-accent:       #000000;
+  --admin-icon-container:       #e7e9ee;
+  --admin-icon-color:           #4b5563;
+  --audit-create-bg:            #d1fae5;
+  --audit-create-text:          #065f46;
+  --audit-update-bg:            #e0e7ff;
+  --audit-update-text:          #3730a3;
+  --audit-delete-bg:            #fee2e2;
+  --audit-delete-text:          #991b1b;
 }
 
 /* ── M3 Color Tokens — Dark ───────────────────────────────────────── */
@@ -88,6 +107,24 @@ html.dark {
   --m3-surface-tint:             #b4c5ff;
   --m3-inverse-primary:          #0053db;
 
+  --admin-action-primary:       #e5e7eb;
+  --admin-action-primary-hover: #ffffff;
+  --admin-on-action-primary:    #111318;
+  --admin-action-focus:         rgba(229, 231, 235, 0.28);
+  --admin-selection:            #3a3d46;
+  --admin-selection-hover:      #454953;
+  --admin-on-selection:         #f0f1f3;
+  --admin-selection-border:     #777e8b;
+  --admin-control-accent:       #cbd5e1;
+  --admin-icon-container:       #30333b;
+  --admin-icon-color:           #d6d9df;
+  --audit-create-bg:            #164e3b;
+  --audit-create-text:          #a7f3d0;
+  --audit-update-bg:            #37366d;
+  --audit-update-text:          #d8d7ff;
+  --audit-delete-bg:            #692d32;
+  --audit-delete-text:          #fecaca;
+
   --m3-up:        #4ade80;
   --m3-up-bg:     rgba(74, 222, 128, 0.12);
   --m3-up-bar:    #4ade80;
@@ -106,6 +143,35 @@ body {
   font-family: 'Inter', system-ui, sans-serif;
   background: var(--m3-surface);
   color: var(--m3-on-surface);
+}
+
+/* Primary admin action: one contrast-safe appearance in every feature. */
+.btn-primary {
+  background: var(--admin-action-primary) !important;
+  color: var(--admin-on-action-primary) !important;
+  border-color: transparent !important;
+  transition: background-color 0.18s ease, box-shadow 0.18s ease,
+    opacity 0.18s ease, transform 0.18s ease;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--admin-action-primary-hover) !important;
+}
+.btn-primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--admin-action-focus);
+}
+.btn-primary:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+.selection-active {
+  background: var(--admin-selection) !important;
+  color: var(--admin-on-selection) !important;
+  border-color: var(--admin-selection-border) !important;
+}
+.selection-active:hover {
+  background: var(--admin-selection-hover) !important;
 }
 
 /* ── Input style ──────────────────────────────────────────────────── */
