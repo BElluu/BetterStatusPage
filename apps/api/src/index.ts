@@ -32,6 +32,7 @@ import { uploadDir } from './config.js'
 import { backupRoutes } from './routes/backups.js'
 import { restartBackupScheduler } from './workers/backupScheduler.js'
 import { acquireAppLock } from './services/appLock.js'
+import { startNotificationRetryWorker } from './workers/notificationRetryWorker.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -188,4 +189,5 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
 if (isSetupComplete()) {
   startScheduler()
   restartBackupScheduler()
+  startNotificationRetryWorker()
 }

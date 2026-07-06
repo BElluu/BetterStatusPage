@@ -1,11 +1,65 @@
 import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
-import { notificationChannels, monitorNotificationChannels, smtpSettings } from '../db/schema.js'
-import { eq } from 'drizzle-orm'
-import { testNotificationChannel } from '../workers/notifier.js'
+import { notificationChannels, monitorNotificationChannels, smtpSettings, notificationDeliveries, notificationDeliveryAttempts } from '../db/schema.js'
+import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
+import { retryNotificationDelivery, testNotificationChannel } from '../workers/notifier.js'
 import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
 
 export async function notificationRoutes(app: FastifyInstance) {
+  app.get<{
+    Querystring: { page?: string; limit?: string; status?: string; channelId?: string; channelType?: string; monitorId?: string; eventType?: string; from?: string; to?: string }
+  }>('/deliveries', async (req) => {
+    const page = Math.max(1, Number(req.query.page ?? 1))
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 25)))
+    const conditions = []
+    if (req.query.status) conditions.push(eq(notificationDeliveries.status, req.query.status))
+    if (req.query.channelId) conditions.push(eq(notificationDeliveries.channelId, Number(req.query.channelId)))
+    if (req.query.channelType) conditions.push(eq(notificationDeliveries.channelType, req.query.channelType))
+    if (req.query.monitorId) conditions.push(eq(notificationDeliveries.monitorId, Number(req.query.monitorId)))
+    if (req.query.eventType) conditions.push(eq(notificationDeliveries.eventType, req.query.eventType))
+    if (req.query.from) conditions.push(gte(notificationDeliveries.createdAt, Number(req.query.from)))
+    if (req.query.to) conditions.push(lte(notificationDeliveries.createdAt, Number(req.query.to)))
+    const where = conditions.length ? and(...conditions) : undefined
+    const [deliveries, count] = await Promise.all([
+      db.select({
+        id: notificationDeliveries.id, channelId: notificationDeliveries.channelId,
+        channelName: notificationDeliveries.channelName, channelType: notificationDeliveries.channelType,
+        monitorId: notificationDeliveries.monitorId, monitorName: notificationDeliveries.monitorName,
+        eventType: notificationDeliveries.eventType, status: notificationDeliveries.status,
+        targetStatus: notificationDeliveries.targetStatus, previousStatus: notificationDeliveries.previousStatus,
+        attemptCount: notificationDeliveries.attemptCount, maxAttempts: notificationDeliveries.maxAttempts,
+        nextAttemptAt: notificationDeliveries.nextAttemptAt, lastAttemptAt: notificationDeliveries.lastAttemptAt,
+        deliveredAt: notificationDeliveries.deliveredAt, lastError: notificationDeliveries.lastError,
+        createdAt: notificationDeliveries.createdAt, updatedAt: notificationDeliveries.updatedAt,
+      }).from(notificationDeliveries).where(where).orderBy(desc(notificationDeliveries.createdAt)).limit(limit).offset((page - 1) * limit),
+      db.select({ count: sql<number>`count(*)` }).from(notificationDeliveries).where(where),
+    ])
+    const total = count[0]?.count ?? 0
+    return { deliveries, total, page, limit, pages: Math.ceil(total / limit) }
+  })
+
+  app.get<{ Params: { id: string } }>('/deliveries/:id', async (req, reply) => {
+    const id = Number(req.params.id)
+    const delivery = (await db.select().from(notificationDeliveries).where(eq(notificationDeliveries.id, id)))[0]
+    if (!delivery) return reply.code(404).send({ error: 'Delivery not found' })
+    const attempts = await db.select().from(notificationDeliveryAttempts)
+      .where(eq(notificationDeliveryAttempts.deliveryId, id)).orderBy(desc(notificationDeliveryAttempts.attemptNumber))
+    return { ...delivery, variables: undefined, attempts }
+  })
+
+  app.post<{ Params: { id: string } }>('/deliveries/:id/retry', async (req, reply) => {
+    const id = Number(req.params.id)
+    const existing = (await db.select().from(notificationDeliveries).where(eq(notificationDeliveries.id, id)))[0]
+    if (!existing) return reply.code(404).send({ error: 'Delivery not found' })
+    if (existing.status !== 'failed') return reply.code(409).send({ error: 'Only failed deliveries can be retried' })
+    await retryNotificationDelivery(id)
+    const actor = req.user as { userId: number; email: string }
+    await writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'notification_delivery', id, `${existing.channelName} · ${existing.monitorName}`, {
+      manualRetry: { from: false, to: true },
+    })
+    return (await db.select().from(notificationDeliveries).where(eq(notificationDeliveries.id, id)))[0]
+  })
+
   // ── Channels CRUD ──────────────────────────────────────────────────────────
 
   app.get('/channels', async () => {

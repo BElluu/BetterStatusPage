@@ -15,6 +15,7 @@ import SettingsPage from './pages/Settings'
 import LocalizationPage from './pages/Localization'
 import VaultPage from './pages/Vault'
 import NotificationsPage from './pages/Notifications'
+import NotificationHistoryPage from './pages/NotificationHistory'
 import MaintenancePage from './pages/Maintenance'
 import AuditLogPage from './pages/AuditLog'
 import BackupsPage from './pages/Backups'
@@ -119,6 +120,7 @@ export default function App() {
           <Route path="builder"   element={<RequireRole minRole="operator"><BuilderPage /></RequireRole>} />
           <Route path="branding"  element={<RequireRole minRole="branding"><BrandingPage /></RequireRole>} />
           <Route path="notifications" element={<RequireRole minRole="operator"><NotificationsPage /></RequireRole>} />
+          <Route path="notifications/history" element={<RequireRole minRole="operator"><NotificationHistoryPage /></RequireRole>} />
           <Route path="users"     element={<RequireRole minRole="admin"><UsersPage /></RequireRole>} />
           <Route path="vault"      element={<RequireRole minRole="admin"><VaultPage /></RequireRole>} />
           <Route path="audit-log" element={<RequireRole minRole="admin"><AuditLogPage /></RequireRole>} />
