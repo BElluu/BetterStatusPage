@@ -6,7 +6,7 @@ import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import { db, initDb, sqlite } from '../src/db/client.js'
 import { runMigrations } from '../src/db/migrate.js'
-import { auditLog, monitors } from '../src/db/schema.js'
+import { auditLog, monitors, notificationDeliveries } from '../src/db/schema.js'
 import { auditRoutes } from '../src/routes/audit.js'
 import { brandingRoutes } from '../src/routes/branding.js'
 import { layoutRoutes } from '../src/routes/layout.js'
@@ -83,6 +83,24 @@ describe('notification configuration', () => {
     const readSmtp = (await app.inject({ url: '/notifications/smtp' })).json()
     assert.equal(readSmtp.host, 'smtp.example.test')
     assert.equal(readSmtp.password, '••••••••')
+
+    const deliveryNow = Date.now()
+    const [delivery] = await db.insert(notificationDeliveries).values({
+      channelId: channel.id, channelName: patched.json().name, channelType: 'slack',
+      monitorId, monitorName: 'API', eventType: 'alert', status: 'failed', targetStatus: 'down', previousStatus: 'up',
+      variables: JSON.stringify({ monitor_name: 'API', monitor_type: 'webhook', status: 'down', previous_status: 'up', error_message: 'timeout', checked_at: new Date(deliveryNow).toISOString() }),
+      attemptCount: 3, maxAttempts: 3, nextAttemptAt: null, lastAttemptAt: deliveryNow,
+      lastError: 'timeout', createdAt: deliveryNow, updatedAt: deliveryNow,
+    }).returning()
+    const history = await app.inject({ url: '/notifications/deliveries?status=failed&channelType=slack' })
+    assert.equal(history.statusCode, 200)
+    assert.equal(history.json().total, 1)
+    assert.equal(history.json().deliveries[0].id, delivery!.id)
+    assert.equal((await app.inject({ url: `/notifications/deliveries/${delivery!.id}` })).statusCode, 200)
+    const retried = await app.inject({ method: 'POST', url: `/notifications/deliveries/${delivery!.id}/retry` })
+    assert.equal(retried.statusCode, 200)
+    assert.equal(retried.json().attemptCount, 4)
+    assert.equal((await db.select().from(auditLog)).some((entry) => entry.entityType === 'notification_delivery'), true)
 
     assert.equal((await app.inject({ method: 'DELETE', url: `/notifications/channels/${channel.id}` })).statusCode, 204)
   })

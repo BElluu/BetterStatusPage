@@ -1,11 +1,120 @@
 import { db } from '../db/client.js'
-import { monitors, notificationChannels, monitorNotificationChannels, smtpSettings } from '../db/schema.js'
-import { eq, inArray } from 'drizzle-orm'
+import { monitors, notificationChannels, monitorNotificationChannels, smtpSettings, notificationDeliveries, notificationDeliveryAttempts } from '../db/schema.js'
+import { and, eq, inArray, lt, lte } from 'drizzle-orm'
 import { resolveVaultSecret } from './resolveSecret.js'
 import type { MonitorStatus, VaultRef } from '@bsp/shared'
 
 function substituteVars(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? `{{${key}}}`)
+}
+
+const MAX_DELIVERY_ATTEMPTS = 3
+const RETRY_DELAYS_MS = [60_000, 5 * 60_000]
+const activeDeliveries = new Set<number>()
+
+type ChannelRow = typeof notificationChannels.$inferSelect
+
+async function deliverToChannel(channel: ChannelRow, vars: Record<string, string>): Promise<void> {
+  const config = JSON.parse(channel.config) as Record<string, unknown>
+  if (channel.type === 'email') {
+    await sendEmail(config as { to: string; subject: string; body: string }, vars)
+  } else if (channel.type === 'webhook') {
+    await sendWebhook(config as { url: string; method: string; headers?: Record<string, string>; body?: string }, vars)
+  } else if (channel.type === 'discord') {
+    await sendDiscord(config as { webhookUrl: string; username?: string; avatarUrl?: string; content?: string }, vars)
+  } else if (channel.type === 'teams') {
+    await sendTeams(config as { webhookUrl: string; summary?: string }, vars)
+  } else if (channel.type === 'slack') {
+    await sendSlack(config as { webhookUrl: string; text?: string }, vars)
+  } else {
+    throw new Error(`Unsupported notification channel type: ${channel.type}`)
+  }
+}
+
+async function enqueueDelivery(
+  channel: ChannelRow,
+  vars: Record<string, string>,
+  details: { monitorId: number | null; monitorName: string; eventType: string },
+): Promise<number> {
+  const now = Date.now()
+  const [delivery] = await db.insert(notificationDeliveries).values({
+    channelId: channel.id,
+    channelName: channel.name,
+    channelType: channel.type,
+    monitorId: details.monitorId,
+    monitorName: details.monitorName,
+    eventType: details.eventType,
+    status: 'pending',
+    targetStatus: vars['status'] ?? 'unknown',
+    previousStatus: vars['previous_status'] ?? 'unknown',
+    variables: JSON.stringify(vars),
+    attemptCount: 0,
+    maxAttempts: MAX_DELIVERY_ATTEMPTS,
+    nextAttemptAt: now,
+    createdAt: now,
+    updatedAt: now,
+  }).returning({ id: notificationDeliveries.id })
+  return delivery!.id
+}
+
+export async function attemptNotificationDelivery(deliveryId: number, now = Date.now()): Promise<void> {
+  if (activeDeliveries.has(deliveryId)) return
+  activeDeliveries.add(deliveryId)
+  try {
+    const delivery = (await db.select().from(notificationDeliveries).where(eq(notificationDeliveries.id, deliveryId)))[0]
+    if (!delivery || delivery.status === 'delivered' || delivery.attemptCount >= delivery.maxAttempts) return
+    const channel = (await db.select().from(notificationChannels).where(eq(notificationChannels.id, delivery.channelId)))[0]
+    const attemptNumber = delivery.attemptCount + 1
+    const startedAt = Date.now()
+    try {
+      if (!channel) throw new Error('Notification channel no longer exists')
+      if (channel.enabled !== 1) throw new Error('Notification channel is disabled')
+      await deliverToChannel(channel, JSON.parse(delivery.variables) as Record<string, string>)
+      const completedAt = Date.now()
+      await db.insert(notificationDeliveryAttempts).values({ deliveryId, attemptNumber, status: 'delivered', error: null, startedAt, completedAt })
+      await db.update(notificationDeliveries).set({
+        status: 'delivered', attemptCount: attemptNumber, nextAttemptAt: null,
+        lastAttemptAt: completedAt, deliveredAt: completedAt, lastError: null, updatedAt: completedAt,
+      }).where(eq(notificationDeliveries.id, deliveryId))
+    } catch (error) {
+      const completedAt = Date.now()
+      const message = error instanceof Error ? error.message : String(error)
+      const exhausted = attemptNumber >= delivery.maxAttempts
+      const delay = RETRY_DELAYS_MS[Math.min(attemptNumber - 1, RETRY_DELAYS_MS.length - 1)]!
+      await db.insert(notificationDeliveryAttempts).values({ deliveryId, attemptNumber, status: 'failed', error: message, startedAt, completedAt })
+      await db.update(notificationDeliveries).set({
+        status: exhausted ? 'failed' : 'pending', attemptCount: attemptNumber,
+        nextAttemptAt: exhausted ? null : now + delay, lastAttemptAt: completedAt,
+        lastError: message, updatedAt: completedAt,
+      }).where(eq(notificationDeliveries.id, deliveryId))
+      console.error(`[notifier] Delivery ${deliveryId}, attempt ${attemptNumber} failed: ${message}`)
+    }
+  } finally { activeDeliveries.delete(deliveryId) }
+}
+
+export async function processDueNotificationDeliveries(now = Date.now()): Promise<number> {
+  const due = await db.select({ id: notificationDeliveries.id }).from(notificationDeliveries).where(
+    and(eq(notificationDeliveries.status, 'pending'), lte(notificationDeliveries.nextAttemptAt, now)),
+  )
+  await Promise.allSettled(due.map((delivery) => attemptNotificationDelivery(delivery.id, now)))
+  return due.length
+}
+
+export async function retryNotificationDelivery(deliveryId: number): Promise<boolean> {
+  const delivery = (await db.select().from(notificationDeliveries).where(eq(notificationDeliveries.id, deliveryId)))[0]
+  if (!delivery || delivery.status !== 'failed') return false
+  const now = Date.now()
+  await db.update(notificationDeliveries).set({
+    status: 'pending', maxAttempts: delivery.attemptCount + MAX_DELIVERY_ATTEMPTS,
+    nextAttemptAt: now, deliveredAt: null, lastError: null, updatedAt: now,
+  }).where(eq(notificationDeliveries.id, deliveryId))
+  await attemptNotificationDelivery(deliveryId, now)
+  return true
+}
+
+export async function purgeOldNotificationDeliveries(now = Date.now()): Promise<void> {
+  const cutoff = now - 180 * 24 * 60 * 60 * 1000
+  await db.delete(notificationDeliveries).where(lt(notificationDeliveries.createdAt, cutoff))
 }
 
 export async function sendNotifications(
@@ -41,35 +150,12 @@ export async function sendNotifications(
     if (channel.enabled !== 1) continue
     if (isRecovery && channel.notifyOnRecovery !== 1) continue
 
-    const config = JSON.parse(channel.config) as Record<string, unknown>
-
-    try {
-      if (channel.type === 'email') {
-        await sendEmail(config as { to: string; subject: string; body: string }, vars)
-      } else if (channel.type === 'webhook') {
-        await sendWebhook(
-          config as { url: string; method: string; headers?: Record<string, string>; body?: string },
-          vars,
-        )
-      } else if (channel.type === 'discord') {
-        await sendDiscord(
-          config as { webhookUrl: string; username?: string; avatarUrl?: string; content?: string },
-          vars,
-        )
-      } else if (channel.type === 'teams') {
-        await sendTeams(
-          config as { webhookUrl: string; summary?: string },
-          vars,
-        )
-      } else if (channel.type === 'slack') {
-        await sendSlack(
-          config as { webhookUrl: string; text?: string },
-          vars,
-        )
-      }
-    } catch (err) {
-      console.error(`[notifier] Channel ${channel.id} (${channel.type}) failed:`, err instanceof Error ? err.message : err)
-    }
+    const deliveryId = await enqueueDelivery(channel, vars, {
+      monitorId: monitor.id,
+      monitorName: monitor.name,
+      eventType: isRecovery ? 'recovery' : 'alert',
+    })
+    await attemptNotificationDelivery(deliveryId)
   }
 }
 
@@ -297,34 +383,8 @@ export async function testNotificationChannel(channelId: number): Promise<{ ok: 
     checked_at: new Date().toISOString(),
   }
 
-  const config = JSON.parse(channel.config) as Record<string, unknown>
-
-  try {
-    if (channel.type === 'email') {
-      await sendEmail(config as { to: string; subject: string; body: string }, vars)
-    } else if (channel.type === 'webhook') {
-      await sendWebhook(
-        config as { url: string; method: string; headers?: Record<string, string>; body?: string },
-        vars,
-      )
-    } else if (channel.type === 'discord') {
-      await sendDiscord(
-        config as { webhookUrl: string; username?: string; avatarUrl?: string; content?: string },
-        vars,
-      )
-    } else if (channel.type === 'teams') {
-      await sendTeams(
-        config as { webhookUrl: string; summary?: string },
-        vars,
-      )
-    } else if (channel.type === 'slack') {
-      await sendSlack(
-        config as { webhookUrl: string; text?: string },
-        vars,
-      )
-    }
-    return { ok: true }
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) }
-  }
+  const deliveryId = await enqueueDelivery(channel, vars, { monitorId: null, monitorName: 'Test Monitor', eventType: 'test' })
+  await attemptNotificationDelivery(deliveryId)
+  const delivery = (await db.select().from(notificationDeliveries).where(eq(notificationDeliveries.id, deliveryId)))[0]!
+  return delivery.status === 'delivered' ? { ok: true } : { ok: false, error: delivery.lastError ?? 'Delivery failed' }
 }

@@ -56,3 +56,37 @@ export interface SmtpSettings {
   vault?: VaultRef | null
   updatedAt: number
 }
+
+export type NotificationDeliveryStatus = 'pending' | 'delivered' | 'failed'
+export type NotificationEventType = 'alert' | 'recovery' | 'test'
+
+export interface NotificationDelivery {
+  id: number
+  channelId: number
+  channelName: string
+  channelType: NotificationChannelType
+  monitorId: number | null
+  monitorName: string
+  eventType: NotificationEventType
+  status: NotificationDeliveryStatus
+  targetStatus: string
+  previousStatus: string
+  attemptCount: number
+  maxAttempts: number
+  nextAttemptAt: number | null
+  lastAttemptAt: number | null
+  deliveredAt: number | null
+  lastError: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+export interface NotificationDeliveryAttempt {
+  id: number
+  deliveryId: number
+  attemptNumber: number
+  status: 'delivered' | 'failed'
+  error: string | null
+  startedAt: number
+  completedAt: number
+}
