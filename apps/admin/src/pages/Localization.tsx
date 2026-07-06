@@ -106,7 +106,7 @@ function AddLocaleForm({ onCreated }: { onCreated: () => void }) {
       <button
         onClick={() => createMutation.mutate()}
         disabled={!code.trim() || !name.trim() || createMutation.isPending}
-        className="w-full py-2 rounded-lg text-sm font-bold transition-colors"
+        className="btn-primary w-full py-2 rounded-lg text-sm font-bold transition-colors"
         style={{
           background: 'var(--m3-primary)',
           color: 'var(--m3-on-primary)',
@@ -194,7 +194,7 @@ function LocaleEditor({ locale, onDelete }: { locale: Locale; onDelete: () => vo
           <button
             onClick={() => saveMutation.mutate()}
             disabled={saveMutation.isPending}
-            className="px-5 py-2 rounded-full text-sm font-bold transition-colors"
+            className="btn-primary px-5 py-2 rounded-full text-sm font-bold transition-colors"
             style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }}
           >
             {saved ? 'Saved!' : saveMutation.isPending ? 'Saving…' : 'Save Changes'}

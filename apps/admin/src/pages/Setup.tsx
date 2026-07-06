@@ -287,7 +287,7 @@ export default function SetupPage() {
 
               <button
                 onClick={() => setStep(2)}
-                className="w-full font-sans font-semibold rounded-xl py-3 text-sm transition-all"
+                className="btn-primary w-full font-sans font-semibold rounded-xl py-3 text-sm transition-all"
                 style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)', cursor: 'pointer' }}
               >
                 Continue
@@ -378,7 +378,7 @@ export default function SetupPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full font-sans font-semibold rounded-xl py-3 text-sm transition-all mt-2"
+                  className="btn-primary w-full font-sans font-semibold rounded-xl py-3 text-sm transition-all mt-2"
                   style={{
                     background: loading ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
                     color: loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
@@ -443,7 +443,7 @@ export default function SetupPage() {
 
               <button
                 onClick={() => navigate('/admin/')}
-                className="w-full font-sans font-semibold rounded-xl py-3 text-sm transition-all"
+                className="btn-primary w-full font-sans font-semibold rounded-xl py-3 text-sm transition-all"
                 style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)', cursor: 'pointer' }}
               >
                 Go to Dashboard
