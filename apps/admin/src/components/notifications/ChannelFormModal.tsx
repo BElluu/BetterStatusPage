@@ -176,7 +176,7 @@ export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
                   { id: 'slack',   label: 'Slack' },
                 ] as const).map(({ id, label }) => (
                   <button key={id} type="button" onClick={() => setType(id)}
-                    className="flex-1 text-xs font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-1.5"
+                    className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-1.5 ${type === id ? 'selection-active' : ''}`}
                     style={type === id
                       ? { background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 25%, transparent)' }
                       : { color: 'var(--m3-secondary)', border: '1px solid transparent' }
@@ -355,7 +355,7 @@ export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
                 </button>
               )}
               <button type="submit" disabled={loading}
-                className="px-4 py-2 text-sm font-semibold rounded-lg transition-all"
+                className="btn-primary px-4 py-2 text-sm font-semibold rounded-lg transition-all"
                 style={{ background: loading ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)', color: loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)', opacity: loading ? 0.7 : 1 }}
               >
                 {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Channel'}

@@ -60,7 +60,7 @@ export default function BackupsPage() {
     {state.status.lastCompletedAt && <div className="text-sm" style={{ color: state.status.state === 'error' ? 'var(--m3-error)' : 'var(--m3-secondary)' }}>Last run: {new Date(state.status.lastCompletedAt).toLocaleString()} · {state.status.state}{state.status.lastError ? ` · ${state.status.lastError}` : ''}</div>}
     <section className="rounded-2xl p-6 space-y-4" style={{ background: 'var(--m3-surface-container-lowest)' }}>
       <div className="flex flex-wrap gap-3">
-        <button disabled={busy} onClick={create} className="px-5 py-2.5 rounded-xl text-white" style={{ background: 'var(--m3-primary)' }}>Create backup</button>
+        <button disabled={busy} onClick={create} className="btn-primary px-5 py-2.5 rounded-xl">Create backup</button>
         <button disabled={busy} onClick={() => file.current?.click()} className="px-5 py-2.5 rounded-xl" style={{ background: 'var(--m3-surface-container-high)' }}>Validate restore file</button>
         <input ref={file} className="hidden" type="file" accept=".backup" onChange={(e) => { const selected = e.target.files?.[0]; if (selected) void validate(selected) }} />
       </div>
@@ -69,7 +69,7 @@ export default function BackupsPage() {
     <section className="rounded-2xl overflow-hidden" style={{ background: 'var(--m3-surface-container-lowest)', border: '1px solid var(--m3-outline-variant)' }}>
       <div className="p-5 md:p-6 flex items-start justify-between gap-5">
         <div className="flex gap-4 min-w-0">
-          <span className="material-symbols-outlined rounded-xl p-2.5 h-fit" style={{ background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)' }}>schedule</span>
+          <span className="material-symbols-outlined rounded-xl p-2.5 h-fit" style={{ background: 'var(--admin-icon-container)', color: 'var(--admin-icon-color)' }}>schedule</span>
           <div>
             <h2 className="font-headline text-xl font-semibold">Automatic backups</h2>
             <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>Create backups on a recurring schedule using the server's local time.</p>
@@ -119,7 +119,7 @@ export default function BackupsPage() {
 
         <div className="mt-5 pt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
           <div><p className="text-xs font-mono uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Current schedule</p><p className="text-sm font-medium mt-1">{scheduleSummary}</p></div>
-          <button disabled={busy || !scheduleChanged} onClick={() => saveConfig(config)} className="px-5 py-2.5 rounded-xl font-semibold text-sm transition-all" style={{ background: scheduleChanged ? 'var(--m3-primary)' : 'var(--m3-surface-container-high)', color: scheduleChanged ? 'var(--m3-on-primary)' : 'var(--m3-secondary)', opacity: busy ? 0.65 : 1, cursor: busy || !scheduleChanged ? 'not-allowed' : 'pointer' }}>{busy ? 'Saving…' : scheduleChanged ? 'Save schedule' : 'Saved'}</button>
+          <button disabled={busy || !scheduleChanged} onClick={() => saveConfig(config)} className="btn-primary px-5 py-2.5 rounded-xl font-semibold text-sm transition-all">{busy ? 'Saving…' : scheduleChanged ? 'Save schedule' : 'Saved'}</button>
         </div>
       </div>
     </section>

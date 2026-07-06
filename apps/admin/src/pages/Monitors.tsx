@@ -108,7 +108,7 @@ export default function MonitorsPage() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="text-sm font-semibold px-4 py-2.5 rounded-lg transition-all"
+          className="btn-primary text-sm font-semibold px-4 py-2.5 rounded-lg transition-all"
           style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }}
         >
           + Add Monitor

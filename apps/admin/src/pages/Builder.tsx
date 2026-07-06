@@ -326,7 +326,7 @@ export default function BuilderPage() {
             <button
               onClick={handleSave}
               disabled={saving || !isDirty}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+              className="btn-primary text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
               style={{
                 background: saving || !isDirty ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
                 color: saving || !isDirty ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',

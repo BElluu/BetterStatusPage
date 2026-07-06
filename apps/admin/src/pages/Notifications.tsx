@@ -61,7 +61,7 @@ export default function NotificationsPage() {
           </button>
           <button
             onClick={() => setShowCreate(true)}
-            className="text-sm font-semibold px-4 py-2.5 rounded-lg transition-all"
+            className="btn-primary text-sm font-semibold px-4 py-2.5 rounded-lg transition-all"
             style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }}
           >
             + Add Channel
@@ -289,7 +289,7 @@ function DeliveryRow({ delivery, expanded, detail, onToggle, onRetry, retrying }
       {delivery.lastError && <div className="rounded-xl px-3 py-2 mb-3 text-sm" style={{ background: 'var(--m3-error-container)', color: 'var(--m3-on-error-container)' }}>{delivery.lastError}</div>}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2 flex-1"><p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>{t('notifications.history.attempts')}</p>{!detail ? <p className="text-sm">{t('common.loading')}</p> : detail.attempts.map((attempt) => <div key={attempt.id} className="flex flex-wrap gap-x-4 gap-y-1 text-xs"><span className="font-semibold">#{attempt.attemptNumber}</span><span style={{ color: attempt.status === 'delivered' ? '#10b981' : 'var(--m3-error)' }}>{attempt.status === 'delivered' ? t('notifications.history.delivered') : t('notifications.history.failed')}</span><span style={{ color: 'var(--m3-secondary)' }}>{new Date(attempt.completedAt).toLocaleString()}</span>{attempt.error && <span style={{ color: 'var(--m3-secondary)' }}>{attempt.error}</span>}</div>)}</div>
-        {delivery.status === 'failed' && <button type="button" disabled={retrying} onClick={(event) => { event.stopPropagation(); onRetry() }} className="px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap" style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)', opacity: retrying ? 0.6 : 1 }}>{retrying ? t('notifications.history.retrying') : t('notifications.history.retryNow')}</button>}
+        {delivery.status === 'failed' && <button type="button" disabled={retrying} onClick={(event) => { event.stopPropagation(); onRetry() }} className="btn-primary px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap" style={{ opacity: retrying ? 0.6 : 1 }}>{retrying ? t('notifications.history.retrying') : t('notifications.history.retryNow')}</button>}
       </div>
     </td></tr>}
   </>
@@ -631,7 +631,7 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
             <div className="flex justify-end gap-3 pt-1">
               <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-lg" style={{ color: 'var(--m3-secondary)' }}>Cancel</button>
               <button type="submit" disabled={saving}
-                className="px-4 py-2 text-sm font-semibold rounded-lg transition-all"
+                className="btn-primary px-4 py-2 text-sm font-semibold rounded-lg transition-all"
                 style={{ background: saving ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)', color: saving ? 'var(--m3-secondary)' : 'var(--m3-on-primary)', opacity: saving ? 0.7 : 1 }}
               >
                 {saving ? 'Saving…' : 'Save Settings'}

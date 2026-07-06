@@ -117,7 +117,11 @@ export default function DashboardPage() {
         {/* Active Incidents */}
         <div
           className="p-8 rounded-xl flex flex-col justify-between"
-          style={{ background: 'var(--m3-on-surface)', color: 'var(--m3-surface)' }}
+          style={{
+            background: activeIncidents.length > 0 ? 'var(--m3-error-container)' : 'var(--m3-surface-container-highest)',
+            color: activeIncidents.length > 0 ? 'var(--m3-on-error-container)' : 'var(--m3-on-surface)',
+            border: '1px solid var(--m3-outline-variant)',
+          }}
         >
           <span className="font-label text-xs uppercase tracking-widest opacity-60">Active Incidents</span>
           <div>

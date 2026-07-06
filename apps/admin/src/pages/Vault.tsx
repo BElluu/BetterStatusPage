@@ -91,7 +91,7 @@ export default function VaultPage() {
           </div>
           <button
             onClick={() => setShowCreateVault(true)}
-            className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors text-lg leading-none font-bold"
+            className="btn-primary w-8 h-8 flex items-center justify-center rounded-xl transition-colors text-lg leading-none font-bold"
             style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }}
             title="Create vault"
           >
@@ -149,7 +149,7 @@ export default function VaultPage() {
               </div>
               <button
                 onClick={() => setShowCreateSecret(true)}
-                className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl transition-all"
+                className="btn-primary flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl transition-all"
                 style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
@@ -671,7 +671,7 @@ function ModalActions({ onClose, loading, submitLabel }: { onClose: () => void; 
   return (
     <div className="flex justify-end gap-3 pt-2">
       <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-xl" style={{ color: 'var(--m3-secondary)' }}>Cancel</button>
-      <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-semibold rounded-xl transition-all" style={{ background: loading ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)', color: loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)', opacity: loading ? 0.7 : 1 }}>
+      <button type="submit" disabled={loading} className="btn-primary px-4 py-2 text-sm font-semibold rounded-xl transition-all" style={{ opacity: loading ? 0.7 : 1 }}>
         {loading ? 'Saving…' : submitLabel}
       </button>
     </div>

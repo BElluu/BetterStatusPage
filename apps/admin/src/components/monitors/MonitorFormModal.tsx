@@ -272,7 +272,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
             <div className="flex rounded-lg p-1 gap-1" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}>
               {MONITOR_TYPES.map((t) => (
                 <button key={t.value} type="button" onClick={() => handleTypeChange(t.value)}
-                  className="flex-1 text-xs font-medium py-1.5 rounded-md transition-all"
+                  className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all ${type === t.value ? 'selection-active' : ''}`}
                   style={type === t.value
                     ? { background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 25%, transparent)' }
                     : { color: 'var(--m3-secondary)', border: '1px solid transparent' }
@@ -528,7 +528,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
               </button>
             )}
             <button type="submit" disabled={loading}
-              className="px-4 py-2 text-sm font-semibold rounded-lg transition-all"
+              className="btn-primary px-4 py-2 text-sm font-semibold rounded-lg transition-all"
               style={{
                 background: loading ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
                 color:      loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
@@ -594,7 +594,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
                   <div className="flex rounded-lg p-1 gap-1" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}>
                     {AUTH_TYPES.map((at) => (
                       <button key={at.value} type="button" onClick={() => setAuthType(at.value)}
-                        className="flex-1 text-xs font-medium py-1.5 rounded-md transition-all"
+                        className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all ${authType === at.value ? 'selection-active' : ''}`}
                         style={authType === at.value
                           ? { background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 25%, transparent)' }
                           : { color: 'var(--m3-secondary)', border: '1px solid transparent' }
