@@ -65,8 +65,9 @@ export function ConfirmModal({
             disabled={!canConfirm}
             className="px-5 py-2 rounded-full text-sm font-bold transition-colors"
             style={{
-              background: danger ? 'var(--m3-error)' : 'var(--m3-primary)',
-              color: danger ? 'var(--m3-on-error)' : 'var(--m3-on-primary)',
+              background: danger ? 'var(--m3-error-container)' : 'var(--m3-primary)',
+              color: danger ? 'var(--m3-on-error-container)' : 'var(--m3-on-primary)',
+              border: danger ? '1px solid color-mix(in srgb, var(--m3-error) 45%, transparent)' : '1px solid transparent',
               opacity: canConfirm ? 1 : 0.5,
               cursor: canConfirm ? 'pointer' : 'not-allowed',
             }}

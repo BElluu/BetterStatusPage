@@ -4,9 +4,11 @@ import { monitors, monitorResults } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
 import { sseService } from '../services/sse.service.js'
 import { sendNotifications } from '../workers/notifier.js'
+import { WEBHOOK_RATE_LIMIT } from '../config/rateLimits.js'
 
 async function handleWebhook(req: FastifyRequest<{ Params: { token: string } }>, reply: FastifyReply) {
   const { token } = req.params
+  if (!/^[0-9a-f]{48}$/.test(token)) return reply.code(404).send({ error: 'Not found' })
   const row = (await db.select().from(monitors).where(eq(monitors.webhookToken, token)))[0]
   if (!row) return reply.code(404).send({ error: 'Not found' })
 
@@ -35,6 +37,7 @@ async function handleWebhook(req: FastifyRequest<{ Params: { token: string } }>,
 }
 
 export async function webhookRoutes(app: FastifyInstance) {
-  app.get<{ Params: { token: string } }>('/:token', handleWebhook)
-  app.post<{ Params: { token: string } }>('/:token', handleWebhook)
+  const options = { config: { rateLimit: WEBHOOK_RATE_LIMIT } }
+  app.get<{ Params: { token: string } }>('/:token', options, handleWebhook)
+  app.post<{ Params: { token: string } }>('/:token', options, handleWebhook)
 }

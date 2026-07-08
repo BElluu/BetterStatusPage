@@ -76,10 +76,12 @@ jobs:
           -e VAULT_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           better-status-page:test
 
-      - name: Verify setup endpoint
+      - name: Verify health and setup endpoints
         run: |
           for i in {1..30}; do
-            curl --fail http://127.0.0.1:3000/api/v1/setup/status && exit 0
+            if curl --fail http://127.0.0.1:3000/health && curl --fail http://127.0.0.1:3000/api/v1/setup/status; then
+              exit 0
+            fi
             sleep 1
           done
           docker logs bsp-smoke

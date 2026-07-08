@@ -15,7 +15,7 @@ services:
       - bsp_backups:/app/backups
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/v1/public/status"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3

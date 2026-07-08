@@ -1,4 +1,5 @@
 import cron from 'node-cron'
+import type { ScheduledTask } from 'node-cron'
 import { db } from '../db/client.js'
 import { monitors, monitorResults, maintenanceWindows, maintenanceWindowMonitors, monitorDependencies } from '../db/schema.js'
 import { sseService } from '../services/sse.service.js'
@@ -114,12 +115,19 @@ export async function purgeOldResults(now = Date.now()) {
   console.log('[scheduler] Purged old monitor results')
 }
 
-export function startScheduler() {
-  cron.schedule('*/10 * * * * *', () => {
+const tasks: ScheduledTask[] = []
+
+export function startScheduler(): void {
+  if (tasks.length > 0) return
+  tasks.push(cron.schedule('*/10 * * * * *', () => {
     runSchedulerTick().catch((err) => console.error('[scheduler] tick error:', err))
-  })
-  cron.schedule('0 2 * * *', () => {
+  }))
+  tasks.push(cron.schedule('0 2 * * *', () => {
     purgeOldResults().catch(console.error)
-  })
+  }))
   console.log('[scheduler] Started')
+}
+
+export function stopScheduler(): void {
+  for (const task of tasks.splice(0)) task.destroy()
 }

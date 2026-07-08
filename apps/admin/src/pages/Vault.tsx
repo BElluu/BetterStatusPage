@@ -338,8 +338,8 @@ function DeleteVaultModal({ vault, secretCount, onClose, onConfirm }: {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.4)' }}
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ zIndex: 9999, background: 'rgba(0,0,0,0.4)' }}
       onClick={onClose}
     >
       <div
@@ -393,8 +393,9 @@ function DeleteVaultModal({ vault, secretCount, onClose, onConfirm }: {
             disabled={hasSecrets && !confirmed}
             className="px-5 py-2 rounded-full text-sm font-bold transition-all"
             style={{
-              background: hasSecrets && !confirmed ? 'var(--m3-surface-container-high)' : 'var(--m3-error)',
-              color: hasSecrets && !confirmed ? 'var(--m3-secondary)' : 'var(--m3-on-error)',
+              background: hasSecrets && !confirmed ? 'var(--m3-surface-container-high)' : 'var(--m3-error-container)',
+              color: hasSecrets && !confirmed ? 'var(--m3-secondary)' : 'var(--m3-on-error-container)',
+              border: hasSecrets && !confirmed ? '1px solid transparent' : '1px solid color-mix(in srgb, var(--m3-error) 45%, transparent)',
               cursor: hasSecrets && !confirmed ? 'not-allowed' : 'pointer',
             }}
           >
@@ -441,7 +442,14 @@ function CreateVaultModal({ onClose, onCreated }: { onClose: () => void; onCreat
         </Field>
         <Field label="Type">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1" style={{ background: 'var(--m3-primary-fixed)', border: '1px solid color-mix(in srgb, var(--m3-primary) 30%, transparent)' }}>
+            <div
+              className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1"
+              style={{
+                background: 'var(--m3-surface-container-high)',
+                border: '1px solid color-mix(in srgb, var(--m3-primary) 45%, var(--m3-outline-variant))',
+                boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--m3-primary) 16%, transparent)',
+              }}
+            >
               <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--m3-primary)' }}>storage</span>
               <span className="text-sm font-medium" style={{ color: 'var(--m3-primary)' }}>Local</span>
             </div>
@@ -637,16 +645,17 @@ function RevealField({ label, value, mono, hidden, action }: { label: string; va
 // ── Shared primitives ──────────────────────────────────────────────────────────
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div className="w-full max-w-md rounded-2xl" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
+  return createPortal(
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div className="w-full max-w-md rounded-2xl" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
           <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>{title}</h3>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none" style={{ color: 'var(--m3-secondary)' }}>×</button>
         </div>
         <div className="p-6">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

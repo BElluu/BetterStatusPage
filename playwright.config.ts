@@ -18,6 +18,7 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
       env: {
+        DATA_DIR: './.e2e',
         DATABASE_PATH: './.e2e/db.sqlite',
         SETUP_CONFIG_PATH: './.e2e/setup.json',
         UPLOAD_DIR: './.e2e/uploads',
