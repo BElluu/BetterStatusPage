@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { LayoutTree, Monitor } from '@bsp/shared'
+import type { LayoutTree, PublicMonitor } from '@bsp/shared'
 import { PageRenderer } from './PageRenderer'
 
 vi.mock('../i18n/LocaleContext', () => ({
@@ -11,16 +11,12 @@ vi.mock('./ResponseTimeChart', () => ({
   ResponseTimeChart: ({ title }: { title?: string }) => <div>{title ?? 'Response chart'}</div>,
 }))
 
-const monitors: Monitor[] = [
+const monitors: PublicMonitor[] = [
   {
-    id: 1, name: 'Public API', type: 'https', intervalSecs: 60, timeoutMs: 1_000, retries: 1,
-    config: { url: 'https://example.test', method: 'GET', expectedStatus: 200 }, currentStatus: 'up',
-    lastCheckedAt: null, webhookToken: null, tags: [], createdAt: 1, updatedAt: 1,
+    id: 1, name: 'Public API', type: 'https', currentStatus: 'up', lastCheckedAt: null,
   },
   {
-    id: 2, name: 'Database', type: 'ping', intervalSecs: 60, timeoutMs: 1_000, retries: 1,
-    config: { host: 'db', mode: 'tcp', port: 5432 }, currentStatus: 'down',
-    lastCheckedAt: null, webhookToken: null, tags: [], createdAt: 1, updatedAt: 1,
+    id: 2, name: 'Database', type: 'ping', currentStatus: 'down', lastCheckedAt: null,
   },
 ]
 

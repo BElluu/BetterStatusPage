@@ -24,6 +24,14 @@ export const sseService = {
     }
   },
 
+  closeAll() {
+    for (const client of clients) {
+      try { client.raw.end() } catch { /* ignore shutdown races */ }
+      try { client.raw.destroy() } catch { /* ignore shutdown races */ }
+      clients.delete(client)
+    }
+  },
+
   clientCount() {
     return clients.size
   },

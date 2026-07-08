@@ -19,13 +19,11 @@ cd BetterStatusPage
 cp .env.example .env
 ```
 
-Edit `.env` — at minimum set these three:
+Edit `.env` — set these two production secrets:
 
 ```env
 JWT_SECRET=<random 64-char string>
 VAULT_ENCRYPTION_KEY=<random 64-char hex string>
-ADMIN_EMAIL=you@example.com
-ADMIN_PASSWORD=a-strong-password
 ```
 
 Generate the secrets:
@@ -105,7 +103,7 @@ cp .env.example .env
 nano .env
 ```
 
-Set `JWT_SECRET`, `VAULT_ENCRYPTION_KEY`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`. See the [environment variables reference](#environment-variables) below.
+Set `JWT_SECRET` and `VAULT_ENCRYPTION_KEY`. The web setup wizard asks for the first administrator credentials. See the [environment variables reference](#environment-variables) below.
 
 ### 4. Build
 
@@ -161,6 +159,8 @@ pm2 save && pm2 startup
 Whether you're using Docker or bare metal, put Nginx in front — it handles SSL termination, compression, custom ports, and proper SSE proxying.
 
 BetterStatusPage is a **single process** that serves everything (API + admin panel + status page) on one port. Nginx is what exposes different URLs or ports to the outside world, routing each domain transparently to that one backend. Because the frontend JavaScript uses relative URLs (`/api/v1/...`), requests always go to the same origin the user sees in their browser — Nginx handles the rest invisibly.
+
+Set `TRUST_PROXY=1` when Nginx is the only path to the application. This makes authentication and setup rate limits use the real client IP from `X-Forwarded-For`. Do not enable it while the application port is directly reachable from the internet, because clients could spoof forwarding headers.
 
 ### Install Nginx
 
@@ -327,6 +327,7 @@ ports:
 ```bash
 # bare metal .env
 # PORT=3000 — then Nginx proxies to 127.0.0.1:3000
+TRUST_PROXY=1
 ```
 
 ### HTTPS with Let's Encrypt
@@ -370,12 +371,13 @@ pm2 restart bsp
 | `NODE_ENV` | Yes (prod) | Set to `production`. Enables security headers, HSTS, enforces secrets. |
 | `JWT_SECRET` | Yes (prod) | Signs JWT auth tokens. Min 32 chars. Changing it logs everyone out. |
 | `VAULT_ENCRYPTION_KEY` | Yes (prod) | 64-char hex string (32 bytes) for AES-256-GCM vault encryption. **Changing it makes all stored secrets unreadable.** |
-| `ADMIN_EMAIL` | Setup only | Email for the first admin account, created during setup wizard. |
-| `ADMIN_PASSWORD` | Setup only | Password for the first admin account. Can be changed in the UI afterwards. |
+| `ADMIN_EMAIL` | `db:seed` only | Required only when intentionally running `npm run db:seed`. The web setup wizard does not read it. |
+| `ADMIN_PASSWORD` | `db:seed` only | Required only when intentionally running `npm run db:seed`; minimum 8 characters. |
 | `DATABASE_PATH` | No | Path to the SQLite file. Default: `./data/db.sqlite` |
 | `UPLOAD_DIR` | No | Directory for uploaded files (logos, favicons). Default: `./data/uploads` |
 | `BACKUP_DIR` | No | Directory for generated backup archives. Default: `./data/backups` |
 | `ALLOWED_ORIGINS` | No | Comma-separated CORS origins. Leave unset if Nginx handles CORS, or in single-domain setups. |
+| `TRUST_PROXY` | No | Trusted proxy setting (`1` for one reverse proxy, or trusted addresses). Enable only when the app port is not directly exposed. |
 
 Generate secrets:
 

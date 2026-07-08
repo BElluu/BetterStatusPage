@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs'
 import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
+import { JWT_EXPIRES_IN } from '../config/secrets.js'
+import { LOGIN_RATE_LIMIT } from '../config/rateLimits.js'
 
 const VALID_ROLES = ['admin', 'operator', 'branding'] as const
 
@@ -19,7 +21,7 @@ export function normalizeRole(raw: string): string {
 
 export async function authRoutes(app: FastifyInstance) {
   app.post<{ Body: { email: string; password: string } }>('/login', {
-    config: { rateLimit: { max: 10, timeWindow: '15 minutes' } },
+    config: { rateLimit: LOGIN_RATE_LIMIT },
   }, async (req, reply) => {
     const { email, password } = req.body
     const results = await db.select().from(users).where(eq(users.email, email))
@@ -29,7 +31,7 @@ export async function authRoutes(app: FastifyInstance) {
     if (!valid) return reply.code(401).send({ error: 'Invalid credentials' })
     const mustChangePassword = !!user.mustChangePassword
     const role = normalizeRole(user.role)
-    const token = app.jwt.sign({ userId: user.id, email: user.email, role })
+    const token = app.jwt.sign({ userId: user.id, email: user.email, role }, { expiresIn: JWT_EXPIRES_IN })
     return { token, email: user.email, role, mustChangePassword }
   })
 
@@ -55,7 +57,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     const hash = await bcrypt.hash(newPassword, 10)
     await db.update(users).set({ passwordHash: hash, mustChangePassword: 0 }).where(eq(users.id, jwt.userId))
-    const token = app.jwt.sign({ userId: jwt.userId, email: jwt.email, role: jwt.role })
+    const token = app.jwt.sign({ userId: jwt.userId, email: jwt.email, role: jwt.role }, { expiresIn: JWT_EXPIRES_IN })
     return { token }
   })
 }

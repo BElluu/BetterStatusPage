@@ -3,8 +3,12 @@ import bcrypt from 'bcryptjs'
 import { db } from './client.js'
 import { users, branding, layout } from './schema.js'
 
-const email = process.env['ADMIN_EMAIL'] ?? 'admin@example.com'
-const password = process.env['ADMIN_PASSWORD'] ?? 'changeme123'
+const email = process.env['ADMIN_EMAIL']
+const password = process.env['ADMIN_PASSWORD']
+
+if (!email || !password || password.length < 8) {
+  throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD (at least 8 characters) are required to seed an administrator')
+}
 
 const existingUsers = await db.select().from(users)
 if (existingUsers.length === 0) {

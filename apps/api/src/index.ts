@@ -10,7 +10,7 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 
 import { isSetupComplete } from './config.js'
-import { initDb } from './db/client.js'
+import { closeDb, initDb } from './db/client.js'
 import { runMigrations } from './db/migrate.js'
 import { setupRoutes } from './routes/setup.js'
 import { authRoutes } from './routes/auth.js'
@@ -26,17 +26,22 @@ import { auditRoutes } from './routes/audit.js'
 import { publicRoutes } from './routes/public.js'
 import { publicLocaleRoutes, adminLocaleRoutes } from './routes/locales.js'
 import { webhookRoutes } from './routes/webhook.js'
-import { startScheduler } from './workers/scheduler.js'
 import { requireAuth, requireRole } from './middleware/auth.js'
 import { uploadDir } from './config.js'
 import { backupRoutes } from './routes/backups.js'
-import { restartBackupScheduler } from './workers/backupScheduler.js'
 import { acquireAppLock } from './services/appLock.js'
-import { startNotificationRetryWorker } from './workers/notificationRetryWorker.js'
+import { startBackgroundServices, stopBackgroundServices } from './services/backgroundServices.js'
+import { JWT_EXPIRES_IN, resolveJwtSecret, validateVaultEncryptionKey } from './config/secrets.js'
+import { healthRoutes } from './routes/health.js'
+import { resolveTrustProxy } from './config/proxy.js'
+import { sseService } from './services/sse.service.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-const app = Fastify({ logger: { level: 'info' } })
+const app = Fastify({
+  logger: { level: 'info' },
+  trustProxy: resolveTrustProxy(),
+})
 
 // CORS
 const allowedOrigins = process.env['ALLOWED_ORIGINS']?.split(',').map((o) => o.trim())
@@ -47,15 +52,11 @@ await app.register(cors, {
 })
 
 // JWT
-const jwtSecret = process.env['JWT_SECRET']
-if (!jwtSecret) {
-  if (process.env['NODE_ENV'] === 'production') {
-    throw new Error('JWT_SECRET environment variable must be set in production')
-  }
-  console.warn('⚠ JWT_SECRET not set — using insecure default (development only)')
-}
+const jwtSecret = resolveJwtSecret()
+validateVaultEncryptionKey()
 await app.register(jwt, {
-  secret: jwtSecret ?? 'dev-secret-change-me',
+  secret: jwtSecret,
+  sign: { expiresIn: JWT_EXPIRES_IN },
 })
 
 // Rate limiting (applied per-route where needed)
@@ -95,6 +96,7 @@ if (isSetupComplete()) {
 }
 
 // Routes
+await app.register(healthRoutes)
 await app.register(setupRoutes, { prefix: '/api/v1/setup' })
 await app.register(authRoutes, { prefix: '/api/v1/auth' })
 await app.register(publicRoutes, { prefix: '/api/v1/public' })
@@ -171,23 +173,49 @@ if (process.env['NODE_ENV'] === 'production') {
 
 const port = Number(process.env['PORT'] ?? 3000)
 const releaseAppLock = acquireAppLock()
-app.addHook('onClose', async () => releaseAppLock())
+let runtimeCleanedUp = false
+function cleanupRuntime(): void {
+  if (runtimeCleanedUp) return
+  runtimeCleanedUp = true
+  sseService.closeAll()
+  stopBackgroundServices()
+  closeDb()
+  releaseAppLock()
+}
+app.addHook('onClose', async () => {
+  cleanupRuntime()
+})
 try {
   await app.listen({ port, host: '0.0.0.0' })
 } catch (error) {
-  releaseAppLock()
+  cleanupRuntime()
   throw error
 }
 console.log(`✓ API running on http://localhost:${port}`)
 
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.once(signal, () => {
-    app.close().finally(() => process.exit(0)).catch(() => process.exit(1))
+    const forceExit = setTimeout(() => {
+      cleanupRuntime()
+      process.exit(1)
+    }, 5_000)
+    forceExit.unref()
+
+    cleanupRuntime()
+    app.close()
+      .then(() => {
+        clearTimeout(forceExit)
+        cleanupRuntime()
+        process.exit(0)
+      })
+      .catch(() => {
+        clearTimeout(forceExit)
+        cleanupRuntime()
+        process.exit(1)
+      })
   })
 }
 
 if (isSetupComplete()) {
-  startScheduler()
-  restartBackupScheduler()
-  startNotificationRetryWorker()
+  startBackgroundServices()
 }
