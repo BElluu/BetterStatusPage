@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { Incident, Monitor } from '@bsp/shared'
+import type { Incident, PublicMonitor } from '@bsp/shared'
 import { IncidentCard } from './IncidentCard'
 
 vi.mock('../i18n/LocaleContext', () => ({
@@ -21,20 +21,12 @@ vi.mock('../i18n/LocaleContext', () => ({
   }),
 }))
 
-const monitor: Monitor = {
+const monitor: PublicMonitor = {
   id: 7,
   name: 'Public API',
   type: 'https',
-  intervalSecs: 60,
-  timeoutMs: 1_000,
-  retries: 1,
-  config: { url: 'https://example.test', method: 'GET', expectedStatus: 200 },
   currentStatus: 'down',
   lastCheckedAt: null,
-  webhookToken: null,
-  tags: [],
-  createdAt: 1,
-  updatedAt: 1,
 }
 
 function incident(overrides: Partial<Incident> = {}): Incident {

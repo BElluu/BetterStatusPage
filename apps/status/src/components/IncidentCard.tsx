@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Incident, Monitor } from '@bsp/shared'
+import type { Incident, PublicMonitor } from '@bsp/shared'
 import { useLocale } from '../i18n/LocaleContext'
 
 function formatDate(ms: number, locale: string) {
@@ -17,7 +17,7 @@ function formatDuration(startMs: number, endMs: number) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
-export function IncidentCard({ incident, monitors = [] }: { incident: Incident; monitors?: Monitor[] }) {
+export function IncidentCard({ incident, monitors = [] }: { incident: Incident; monitors?: PublicMonitor[] }) {
   const { t, locale } = useLocale()
 
   const statusCfg: Record<string, { color: string; dotColor: string; badgeBg: string }> = {
@@ -40,7 +40,7 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
 
   const affectedMonitors = (incident.monitorIds ?? [])
     .map((id) => monitors.find((m) => m.id === id))
-    .filter(Boolean) as Monitor[]
+    .filter(Boolean) as PublicMonitor[]
 
   /* ── Resolved: collapsible row ──────────────────────────────────── */
   if (!isActive) {

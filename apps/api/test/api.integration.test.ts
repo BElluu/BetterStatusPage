@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
+import rateLimit from '@fastify/rate-limit'
 import { eq } from 'drizzle-orm'
 import { db, initDb, sqlite } from '../src/db/client.js'
 import { runMigrations } from '../src/db/migrate.js'
@@ -16,6 +17,7 @@ process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
 
 const app = Fastify({ logger: false })
 let monitorId = 0
+const webhookToken = 'ab'.repeat(24)
 
 before(async () => {
   initDb()
@@ -30,7 +32,7 @@ before(async () => {
     retries: 1,
     config: '{}',
     currentStatus: 'down',
-    webhookToken: 'integration-token',
+    webhookToken,
     tags: '[]',
     createdAt: now,
     updatedAt: now,
@@ -54,6 +56,7 @@ before(async () => {
     updatedAt: now,
   })
 
+  await app.register(rateLimit, { global: false })
   await app.register(publicRoutes, { prefix: '/api/v1/public' })
   await app.register(webhookRoutes, { prefix: '/api/v1/hook' })
   await app.ready()
@@ -74,7 +77,15 @@ describe('public API integration', () => {
     assert.equal(payload.monitors.length, 1)
     assert.equal(payload.monitors[0].id, monitorId)
     assert.equal('config' in payload.monitors[0], false)
+    assert.equal('webhookToken' in payload.monitors[0], false)
     assert.deepEqual(payload.activeIncidents, [])
+    assert.equal(response.headers['cache-control'], 'public, max-age=2, stale-while-revalidate=5')
+    assert.equal(response.headers['x-ratelimit-limit'], undefined)
+
+    await db.update(monitors).set({ currentStatus: 'up' }).where(eq(monitors.id, monitorId))
+    const cached = await app.inject({ method: 'GET', url: '/api/v1/public/status' })
+    assert.equal(cached.json().monitors[0].currentStatus, 'down')
+    await db.update(monitors).set({ currentStatus: 'down' }).where(eq(monitors.id, monitorId))
   })
 
   it('removes references to monitors that no longer exist', async () => {
@@ -91,6 +102,7 @@ describe('public API integration', () => {
       url: `/api/v1/public/monitor/${monitorId}/uptime?days=1`,
     })
     assert.equal(uptime.statusCode, 200)
+    assert.equal(uptime.headers['x-ratelimit-limit'], '300')
     assert.equal(uptime.json().days[0].checksTotal, 2)
     assert.equal(uptime.json().overallUptimePct, 50)
 
@@ -102,11 +114,16 @@ describe('public API integration', () => {
     assert.equal(history.json().buckets.length, 10)
     assert.equal(history.json().buckets.reduce((sum: number, bucket: { count: number }) => sum + bucket.count, 0), 2)
 
-    const clamped = await app.inject({
+    const invalidBounds = await app.inject({
       method: 'GET', url: `/api/v1/public/monitor/${monitorId}/history?hours=999&buckets=1`,
     })
-    assert.equal(clamped.json().hours, 168)
-    assert.equal(clamped.json().buckets.length, 10)
+    assert.equal(invalidBounds.statusCode, 400)
+    assert.equal((await app.inject({
+      method: 'GET', url: `/api/v1/public/monitor/${monitorId}/uptime?days=999999`,
+    })).statusCode, 400)
+    assert.equal((await app.inject({
+      method: 'GET', url: '/api/v1/public/incidents?page=0&limit=1000',
+    })).statusCode, 400)
     assert.equal((await app.inject({ method: 'GET', url: '/api/v1/public/monitor/999999/history' })).statusCode, 404)
   })
 
@@ -114,7 +131,7 @@ describe('public API integration', () => {
     const missing = await app.inject({ method: 'POST', url: '/api/v1/hook/missing' })
     assert.equal(missing.statusCode, 404)
 
-    const heartbeat = await app.inject({ method: 'POST', url: '/api/v1/hook/integration-token' })
+    const heartbeat = await app.inject({ method: 'POST', url: `/api/v1/hook/${webhookToken}` })
     assert.equal(heartbeat.statusCode, 200)
     assert.deepEqual(heartbeat.json(), { ok: true })
 

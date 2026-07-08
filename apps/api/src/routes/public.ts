@@ -7,10 +7,39 @@ import {
 import { eq, desc, gte, ne, inArray, and, lte } from 'drizzle-orm'
 import { sseService } from '../services/sse.service.js'
 import type { LayoutTree, LayoutNode, GroupNode, MonitorNode } from '@bsp/shared'
+import { PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
+
+const STATUS_CACHE_TTL_MS = 2_000
+
+function parseInteger(value: string | undefined, fallback: number, min: number, max: number): number | null {
+  const parsed = Number(value ?? fallback)
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : null
+}
 
 export async function publicRoutes(app: FastifyInstance) {
-  app.get('/status', async () => {
-    const allMonitors = (await db.select().from(monitors)).map((m) => ({ ...m, config: undefined }))
+  let statusCache: { expiresAt: number; value: Promise<unknown> } | null = null
+
+  app.get('/status', async (_req, reply) => {
+    reply.header('Cache-Control', 'public, max-age=2, stale-while-revalidate=5')
+    const now = Date.now()
+    if (statusCache && statusCache.expiresAt > now) return statusCache.value
+
+    const value = loadPublicStatus()
+    statusCache = { expiresAt: now + STATUS_CACHE_TTL_MS, value }
+    value.catch(() => {
+      if (statusCache?.value === value) statusCache = null
+    })
+    return value
+  })
+
+  async function loadPublicStatus() {
+    const allMonitors = await db.select({
+      id: monitors.id,
+      name: monitors.name,
+      type: monitors.type,
+      currentStatus: monitors.currentStatus,
+      lastCheckedAt: monitors.lastCheckedAt,
+    }).from(monitors)
     const rawActiveIncidents = await db.select().from(incidents).where(ne(incidents.status, 'resolved')).orderBy(desc(incidents.createdAt))
     const activeIncidents = await Promise.all(rawActiveIncidents.map(async (incident) => {
       const updates = await db.select().from(incidentUpdates).where(eq(incidentUpdates.incidentId, incident.id)).orderBy(desc(incidentUpdates.postedAt))
@@ -31,7 +60,7 @@ export async function publicRoutes(app: FastifyInstance) {
     const allDependencies = await db.select().from(monitorDependencies)
 
     return { branding: brandingRow, monitors: allMonitors, activeIncidents, activeMaintenanceWindows, monitorDependencies: allDependencies }
-  })
+  }
 
   app.get('/layout', async () => {
     const layoutRow = (await db.select().from(layout))[0]
@@ -48,9 +77,12 @@ export async function publicRoutes(app: FastifyInstance) {
     return { tree, branding: brandingRow }
   })
 
-  app.get<{ Querystring: { page?: string; limit?: string } }>('/incidents', async (req) => {
-    const page = Number(req.query.page ?? 1)
-    const limit = Number(req.query.limit ?? 10)
+  app.get<{ Querystring: { page?: string; limit?: string } }>('/incidents', async (req, reply) => {
+    const page = parseInteger(req.query.page, 1, 1, 100_000)
+    const limit = parseInteger(req.query.limit, 10, 1, 100)
+    if (page === null || limit === null) {
+      return reply.code(400).send({ error: 'page must be a positive integer and limit must be between 1 and 100' })
+    }
     const offset = (page - 1) * limit
 
     const all = await db.select().from(incidents).orderBy(desc(incidents.createdAt)).limit(limit).offset(offset)
@@ -63,7 +95,9 @@ export async function publicRoutes(app: FastifyInstance) {
   })
 
   app.get<{ Params: { id: string } }>('/incidents/:id', async (req, reply) => {
-    const incident = (await db.select().from(incidents).where(eq(incidents.id, Number(req.params.id))))[0]
+    const incidentId = parseInteger(req.params.id, 0, 1, Number.MAX_SAFE_INTEGER)
+    if (incidentId === null) return reply.code(400).send({ error: 'Invalid incident id' })
+    const incident = (await db.select().from(incidents).where(eq(incidents.id, incidentId)))[0]
     if (!incident) return reply.code(404).send({ error: 'Not found' })
     const updates = await db.select().from(incidentUpdates)
       .where(eq(incidentUpdates.incidentId, incident.id)).orderBy(desc(incidentUpdates.postedAt))
@@ -71,12 +105,18 @@ export async function publicRoutes(app: FastifyInstance) {
     return { ...incident, updates, monitorIds: monitorLinks.map((l) => l.monitorId) }
   })
 
-  app.get<{ Params: { id: string }; Querystring: { days?: string } }>('/monitor/:id/uptime', async (req) => {
-    const days = Number(req.query.days ?? 90)
+  app.get<{ Params: { id: string }; Querystring: { days?: string } }>('/monitor/:id/uptime', {
+    config: { rateLimit: PUBLIC_HISTORY_RATE_LIMIT },
+  }, async (req, reply) => {
+    const days = parseInteger(req.query.days, 90, 1, 90)
+    const monitorId = parseInteger(req.params.id, 0, 1, Number.MAX_SAFE_INTEGER)
+    if (days === null || monitorId === null) {
+      return reply.code(400).send({ error: 'Invalid monitor id or days; days must be between 1 and 90' })
+    }
     const since = Date.now() - days * 24 * 60 * 60 * 1000
-    const monitorId = Number(req.params.id)
-    const results = await db.select().from(monitorResults).where(gte(monitorResults.checkedAt, since))
-    const filtered = results.filter((r) => r.monitorId === monitorId)
+    const filtered = await db.select().from(monitorResults).where(
+      and(eq(monitorResults.monitorId, monitorId), gte(monitorResults.checkedAt, since)),
+    )
 
     const dayBuckets: Record<string, typeof filtered> = {}
     for (const r of filtered) {
@@ -131,10 +171,14 @@ export async function publicRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string }; Querystring: { hours?: string; buckets?: string } }>(
     '/monitor/:id/history',
+    { config: { rateLimit: PUBLIC_HISTORY_RATE_LIMIT } },
     async (req, reply) => {
-      const monitorId = Number(req.params.id)
-      const hours   = Math.min(Math.max(Number(req.query.hours   ?? 24),  1), 168)
-      const nBuckets = Math.min(Math.max(Number(req.query.buckets ?? 30), 10), 100)
+      const monitorId = parseInteger(req.params.id, 0, 1, Number.MAX_SAFE_INTEGER)
+      const hours = parseInteger(req.query.hours, 24, 1, 168)
+      const nBuckets = parseInteger(req.query.buckets, 30, 10, 100)
+      if (monitorId === null || hours === null || nBuckets === null) {
+        return reply.code(400).send({ error: 'Invalid monitor id, hours, or buckets' })
+      }
 
       const monitor = (await db.select().from(monitors).where(eq(monitors.id, monitorId)))[0]
       if (!monitor) return reply.code(404).send({ error: 'Not found' })

@@ -80,6 +80,8 @@ describe('authentication', () => {
     assert.equal(response.statusCode, 200)
     assert.equal(response.json().role, 'admin')
     assert.equal(response.json().mustChangePassword, false)
+    const claims = app.jwt.decode<{ iat: number; exp: number }>(response.json().token)!
+    assert.equal(claims.exp - claims.iat, 12 * 60 * 60)
     assert.equal((await app.inject({ url: '/admin/users', headers: bearer(response.json().token) })).statusCode, 200)
   })
 

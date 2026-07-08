@@ -5,8 +5,7 @@ import { createBackupInWorker } from '../services/backupRunner.js'
 let task: ScheduledTask | null = null
 
 export function restartBackupScheduler(): void {
-  task?.stop()
-  task = null
+  stopBackupScheduler()
   const config = readBackupConfig()
   if (!config.enabled) return
   const expression = config.frequency === 'weekly' ? `${config.minute} ${config.hour} * * ${config.weekday}` : `${config.minute} ${config.hour} * * *`
@@ -14,4 +13,9 @@ export function restartBackupScheduler(): void {
     createBackupInWorker().then(() => applyRetention(config.retention)).catch((error) => console.error('[backup] scheduled backup failed:', error))
   })
   console.log(`[backup] Scheduler started: ${expression}`)
+}
+
+export function stopBackupScheduler(): void {
+  task?.destroy()
+  task = null
 }
