@@ -71,7 +71,6 @@ export const locales = sqliteTable('locales', {
   name:               text('name').notNull(),
   isDefault:          integer('is_default').notNull().default(0),
   translations:       text('translations').notNull().default('{}'),
-  adminTranslations:  text('admin_translations').notNull().default('{}'),
   updatedAt:          integer('updated_at').notNull(),
 })
 

@@ -10,6 +10,7 @@ import { checkSqlServer } from './sqlserver.js'
 import { sendNotifications } from './notifier.js'
 import { lt, eq, and, lte, gte, inArray } from 'drizzle-orm'
 import type { HttpsConfig, PingConfig, DnsConfig, SqlServerConfig, MonitorStatus } from '@bsp/shared'
+import { getSchedulerConfig, type SchedulerConfig } from '../config/scheduler.js'
 
 export async function isInMaintenance(monitorId: number, now = Date.now()): Promise<boolean> {
   const activeWindows = await db.select().from(maintenanceWindows).where(
@@ -25,7 +26,6 @@ export async function isInMaintenance(monitorId: number, now = Date.now()): Prom
   return false
 }
 
-const CONCURRENCY = 20
 type MonitorRow = typeof monitors.$inferSelect
 
 export function getDueMonitors(allMonitors: MonitorRow[], now = Date.now()): MonitorRow[] {
@@ -97,33 +97,36 @@ export async function runCheck(monitor: typeof monitors.$inferSelect) {
   }
 }
 
-export async function runSchedulerTick(run: (monitor: MonitorRow) => Promise<unknown> = runCheck) {
+export async function runSchedulerTick(
+  run: (monitor: MonitorRow) => Promise<unknown> = runCheck,
+  config: SchedulerConfig = getSchedulerConfig(),
+) {
   const now = Date.now()
   const allMonitors = await db.select().from(monitors)
   const due = getDueMonitors(allMonitors, now)
   if (due.length === 0) return
 
-  for (let i = 0; i < due.length; i += CONCURRENCY) {
-    const chunk = due.slice(i, i + CONCURRENCY)
+  for (let i = 0; i < due.length; i += config.checkConcurrency) {
+    const chunk = due.slice(i, i + config.checkConcurrency)
     await Promise.allSettled(chunk.map(run))
   }
 }
 
-export async function purgeOldResults(now = Date.now()) {
-  const cutoff = now - 90 * 24 * 60 * 60 * 1000
+export async function purgeOldResults(now = Date.now(), config: SchedulerConfig = getSchedulerConfig()) {
+  const cutoff = now - config.resultRetentionDays * 24 * 60 * 60 * 1000
   await db.delete(monitorResults).where(lt(monitorResults.checkedAt, cutoff))
   console.log('[scheduler] Purged old monitor results')
 }
 
 const tasks: ScheduledTask[] = []
 
-export function startScheduler(): void {
+export function startScheduler(config: SchedulerConfig = getSchedulerConfig()): void {
   if (tasks.length > 0) return
-  tasks.push(cron.schedule('*/10 * * * * *', () => {
-    runSchedulerTick().catch((err) => console.error('[scheduler] tick error:', err))
+  tasks.push(cron.schedule(config.tickCron, () => {
+    runSchedulerTick(undefined, config).catch((err) => console.error('[scheduler] tick error:', err))
   }))
-  tasks.push(cron.schedule('0 2 * * *', () => {
-    purgeOldResults().catch(console.error)
+  tasks.push(cron.schedule(config.resultPurgeCron, () => {
+    purgeOldResults(undefined, config).catch(console.error)
   }))
   console.log('[scheduler] Started')
 }

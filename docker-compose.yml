@@ -1,8 +1,10 @@
 services:
   app:
-    build: .
+    image: ${BSP_IMAGE:-ghcr.io/belluu/better-status-page:latest}
+    # For local development builds, comment out `image` above and uncomment:
+    # build: .
     ports:
-      - "${PORT:-3000}:3000"
+      - "${BSP_BIND_ADDRESS:-127.0.0.1}:${PORT:-3000}:3000"
     env_file: .env
     environment:
       NODE_ENV: production

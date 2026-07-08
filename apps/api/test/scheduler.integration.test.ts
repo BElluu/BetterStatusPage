@@ -122,7 +122,7 @@ describe('scheduler orchestration', () => {
     assert.deepEqual(due.map((monitor) => monitor.id), [1, 2])
   })
 
-  it('processes checks in chunks of at most 20', async () => {
+  it('processes checks in configurable chunks', async () => {
     const now = Date.now()
     await db.insert(monitors).values([
       ...Array.from({ length: 25 }, (_, index) => monitorValues(`Due ${index}`)),
@@ -138,10 +138,10 @@ describe('scheduler orchestration', () => {
       await new Promise((resolve) => setTimeout(resolve, 5))
       active--
       checked++
-    })
+    }, { tickCron: '*/10 * * * * *', resultPurgeCron: '0 2 * * *', resultRetentionDays: 90, checkConcurrency: 7 })
 
     assert.equal(checked, 25)
-    assert.equal(maxActive, 20)
+    assert.equal(maxActive, 7)
   })
 
   it('purges results older than 90 days', async () => {
@@ -152,7 +152,7 @@ describe('scheduler orchestration', () => {
       { monitorId: monitor!.id, status: 'up', responseMs: 1, checkedAt: now - 89 * 86_400_000, errorMessage: null },
     ])
 
-    await purgeOldResults(now)
+    await purgeOldResults(now, { tickCron: '*/10 * * * * *', resultPurgeCron: '0 2 * * *', resultRetentionDays: 90, checkConcurrency: 20 })
     const remaining = await db.select().from(monitorResults)
     assert.equal(remaining.length, 1)
     assert.equal(remaining[0]!.checkedAt, now - 89 * 86_400_000)
