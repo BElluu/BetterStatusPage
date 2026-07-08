@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useSSE } from './hooks/useSSE'
 import { useDarkMode } from './hooks/useDarkMode'
 import { useLocale } from './i18n/LocaleContext'
-import type { Branding, Incident, Monitor, MaintenanceWindow, LayoutTree, LayoutNode, GroupNode, MonitorNode } from '@bsp/shared'
+import type { Branding, Incident, PublicMonitor, MaintenanceWindow, LayoutTree, LayoutNode, GroupNode, MonitorNode } from '@bsp/shared'
 import { PageRenderer } from './components/PageRenderer'
 import { IncidentCard } from './components/IncidentCard'
 import { LanguageSwitcher } from './components/LanguageSwitcher'
@@ -15,7 +15,7 @@ interface MonitorDependency {
 
 interface PublicStatus {
   branding: Branding | null
-  monitors: Monitor[]
+  monitors: PublicMonitor[]
   activeIncidents: Incident[]
   activeMaintenanceWindows: MaintenanceWindow[]
   monitorDependencies: MonitorDependency[]
@@ -26,7 +26,7 @@ interface PublicLayout {
   branding: Branding | null
 }
 
-const EMPTY_MONITORS: Monitor[] = []
+const EMPTY_MONITORS: PublicMonitor[] = []
 const EMPTY_MAINTENANCE_WINDOWS: MaintenanceWindow[] = []
 const EMPTY_MONITOR_DEPENDENCIES: MonitorDependency[] = []
 
@@ -401,7 +401,7 @@ function ServiceCard({
   responseMs,
   animDelay,
 }: {
-  monitor: Monitor
+  monitor: PublicMonitor
   responseMs: number | null
   animDelay: number
 }) {

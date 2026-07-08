@@ -17,7 +17,7 @@ const schedulerStart = mock.fn()
 
 before(async () => {
   await app.register(jwt, { secret: 'setup-integration-secret' })
-  await app.register(setupRoutes, { prefix: '/setup', startScheduler: schedulerStart })
+  await app.register(setupRoutes, { prefix: '/setup', startBackgroundServices: schedulerStart })
   await app.ready()
 })
 

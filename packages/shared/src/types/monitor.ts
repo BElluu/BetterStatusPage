@@ -104,6 +104,8 @@ export interface Monitor {
   updatedAt: number
 }
 
+export type PublicMonitor = Pick<Monitor, 'id' | 'name' | 'type' | 'currentStatus' | 'lastCheckedAt'>
+
 export interface MonitorResult {
   id: number
   monitorId: number

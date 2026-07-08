@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode,
-  IncidentsNode, ChartNode, Monitor, MonitorStatus, Incident,
+  IncidentsNode, ChartNode, PublicMonitor, MonitorStatus, Incident,
 } from '@bsp/shared'
 import Markdown from 'react-markdown'
 import { IncidentCard } from './IncidentCard'
@@ -17,7 +17,7 @@ interface StatusInfo {
 
 interface Props {
   tree: LayoutTree
-  monitors: Monitor[]
+  monitors: PublicMonitor[]
   statusMap: Record<number, StatusInfo>
   activeIncidents?: Incident[]
   allIncidents?: Incident[]
@@ -75,7 +75,7 @@ function NodeRenderer({
   node, monitors, statusMap, activeIncidents, allIncidents, maintenanceMonitorIds, dependencyMap,
 }: {
   node: LayoutNode
-  monitors: Monitor[]
+  monitors: PublicMonitor[]
   statusMap: Record<number, StatusInfo>
   activeIncidents: Incident[]
   allIncidents: Incident[]
@@ -127,7 +127,7 @@ function NodeRenderer({
     const liveMonitor = { ...monitor, currentStatus: live?.status ?? monitor.currentStatus }
     const inMaintenance = maintenanceMonitorIds.has(monitor.id)
     const causingIds = liveMonitor.currentStatus === 'affected' ? (dependencyMap[monitor.id] ?? []) : []
-    const causingMonitors = causingIds.map((id) => monitors.find((m) => m.id === id)).filter(Boolean) as Monitor[]
+    const causingMonitors = causingIds.map((id) => monitors.find((m) => m.id === id)).filter(Boolean) as PublicMonitor[]
 
     if ((monNode.cardVariant ?? 'default') === 'compact') {
       return (
@@ -244,7 +244,7 @@ function ServiceMonitorCard({
   inMaintenance = false,
   causingMonitors = [],
 }: {
-  monitor: Monitor
+  monitor: PublicMonitor
   responseMs: number | null
   monitorId: number
   showUptimeBar: boolean
@@ -253,7 +253,7 @@ function ServiceMonitorCard({
   showUptimePct?: boolean
   gridW?: number
   inMaintenance?: boolean
-  causingMonitors?: Monitor[]
+  causingMonitors?: PublicMonitor[]
 }) {
   const [overallPct, setOverallPct] = useState<number | null>(null)
 
@@ -429,12 +429,12 @@ function ServiceMonitorCard({
 function CompactMonitorRow({
   monitor, responseMs: _responseMs, showMonitorType = false, nested = false, inMaintenance = false, causingMonitors = [],
 }: {
-  monitor: Monitor
+  monitor: PublicMonitor
   responseMs: number | null
   showMonitorType?: boolean
   nested?: boolean
   inMaintenance?: boolean
-  causingMonitors?: Monitor[]
+  causingMonitors?: PublicMonitor[]
 }) {
   const { t } = useLocale()
   const isUp       = monitor.currentStatus === 'up'
@@ -529,7 +529,7 @@ function CompactMonitorRow({
    ───────────────────────────────────────────────────────────────────── */
 function GroupBlock({ groupNode, monitors, statusMap, maintenanceMonitorIds = new Set(), dependencyMap = {} }: {
   groupNode: GroupNode
-  monitors: Monitor[]
+  monitors: PublicMonitor[]
   statusMap: Record<number, StatusInfo>
   maintenanceMonitorIds?: Set<number>
   dependencyMap?: Record<number, number[]>
@@ -544,7 +544,7 @@ function GroupBlock({ groupNode, monitors, statusMap, maintenanceMonitorIds = ne
       if (!m) return null
       return { ...m, currentStatus: statusMap[m.id]?.status ?? m.currentStatus }
     })
-    .filter(Boolean) as Monitor[]
+    .filter(Boolean) as PublicMonitor[]
 
   const { t } = useLocale()
   const allDown     = liveMonitors.length > 0 && liveMonitors.every((m) => m.currentStatus === 'down' || m.currentStatus === 'affected')
@@ -643,7 +643,7 @@ function GroupBlock({ groupNode, monitors, statusMap, maintenanceMonitorIds = ne
               const liveMonitor = { ...m, currentStatus: live?.status ?? m.currentStatus }
               const isFullCard = (monNode.cardVariant ?? 'compact') === 'default'
               const causingIds = liveMonitor.currentStatus === 'affected' ? (dependencyMap[m.id] ?? []) : []
-              const causingMonitors = causingIds.map((id) => monitors.find((mon) => mon.id === id)).filter(Boolean) as Monitor[]
+              const causingMonitors = causingIds.map((id) => monitors.find((mon) => mon.id === id)).filter(Boolean) as PublicMonitor[]
 
               return (
                 <div key={child.id} style={borderStyle}>
@@ -703,7 +703,7 @@ function IncidentsBlock({ config, activeIncidents, allIncidents, monitors }: {
   config: IncidentsNode
   activeIncidents: Incident[]
   allIncidents: Incident[]
-  monitors: Monitor[]
+  monitors: PublicMonitor[]
 }) {
   const filter = config.filter ?? 'all'
   const limit  = config.limit ?? 5

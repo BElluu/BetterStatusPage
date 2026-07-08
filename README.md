@@ -282,6 +282,9 @@ UPLOAD_DIR=./data/uploads
 
 # Comma-separated list of allowed origins for CORS
 ALLOWED_ORIGINS=https://status.example.com,https://admin.example.com
+
+# Set only when port 3000 is reachable exclusively through one trusted reverse proxy
+TRUST_PROXY=1
 ```
 
 > 🔑 **Generate a vault encryption key:**
@@ -315,6 +318,7 @@ server {
         proxy_pass http://localhost:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 
         # SSE requires these — don't skip them
         proxy_buffering off;
