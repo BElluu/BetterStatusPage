@@ -6,8 +6,7 @@ import { eq } from 'drizzle-orm'
 function parseLocale(row: typeof locales.$inferSelect) {
   return {
     ...row,
-    translations:      JSON.parse(row.translations      || '{}'),
-    adminTranslations: JSON.parse(row.adminTranslations || '{}'),
+    translations: JSON.parse(row.translations || '{}'),
   }
 }
 
@@ -64,14 +63,13 @@ export async function adminLocaleRoutes(app: FastifyInstance) {
       name: name.trim(),
       isDefault: 0,
       translations: '{}',
-      adminTranslations: '{}',
       updatedAt: Date.now(),
     }).returning()
     return parseLocale(row[0]!)
   })
 
-  // Update locale (name, translations, adminTranslations)
-  app.patch<{ Params: { code: string }; Body: { name?: string; translations?: Record<string, string>; adminTranslations?: Record<string, string> } }>(
+  // Update locale name or public status-page translations.
+  app.patch<{ Params: { code: string }; Body: { name?: string; translations?: Record<string, string> } }>(
     '/:code', async (req, reply) => {
       const row = (await db.select().from(locales).where(eq(locales.code, req.params.code)))[0]
       if (!row) return reply.code(404).send({ error: 'Locale not found' })
@@ -79,7 +77,6 @@ export async function adminLocaleRoutes(app: FastifyInstance) {
       const updates: Partial<typeof locales.$inferInsert> = { updatedAt: Date.now() }
       if (req.body.name?.trim()) updates.name = req.body.name.trim()
       if (req.body.translations !== undefined) updates.translations = JSON.stringify(req.body.translations)
-      if (req.body.adminTranslations !== undefined) updates.adminTranslations = JSON.stringify(req.body.adminTranslations)
 
       const updated = await db.update(locales).set(updates).where(eq(locales.code, req.params.code)).returning()
       return parseLocale(updated[0]!)

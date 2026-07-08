@@ -31,6 +31,25 @@ You know the drill. Your API goes down at 3 AM, users start tweeting, your boss 
 
 ---
 
+## Release status
+
+BetterStatusPage is approaching its first public MVP release. The current target is a practical self-hosted deployment for small teams and personal infrastructure:
+
+- one Node.js 22 process,
+- SQLite persistence,
+- Docker Compose deployment,
+- Nginx reverse proxy,
+- built-in backups and offline restore,
+- no external database, queue, or cache required.
+
+Before exposing a production instance, read:
+
+- [Deployment guide](docs/deployment.md)
+- [Backup and restore guide](docs/backup-restore.md)
+- [Security policy](SECURITY.md)
+
+---
+
 ## What it does 🚀
 
 ### 🔍 Five ways to monitor things
@@ -158,7 +177,7 @@ Status changes propagate to both the admin dashboard and the public page instant
 │   ┌──────────────────────────────────────────────────────┐  │
 │   │               Background Workers                     │  │
 │   │                                                      │  │
-│   │  Scheduler (every 10s)      Notifier (email+webhook+discord+teams+slack) │  │
+│   │  Scheduler                  Notifier
 │   │  ├── HTTPS checker          Vault resolver           │  │
 │   │  ├── Ping / TCP             Result purger (daily)    │  │
 │   │  ├── DNS resolver                                    │  │
@@ -205,7 +224,42 @@ Status changes propagate to both the admin dashboard and the public page instant
 
 ---
 
-## Getting started ⚡
+## Quick production start
+
+Docker Compose is the recommended deployment path:
+
+```bash
+git clone https://github.com/BElluu/BetterStatusPage.git
+cd BetterStatusPage
+cp .env.example .env
+```
+
+Edit `.env` and set at least:
+
+```env
+NODE_ENV=production
+JWT_SECRET=<random 32+ char secret>
+VAULT_ENCRYPTION_KEY=<64-char hex key>
+```
+
+Generate safe values:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Start the application:
+
+```bash
+export BSP_IMAGE=ghcr.io/belluu/better-status-page:v0.1.0
+docker compose up -d
+```
+
+Open `http://your-server:3000/admin` for first-run setup. For internet-facing deployments, put Nginx/SSL in front and keep the application port private. See [docs/deployment.md](docs/deployment.md).
+
+---
+
+## Getting started for development ⚡
 
 ### You'll need
 
@@ -215,7 +269,7 @@ Status changes propagate to both the admin dashboard and the public page instant
 ### Installation
 
 ```bash
-git clone https://github.com/your-username/BetterStatusPage.git
+git clone https://github.com/BElluu/BetterStatusPage.git
 cd BetterStatusPage
 npm install
 ```
@@ -273,6 +327,8 @@ Copy `.env.example` to `.env`:
 ```env
 PORT=3000
 NODE_ENV=production
+BSP_IMAGE=ghcr.io/belluu/better-status-page:v0.1.0
+BSP_BIND_ADDRESS=127.0.0.1
 
 JWT_SECRET=something-long-random-and-secret
 VAULT_ENCRYPTION_KEY=64-char-hex-string   # see below
@@ -285,6 +341,12 @@ ALLOWED_ORIGINS=https://status.example.com,https://admin.example.com
 
 # Set only when port 3000 is reachable exclusively through one trusted reverse proxy
 TRUST_PROXY=1
+
+# Optional scheduler tuning
+SCHEDULER_TICK_SECONDS=10
+MONITOR_CHECK_CONCURRENCY=20
+MONITOR_RESULT_RETENTION_DAYS=90
+MONITOR_RESULT_PURGE_CRON=0 2 * * *
 ```
 
 > 🔑 **Generate a vault encryption key:**
@@ -340,12 +402,31 @@ pm2 save && pm2 startup
 
 ```bash
 cp .env.example .env   # fill in JWT_SECRET and VAULT_ENCRYPTION_KEY
-docker compose up -d --build
+export BSP_IMAGE=ghcr.io/belluu/better-status-page:v0.1.0
+docker compose up -d
 ```
 
 Data (SQLite database + uploads) is stored in a named Docker volume (`bsp_data`) and survives container rebuilds, restarts, and image upgrades. It is only deleted if you explicitly run `docker compose down -v`.
 
+For local image development, comment out `image:` in `docker-compose.yml`, uncomment `build: .`, and run `docker compose up -d --build`.
+
 See **[docs/deployment.md](docs/deployment.md)** for the full deployment guide, including Nginx + SSL setup, bare-metal install, PM2, backups, and firewall configuration.
+
+---
+
+## Production checklist
+
+Before making an instance public:
+
+- Set `NODE_ENV=production`.
+- Replace `JWT_SECRET` with a random non-default value.
+- Set `VAULT_ENCRYPTION_KEY` to a random 64-character hex value and store it outside the app.
+- Put the app behind Nginx/SSL and avoid exposing port 3000 directly.
+- Set `TRUST_PROXY=1` only when the app is reachable exclusively through your reverse proxy.
+- Create a backup and verify it.
+- Perform a test restore on a non-production copy.
+- Confirm release checks are green: lint, tests, build, Docker build, and E2E on Linux CI.
+- Review [SECURITY.md](SECURITY.md) before opening public issue reporting.
 
 ---
 

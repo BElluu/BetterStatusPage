@@ -1,7 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { AdminLocaleProvider } from '../i18n/LocaleContext'
 import BrandingPage from './Branding'
 
 vi.mock('../api/client', () => ({
@@ -18,9 +17,7 @@ describe('BrandingPage localization', () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={queryClient}>
-        <AdminLocaleProvider>
-          <BrandingPage />
-        </AdminLocaleProvider>
+        <BrandingPage />
       </QueryClientProvider>,
     )
 
