@@ -127,6 +127,36 @@ describe('public API integration', () => {
     assert.equal((await app.inject({ method: 'GET', url: '/api/v1/public/monitor/999999/history' })).statusCode, 404)
   })
 
+  it('reports no overall uptime when a monitor has no results', async () => {
+    const now = Date.now()
+    const inserted = await db.insert(monitors).values({
+      name: 'New monitor',
+      type: 'webhook',
+      intervalSecs: 60,
+      timeoutMs: 1_000,
+      retries: 1,
+      config: '{}',
+      currentStatus: 'pending',
+      webhookToken: 'cd'.repeat(24),
+      tags: '[]',
+      createdAt: now,
+      updatedAt: now,
+    }).returning()
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/v1/public/monitor/${inserted[0]!.id}/uptime?days=30`,
+    })
+
+    assert.equal(response.statusCode, 200)
+    assert.equal(response.json().overallUptimePct, null)
+    assert.ok(response.json().days.every((day: { status: string }) => day.status === 'no-data'))
+    assert.equal((await app.inject({
+      method: 'GET',
+      url: '/api/v1/public/monitor/999999/uptime',
+    })).statusCode, 404)
+  })
+
   it('accepts a valid heartbeat and rejects an invalid token', async () => {
     const missing = await app.inject({ method: 'POST', url: '/api/v1/hook/missing' })
     assert.equal(missing.statusCode, 404)

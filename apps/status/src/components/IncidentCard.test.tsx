@@ -78,4 +78,23 @@ describe('IncidentCard', () => {
     expect(screen.getByText('Engineers are investigating.')).toBeInTheDocument()
     expect(screen.getByText(/Resolved in 1h 0m/)).toBeInTheDocument()
   })
+
+  it('can transition from an active incident to a resolved incident', async () => {
+    const user = userEvent.setup()
+    const view = render(<IncidentCard incident={incident()} monitors={[monitor]} />)
+
+    view.rerender(
+      <IncidentCard
+        incident={incident({
+          status: 'resolved',
+          resolvedAt: Date.UTC(2026, 0, 1, 11),
+        })}
+        monitors={[monitor]}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /API outage/i }))
+    expect(screen.getByText('Engineers are investigating.')).toBeInTheDocument()
+    expect(screen.getByText(/10:05 UTC/)).toBeInTheDocument()
+  })
 })

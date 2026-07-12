@@ -35,6 +35,7 @@ import { JWT_EXPIRES_IN, resolveJwtSecret, validateVaultEncryptionKey } from './
 import { healthRoutes } from './routes/health.js'
 import { resolveTrustProxy } from './config/proxy.js'
 import { sseService } from './services/sse.service.js'
+import { createProductionFallback } from './services/productionFallback.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -168,7 +169,7 @@ if (process.env['NODE_ENV'] === 'production') {
     decorateReply: false,
   })
 
-  app.setNotFoundHandler((_, reply) => reply.sendFile('index.html', statusDist))
+  app.setNotFoundHandler(createProductionFallback(statusDist))
 }
 
 const port = Number(process.env['PORT'] ?? 3000)

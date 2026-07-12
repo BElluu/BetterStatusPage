@@ -44,7 +44,7 @@ The container image contains the compiled API and both built frontends. For loca
 
 ### 3. Open the setup wizard
 
-Navigate to `http://your-server:3000/admin` — you'll be greeted by the setup wizard. Fill in your admin credentials from `.env` and finish setup.
+Navigate to `http://your-server:3000/admin` — you'll be greeted by the setup wizard. Create the first administrator account there; the web setup wizard does not read administrator credentials from `.env`.
 
 The status page is at `http://your-server:3000`.
 

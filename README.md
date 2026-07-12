@@ -100,7 +100,7 @@ The public status page isn't just a list of green dots. It's a fully customizabl
 
 ### 📢 Incident management
 
-Create incidents, set severity (none → minor → major → critical), link affected monitors, post real-time updates as the situation unfolds, and mark resolved when the dust settles. Everything shows up live on the public page the moment you save.
+Create incidents, set severity (none → minor → major → critical), link affected monitors, post real-time updates as the situation unfolds, and mark resolved when the dust settles. On the public page, an active minor incident marks its linked monitors as degraded, while major and critical incidents mark them as down. Resolving the incident restores the status reported by monitoring checks.
 
 ### 🔧 Maintenance windows
 
@@ -361,9 +361,9 @@ MONITOR_RESULT_PURGE_CRON=0 2 * * *
 
 | Role | What they can do |
 |------|-----------------|
-| **admin** | Everything — users, vaults, all settings |
-| **operator** | Monitors, incidents, notifications, layout, branding |
-| **branding** | Layout and branding only |
+| **admin** | Everything, including users, vaults, audit log, and backups |
+| **operator** | Monitors, incidents, maintenance, notifications, page builder, branding, localization, and settings |
+| **branding** | Page builder, branding, localization, and account settings |
 
 ---
 

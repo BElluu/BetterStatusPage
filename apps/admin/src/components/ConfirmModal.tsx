@@ -55,7 +55,7 @@ export function ConfirmModal({
         <div className="flex justify-end gap-2 pt-2">
           <button
             onClick={onCancel}
-            className={danger ? "px-5 py-2 rounded-full text-sm font-bold transition-colors" : "btn-primary px-5 py-2 rounded-full text-sm font-bold transition-colors"}
+            className="px-5 py-2 rounded-full text-sm font-bold transition-colors"
             style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }}
           >
             Cancel
@@ -63,7 +63,7 @@ export function ConfirmModal({
           <button
             onClick={onConfirm}
             disabled={!canConfirm}
-            className="px-5 py-2 rounded-full text-sm font-bold transition-colors"
+            className={`${danger ? '' : 'btn-primary'} px-5 py-2 rounded-full text-sm font-bold transition-colors`}
             style={{
               background: danger ? 'var(--m3-error-container)' : 'var(--m3-primary)',
               color: danger ? 'var(--m3-on-error-container)' : 'var(--m3-on-primary)',

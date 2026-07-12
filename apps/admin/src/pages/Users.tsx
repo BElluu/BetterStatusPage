@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, getCurrentUser } from '../api/client'
+import { ConfirmModal } from '../components/ConfirmModal'
 
 interface User {
   id: number
@@ -22,6 +23,7 @@ export default function UsersPage() {
   const [newEmail, setNewEmail] = useState('')
   const [createdUser, setCreatedUser] = useState<{ email: string; temporaryPassword: string } | null>(null)
   const [resetResult, setResetResult] = useState<{ email: string; temporaryPassword: string } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null)
   const [error, setError] = useState('')
 
   const { data: users = [] } = useQuery<User[]>({
@@ -217,10 +219,10 @@ export default function UsersPage() {
                             type="button"
                             title={r.desc}
                             onClick={() => !active && roleMutation.mutate({ id: user.id, role: r.value })}
-                            className="text-xs font-medium px-3 py-1.5 transition-colors"
+                            className={`text-xs font-medium px-3 py-1.5 transition-colors ${active ? 'selection-active' : ''}`}
                             style={{
-                              background: active ? 'var(--m3-on-surface)' : 'transparent',
-                              color: active ? 'var(--m3-surface)' : 'var(--m3-secondary)',
+                              background: 'transparent',
+                              color: 'var(--m3-secondary)',
                               cursor: active ? 'default' : 'pointer',
                             }}
                           >
@@ -257,16 +259,18 @@ export default function UsersPage() {
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>lock_reset</span>
                     </button>
-                    <button
-                      onClick={() => { if (confirm(`Delete ${user.email}?`)) deleteMutation.mutate(user.id) }}
-                      title="Delete user"
-                      className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-xs"
-                      style={{ color: 'var(--m3-secondary)' }}
-                      onMouseEnter={(e) => { (e.currentTarget).style.background = 'var(--m3-error-container)'; (e.currentTarget).style.color = 'var(--m3-on-error-container)' }}
-                      onMouseLeave={(e) => { (e.currentTarget).style.background = ''; (e.currentTarget).style.color = 'var(--m3-secondary)' }}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
-                    </button>
+                    {currentUser?.userId !== user.id && (
+                      <button
+                        onClick={() => setDeleteTarget(user)}
+                        title="Delete user"
+                        className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-xs"
+                        style={{ color: 'var(--m3-secondary)' }}
+                        onMouseEnter={(e) => { (e.currentTarget).style.background = 'var(--m3-error-container)'; (e.currentTarget).style.color = 'var(--m3-on-error-container)' }}
+                        onMouseLeave={(e) => { (e.currentTarget).style.background = ''; (e.currentTarget).style.color = 'var(--m3-secondary)' }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -279,6 +283,18 @@ export default function UsersPage() {
           </tbody>
         </table>
       </div>
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete user"
+          message={`Delete user "${deleteTarget.email}"? This action cannot be undone.`}
+          confirmLabel="Delete"
+          onConfirm={() => {
+            deleteMutation.mutate(deleteTarget.id)
+            setDeleteTarget(null)
+          }}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
     </div>
   )
 }

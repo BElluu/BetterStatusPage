@@ -4,8 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
-import { initDb, sqlite } from '../src/db/client.js'
+import { db, initDb, sqlite } from '../src/db/client.js'
 import { runMigrations } from '../src/db/migrate.js'
+import { auditLog } from '../src/db/schema.js'
 import { adminLocaleRoutes } from '../src/routes/locales.js'
 import { incidentRoutes } from '../src/routes/incidents.js'
 import { maintenanceRoutes } from '../src/routes/maintenance.js'
@@ -220,5 +221,9 @@ describe('locale CRUD', () => {
     await app.inject({ method: 'POST', url: '/locales', payload: { code: 'de', name: 'Deutsch' } })
     assert.equal((await app.inject({ method: 'DELETE', url: '/locales/de' })).statusCode, 204)
     assert.equal((await app.inject({ method: 'GET', url: '/locales/de' })).statusCode, 404)
+    const localeAudit = (await db.select().from(auditLog)).filter((entry) => entry.entityType === 'locale')
+    assert.equal(localeAudit.some((entry) => entry.action === 'create'), true)
+    assert.equal(localeAudit.some((entry) => entry.action === 'update'), true)
+    assert.equal(localeAudit.some((entry) => entry.action === 'delete'), true)
   })
 })
