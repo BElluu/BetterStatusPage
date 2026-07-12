@@ -71,12 +71,7 @@ export default function ChangePasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98]"
-              style={{
-                background: loading ? 'var(--m3-surface-container-high)' : 'var(--m3-on-surface)',
-                color: loading ? 'var(--m3-secondary)' : 'var(--m3-surface)',
-                opacity: loading ? 0.7 : 1,
-              }}
+              className="btn-primary w-full py-3 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98]"
             >
               {loading ? 'Saving…' : 'Set Password & Continue'}
             </button>

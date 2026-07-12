@@ -117,7 +117,7 @@ export default function App() {
           <Route path="monitors"  element={<RequireRole minRole="operator"><MonitorsPage /></RequireRole>} />
           <Route path="incidents" element={<RequireRole minRole="operator"><IncidentsPage /></RequireRole>} />
           <Route path="maintenance" element={<RequireRole minRole="operator"><MaintenancePage /></RequireRole>} />
-          <Route path="builder"   element={<RequireRole minRole="operator"><BuilderPage /></RequireRole>} />
+          <Route path="builder"   element={<RequireRole minRole="branding"><BuilderPage /></RequireRole>} />
           <Route path="branding"  element={<RequireRole minRole="branding"><BrandingPage /></RequireRole>} />
           <Route path="notifications" element={<RequireRole minRole="operator"><NotificationsPage /></RequireRole>} />
           <Route path="notifications/history" element={<RequireRole minRole="operator"><NotificationHistoryPage /></RequireRole>} />

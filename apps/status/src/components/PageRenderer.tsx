@@ -8,6 +8,7 @@ import Markdown from 'react-markdown'
 import { IncidentCard } from './IncidentCard'
 import { useLocale } from '../i18n/LocaleContext'
 import { ResponseTimeChart } from './ResponseTimeChart'
+import { applyIncidentStatus } from '../utils/incidentStatus'
 
 interface StatusInfo {
   status: MonitorStatus
@@ -124,7 +125,10 @@ function NodeRenderer({
     const monitor = monitors.find((m) => m.id === monNode.monitorId)
     if (!monitor) return null
     const live = statusMap[monitor.id]
-    const liveMonitor = { ...monitor, currentStatus: live?.status ?? monitor.currentStatus }
+    const liveMonitor = {
+      ...monitor,
+      currentStatus: applyIncidentStatus(live?.status ?? monitor.currentStatus, monitor.id, activeIncidents),
+    }
     const inMaintenance = maintenanceMonitorIds.has(monitor.id)
     const causingIds = liveMonitor.currentStatus === 'affected' ? (dependencyMap[monitor.id] ?? []) : []
     const causingMonitors = causingIds.map((id) => monitors.find((m) => m.id === id)).filter(Boolean) as PublicMonitor[]
@@ -165,6 +169,7 @@ function NodeRenderer({
         statusMap={statusMap}
         maintenanceMonitorIds={maintenanceMonitorIds}
         dependencyMap={dependencyMap}
+        activeIncidents={activeIncidents}
       />
     )
   }
@@ -255,7 +260,7 @@ function ServiceMonitorCard({
   inMaintenance?: boolean
   causingMonitors?: PublicMonitor[]
 }) {
-  const [overallPct, setOverallPct] = useState<number | null>(null)
+  const [overallPct, setOverallPct] = useState<number | null | undefined>(undefined)
 
   const { t } = useLocale()
   const isUp       = monitor.currentStatus === 'up'
@@ -270,8 +275,8 @@ function ServiceMonitorCard({
   const barColor      = isDown ? '#ba1a1a' : isDegraded || isAffected ? '#eab308' : 'var(--bsp-up)'
   const barColorLight = isDown ? '#f28b82' : isDegraded || isAffected ? '#fcd34d' : '#4ade80'
 
-  const uptimeLabel = (overallPct !== null && showUptimePct)
-    ? t('uptime.pct', { pct: overallPct.toFixed(1) })
+  const uptimeLabel = showUptimePct && overallPct !== undefined
+    ? overallPct === null ? t('uptime.noData') : t('uptime.pct', { pct: overallPct.toFixed(1) })
     : null
 
   // Right-position layout: gridW=1 → dot only; gridW=2 → compact pill; gridW≥3 → full pill
@@ -331,9 +336,14 @@ function ServiceMonitorCard({
   )
 
   const NameBlock = () => (
-    <div style={{ width: '160px', flexShrink: 0 }}>
+    <div style={{
+      minWidth: 0,
+      flex: showUptimeBar && uptimeBarPosition === 'right' ? '0 1 240px' : '1 1 auto',
+      maxWidth: showUptimeBar && uptimeBarPosition === 'right' ? '240px' : 'none',
+    }}>
       <h3
         className="font-headline font-bold"
+        title={monitor.name}
         style={{ fontSize: '28px', lineHeight: 1.15, color: 'var(--bsp-text)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingBottom: '3px' }}
       >
         {monitor.name}
@@ -480,7 +490,7 @@ function CompactMonitorRow({
 
       {/* Name + caused-by chip (stacked when affected) */}
       <span className="bsp-monitor-name font-sans font-medium text-sm flex-1 min-w-0" style={{ color: 'var(--bsp-text)' }}>
-        <span className="truncate block">{monitor.name}</span>
+        <span className="truncate block" title={monitor.name}>{monitor.name}</span>
         {isAffected && causingMonitors.length > 0 && (
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: '3px',
@@ -527,10 +537,11 @@ function CompactMonitorRow({
 /* ─────────────────────────────────────────────────────────────────────
    GROUP BLOCK  (header with aggregate + compact child rows)
    ───────────────────────────────────────────────────────────────────── */
-function GroupBlock({ groupNode, monitors, statusMap, maintenanceMonitorIds = new Set(), dependencyMap = {} }: {
+function GroupBlock({ groupNode, monitors, statusMap, activeIncidents, maintenanceMonitorIds = new Set(), dependencyMap = {} }: {
   groupNode: GroupNode
   monitors: PublicMonitor[]
   statusMap: Record<number, StatusInfo>
+  activeIncidents: Incident[]
   maintenanceMonitorIds?: Set<number>
   dependencyMap?: Record<number, number[]>
 }) {
@@ -542,7 +553,10 @@ function GroupBlock({ groupNode, monitors, statusMap, maintenanceMonitorIds = ne
       const monNode = c as MonitorNode
       const m = monitors.find((mon) => mon.id === monNode.monitorId)
       if (!m) return null
-      return { ...m, currentStatus: statusMap[m.id]?.status ?? m.currentStatus }
+      return {
+        ...m,
+        currentStatus: applyIncidentStatus(statusMap[m.id]?.status ?? m.currentStatus, m.id, activeIncidents),
+      }
     })
     .filter(Boolean) as PublicMonitor[]
 
@@ -640,7 +654,10 @@ function GroupBlock({ groupNode, monitors, statusMap, maintenanceMonitorIds = ne
               const m = monitors.find((mon) => mon.id === monNode.monitorId)
               if (!m) return null
               const live = statusMap[m.id]
-              const liveMonitor = { ...m, currentStatus: live?.status ?? m.currentStatus }
+              const liveMonitor = {
+                ...m,
+                currentStatus: applyIncidentStatus(live?.status ?? m.currentStatus, m.id, activeIncidents),
+              }
               const isFullCard = (monNode.cardVariant ?? 'compact') === 'default'
               const causingIds = liveMonitor.currentStatus === 'affected' ? (dependencyMap[m.id] ?? []) : []
               const causingMonitors = causingIds.map((id) => monitors.find((mon) => mon.id === id)).filter(Boolean) as PublicMonitor[]
@@ -820,7 +837,7 @@ function UptimeBars({ monitorId, barColor, barColorLight, isDown, isDegraded, on
   barColorLight: string
   isDown: boolean
   isDegraded: boolean
-  onData?: ((pct: number) => void) | undefined
+  onData?: ((pct: number | null) => void) | undefined
 }) {
   const [data, setData] = useState<UptimeDay[] | null>(null)
   const [hovered, setHovered] = useState<{ day: UptimeDay; rect: DOMRect } | null>(null)
@@ -828,7 +845,7 @@ function UptimeBars({ monitorId, barColor, barColorLight, isDown, isDegraded, on
   useEffect(() => {
     fetch(`/api/v1/public/monitor/${monitorId}/uptime?days=30`)
       .then((r) => r.json())
-      .then((res: { days: UptimeDay[]; overallUptimePct: number }) => {
+      .then((res: { days: UptimeDay[]; overallUptimePct: number | null }) => {
         setData(res.days)
         onData?.(res.overallUptimePct)
       })

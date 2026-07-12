@@ -29,7 +29,7 @@ export default function Layout() {
       label: 'Configure',
       items: [
         { to: '/admin/notifications', label: 'Notifications', icon: 'notifications',       minRole: 'operator' },
-        { to: '/admin/builder',       label: 'Page Builder',  icon: 'dashboard_customize', minRole: 'operator' },
+        { to: '/admin/builder',       label: 'Page Builder',  icon: 'dashboard_customize', minRole: 'branding' },
         { to: '/admin/branding',      label: 'Branding',      icon: 'palette',             minRole: 'branding' },
         { to: '/admin/localization',  label: 'Localization',  icon: 'translate',           minRole: 'branding' },
       ],
