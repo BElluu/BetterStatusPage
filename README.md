@@ -33,7 +33,7 @@ You know the drill. Your API goes down at 3 AM, users start tweeting, your boss 
 
 ## Release status
 
-BetterStatusPage is approaching its first public MVP release. The current target is a practical self-hosted deployment for small teams and personal infrastructure:
+BetterStatusPage is currently in its MVP phase. The current target is a practical self-hosted deployment for small teams and personal infrastructure:
 
 - one Node.js 22 process,
 - SQLite persistence,
@@ -41,6 +41,8 @@ BetterStatusPage is approaching its first public MVP release. The current target
 - Nginx reverse proxy,
 - built-in backups and offline restore,
 - no external database, queue, or cache required.
+
+Thank you in advance for your interest in the project and for every installation, test, bug report, and piece of feedback. Early real-world testing is especially valuable and will directly help shape BetterStatusPage beyond the MVP.
 
 Before exposing a production instance, read:
 
@@ -513,6 +515,16 @@ Found a bug? Have an idea? PRs are welcome — just open an issue first for anyt
 ## License
 
 MIT — do whatever you want, just don't blame us if your monitors miss a 3 AM outage because you forgot to set `JWT_SECRET`. 😅
+
+---
+
+## ☕ Support
+
+BetterStatusPage is completely free and open source. If you find it useful and want to support continued development, voluntary donations are appreciated but never required!
+
+[![Buy Me A Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/belluu)
+
+Your support helps keep the project alive and motivates continued development — but using BetterStatusPage, testing it, and sharing feedback is support enough!
 
 ---
 
