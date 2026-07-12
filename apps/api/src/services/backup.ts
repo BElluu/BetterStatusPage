@@ -101,7 +101,7 @@ export async function createBackup(outputDirectory = backupDir()): Promise<Backu
       const manifest: BackupManifest = {
         formatVersion: BACKUP_FORMAT_VERSION,
         createdAt: Date.now(),
-        appVersion: process.env['npm_package_version'] ?? '1.0.0',
+        appVersion: process.env['APP_VERSION'] ?? process.env['npm_package_version'] ?? '0.1.0',
         databaseIntegrity: 'ok',
         requiresVaultKey: true,
         vaultKeyFingerprint: keyFingerprint(),

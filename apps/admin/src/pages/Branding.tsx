@@ -114,9 +114,8 @@ export default function BrandingPage() {
 
           {/* Identity */}
           <div>
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: 'var(--m3-secondary)' }}>
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--m3-secondary)' }}>
               Identity
-              <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(34,197,94,0.12)', color: '#16a34a' }}>always active</span>
             </p>
             <div className="space-y-2">
               <Field label="Site name">
@@ -162,15 +161,28 @@ export default function BrandingPage() {
                         </button>
                       </div>
                     )}
-                    <input type="file" accept="image/*"
+                    <input
+                      id="branding-logo-file"
+                      type="file"
+                      accept="image/*"
                       onChange={(e) => {
                         const file = e.target.files?.[0] ?? null
                         setLogoFile(file)
                         if (file) setLogoPreviewUrl(URL.createObjectURL(file))
                       }}
-                      className="block text-xs cursor-pointer"
-                      style={{ color: 'var(--m3-secondary)' }}
+                      className="sr-only"
                     />
+                    <div className="flex items-center gap-2 min-w-0">
+                      <label
+                        htmlFor="branding-logo-file"
+                        className="btn-primary shrink-0 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer"
+                      >
+                        Choose image
+                      </label>
+                      <span className="text-xs truncate" style={{ color: 'var(--m3-secondary)' }} title={logoFile?.name}>
+                        {logoFile?.name ?? 'No file selected'}
+                      </span>
+                    </div>
                   </>
                 ) : (
                   <input

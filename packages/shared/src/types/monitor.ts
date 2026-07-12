@@ -124,5 +124,5 @@ export interface UptimeSummary {
     checksTotal: number
     checksUp: number
   }>
-  overallUptimePct: number
+  overallUptimePct: number | null
 }

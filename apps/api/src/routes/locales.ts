@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
 import { locales } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
+import { diffObjects, snapshot, writeAudit } from '../services/audit.js'
 
 function parseLocale(row: typeof locales.$inferSelect) {
   return {
@@ -65,6 +66,8 @@ export async function adminLocaleRoutes(app: FastifyInstance) {
       translations: '{}',
       updatedAt: Date.now(),
     }).returning()
+    const actor = req.user as { userId: number; email: string }
+    await writeAudit({ userId: actor.userId, userEmail: actor.email }, 'create', 'locale', code, name.trim(), snapshot({ code, name: name.trim() }))
     return parseLocale(row[0]!)
   })
 
@@ -79,7 +82,18 @@ export async function adminLocaleRoutes(app: FastifyInstance) {
       if (req.body.translations !== undefined) updates.translations = JSON.stringify(req.body.translations)
 
       const updated = await db.update(locales).set(updates).where(eq(locales.code, req.params.code)).returning()
-      return parseLocale(updated[0]!)
+      const actor = req.user as { userId: number; email: string }
+      const updatedRow = updated[0]!
+      const before = { name: row.name, translationCount: Object.keys(JSON.parse(row.translations || '{}') as object).length }
+      const after = { name: updatedRow.name, translationCount: Object.keys(JSON.parse(updatedRow.translations || '{}') as object).length }
+      const diff = diffObjects(before, after)
+      if (req.body.translations !== undefined && !diff['translationCount']) {
+        diff['translations'] = { from: '[previous translations]', to: '[updated translations]' }
+      }
+      if (Object.keys(diff).length) {
+        await writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'locale', row.code, row.name, diff)
+      }
+      return parseLocale(updatedRow)
     },
   )
 
@@ -88,8 +102,15 @@ export async function adminLocaleRoutes(app: FastifyInstance) {
     const row = (await db.select().from(locales).where(eq(locales.code, req.params.code)))[0]
     if (!row) return reply.code(404).send({ error: 'Locale not found' })
 
+    const currentDefault = (await db.select().from(locales).where(eq(locales.isDefault, 1)))[0]
     await db.update(locales).set({ isDefault: 0 })
     await db.update(locales).set({ isDefault: 1 }).where(eq(locales.code, req.params.code))
+    if (currentDefault?.code !== row.code) {
+      const actor = req.user as { userId: number; email: string }
+      await writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'locale', row.code, row.name, {
+        defaultLocale: { from: currentDefault?.code ?? null, to: row.code },
+      })
+    }
     return parseLocale((await db.select().from(locales).where(eq(locales.code, req.params.code)))[0]!)
   })
 
@@ -100,6 +121,8 @@ export async function adminLocaleRoutes(app: FastifyInstance) {
     if (row.isDefault) return reply.code(400).send({ error: 'Cannot delete the default locale' })
 
     await db.delete(locales).where(eq(locales.code, req.params.code))
+    const actor = req.user as { userId: number; email: string }
+    await writeAudit({ userId: actor.userId, userEmail: actor.email }, 'delete', 'locale', row.code, row.name, snapshot({ code: row.code, name: row.name }))
     return reply.code(204).send()
   })
 }

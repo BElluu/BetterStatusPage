@@ -113,6 +113,8 @@ export async function publicRoutes(app: FastifyInstance) {
     if (days === null || monitorId === null) {
       return reply.code(400).send({ error: 'Invalid monitor id or days; days must be between 1 and 90' })
     }
+    const monitor = (await db.select({ id: monitors.id }).from(monitors).where(eq(monitors.id, monitorId)))[0]
+    if (!monitor) return reply.code(404).send({ error: 'Not found' })
     const since = Date.now() - days * 24 * 60 * 60 * 1000
     const filtered = await db.select().from(monitorResults).where(
       and(eq(monitorResults.monitorId, monitorId), gte(monitorResults.checkedAt, since)),
@@ -165,7 +167,7 @@ export async function publicRoutes(app: FastifyInstance) {
 
     const totalChecks = summaryDays.reduce((a, d) => a + d.checksTotal, 0)
     const totalUp = summaryDays.reduce((a, d) => a + d.checksUp, 0)
-    const overallUptimePct = totalChecks > 0 ? (totalUp / totalChecks) * 100 : 100
+    const overallUptimePct = totalChecks > 0 ? (totalUp / totalChecks) * 100 : null
     return { monitorId, days: summaryDays, overallUptimePct }
   })
 

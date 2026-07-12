@@ -57,6 +57,7 @@ EXPOSE 3000
 
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV APP_VERSION=$IMAGE_VERSION
 ENV DATABASE_PATH=/app/data/db.sqlite
 ENV UPLOAD_DIR=/app/data/uploads
 ENV BACKUP_DIR=/app/backups

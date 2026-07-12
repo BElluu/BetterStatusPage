@@ -525,10 +525,8 @@ function CreateSecretModal({ vaultId, onClose, onCreated }: { vaultId: number; o
                 key={t.value}
                 type="button"
                 onClick={() => setType(t.value)}
-                className="px-3 py-2.5 rounded-xl text-left transition-all"
-                style={type === t.value
-                  ? { background: 'var(--m3-primary)', color: 'var(--m3-on-primary)', border: '1px solid transparent' }
-                  : { background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)', border: '1px solid var(--m3-outline-variant)' }}
+                className={`px-3 py-2.5 rounded-xl text-left transition-all ${type === t.value ? 'selection-active' : ''}`}
+                style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)', border: '1px solid var(--m3-outline-variant)' }}
               >
                 <p className="text-xs font-bold">{t.label}</p>
                 <p className="text-[10px] mt-0.5 opacity-80">{t.desc}</p>

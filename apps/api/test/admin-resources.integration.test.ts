@@ -48,6 +48,7 @@ describe('branding and layout', () => {
     const updated = await app.inject({ method: 'PATCH', url: '/branding', payload: { siteName: 'Acme Status', enabled: 1, primaryColor: '#112233' } })
     assert.equal(updated.json().siteName, 'Acme Status')
     assert.equal((await app.inject({ url: '/branding' })).json().primaryColor, '#112233')
+    assert.equal((await db.select().from(auditLog)).some((entry) => entry.entityType === 'branding'), true)
   })
 
   it('creates and replaces the page layout', async () => {
@@ -55,6 +56,7 @@ describe('branding and layout', () => {
     const tree = { id: 'root', type: 'page', children: [{ id: 'text', type: 'text', name: 'Intro', markdown: 'Hello' }] }
     assert.deepEqual((await app.inject({ method: 'PUT', url: '/layout', payload: { tree } })).json(), tree)
     assert.deepEqual((await app.inject({ url: '/layout' })).json(), tree)
+    assert.equal((await db.select().from(auditLog)).some((entry) => entry.entityType === 'layout'), true)
   })
 })
 

@@ -41,6 +41,13 @@ describe('ConfirmModal', () => {
     expect(onCancel).toHaveBeenCalledOnce()
   })
 
+  it('uses the primary style on a non-dangerous confirmation', () => {
+    render(<ConfirmModal title="End maintenance early" message="Continue?" confirmLabel="End now" danger={false} onConfirm={vi.fn()} onCancel={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: 'End now' })).toHaveClass('btn-primary')
+    expect(screen.getByRole('button', { name: 'Cancel' })).not.toHaveClass('btn-primary')
+  })
+
   it('requires the exact confirmation text when configured', async () => {
     const user = userEvent.setup()
     const onConfirm = vi.fn()

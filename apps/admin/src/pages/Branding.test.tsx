@@ -23,6 +23,9 @@ describe('BrandingPage localization', () => {
 
     expect(screen.getByText('Public status page appearance')).toBeInTheDocument()
     expect(screen.getByText('Identity')).toBeInTheDocument()
+    expect(screen.queryByText(/always active/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Choose image')).toBeInTheDocument()
+    expect(screen.getByText('No file selected')).toBeInTheDocument()
     expect(screen.getByText('Custom branding')).toBeInTheDocument()
     expect(screen.getByText('Background and cards')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save branding' })).toBeInTheDocument()

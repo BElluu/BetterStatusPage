@@ -7,6 +7,7 @@ import type { Branding, Incident, PublicMonitor, MaintenanceWindow, LayoutTree, 
 import { PageRenderer } from './components/PageRenderer'
 import { IncidentCard } from './components/IncidentCard'
 import { LanguageSwitcher } from './components/LanguageSwitcher'
+import { applyIncidentStatus } from './utils/incidentStatus'
 
 interface MonitorDependency {
   dependentId: number
@@ -93,7 +94,7 @@ export default function App() {
 
   const liveMonitors = monitors.map((m) => ({
     ...m,
-    currentStatus: statusMap[m.id]?.status ?? m.currentStatus,
+    currentStatus: applyIncidentStatus(statusMap[m.id]?.status ?? m.currentStatus, m.id, activeIncidents),
   }))
 
   const layoutMonitorIds = tree && tree.children.length > 0 ? collectLayoutMonitorIds(tree.children) : null

@@ -4,6 +4,7 @@ import { branding } from '../db/schema.js'
 import path from 'path'
 import fs from 'fs'
 import { uploadDir } from '../config.js'
+import { diffObjects, writeAudit } from '../services/audit.js'
 
 const ALLOWED_MIME_MAGIC: Array<{ mime: string; magic: number[] }> = [
   { mime: 'image/jpeg', magic: [0xFF, 0xD8, 0xFF] },
@@ -78,18 +79,27 @@ export async function brandingRoutes(app: FastifyInstance) {
       if (req.body[field] !== undefined) updates[field] = req.body[field]
     }
 
-    if (existing) {
-      const results = await db.update(branding).set(updates).returning()
-      return results[0]
-    } else {
-      const results = await db.insert(branding).values({
+    const row = existing
+      ? (await db.update(branding).set(updates).returning())[0]!
+      : (await db.insert(branding).values({
         id: 1,
         ...DEFAULTS,
         ...(updates as Partial<typeof DEFAULTS>),
         updatedAt: now,
-      }).returning()
-      return results[0]
-    }
+      }).returning())[0]!
+    const actor = req.user as { userId: number; email: string }
+    const changedFields = Object.keys(updates).filter((field) => field !== 'updatedAt')
+    const before = Object.fromEntries(changedFields.map((field) => [field, existing?.[field as keyof typeof existing] ?? null]))
+    const after = Object.fromEntries(changedFields.map((field) => [field, row[field as keyof typeof row]]))
+    await writeAudit(
+      { userId: actor.userId, userEmail: actor.email },
+      existing ? 'update' : 'create',
+      'branding',
+      1,
+      row.siteName,
+      diffObjects(before, after),
+    )
+    return row
   })
 
   app.post('/logo', async (req, reply) => {
@@ -117,6 +127,15 @@ export async function brandingRoutes(app: FastifyInstance) {
     } else {
       await db.insert(branding).values({ id: 1, ...DEFAULTS, logoUrl, updatedAt: Date.now() })
     }
+    const actor = req.user as { userId: number; email: string }
+    await writeAudit(
+      { userId: actor.userId, userEmail: actor.email },
+      existing ? 'update' : 'create',
+      'branding',
+      1,
+      existing?.siteName ?? DEFAULTS.siteName,
+      { logoUrl: { from: existing?.logoUrl ?? null, to: logoUrl } },
+    )
     return { url: logoUrl }
   })
 }

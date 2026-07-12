@@ -118,7 +118,7 @@ export default function MaintenancePage() {
             {t}
             {tabCounts[t] > 0 && (
               <span
-                className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full text-xs"
+                className={`ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full text-xs ${t === 'active' ? 'maintenance-active-count' : ''}`}
                 style={{
                   background: t === 'active' ? 'var(--m3-primary)' : 'var(--m3-surface-container-high)',
                   color: t === 'active' ? 'var(--m3-on-primary)' : 'var(--m3-secondary)',
@@ -207,10 +207,7 @@ export default function MaintenancePage() {
                 {isActive && (
                   <button
                     onClick={() => setConfirmEndEarly(win)}
-                    className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors"
-                    style={{ color: 'var(--m3-primary)', background: 'var(--m3-primary-fixed)' }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.8' }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
+                    className="btn-primary text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors"
                   >
                     End now
                   </button>
