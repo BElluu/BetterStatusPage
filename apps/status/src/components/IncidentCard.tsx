@@ -3,11 +3,11 @@ import type { Incident, PublicMonitor } from '@bsp/shared'
 import { useLocale } from '../i18n/LocaleContext'
 
 function formatDate(ms: number, locale: string) {
-  return new Date(ms).toLocaleDateString(locale, { month: 'long', day: 'numeric', year: 'numeric' })
+  return new Date(ms).toLocaleDateString(locale, { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 }
 
 function formatTime(ms: number, locale: string) {
-  return new Date(ms).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC'
+  return new Date(ms).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' }) + ' UTC'
 }
 
 function formatDuration(startMs: number, endMs: number) {
@@ -19,6 +19,7 @@ function formatDuration(startMs: number, endMs: number) {
 
 export function IncidentCard({ incident, monitors = [] }: { incident: Incident; monitors?: PublicMonitor[] }) {
   const { t, locale } = useLocale()
+  const [expanded, setExpanded] = useState(false)
 
   const statusCfg: Record<string, { color: string; dotColor: string; badgeBg: string }> = {
     investigating: { color: '#ba1a1a', dotColor: '#ba1a1a', badgeBg: 'rgba(186,26,26,0.08)' },
@@ -45,8 +46,6 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
   /* ── Resolved: collapsible row ──────────────────────────────────── */
   if (!isActive) {
     const duration = incident.resolvedAt ? formatDuration(incident.startedAt, incident.resolvedAt) : null
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [expanded, setExpanded] = useState(false)
     return (
       <div
         style={{

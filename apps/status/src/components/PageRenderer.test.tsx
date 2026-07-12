@@ -72,4 +72,49 @@ describe('PageRenderer', () => {
     expect(screen.getByText('Core systems')).toBeInTheDocument()
     expect(screen.getByText('Public API')).toBeInTheDocument()
   })
+
+  it('keeps the full monitor name available as a hover hint', () => {
+    const longName = 'A very long production service name that may not fit in the card'
+    const tree: LayoutTree = {
+      id: 'root', type: 'page', children: [
+        { id: 'monitor', type: 'monitor', monitorId: 3, showUptimeBar: false },
+      ],
+    }
+
+    render(<PageRenderer
+      tree={tree}
+      monitors={[{ id: 3, name: longName, type: 'https', currentStatus: 'up', lastCheckedAt: null }]}
+      statusMap={{}}
+    />)
+
+    expect(screen.getByRole('heading', { name: longName })).toHaveAttribute('title', longName)
+  })
+
+  it('shows an incident-affected monitor as degraded instead of operational', () => {
+    const tree: LayoutTree = {
+      id: 'root', type: 'page', children: [
+        { id: 'monitor', type: 'monitor', monitorId: 1, showUptimeBar: false },
+      ],
+    }
+
+    render(<PageRenderer
+      tree={tree}
+      monitors={monitors}
+      statusMap={{}}
+      activeIncidents={[{
+        id: 10,
+        title: 'Google incident',
+        status: 'investigating',
+        impact: 'minor',
+        startedAt: 1,
+        resolvedAt: null,
+        createdAt: 1,
+        updatedAt: 1,
+        monitorIds: [1],
+      }]}
+    />)
+
+    expect(screen.getByText('status.degraded')).toBeInTheDocument()
+    expect(screen.queryByText('status.operational')).not.toBeInTheDocument()
+  })
 })

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { Branding } from '@bsp/shared'
-import { useAdminLocale } from '../i18n/LocaleContext'
 
 interface BrandingForm {
   enabled: boolean
@@ -42,7 +41,6 @@ const DEFAULTS: BrandingForm = {
 }
 
 export default function BrandingPage() {
-  const { t } = useAdminLocale()
   const qc = useQueryClient()
   const { data: branding } = useQuery<Branding>({
     queryKey: ['branding'],
@@ -108,24 +106,23 @@ export default function BrandingPage() {
       {/* ── Controls panel ── */}
       <div className="w-80 shrink-0 flex flex-col overflow-hidden" style={{ background: 'var(--m3-surface-container-low)', borderRight: '1px solid var(--m3-outline-variant)' }}>
         <div className="px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-          <h2 className="font-headline font-bold text-base" style={{ color: 'var(--m3-on-surface)' }}>{t('branding.title')}</h2>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>{t('branding.subtitle')}</p>
+          <h2 className="font-headline font-bold text-base" style={{ color: 'var(--m3-on-surface)' }}>Branding</h2>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>Public status page appearance</p>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
 
           {/* Identity */}
           <div>
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: 'var(--m3-secondary)' }}>
-              {t('branding.identity')}
-              <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(34,197,94,0.12)', color: '#16a34a' }}>{t('branding.alwaysActive')}</span>
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--m3-secondary)' }}>
+              Identity
             </p>
             <div className="space-y-2">
-              <Field label={t('branding.siteName')}>
+              <Field label="Site name">
                 <input value={form.siteName} onChange={(e) => set('siteName')(e.target.value)}
                   className="input-sig" placeholder="My Status Page" />
               </Field>
-              <Field label={t('branding.logo')}>
+              <Field label="Logo">
                 {/* Logo type toggle */}
                 <div className="flex gap-1 p-0.5 rounded-lg mb-2" style={{ background: 'var(--m3-surface-container)' }}>
                   {(['image', 'text'] as const).map((type) => (
@@ -140,7 +137,7 @@ export default function BrandingPage() {
                         boxShadow: form.logoType === type ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
                       }}
                     >
-                      {type === 'image' ? t('branding.logoImage') : t('branding.logoText')}
+                      {type === 'image' ? 'Image' : 'Text'}
                     </button>
                   ))}
                 </div>
@@ -158,28 +155,41 @@ export default function BrandingPage() {
                           }}
                           className="text-xs px-2 py-1 rounded-lg transition-colors"
                           style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
-                          title={t('branding.removeLogo')}
+                          title="Remove logo"
                         >
                           ×
                         </button>
                       </div>
                     )}
-                    <input type="file" accept="image/*"
+                    <input
+                      id="branding-logo-file"
+                      type="file"
+                      accept="image/*"
                       onChange={(e) => {
                         const file = e.target.files?.[0] ?? null
                         setLogoFile(file)
                         if (file) setLogoPreviewUrl(URL.createObjectURL(file))
                       }}
-                      className="block text-xs cursor-pointer"
-                      style={{ color: 'var(--m3-secondary)' }}
+                      className="sr-only"
                     />
+                    <div className="flex items-center gap-2 min-w-0">
+                      <label
+                        htmlFor="branding-logo-file"
+                        className="btn-primary shrink-0 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer"
+                      >
+                        Choose image
+                      </label>
+                      <span className="text-xs truncate" style={{ color: 'var(--m3-secondary)' }} title={logoFile?.name}>
+                        {logoFile?.name ?? 'No file selected'}
+                      </span>
+                    </div>
                   </>
                 ) : (
                   <input
                     value={form.logoText}
                     onChange={(e) => setForm((f) => ({ ...f, logoText: e.target.value }))}
                     className="input-sig"
-                    placeholder={t('branding.logoTextPlaceholder')}
+                    placeholder="e.g. Acme Corp"
                     maxLength={40}
                   />
                 )}
@@ -194,10 +204,10 @@ export default function BrandingPage() {
           >
             <div>
               <p className="font-sans text-sm font-semibold" style={{ color: 'var(--m3-on-surface)' }}>
-                {t('branding.customBranding')}
+                Custom branding
               </p>
               <p className="font-sans text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>
-                {form.enabled ? t('branding.colorsActive') : t('branding.defaultColors')}
+                {form.enabled ? 'Custom colors are active' : 'Default project colors are in use'}
               </p>
             </div>
             <button
@@ -214,35 +224,35 @@ export default function BrandingPage() {
           </div>
 
           {/* Tło i karty */}
-          <Section title={t('branding.backgroundCards')}>
-            <ColorField label={t('branding.pageBackground')} value={form.backgroundColor} onChange={set('backgroundColor')} />
-            <ColorField label={t('branding.cardBackground')} value={form.cardBackground} onChange={set('cardBackground')} />
-            <ColorField label={t('branding.cardBorder')} value={form.cardBorderColor} onChange={set('cardBorderColor')} />
+          <Section title="Background and cards">
+            <ColorField label="Page background" value={form.backgroundColor} onChange={set('backgroundColor')} />
+            <ColorField label="Card / element background" value={form.cardBackground} onChange={set('cardBackground')} />
+            <ColorField label="Card border" value={form.cardBorderColor} onChange={set('cardBorderColor')} />
           </Section>
 
           {/* Tekst */}
-          <Section title={t('branding.textSection')}>
-            <ColorField label={t('branding.primaryText')} value={form.textColor} onChange={set('textColor')} />
-            <ColorField label={t('branding.secondaryText')} value={form.textMutedColor} onChange={set('textMutedColor')} />
+          <Section title="Text">
+            <ColorField label="Primary text" value={form.textColor} onChange={set('textColor')} />
+            <ColorField label="Secondary text" value={form.textMutedColor} onChange={set('textMutedColor')} />
           </Section>
 
           {/* Statusy */}
-          <Section title={t('branding.statusColors')}>
+          <Section title="Status colors">
             <ColorField label="Operational (↑)" value={form.statusUpColor} onChange={set('statusUpColor')} />
             <ColorField label="Down (↓)" value={form.statusDownColor} onChange={set('statusDownColor')} />
             <ColorField label="Degraded (~)" value={form.statusDegradedColor} onChange={set('statusDegradedColor')} />
           </Section>
 
           {/* Akcent */}
-          <Section title={t('branding.accentSection')}>
-            <ColorField label={t('branding.primaryColor')} value={form.primaryColor} onChange={set('primaryColor')} />
-            <ColorField label={t('branding.accentColor')} value={form.accentColor} onChange={set('accentColor')} />
+          <Section title="Accent">
+            <ColorField label="Primary color" value={form.primaryColor} onChange={set('primaryColor')} />
+            <ColorField label="Accent color" value={form.accentColor} onChange={set('accentColor')} />
           </Section>
 
           {/* Custom CSS */}
-          <Section title={t('branding.customCss')}>
+          <Section title="Custom CSS">
             <p className="text-[10px] text-slate-500 mb-2 leading-relaxed">
-              {t('branding.availableClasses')}{' '}
+              Available classes:{' '}
               {[
                 '.bsp-page', '.bsp-header', '.bsp-status-banner',
                 '.bsp-monitor-card', '.bsp-monitor-name', '.bsp-monitor-type',
@@ -258,7 +268,7 @@ export default function BrandingPage() {
               onChange={(e) => set('customCss')(e.target.value)}
               rows={8}
               className="input-sig font-mono text-xs resize-none"
-              placeholder={t('branding.cssPlaceholder')}
+              placeholder="/* e.g. .bsp-monitor-card { border-radius: 0; } */"
             />
           </Section>
         </div>
@@ -275,9 +285,9 @@ export default function BrandingPage() {
               opacity: saveMutation.isPending ? 0.7 : 1,
             }}
           >
-            {saveMutation.isPending ? t('branding.saving') : t('branding.save')}
+            {saveMutation.isPending ? 'Saving…' : 'Save branding'}
           </button>
-          {saved && <span className="text-sm shrink-0" style={{ color: 'var(--m3-primary)' }}>{t('branding.saved')}</span>}
+          {saved && <span className="text-sm shrink-0" style={{ color: 'var(--m3-primary)' }}>Saved!</span>}
         </div>
       </div>
 
@@ -285,8 +295,8 @@ export default function BrandingPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="px-4 py-2 shrink-0 flex items-center gap-2" style={{ background: 'var(--m3-surface-container-low)', borderBottom: '1px solid var(--m3-outline-variant)' }}>
           <span className="w-2 h-2 rounded-full" style={{ background: 'var(--m3-primary)', animation: 'orbGlow 2s ease-in-out infinite' }} />
-          <span className="font-mono text-xs font-medium" style={{ color: 'var(--m3-on-surface)' }}>{t('branding.livePreview')}</span>
-          <span className="text-xs ml-1" style={{ color: 'var(--m3-secondary)' }}>{t('branding.previewHint')}</span>
+          <span className="font-mono text-xs font-medium" style={{ color: 'var(--m3-on-surface)' }}>Live preview</span>
+          <span className="text-xs ml-1" style={{ color: 'var(--m3-secondary)' }}>— changes are visible before saving</span>
         </div>
         <div className="flex-1 overflow-auto">
           <LivePreview form={form} logoUrl={currentLogoUrl} />

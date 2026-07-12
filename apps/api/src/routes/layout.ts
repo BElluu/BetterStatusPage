@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
 import { layout } from '../db/schema.js'
+import { writeAudit } from '../services/audit.js'
 
 export async function layoutRoutes(app: FastifyInstance) {
   app.get('/', async () => {
@@ -17,6 +18,15 @@ export async function layoutRoutes(app: FastifyInstance) {
     } else {
       await db.insert(layout).values({ id: 1, tree: JSON.stringify(req.body.tree), updatedAt: now })
     }
+    const actor = req.user as { userId: number; email: string }
+    await writeAudit(
+      { userId: actor.userId, userEmail: actor.email },
+      existing ? 'update' : 'create',
+      'layout',
+      1,
+      'Status page layout',
+      { tree: { from: existing ? '[previous layout]' : null, to: '[updated layout]' } },
+    )
     return req.body.tree
   })
 }

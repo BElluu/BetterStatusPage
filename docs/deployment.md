@@ -14,7 +14,7 @@ Two paths: **Docker Compose** (recommended — zero dependencies, five commands)
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/your-username/BetterStatusPage.git
+git clone https://github.com/BElluu/BetterStatusPage.git
 cd BetterStatusPage
 cp .env.example .env
 ```
@@ -33,17 +33,18 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 # run twice — once for JWT_SECRET, once for VAULT_ENCRYPTION_KEY
 ```
 
-### 2. Build and start
+### 2. Pull and start
 
 ```bash
-docker compose up -d --build
+export BSP_IMAGE=ghcr.io/belluu/better-status-page:v0.1.0
+docker compose up -d
 ```
 
-First build takes 2–4 minutes (installs deps, compiles TypeScript, builds React apps). Subsequent starts are instant.
+The container image contains the compiled API and both built frontends. For local image development, comment out `image:` in `docker-compose.yml`, uncomment `build: .`, and run `docker compose up -d --build`.
 
 ### 3. Open the setup wizard
 
-Navigate to `http://your-server:3000/admin` — you'll be greeted by the setup wizard. Fill in your admin credentials from `.env` and finish setup.
+Navigate to `http://your-server:3000/admin` — you'll be greeted by the setup wizard. Create the first administrator account there; the web setup wizard does not read administrator credentials from `.env`.
 
 The status page is at `http://your-server:3000`.
 
@@ -54,7 +55,7 @@ docker compose logs -f          # stream logs
 docker compose restart app      # restart after config change
 docker compose down             # stop (data is preserved in the volume)
 docker compose down -v          # stop AND delete all data — use with caution
-docker compose pull && docker compose up -d --build  # update to latest
+docker compose pull && docker compose up -d  # update to the configured published image
 ```
 
 ### Where is my data?
@@ -91,7 +92,7 @@ node --version   # should print v22.x.x
 ### 2. Clone and install dependencies
 
 ```bash
-git clone https://github.com/your-username/BetterStatusPage.git
+git clone https://github.com/BElluu/BetterStatusPage.git
 cd BetterStatusPage
 npm install
 ```
@@ -161,6 +162,8 @@ Whether you're using Docker or bare metal, put Nginx in front — it handles SSL
 BetterStatusPage is a **single process** that serves everything (API + admin panel + status page) on one port. Nginx is what exposes different URLs or ports to the outside world, routing each domain transparently to that one backend. Because the frontend JavaScript uses relative URLs (`/api/v1/...`), requests always go to the same origin the user sees in their browser — Nginx handles the rest invisibly.
 
 Set `TRUST_PROXY=1` when Nginx is the only path to the application. This makes authentication and setup rate limits use the real client IP from `X-Forwarded-For`. Do not enable it while the application port is directly reachable from the internet, because clients could spoof forwarding headers.
+
+Production rule: do not expose the application port directly to the internet when `TRUST_PROXY` is enabled. Bind Docker to `127.0.0.1:3000:3000` or restrict the port with your firewall, then let Nginx be the only public entry point.
 
 ### Install Nginx
 
@@ -346,8 +349,9 @@ Certbot edits your Nginx configs automatically and sets up auto-renewal.
 ### Docker Compose
 
 ```bash
-git pull
-docker compose up -d --build
+export BSP_IMAGE=ghcr.io/belluu/better-status-page:v0.1.0
+docker compose pull
+docker compose up -d
 ```
 
 The volume is untouched. Database migrations run automatically on startup.
@@ -363,10 +367,28 @@ pm2 restart bsp
 
 ---
 
+## Production checklist
+
+Before exposing an instance publicly:
+
+- `NODE_ENV=production` is set.
+- `JWT_SECRET` is random, non-default, and at least 32 characters.
+- `VAULT_ENCRYPTION_KEY` is a random 64-character hex string and stored outside the application.
+- The app port is private; public traffic goes through Nginx/SSL.
+- `TRUST_PROXY=1` is enabled only when Nginx is the only path to the app.
+- Backups are configured, one backup was created, and verification passes.
+- A restore drill was completed on a non-production copy.
+- `/health` returns 200 and `/ready` returns 200 after setup.
+- GitHub CI or equivalent release checks passed: lint, tests, build, Docker build, and E2E on Linux.
+
+---
+
 ## Environment variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
+| `BSP_IMAGE` | Docker Compose | Container image used by `docker-compose.yml`, for example `ghcr.io/belluu/better-status-page:v0.1.0`. |
+| `BSP_BIND_ADDRESS` | Docker Compose | Host address for published port. Default/recommended behind Nginx: `127.0.0.1`. Use `0.0.0.0` only for direct testing. |
 | `PORT` | No | Port to listen on. Default: `3000` |
 | `NODE_ENV` | Yes (prod) | Set to `production`. Enables security headers, HSTS, enforces secrets. |
 | `JWT_SECRET` | Yes (prod) | Signs JWT auth tokens. Min 32 chars. Changing it logs everyone out. |
@@ -378,6 +400,10 @@ pm2 restart bsp
 | `BACKUP_DIR` | No | Directory for generated backup archives. Default: `./data/backups` |
 | `ALLOWED_ORIGINS` | No | Comma-separated CORS origins. Leave unset if Nginx handles CORS, or in single-domain setups. |
 | `TRUST_PROXY` | No | Trusted proxy setting (`1` for one reverse proxy, or trusted addresses). Enable only when the app port is not directly exposed. |
+| `SCHEDULER_TICK_SECONDS` | No | How often the scheduler scans for due monitors. Default: `10`. Must be 1-59 seconds. |
+| `MONITOR_CHECK_CONCURRENCY` | No | Maximum number of due monitors checked concurrently. Default: `20`. |
+| `MONITOR_RESULT_RETENTION_DAYS` | No | Monitor result retention period. Default: `90`. |
+| `MONITOR_RESULT_PURGE_CRON` | No | Cron expression for purging old monitor results. Default: `0 2 * * *` (daily at 02:00). |
 
 Generate secrets:
 
@@ -394,6 +420,8 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ## Backups
 
 BetterStatusPage creates a consistent SQLite snapshot with `VACUUM INTO`; do not copy a live `db.sqlite` directly while WAL mode is active. A `bsp-backup-TIMESTAMP.backup` archive contains the database, `setup.json`, uploads, a versioned manifest, and SHA-256 checksums.
+
+For the full operational procedure, including restore drills and key handling, see [backup-restore.md](backup-restore.md).
 
 Build the application before using the CLI, then create or verify a backup:
 

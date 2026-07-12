@@ -24,6 +24,16 @@ FROM node:22-alpine AS runner
 
 WORKDIR /app
 
+ARG SOURCE_REPOSITORY="https://github.com/BElluu/BetterStatusPage"
+ARG IMAGE_VERSION="dev"
+ARG IMAGE_REVISION="unknown"
+
+LABEL org.opencontainers.image.source=$SOURCE_REPOSITORY
+LABEL org.opencontainers.image.description="Self-hosted uptime monitoring and public status page"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.version=$IMAGE_VERSION
+LABEL org.opencontainers.image.revision=$IMAGE_REVISION
+
 # Copy workspace manifests + shared package (needed for workspace symlink resolution)
 COPY package*.json ./
 COPY packages/shared/package*.json ./packages/shared/
@@ -47,6 +57,7 @@ EXPOSE 3000
 
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV APP_VERSION=$IMAGE_VERSION
 ENV DATABASE_PATH=/app/data/db.sqlite
 ENV UPLOAD_DIR=/app/data/uploads
 ENV BACKUP_DIR=/app/backups

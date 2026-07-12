@@ -163,7 +163,7 @@ function LocaleEditor({ locale, onDelete }: { locale: Locale; onDelete: () => vo
           </span>
           {locale.isDefault === 1 && (
             <span
-              className="ml-2 text-xs font-bold px-2 py-0.5 rounded-full"
+              className="selection-active ml-2 text-xs font-bold px-2 py-0.5 rounded-full border"
               style={{ background: 'var(--m3-primary-container)', color: 'var(--m3-on-primary-container)' }}
             >
               Default
@@ -289,7 +289,7 @@ export default function LocalizationPage() {
                 <span>{locale.name}</span>
                 <div className="flex items-center gap-2">
                   {locale.isDefault === 1 && (
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--m3-primary)' }} />
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--m3-on-primary-container)' }} />
                   )}
                   <span className="font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
                     {locale.code}
