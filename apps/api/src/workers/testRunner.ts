@@ -8,7 +8,6 @@ export interface TestStep {
   status: 'ok' | 'error' | 'info'
   detail?: string | undefined
   /** Full content for steps where detail is truncated (e.g. body preview) */
-  fullContent?: string | undefined
   /** Cookie jar snapshot at this point (name → value), for diagnostic downloads */
   cookies?: Record<string, string> | undefined
   durationMs?: number | undefined
@@ -180,7 +179,7 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
             newCookieNames.push(kv.substring(0, eq))
           }
         }
-        const jarSnap = newCookieNames.length > 0 ? Object.fromEntries(newCookieNames.map(n => [n, probeCookies.get(n)!])) : undefined
+        const jarSnap = newCookieNames.length > 0 ? Object.fromEntries(newCookieNames.map(n => [n, '[redacted]'])) : undefined
         const cookieDetail = newCookieNames.length > 0 ? `Set-Cookie: ${newCookieNames.join(', ')}` : undefined
         if (r.status < 300 || r.status >= 400) {
           steps.push({ label: `CAS probe hop ${hops + 1}: ${r.status} ${nextUrl}`, status: 'info', detail: cookieDetail, cookies: jarSnap })
@@ -273,7 +272,7 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
         label: `CAS: ticket registered → ${res.status}`,
         status: 'ok',
         detail: `Cookies collected: ${[...jar.keys()].join(', ')}`,
-        cookies: Object.fromEntries(jar),
+        cookies: Object.fromEntries([...jar.keys()].map((name) => [name, '[redacted]'])),
         durationMs: Date.now() - tTicket,
       })
     }
@@ -295,7 +294,7 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
         redirect: 'manual',
       })
       const newCookies = collectCookies(res)
-      const newJarSnap = newCookies.length ? Object.fromEntries(newCookies.map(n => [n, jar.get(n)!])) : undefined
+      const newJarSnap = newCookies.length ? Object.fromEntries(newCookies.map(n => [n, '[redacted]'])) : undefined
       const cookieNote = newCookies.length ? ` [Set-Cookie: ${newCookies.join(', ')}]` : ''
       if (res.status < 300 || res.status >= 400) break
       const loc = res.headers.get('location')
@@ -318,7 +317,7 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
             const ticket2 = (await stRes2.text()).trim()
             const u2 = new URL(svc)
             u2.searchParams.set('ticket', ticket2)
-            steps.push({ label: `CAS: app-level ticket obtained${cookieNote}`, status: 'info', detail: `${ticket2.substring(0, 24)}…`, cookies: newJarSnap, durationMs: Date.now() - tInt })
+            steps.push({ label: `CAS: app-level ticket obtained${cookieNote}`, status: 'info', detail: '[redacted]', cookies: newJarSnap, durationMs: Date.now() - tInt })
             currentUrl2 = u2.toString()
             continue
           } catch (err2) {
@@ -342,10 +341,9 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
     }
     steps.push({ label: `Response: HTTP ${res.status}`, status: 'ok', durationMs: responseMs })
 
-    // ── Body preview (first 500 chars) ─────────────────────────────────
+    // Keep the body in memory for validation, but never expose it in diagnostics.
     const body = await res.text()
-    const preview = body.replace(/\s+/g, ' ').trim().substring(0, 500)
-    steps.push({ label: 'Response body preview', status: 'info', detail: preview, fullContent: body })
+    steps.push({ label: 'Response body', status: 'info', detail: `${Buffer.byteLength(body, 'utf8')} bytes (content omitted)` })
 
     // ── Keyword check ───────────────────────────────────────────────────
     if (config.keyword) {

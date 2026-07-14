@@ -1,17 +1,19 @@
 import { db } from '../db/client.js'
 import { auditLog } from '../db/schema.js'
 
-const SENSITIVE = new Set([
-  'password', 'passwordHash', 'encryptedValue',
-  'clientSecret', 'token', 'secret', 'temporaryPassword',
-  'vaultConfig',
-])
+const SENSITIVE_KEY = /(password|secret|token|authorization|cookie|credential|vaultconfig|encryptedvalue|recoverycode)/i
+
+function redactValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactValue)
+  if (value && typeof value === 'object') return redactObj(value as Record<string, unknown>)
+  return value
+}
 
 /** Mask sensitive keys in a flat object. */
 function redactObj(obj: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(obj)) {
-    out[k] = SENSITIVE.has(k) ? '[redacted]' : v
+    out[k] = SENSITIVE_KEY.test(k) ? '[redacted]' : redactValue(v)
   }
   return out
 }
@@ -29,8 +31,8 @@ export function diffObjects(
   for (const key of keys) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) {
       diff[key] = {
-        from: SENSITIVE.has(key) ? '[redacted]' : before[key],
-        to: SENSITIVE.has(key) ? '[redacted]' : after[key],
+        from: SENSITIVE_KEY.test(key) ? '[redacted]' : redactValue(before[key]),
+        to: SENSITIVE_KEY.test(key) ? '[redacted]' : redactValue(after[key]),
       }
     }
   }
@@ -67,7 +69,7 @@ export async function writeAudit(
       entityType,
       entityId: entityId !== null ? String(entityId) : null,
       entityName,
-      diff: diff ? JSON.stringify(diff) : null,
+      diff: diff ? JSON.stringify(redactObj(diff)) : null,
       timestamp: Date.now(),
     })
   } catch (err) {

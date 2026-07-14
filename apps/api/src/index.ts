@@ -2,6 +2,7 @@ import 'dotenv/config'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import jwt from '@fastify/jwt'
+import cookie from '@fastify/cookie'
 import multipart from '@fastify/multipart'
 import staticFiles from '@fastify/static'
 import rateLimit from '@fastify/rate-limit'
@@ -40,7 +41,13 @@ import { registerProductionFrontends } from './services/productionFallback.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const app = Fastify({
-  logger: { level: 'info' },
+  logger: {
+    level: 'info',
+    redact: {
+      paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
+      censor: '[redacted]',
+    },
+  },
   trustProxy: resolveTrustProxy(),
 })
 
@@ -50,6 +57,23 @@ await app.register(cors, {
   origin: allowedOrigins
     ?? (process.env['NODE_ENV'] === 'production' ? false : true),
   credentials: true,
+})
+
+await app.register(cookie)
+
+// Reject unsafe cross-site browser requests before they reach auth or setup routes.
+app.addHook('onRequest', async (req, reply) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return
+  if (process.env['NODE_ENV'] !== 'production') return
+  if (req.headers['sec-fetch-site'] === 'cross-site') {
+    return reply.code(403).send({ error: 'Cross-site request rejected' })
+  }
+  const origin = req.headers.origin
+  if (!origin) return
+  const ownOrigin = `${req.protocol}://${req.headers.host}`
+  if (origin !== ownOrigin && !allowedOrigins?.includes(origin)) {
+    return reply.code(403).send({ error: 'Origin not allowed' })
+  }
 })
 
 // JWT
@@ -84,6 +108,20 @@ app.addHook('onSend', (_req, reply, _payload, done) => {
   reply.header('X-Content-Type-Options', 'nosniff')
   reply.header('X-Frame-Options', 'DENY')
   reply.header('Referrer-Policy', 'strict-origin-when-cross-origin')
+  reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()')
+  reply.header('Cross-Origin-Opener-Policy', 'same-origin')
+  reply.header('Content-Security-Policy', [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: blob:",
+    "connect-src 'self'",
+  ].join('; '))
   if (process.env['NODE_ENV'] === 'production') {
     reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
   }

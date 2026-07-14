@@ -395,7 +395,7 @@ Before exposing an instance publicly:
 | `BSP_BIND_ADDRESS` | Docker Compose | Host address for published port. Default/recommended behind Nginx: `127.0.0.1`. Use `0.0.0.0` only for direct testing. |
 | `PORT` | No | Port to listen on. Default: `3000` |
 | `NODE_ENV` | Yes (prod) | Set to `production`. Enables security headers, HSTS, enforces secrets. |
-| `JWT_SECRET` | Yes (prod) | Signs JWT auth tokens. Min 32 chars. Changing it logs everyone out. |
+| `JWT_SECRET` | Yes (prod) | Signs the HttpOnly admin session cookie. Min 32 chars. Changing it logs everyone out. |
 | `VAULT_ENCRYPTION_KEY` | Yes (prod) | 64-char hex string (32 bytes) for AES-256-GCM vault encryption. **Changing it makes all stored secrets unreadable.** |
 | `ADMIN_EMAIL` | `db:seed` only | Required only when intentionally running `npm run db:seed`. The web setup wizard does not read it. |
 | `ADMIN_PASSWORD` | `db:seed` only | Required only when intentionally running `npm run db:seed`; minimum 8 characters. |

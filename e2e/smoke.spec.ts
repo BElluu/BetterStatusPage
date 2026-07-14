@@ -2,11 +2,12 @@ import { expect, test } from '@playwright/test'
 
 const email = 'e2e-admin@example.test'
 const password = 'e2e-secure-password'
+const apiUrl = `http://127.0.0.1:${process.env['E2E_API_PORT'] ?? '3000'}`
 
 test.beforeAll(async ({ request }) => {
-  const status = await request.get('http://127.0.0.1:3000/api/v1/setup/status')
+  const status = await request.get(`${apiUrl}/api/v1/setup/status`)
   if ((await status.json()).needsSetup) {
-    const setup = await request.post('http://127.0.0.1:3000/api/v1/setup/complete', {
+    const setup = await request.post(`${apiUrl}/api/v1/setup/complete`, {
       data: { email, password },
     })
     expect(setup.ok()).toBeTruthy()
