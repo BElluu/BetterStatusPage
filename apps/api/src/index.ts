@@ -35,7 +35,7 @@ import { JWT_EXPIRES_IN, resolveJwtSecret, validateVaultEncryptionKey } from './
 import { healthRoutes } from './routes/health.js'
 import { resolveTrustProxy } from './config/proxy.js'
 import { sseService } from './services/sse.service.js'
-import { createProductionFallback } from './services/productionFallback.js'
+import { registerProductionFrontends } from './services/productionFallback.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -154,22 +154,7 @@ if (process.env['NODE_ENV'] === 'production') {
   const adminDist = path.join(__dirname, '../../admin/dist')
   const statusDist = path.join(__dirname, '../../status/dist')
 
-  await app.register(staticFiles, {
-    root: adminDist,
-    prefix: '/admin/',
-    decorateReply: false,
-    wildcard: false,
-  })
-
-  app.get('/admin/*', (_, reply) => reply.sendFile('index.html', adminDist))
-
-  await app.register(staticFiles, {
-    root: statusDist,
-    prefix: '/',
-    decorateReply: false,
-  })
-
-  app.setNotFoundHandler(createProductionFallback(statusDist))
+  await registerProductionFrontends(app, adminDist, statusDist)
 }
 
 const port = Number(process.env['PORT'] ?? 3000)

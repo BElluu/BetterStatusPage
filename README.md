@@ -410,7 +410,11 @@ docker compose up -d
 
 Data (SQLite database + uploads) is stored in a named Docker volume (`bsp_data`) and survives container rebuilds, restarts, and image upgrades. It is only deleted if you explicitly run `docker compose down -v`.
 
-For local image development, comment out `image:` in `docker-compose.yml`, uncomment `build: .`, and run `docker compose up -d --build`.
+For local image development, use the local override so the production Compose file continues to use GHCR:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+```
 
 See **[docs/deployment.md](docs/deployment.md)** for the full deployment guide, including Nginx + SSL setup, bare-metal install, PM2, backups, and firewall configuration.
 
