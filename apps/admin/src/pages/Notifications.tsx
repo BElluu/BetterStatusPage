@@ -478,7 +478,7 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
                         if (!vault) setVault({ vaultId: vaults[0].id, secretId: 0 })
                       }
                     }}
-                    className="px-4 py-1.5 text-xs font-medium transition-all"
+                    className={`px-4 py-1.5 text-xs font-medium transition-all ${credSource === src ? 'selection-active' : ''}`}
                     style={{
                       background: credSource === src ? 'var(--m3-primary-fixed)' : 'transparent',
                       color:      credSource === src ? 'var(--m3-primary)' : 'var(--m3-secondary)',

@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { describe, it } from 'node:test'
 import Fastify from 'fastify'
-import { createProductionFallback } from '../src/services/productionFallback.js'
+import {
+  createProductionFallback,
+  registerProductionFrontends,
+} from '../src/services/productionFallback.js'
 
 describe('production SPA fallback', () => {
   it('returns JSON 404 for unknown API routes and the status app for frontend routes', async () => {
@@ -22,6 +28,37 @@ describe('production SPA fallback', () => {
       assert.equal(frontend.body, '/status-dist/index.html')
     } finally {
       await app.close()
+    }
+  })
+
+  it('serves the admin app with and without a trailing slash and supports SPA routes', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'bsp-production-frontends-'))
+    const adminDist = path.join(root, 'admin')
+    const statusDist = path.join(root, 'status')
+    const app = Fastify({ logger: false })
+
+    try {
+      await Promise.all([mkdir(adminDist), mkdir(statusDist)])
+      await Promise.all([
+        writeFile(path.join(adminDist, 'index.html'), '<h1>Admin app</h1>'),
+        writeFile(path.join(statusDist, 'index.html'), '<h1>Status app</h1>'),
+      ])
+      await registerProductionFrontends(app, adminDist, statusDist)
+
+      const withoutSlash = await app.inject({ method: 'GET', url: '/admin' })
+      assert.equal(withoutSlash.statusCode, 302)
+      assert.equal(withoutSlash.headers.location, '/admin/')
+
+      const withSlash = await app.inject({ method: 'GET', url: '/admin/' })
+      assert.equal(withSlash.statusCode, 200)
+      assert.equal(withSlash.body, '<h1>Admin app</h1>')
+
+      const spaRoute = await app.inject({ method: 'GET', url: '/admin/monitors/monitor-1' })
+      assert.equal(spaRoute.statusCode, 200)
+      assert.equal(spaRoute.body, '<h1>Admin app</h1>')
+    } finally {
+      await app.close()
+      await rm(root, { recursive: true, force: true })
     }
   })
 })
