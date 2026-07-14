@@ -6,7 +6,9 @@ BetterStatusPage is a self-hosted application. Operators are responsible for the
 
 If you find a security issue, do not open a public issue with exploit details, secrets, logs, or private URLs.
 
-Use a private disclosure channel instead. Until a dedicated security contact is published for the project, open a GitHub issue with a short non-sensitive summary and ask for a private contact path.
+Use [GitHub private vulnerability reporting](https://github.com/BElluu/BetterStatusPage/security/advisories/new) instead. Reports submitted there are visible only to the reporter and repository maintainers while the issue is investigated and fixed.
+
+Repository maintainers must keep **Private vulnerability reporting** enabled in the repository security settings. If the private reporting form is unavailable, do not publish vulnerability details in an issue. Open an issue containing only a request for a private contact channel.
 
 Include:
 
@@ -42,6 +44,7 @@ Before exposing an instance publicly:
 - Set `TRUST_PROXY=1` only when the app is reachable exclusively through the trusted proxy.
 - Keep Docker, Node.js, and host packages patched.
 - Run `npm audit` or equivalent dependency scanning before release.
+- Keep Dependabot alerts enabled and review production dependency updates promptly.
 - Create and verify backups regularly.
 - Test restore on a non-production copy before relying on backups.
 

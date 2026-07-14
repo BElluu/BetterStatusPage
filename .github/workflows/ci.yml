@@ -30,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Lint
         run: npm run lint
 
@@ -80,6 +83,8 @@ jobs:
         run: |
           for i in {1..30}; do
             if curl --fail http://127.0.0.1:3000/health && curl --fail http://127.0.0.1:3000/api/v1/setup/status; then
+              curl --fail --silent --show-error --head http://127.0.0.1:3000/ \
+                | grep --ignore-case --quiet '^content-security-policy:'
               exit 0
             fi
             sleep 1

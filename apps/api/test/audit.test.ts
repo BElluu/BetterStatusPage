@@ -22,8 +22,8 @@ describe('audit helpers', () => {
       { password: { from: '[redacted]', to: '[redacted]' } },
     )
     assert.deepEqual(
-      snapshot({ username: 'admin', clientSecret: 'secret' }),
-      { username: 'admin', clientSecret: '[redacted]' },
+      snapshot({ username: 'admin', clientSecret: 'secret', config: { webhookToken: 'token', url: 'https://example.test' } }),
+      { username: 'admin', clientSecret: '[redacted]', config: { webhookToken: '[redacted]', url: 'https://example.test' } },
     )
   })
 

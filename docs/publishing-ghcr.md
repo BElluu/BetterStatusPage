@@ -4,7 +4,7 @@ Releases are published manually with `scripts/publish-release.ps1`. The script a
 
 - synchronizing the version across all npm workspaces and `package-lock.json`;
 - updating the `ghcr.io/belluu/better-status-page` image tag in `README.md` and `docs/*.md` files;
-- linting, testing, building, and checking version consistency;
+- auditing production dependencies, linting, testing, building, and checking version consistency;
 - creating a `chore: release X.Y.Z` commit;
 - building one Linux AMD64 image with the `X.Y.Z` and `latest` tags;
 - logging in to GHCR, publishing both tags, and logging out;

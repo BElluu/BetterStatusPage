@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { setToken, api, isAuthenticated } from '../api/client'
+import { api, isAuthenticated, setSession, type AuthUser } from '../api/client'
 import { useDarkMode } from '../hooks/useDarkMode'
 
 const STEPS = [
@@ -40,8 +40,8 @@ export default function SetupPage() {
     if (password.length < 8)  { setError('Password must be at least 8 characters'); return }
     setLoading(true)
     try {
-      const res = await api.post<{ token: string }>('/setup/complete', { email, password })
-      setToken(res.token)
+      const res = await api.post<AuthUser>('/setup/complete', { email, password })
+      setSession(res)
       setStep(3)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Setup failed')
