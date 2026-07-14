@@ -57,6 +57,6 @@ describe('application version', () => {
 
   it('uses the package version by default and allows Docker to override it', () => {
     assert.equal(resolveAppVersion({}), PACKAGE_VERSION)
-    assert.equal(resolveAppVersion({ APP_VERSION: ' 0.1.1-container ' }), '0.1.1-container')
+    assert.equal(resolveAppVersion({ APP_VERSION: ' 9.8.7-container ' }), '9.8.7-container')
   })
 })
