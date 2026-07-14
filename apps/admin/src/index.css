@@ -219,6 +219,22 @@ select.input-m3 {
   padding-right: 32px;
 }
 
+input.input-m3:is([type='date'], [type='time'], [type='datetime-local']),
+input.input-sig:is([type='date'], [type='time'], [type='datetime-local']) {
+  color-scheme: light;
+}
+
+html.dark input.input-m3:is([type='date'], [type='time'], [type='datetime-local']),
+html.dark input.input-sig:is([type='date'], [type='time'], [type='datetime-local']) {
+  color-scheme: dark;
+}
+
+input.input-m3:is([type='date'], [type='time'], [type='datetime-local'])::-webkit-calendar-picker-indicator,
+input.input-sig:is([type='date'], [type='time'], [type='datetime-local'])::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 1;
+}
+
 /* Legacy alias */
 .input-sig { @apply input-m3; }
 

@@ -293,6 +293,58 @@ function fromLocalDatetimeValue(val: string): number {
   return new Date(val).getTime()
 }
 
+const HOURS = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0'))
+const MINUTES = Array.from({ length: 60 }, (_, minute) => String(minute).padStart(2, '0'))
+
+export function DateTimeInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  const [date = '', time = '00:00'] = value.split('T')
+  const [hour = '00', minute = '00'] = time.split(':')
+
+  function update(nextDate: string, nextHour: string, nextMinute: string) {
+    onChange(nextDate ? `${nextDate}T${nextHour}:${nextMinute}` : '')
+  }
+
+  return (
+    <div className="space-y-2">
+      <input
+        type="date"
+        value={date}
+        onChange={(event) => update(event.target.value, hour, minute)}
+        required
+        aria-label={`${label} — YYYY-MM-DD`}
+        className="input-sig"
+      />
+      <div className="flex items-center gap-2">
+        <select
+          value={hour}
+          onChange={(event) => update(date, event.target.value, minute)}
+          aria-label={`${label} — HH`}
+          className="input-sig"
+        >
+          {HOURS.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+        <span aria-hidden="true" className="font-bold" style={{ color: 'var(--m3-secondary)' }}>:</span>
+        <select
+          value={minute}
+          onChange={(event) => update(date, hour, event.target.value)}
+          aria-label={`${label} — MM`}
+          className="input-sig"
+        >
+          {MINUTES.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </div>
+    </div>
+  )
+}
+
 function MaintenanceModal({
   monitors,
   initial,
@@ -414,24 +466,20 @@ function MaintenanceModal({
                 <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
                   Starts At
                 </label>
-                <input
-                  type="datetime-local"
+                <DateTimeInput
+                  label="Starts At"
                   value={startsAt}
-                  onChange={(e) => setStartsAt(e.target.value)}
-                  required
-                  className="input-sig"
+                  onChange={setStartsAt}
                 />
               </div>
               <div>
                 <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
                   Ends At
                 </label>
-                <input
-                  type="datetime-local"
+                <DateTimeInput
+                  label="Ends At"
                   value={endsAt}
-                  onChange={(e) => setEndsAt(e.target.value)}
-                  required
-                  className="input-sig"
+                  onChange={setEndsAt}
                 />
               </div>
             </div>
