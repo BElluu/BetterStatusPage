@@ -40,7 +40,11 @@ export BSP_IMAGE=ghcr.io/belluu/better-status-page:v0.1.0
 docker compose up -d
 ```
 
-The container image contains the compiled API and both built frontends. For local image development, comment out `image:` in `docker-compose.yml`, uncomment `build: .`, and run `docker compose up -d --build`.
+The container image contains the compiled API and both built frontends. For local image development, use the local override so the production Compose file continues to use GHCR:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+```
 
 ### 3. Open the setup wizard
 
