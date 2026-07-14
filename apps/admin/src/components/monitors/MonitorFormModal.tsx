@@ -374,7 +374,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
                   {(['fields', 'connectionString'] as const).map((m) => (
                     <button key={m} type="button"
                       onClick={() => { updateConfig('mode', m); updateConfig('vault', undefined) }}
-                      className="px-4 py-1.5 text-xs font-medium transition-all"
+                      className={`px-4 py-1.5 text-xs font-medium transition-all ${sqlMode === m ? 'selection-active' : ''}`}
                       style={{
                         background: sqlMode === m ? 'var(--m3-primary-fixed)' : 'transparent',
                         color:      sqlMode === m ? 'var(--m3-primary)' : 'var(--m3-secondary)',
@@ -756,14 +756,14 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
                 <button key={tab.key} type="button"
                   title={tab.label}
                   onClick={() => setSidePanel(active ? null : tab.key)}
-                  className="relative flex flex-col items-center justify-center py-4 transition-all"
+                  className={`relative flex flex-col items-center justify-center py-4 transition-all ${active ? 'monitor-side-tab-active' : ''}`}
                   style={{ color: active ? 'var(--m3-primary)' : 'var(--m3-secondary)', background: active ? 'var(--m3-primary-fixed)' : 'transparent', borderBottom: '1px solid var(--m3-outline-variant)' }}
                   onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container)' }}
                   onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = '' }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{tab.icon}</span>
                   {tab.badge && (
-                    <span className="absolute top-1.5 right-1 flex items-center justify-center rounded-full font-bold leading-none"
+                    <span className={`absolute top-1.5 right-1 flex items-center justify-center rounded-full font-bold leading-none ${active ? 'monitor-side-tab-badge-active' : ''}`}
                       style={{ background: active ? 'var(--m3-primary)' : 'var(--m3-on-surface-variant)', color: active ? 'var(--m3-on-primary)' : 'var(--m3-surface)', minWidth: '14px', height: '14px', fontSize: '9px', padding: '0 2px' }}>
                       {tab.badge}
                     </span>
@@ -860,7 +860,7 @@ function CredentialSection({
                   onVaultChange({ vaultId: first?.id ?? 0, secretId: 0, fieldMapping: {} })
                 }
               }}
-              className="px-4 py-1.5 text-xs font-medium transition-all"
+              className={`px-4 py-1.5 text-xs font-medium transition-all ${active ? 'selection-active' : ''}`}
               style={{
                 background: active ? 'var(--m3-primary-fixed)' : 'transparent',
                 color:      active ? 'var(--m3-primary)' : 'var(--m3-secondary)',
