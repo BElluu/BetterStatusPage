@@ -12,6 +12,7 @@ import multipart from '@fastify/multipart'
 import { backupRoutes } from '../src/routes/backups.js'
 import { createArchive } from '../src/services/backupArchive.js'
 import { acquireAppLock } from '../src/services/appLock.js'
+import { resolveAppVersion } from '../src/version.js'
 
 let temp: string | null = null
 const VAULT_KEY = 'a'.repeat(64)
@@ -46,7 +47,7 @@ describe('backup and restore', () => {
     const backupPath = path.join(process.env['BACKUP_DIR']!, created.filename)
     const manifest = validateBackup(backupPath)
     assert.equal(manifest.databaseIntegrity, 'ok')
-    assert.equal(manifest.appVersion, '0.1.0')
+    assert.equal(manifest.appVersion, resolveAppVersion())
     assert.equal(manifest.files.setup, true)
     assert.equal(manifest.files.uploads, 1)
     assert.equal(currentVaultKeyMatches(manifest), true)

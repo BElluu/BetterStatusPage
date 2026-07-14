@@ -4,6 +4,7 @@ import os from 'os'
 import crypto from 'crypto'
 import { DatabaseSync } from 'node:sqlite'
 import { backupDir, databasePath, setupConfigPath, uploadDir } from '../config.js'
+import { resolveAppVersion } from '../version.js'
 import { createArchive, extractArchive, type ArchiveEntry } from './backupArchive.js'
 
 export const BACKUP_FORMAT_VERSION = 1
@@ -101,7 +102,7 @@ export async function createBackup(outputDirectory = backupDir()): Promise<Backu
       const manifest: BackupManifest = {
         formatVersion: BACKUP_FORMAT_VERSION,
         createdAt: Date.now(),
-        appVersion: process.env['APP_VERSION'] ?? process.env['npm_package_version'] ?? '0.1.0',
+        appVersion: resolveAppVersion(),
         databaseIntegrity: 'ok',
         requiresVaultKey: true,
         vaultKeyFingerprint: keyFingerprint(),

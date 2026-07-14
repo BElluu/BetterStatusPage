@@ -36,7 +36,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ### 2. Pull and start
 
 ```bash
-export BSP_IMAGE=ghcr.io/belluu/better-status-page:v0.1.0
+export BSP_IMAGE=ghcr.io/belluu/better-status-page:v0.1.1
 docker compose up -d
 ```
 
@@ -353,7 +353,7 @@ Certbot edits your Nginx configs automatically and sets up auto-renewal.
 ### Docker Compose
 
 ```bash
-export BSP_IMAGE=ghcr.io/belluu/better-status-page:v0.1.0
+export BSP_IMAGE=ghcr.io/belluu/better-status-page:v0.1.1
 docker compose pull
 docker compose up -d
 ```
@@ -391,7 +391,7 @@ Before exposing an instance publicly:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `BSP_IMAGE` | Docker Compose | Container image used by `docker-compose.yml`, for example `ghcr.io/belluu/better-status-page:v0.1.0`. |
+| `BSP_IMAGE` | Docker Compose | Container image used by `docker-compose.yml`, for example `ghcr.io/belluu/better-status-page:v0.1.1`. |
 | `BSP_BIND_ADDRESS` | Docker Compose | Host address for published port. Default/recommended behind Nginx: `127.0.0.1`. Use `0.0.0.0` only for direct testing. |
 | `PORT` | No | Port to listen on. Default: `3000` |
 | `NODE_ENV` | Yes (prod) | Set to `production`. Enables security headers, HSTS, enforces secrets. |
