@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { isAuthenticated, mustChangePassword, getCurrentUser } from './api/client'
+import { api, clearSession, getCurrentUser, mustChangePassword, setSession, type AuthUser } from './api/client'
 import Layout from './components/Layout'
 import LoginPage from './pages/Login'
 import SetupPage from './pages/Setup'
@@ -27,7 +27,16 @@ function roleHome(role?: string) {
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  if (!isAuthenticated()) return <Navigate to="/admin/login" replace />
+  const [state, setState] = useState<'checking' | 'authenticated' | 'anonymous'>('checking')
+
+  useEffect(() => {
+    api.get<AuthUser>('/auth/session')
+      .then((user) => { setSession(user); setState('authenticated') })
+      .catch(() => { clearSession(); setState('anonymous') })
+  }, [])
+
+  if (state === 'checking') return null
+  if (state === 'anonymous') return <Navigate to="/admin/login" replace />
   return <>{children}</>
 }
 

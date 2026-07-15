@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { api } from '../../api/client'
 import type { Monitor, MonitorType, HttpsAuth, HttpsAuthType, VaultRef, NotificationChannel, MonitorTag } from '@bsp/shared'
 
-interface TestStep   { label: string; status: 'ok' | 'error' | 'info'; detail?: string; fullContent?: string; cookies?: Record<string, string>; durationMs?: number }
+interface TestStep   { label: string; status: 'ok' | 'error' | 'info'; detail?: string; cookies?: Record<string, string>; durationMs?: number }
 interface TestResult { overall: 'ok' | 'error'; steps: TestStep[]; totalMs: number }
 
 interface Props {
@@ -1114,10 +1114,6 @@ function buildTestReport(result: TestResult): string {
       for (const [name, value] of Object.entries(step.cookies)) {
         lines.push(`      ${name} = ${value}`)
       }
-    }
-    if (step.fullContent) {
-      lines.push('    Full response body:')
-      lines.push('    ' + step.fullContent.split('\n').join('\n    '))
     }
     lines.push('')
   }

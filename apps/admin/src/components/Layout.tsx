@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom'
-import { clearToken, getCurrentUser } from '../api/client'
+import { api, clearSession, getCurrentUser } from '../api/client'
 import { useDarkMode } from '../hooks/useDarkMode'
 
 // role hierarchy: admin > operator > branding
@@ -52,8 +52,9 @@ export default function Layout() {
     }))
     .filter((section) => section.items.length > 0)
 
-  function handleLogout() {
-    clearToken()
+  async function handleLogout() {
+    try { await api.post('/auth/logout') } catch { /* local logout still proceeds */ }
+    clearSession()
     navigate('/admin/login')
   }
 
@@ -185,7 +186,7 @@ export default function Layout() {
 
           {/* Logout */}
           <button
-            onClick={handleLogout}
+            onClick={() => void handleLogout()}
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all hover:translate-x-1"
             style={{ color: 'var(--m3-secondary)' }}
             onMouseEnter={(e) => {

@@ -120,6 +120,7 @@ try {
 
   Write-Step 'Running release verification'
   Invoke-External -File 'npm.cmd' -Arguments @('run', 'version:check')
+  Invoke-External -File 'npm.cmd' -Arguments @('audit', '--omit=dev', '--audit-level=high')
   Invoke-External -File 'npm.cmd' -Arguments @('run', 'lint')
   Invoke-External -File 'npm.cmd' -Arguments @('test')
   Invoke-External -File 'npm.cmd' -Arguments @('run', 'build')

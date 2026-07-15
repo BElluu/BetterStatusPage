@@ -1,37 +1,47 @@
 const BASE = '/api/v1'
+const USER_KEY = 'bsp-auth-user'
 
-function getToken(): string | null {
-  return sessionStorage.getItem('token')
+// Remove credentials left by versions that stored JWTs in sessionStorage.
+sessionStorage.removeItem('token')
+sessionStorage.removeItem('mustChangePwd')
+
+export interface AuthUser {
+  userId: number
+  email: string
+  role: string
+  mustChangePassword: boolean
+  twoFactorEnabled: boolean
 }
 
-export function setToken(token: string, mustChangePassword = false) {
-  sessionStorage.setItem('token', token)
-  sessionStorage.setItem('mustChangePwd', mustChangePassword ? '1' : '0')
+export function setSession(user: AuthUser): void {
+  sessionStorage.setItem(USER_KEY, JSON.stringify(user))
   window.dispatchEvent(new CustomEvent('bsp-auth-change'))
 }
 
-export function clearToken() {
-  sessionStorage.removeItem('token')
-  sessionStorage.removeItem('mustChangePwd')
+export function clearSession(): void {
+  sessionStorage.removeItem(USER_KEY)
+  window.dispatchEvent(new CustomEvent('bsp-auth-change'))
+}
+
+export function getCurrentUser(): AuthUser | null {
+  try {
+    const stored = sessionStorage.getItem(USER_KEY)
+    return stored ? JSON.parse(stored) as AuthUser : null
+  } catch { return null }
 }
 
 export function isAuthenticated(): boolean {
-  return !!getToken()
+  return getCurrentUser() !== null
 }
 
 export function mustChangePassword(): boolean {
-  return sessionStorage.getItem('mustChangePwd') === '1'
+  return !!getCurrentUser()?.mustChangePassword
 }
 
-export function getCurrentUser(): { userId: number; email: string; role: string } | null {
-  const token = getToken()
-  if (!token) return null
-  try {
-    const p = JSON.parse(atob(token.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/')))
-    // handle legacy multi-role tokens (roles array) from previous implementation
-    const role: string = p.role ?? (Array.isArray(p.roles) ? (p.roles[0] ?? 'branding') : 'branding')
-    return { userId: p.userId, email: p.email, role }
-  } catch { return null }
+function cookie(name: string): string | null {
+  const prefix = `${encodeURIComponent(name)}=`
+  const part = document.cookie.split('; ').find((item) => item.startsWith(prefix))
+  return part ? decodeURIComponent(part.slice(prefix.length)) : null
 }
 
 async function request<T>(
@@ -41,28 +51,29 @@ async function request<T>(
   isFormData = false,
 ): Promise<T> {
   const headers: Record<string, string> = {}
-  const token = getToken()
-  if (token) headers['Authorization'] = `Bearer ${token}`
   if (!isFormData && body !== undefined) headers['Content-Type'] = 'application/json'
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const csrf = cookie('bsp_csrf')
+    if (csrf) headers['X-CSRF-Token'] = csrf
+  }
 
   const fetchBody = isFormData ? (body as FormData) : body !== undefined ? JSON.stringify(body) : null
-
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers,
+    credentials: 'same-origin',
     ...(fetchBody !== null ? { body: fetchBody } : {}),
   })
 
-  if (res.status === 401) {
-    clearToken()
-    if (!window.location.pathname.includes('/login')) {
-      window.location.href = '/admin/login'
-    }
-    throw new Error('Incorrect email or password')
-  }
-
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText })) as { error: string }
+    const err = await res.json().catch(() => ({ error: res.statusText })) as { error?: string }
+    if (res.status === 401) {
+      clearSession()
+      const isLoginRequest = path === '/auth/login' || path === '/auth/2fa/verify'
+      if (!isLoginRequest && !window.location.pathname.includes('/login')) {
+        window.location.href = '/admin/login'
+      }
+    }
     throw new Error(err.error ?? res.statusText)
   }
 
@@ -72,14 +83,13 @@ async function request<T>(
 
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
-  post: <T>(path: string, body: unknown) => request<T>('POST', path, body),
+  post: <T>(path: string, body: unknown = {}) => request<T>('POST', path, body),
   patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
   put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
   delete: (path: string) => request<void>('DELETE', path),
   upload: <T>(path: string, formData: FormData) => request<T>('POST', path, formData, true),
   download: async (path: string, filename: string) => {
-    const token = getToken()
-    const res = await fetch(`${BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    const res = await fetch(`${BASE}${path}`, { credentials: 'same-origin' })
     if (!res.ok) throw new Error('Download failed')
     const url = URL.createObjectURL(await res.blob())
     const link = document.createElement('a')

@@ -130,6 +130,7 @@ Every mutation in the admin panel is recorded — who did it, when, and exactly 
 | SMTP settings | Configure / update |
 | Vaults & secrets | Create, update (name, value change flagged as `[redacted]`), delete |
 | Users | Create, role change, password reset, delete |
+| Account security | Enable or disable TOTP two-factor authentication |
 
 The audit log page (admin-only) lets you filter by **user**, **entity type**, **action** (create / update / delete), and **date range**. Click any row to expand the diff inline.
 
@@ -173,7 +174,7 @@ Status changes propagate to both the admin dashboard and the public page instant
 │                                                             │
 │   ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │   │  Admin API   │  │  Public API  │  │  Webhook API     │  │
-│   │  JWT + RBAC  │  │  open        │  │  token auth      │  │
+│   │ Session+RBAC │  │  open        │  │  token auth      │  │
 │   └──────────────┘  └──────────────┘  └──────────────────┘  │
 │                                                             │
 │   ┌──────────────────────────────────────────────────────┐  │
@@ -219,7 +220,7 @@ Status changes propagate to both the admin dashboard and the public page instant
 | Data fetching | TanStack Query | 5.x |
 | State | Zustand | 5.x |
 | Drag & drop | dnd-kit | 6.x |
-| Auth | JWT (HS256) + bcrypt | — |
+| Auth | Server-side sessions, HttpOnly JWT cookies, CSRF, TOTP, bcrypt | — |
 | Email | Nodemailer | 8.x |
 | SQL Server | mssql | 11.x |
 | Scheduler | node-cron | 3.x |
@@ -366,6 +367,8 @@ MONITOR_RESULT_PURGE_CRON=0 2 * * *
 | **admin** | Everything, including users, vaults, audit log, and backups |
 | **operator** | Monitors, incidents, maintenance, notifications, page builder, branding, localization, and settings |
 | **branding** | Page builder, branding, localization, and account settings |
+
+Administrator sessions are stored server-side and authenticated with an `HttpOnly`, `SameSite=Strict` cookie. State-changing browser requests require a matching CSRF token. Users can enable TOTP two-factor authentication from **Settings** and receive eight single-use recovery codes.
 
 ---
 

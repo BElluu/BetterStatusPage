@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@bsp/shared": "*",
+    "@fastify/cookie": "^11.1.1",
     "@fastify/cors": "^10.0.2",
     "@fastify/jwt": "^10.1.0",
     "@fastify/multipart": "^9.0.3",
@@ -29,6 +30,7 @@
     "node-cron": "^4.6.0",
     "nodemailer": "^9.0.3",
     "ping": "^0.4.4",
+    "qrcode": "^1.5.4",
     "undici": "^7.4.0"
   },
   "devDependencies": {
@@ -37,6 +39,7 @@
     "@types/node": "^22.14.0",
     "@types/nodemailer": "^8.0.1",
     "@types/ping": "^0.4.4",
+    "@types/qrcode": "^1.5.6",
     "tsx": "^4.23.0",
     "typescript": "^5.7.3"
   }
