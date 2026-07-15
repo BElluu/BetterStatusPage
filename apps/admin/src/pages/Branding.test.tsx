@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import BrandingPage from './Branding'
+import { api } from '../api/client'
 
 vi.mock('../api/client', () => ({
   isAuthenticated: () => false,
@@ -54,5 +55,22 @@ describe('BrandingPage localization', () => {
     expect(screen.queryByText('Tożsamość')).not.toBeInTheDocument()
     expect(screen.queryByText('Zapisz branding')).not.toBeInTheDocument()
     expect(screen.queryByText('Podgląd na żywo')).not.toBeInTheDocument()
+  })
+
+  it('does not upload a pending logo after switching to a mode where it is hidden', async () => {
+    vi.clearAllMocks()
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const { container } = render(
+      <QueryClientProvider client={queryClient}>
+        <BrandingPage />
+      </QueryClientProvider>,
+    )
+    const lightLogoInput = container.querySelector<HTMLInputElement>('#branding-logo-light')!
+    fireEvent.change(lightLogoInput, { target: { files: [new File(['logo'], 'light.png', { type: 'image/png' })] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Custom branding' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save branding' }))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    expect(api.upload).not.toHaveBeenCalled()
   })
 })

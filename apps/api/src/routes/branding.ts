@@ -21,6 +21,19 @@ const MIME_TO_EXT: Record<string, string> = {
   'image/webp': '.webp',
 }
 
+const MANAGED_LOGO_BASENAMES = ['logo', 'logo-light', 'logo-dark'] as const
+
+function cleanupUnusedManagedLogoFiles(row: typeof branding.$inferSelect): void {
+  const referencedUrls = new Set([row.logoUrl, row.logoLightUrl, row.logoDarkUrl].filter((url): url is string => !!url))
+  const uploads = uploadDir()
+  for (const basename of MANAGED_LOGO_BASENAMES) {
+    for (const ext of Object.values(MIME_TO_EXT)) {
+      const url = `/uploads/${basename}${ext}`
+      if (!referencedUrls.has(url)) fs.rmSync(path.join(uploads, `${basename}${ext}`), { force: true })
+    }
+  }
+}
+
 export function detectImageMime(buf: Buffer): string | null {
   for (const { mime, magic } of ALLOWED_MIME_MAGIC) {
     if (magic.every((byte, i) => buf[i] === byte)) {
@@ -82,6 +95,7 @@ export async function brandingRoutes(app: FastifyInstance) {
         ...(updates as Partial<typeof DEFAULTS>),
         updatedAt: now,
       }).returning())[0]!
+    cleanupUnusedManagedLogoFiles(row)
     const actor = req.user as { userId: number; email: string }
     const changedFields = Object.keys(updates).filter((field) => field !== 'updatedAt')
     const before = Object.fromEntries(changedFields.map((field) => [field, existing?.[field as keyof typeof existing] ?? null]))
@@ -117,11 +131,10 @@ export async function brandingRoutes(app: FastifyInstance) {
 
     const logoUrl = `/uploads/${filename}`
     const existing = (await db.select().from(branding))[0]
-    if (existing) {
-      await db.update(branding).set({ [field]: logoUrl, updatedAt: Date.now() })
-    } else {
-      await db.insert(branding).values({ id: 1, ...DEFAULTS, [field]: logoUrl, updatedAt: Date.now() })
-    }
+    const row = existing
+      ? (await db.update(branding).set({ [field]: logoUrl, updatedAt: Date.now() }).returning())[0]!
+      : (await db.insert(branding).values({ id: 1, ...DEFAULTS, [field]: logoUrl, updatedAt: Date.now() }).returning())[0]!
+    cleanupUnusedManagedLogoFiles(row)
     const actor = req.user as { userId: number; email: string }
     await writeAudit(
       { userId: actor.userId, userEmail: actor.email },
