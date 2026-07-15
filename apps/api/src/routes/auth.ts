@@ -7,7 +7,6 @@ import { users } from '../db/schema.js'
 import { LOGIN_RATE_LIMIT } from '../config/rateLimits.js'
 import { decrypt, encrypt } from '../crypto/vault.js'
 import {
-  consumeRecoveryCode,
   generateRecoveryCodes,
   generateTotpSecret,
   hashRecoveryCode,
@@ -23,19 +22,7 @@ import {
   type AuthIdentity,
 } from '../services/authSession.js'
 import { writeAudit } from '../services/audit.js'
-
-const VALID_ROLES = ['admin', 'operator', 'branding'] as const
-
-/** Normalize stored role value — handles legacy JSON arrays and old role names. */
-export function normalizeRole(raw: string): string {
-  try {
-    const parsed = JSON.parse(raw)
-    const first: string = Array.isArray(parsed) ? (parsed[0] ?? 'branding') : raw
-    return (VALID_ROLES as readonly string[]).includes(first) ? first : 'branding'
-  } catch {
-    return (VALID_ROLES as readonly string[]).includes(raw) ? raw : 'branding'
-  }
-}
+import { verifySecondFactor } from '../services/twoFactor.js'
 
 function publicSession(identity: AuthIdentity) {
   const { sessionId: _sessionId, ...safe } = identity
@@ -44,16 +31,6 @@ function publicSession(identity: AuthIdentity) {
 
 async function verifyPassword(user: typeof users.$inferSelect, password: string): Promise<boolean> {
   return bcrypt.compare(password, user.passwordHash)
-}
-
-async function verifySecondFactor(user: typeof users.$inferSelect, code: string): Promise<boolean> {
-  if (!user.totpEnabled || !user.totpSecret) return false
-  const secret = decrypt(user.totpSecret)
-  if (verifyTotp(secret, code)) return true
-  const recovery = consumeRecoveryCode(user.totpRecoveryCodes, code)
-  if (!recovery.valid) return false
-  await db.update(users).set({ totpRecoveryCodes: JSON.stringify(recovery.remaining) }).where(eq(users.id, user.id))
-  return true
 }
 
 async function finishLogin(app: FastifyInstance, reply: FastifyReply, user: typeof users.$inferSelect) {
