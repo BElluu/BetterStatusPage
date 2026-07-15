@@ -37,6 +37,7 @@ import { healthRoutes } from './routes/health.js'
 import { resolveTrustProxy } from './config/proxy.js'
 import { sseService } from './services/sse.service.js'
 import { registerProductionFrontends } from './services/productionFallback.js'
+import { systemHealthRoutes } from './routes/systemHealth.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -184,6 +185,7 @@ await app.register(async (adminApp) => {
     await sub.register(vaultRoutes,  { prefix: '/vaults' })
     await sub.register(auditRoutes,  { prefix: '/audit' })
     await sub.register(backupRoutes, { prefix: '/backups' })
+    await sub.register(systemHealthRoutes, { prefix: '/system-health' })
   })
 }, { prefix: '/api/v1/admin' })
 

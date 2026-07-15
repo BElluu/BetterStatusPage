@@ -8,13 +8,13 @@ export async function healthRoutes(app: FastifyInstance) {
 
   app.get('/ready', async (_req, reply) => {
     if (!isSetupComplete()) {
-      return reply.code(503).send({ status: 'not_ready', reason: 'setup_required' })
+      return reply.code(503).send({ status: 'not_ready' })
     }
     try {
       await db.run(sql`SELECT 1`)
       return { status: 'ready' }
     } catch {
-      return reply.code(503).send({ status: 'not_ready', reason: 'database_unavailable' })
+      return reply.code(503).send({ status: 'not_ready' })
     }
   })
 }
