@@ -146,14 +146,14 @@ export default function SettingsPage() {
           <p className="text-sm mb-5" style={{ color: 'var(--m3-secondary)' }}>Use any TOTP authenticator application. Recovery codes work once each.</p>
 
           {!twoFactorEnabled && !setup && recoveryCodes.length === 0 && (
-            <div className="space-y-4">
+            <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void beginTwoFactorSetup() }}>
               <PasswordField label="Current password" value={securityPassword} onChange={setSecurityPassword} placeholder="Confirm your password" />
-              <button type="button" disabled={loading || !securityPassword} onClick={() => void beginTwoFactorSetup()} className="btn-primary py-3 px-6 rounded-xl font-headline font-bold text-sm">Set up 2FA</button>
-            </div>
+              <button type="submit" disabled={loading || !securityPassword} className="btn-primary py-3 px-6 rounded-xl font-headline font-bold text-sm">Set up 2FA</button>
+            </form>
           )}
 
           {setup && (
-            <div className="space-y-4">
+            <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void enableTwoFactor() }}>
               <div className="rounded-xl p-5 flex flex-col items-center text-center" style={{ background: 'var(--m3-surface-container)' }}>
                 <p className="text-sm font-semibold mb-3">Scan this QR code with your authenticator app</p>
                 <img
@@ -172,8 +172,8 @@ export default function SettingsPage() {
                 </details>
               </div>
               <TextField label="Authentication code" value={code} onChange={setCode} placeholder="123456" autoComplete="one-time-code" inputMode="numeric" />
-              <button type="button" disabled={loading || !code} onClick={() => void enableTwoFactor()} className="btn-primary py-3 px-6 rounded-xl font-headline font-bold text-sm">Verify and enable</button>
-            </div>
+              <button type="submit" disabled={loading || !code} className="btn-primary py-3 px-6 rounded-xl font-headline font-bold text-sm">Verify and enable</button>
+            </form>
           )}
 
           {recoveryCodes.length > 0 && (
@@ -189,11 +189,11 @@ export default function SettingsPage() {
           )}
 
           {twoFactorEnabled && recoveryCodes.length === 0 && (
-            <div className="space-y-4">
+            <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void disableTwoFactor() }}>
               <PasswordField label="Current password" value={securityPassword} onChange={setSecurityPassword} placeholder="Confirm your password" />
               <TextField label="Authentication or recovery code" value={code} onChange={setCode} placeholder="Code" autoComplete="one-time-code" />
-              <button type="button" disabled={loading || !securityPassword || !code} onClick={() => void disableTwoFactor()} className="btn-danger-outline px-5 py-3 rounded-xl font-semibold">Disable 2FA</button>
-            </div>
+              <button type="submit" disabled={loading || !securityPassword || !code} className="btn-danger-outline px-5 py-3 rounded-xl font-semibold">Disable 2FA</button>
+            </form>
           )}
         </section>
       </div>
