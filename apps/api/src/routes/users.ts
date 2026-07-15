@@ -6,6 +6,8 @@ import { eq } from 'drizzle-orm'
 import { writeAudit, snapshot } from '../services/audit.js'
 import { revokeUserSessions } from '../services/authSession.js'
 import { normalizeRole, VALID_ROLES } from '../services/roles.js'
+import { resetTwoFactor } from '../services/twoFactor.js'
+import { SENSITIVE_ACTION_RATE_LIMIT } from '../config/rateLimits.js'
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
@@ -78,6 +80,34 @@ export async function userRoutes(app: FastifyInstance) {
     writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'user', id, user.email,
       { action: 'password_reset' })
     return { temporaryPassword }
+  })
+
+  app.post<{ Params: { id: string }; Body: { currentPassword: string } }>('/:id/reset-2fa', {
+    config: { rateLimit: SENSITIVE_ACTION_RATE_LIMIT },
+  }, async (req, reply) => {
+    const id = Number(req.params.id)
+    const actor = req.user as { userId: number; email: string }
+    if (!Number.isInteger(id)) return reply.code(400).send({ error: 'Invalid user ID' })
+    if (actor.userId === id) {
+      return reply.code(400).send({ error: 'Use account settings to disable your own two-factor authentication' })
+    }
+
+    const currentAdmin = (await db.select().from(users).where(eq(users.id, actor.userId)))[0]
+    if (!currentAdmin || !req.body.currentPassword || !await bcrypt.compare(req.body.currentPassword, currentAdmin.passwordHash)) {
+      return reply.code(400).send({ error: 'Current password is incorrect' })
+    }
+
+    const target = (await db.select().from(users).where(eq(users.id, id)))[0]
+    if (!target) return reply.code(404).send({ error: 'User not found' })
+    if (!target.totpEnabled) return reply.code(409).send({ error: 'Two-factor authentication is not enabled for this user' })
+    if (!await resetTwoFactor(id)) return reply.code(409).send({ error: 'Two-factor authentication is already disabled' })
+
+    await writeAudit(
+      { userId: actor.userId, userEmail: actor.email },
+      'update', 'user-security', id, target.email,
+      { twoFactorReset: { from: true, to: false }, method: 'admin_recovery' },
+    )
+    return { twoFactorEnabled: false }
   })
 
   app.delete<{ Params: { id: string } }>('/:id', async (req, reply) => {

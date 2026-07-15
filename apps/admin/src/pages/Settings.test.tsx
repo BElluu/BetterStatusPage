@@ -72,13 +72,12 @@ describe('SettingsPage security flows', () => {
     renderSettings()
     let twoFactor = section('Two-factor authentication')
 
-    await user.type(twoFactor.getByLabelText('Current password'), 'password')
-    await user.click(twoFactor.getByRole('button', { name: 'Set up 2FA' }))
+    await user.type(twoFactor.getByLabelText('Current password'), 'password{Enter}')
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/auth/2fa/setup', { currentPassword: 'password' }))
     expect(await twoFactor.findByRole('img', { name: 'QR code for two-factor authentication setup' })).toHaveAttribute('src', 'data:image/png;base64,abc')
     expect(twoFactor.getByText('Cannot scan the QR code?')).toBeInTheDocument()
 
-    await user.type(twoFactor.getByLabelText('Authentication code'), '123456')
-    await user.click(twoFactor.getByRole('button', { name: 'Verify and enable' }))
+    await user.type(twoFactor.getByLabelText('Authentication code'), '123456{Enter}')
     twoFactor = section('Two-factor authentication')
     expect(await twoFactor.findByText('recovery-1')).toBeInTheDocument()
     expect(twoFactor.getByText('recovery-2')).toBeInTheDocument()
@@ -96,8 +95,7 @@ describe('SettingsPage security flows', () => {
     const twoFactor = section('Two-factor authentication')
 
     await user.type(twoFactor.getByLabelText('Current password'), 'password')
-    await user.type(twoFactor.getByLabelText('Authentication or recovery code'), '123456')
-    await user.click(twoFactor.getByRole('button', { name: 'Disable 2FA' }))
+    await user.type(twoFactor.getByLabelText('Authentication or recovery code'), '123456{Enter}')
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/auth/2fa/disable', { currentPassword: 'password', code: '123456' }))
     expect(setSession).toHaveBeenCalledWith({ ...currentUser, twoFactorEnabled: false })

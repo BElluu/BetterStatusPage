@@ -11,7 +11,8 @@
     "db:seed": "tsx src/db/seed.ts",
     "backup": "node dist/cli/backup.js",
     "backup:verify": "node dist/cli/backup.js --verify",
-    "restore": "node dist/cli/restore.js"
+    "restore": "node dist/cli/restore.js",
+    "2fa:reset": "node dist/cli/resetTwoFactor.js"
   },
   "dependencies": {
     "@bsp/shared": "*",
