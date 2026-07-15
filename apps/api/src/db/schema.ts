@@ -1,4 +1,5 @@
 import { sqliteTable, integer, text, primaryKey } from 'drizzle-orm/sqlite-core'
+import { DEFAULT_BRANDING_COLORS } from '@bsp/shared'
 
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -209,20 +210,25 @@ export const branding = sqliteTable('branding', {
   siteName: text('site_name').notNull().default('Status Page'),
   logoUrl: text('logo_url'),
   faviconUrl: text('favicon_url'),
-  primaryColor: text('primary_color').notNull().default('#6366f1'),
-  accentColor: text('accent_color').notNull().default('#f59e0b'),
+  primaryColor: text('primary_color').notNull().default(DEFAULT_BRANDING_COLORS.primaryColor),
+  accentColor: text('accent_color').notNull().default(DEFAULT_BRANDING_COLORS.accentColor),
   customCss: text('custom_css'),
   updatedAt: integer('updated_at').notNull(),
   // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
-  backgroundColor: text('background_color').notNull().default('#0f172a'),
-  cardBackground: text('card_background').notNull().default('#0f172a'),
-  cardBorderColor: text('card_border_color').notNull().default('#1e293b'),
-  textColor: text('text_color').notNull().default('#f8fafc'),
-  textMutedColor: text('text_muted_color').notNull().default('#94a3b8'),
-  statusUpColor: text('status_up_color').notNull().default('#10b981'),
-  statusDownColor: text('status_down_color').notNull().default('#ef4444'),
-  statusDegradedColor: text('status_degraded_color').notNull().default('#f59e0b'),
+  backgroundColor: text('background_color').notNull().default(DEFAULT_BRANDING_COLORS.backgroundColor),
+  cardBackground: text('card_background').notNull().default(DEFAULT_BRANDING_COLORS.cardBackground),
+  cardBorderColor: text('card_border_color').notNull().default(DEFAULT_BRANDING_COLORS.cardBorderColor),
+  textColor: text('text_color').notNull().default(DEFAULT_BRANDING_COLORS.textColor),
+  textMutedColor: text('text_muted_color').notNull().default(DEFAULT_BRANDING_COLORS.textMutedColor),
+  statusUpColor: text('status_up_color').notNull().default(DEFAULT_BRANDING_COLORS.statusUpColor),
+  statusDownColor: text('status_down_color').notNull().default(DEFAULT_BRANDING_COLORS.statusDownColor),
+  statusDegradedColor: text('status_degraded_color').notNull().default(DEFAULT_BRANDING_COLORS.statusDegradedColor),
   enabled: integer('enabled').notNull().default(0),
   logoType: text('logo_type').notNull().default('image'),
   logoText: text('logo_text'),
+  elevatedBackground: text('elevated_background').notNull().default(DEFAULT_BRANDING_COLORS.elevatedBackground),
+  chartBackground: text('chart_background').notNull().default(DEFAULT_BRANDING_COLORS.chartBackground),
+  chartGridColor: text('chart_grid_color').notNull().default(DEFAULT_BRANDING_COLORS.chartGridColor),
+  logoLightUrl: text('logo_light_url'),
+  logoDarkUrl: text('logo_dark_url'),
 })

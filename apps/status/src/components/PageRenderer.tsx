@@ -192,9 +192,10 @@ function NodeRenderer({
     const heightPx = (n.chartH ?? 5) * rowH + ((n.chartH ?? 5) - 1) * 10
     return (
       <div
+        className="bsp-chart-card"
         style={{
-          background: 'var(--m3-surface-container-low)',
-          border: '1px solid var(--m3-outline-variant)',
+          background: 'var(--bsp-chart-bg)',
+          border: '1px solid var(--bsp-card-border)',
           borderRadius: '16px',
           padding: '16px 12px 12px',
           height: heightPx,
@@ -269,11 +270,11 @@ function ServiceMonitorCard({
   const isAffected = monitor.currentStatus === 'affected'
 
   const statusLabel   = isUp ? t('status.operational') : isDown ? t('status.outage') : isDegraded ? t('status.degraded') : isAffected ? t('status.affected') : t('status.checking')
-  const statusBg      = isUp ? 'rgba(34,197,94,0.12)' : isDown ? '#ffdad6' : isDegraded ? 'rgba(234,179,8,0.12)' : isAffected ? 'rgba(249,115,22,0.18)' : 'var(--m3-surface-container)'
-  const statusColor   = isUp ? '#166534' : isDown ? '#ba1a1a' : isDegraded ? '#854d0e' : isAffected ? '#ea580c' : 'var(--m3-secondary)'
-  const dotColor      = isUp ? '#22c55e'  : isDown ? '#ba1a1a' : isDegraded ? '#eab308' : isAffected ? '#ea580c' : 'var(--m3-secondary)'
-  const barColor      = isDown ? '#ba1a1a' : isDegraded || isAffected ? '#eab308' : 'var(--bsp-up)'
-  const barColorLight = isDown ? '#f28b82' : isDegraded || isAffected ? '#fcd34d' : '#4ade80'
+  const statusColor   = isUp ? 'var(--bsp-up)' : isDown ? 'var(--bsp-down)' : isDegraded || isAffected ? 'var(--bsp-degraded)' : 'var(--m3-secondary)'
+  const statusBg      = isUp || isDown || isDegraded || isAffected ? `color-mix(in srgb, ${statusColor} 12%, transparent)` : 'var(--m3-surface-container)'
+  const dotColor      = statusColor
+  const barColor      = statusColor
+  const barColorLight = `color-mix(in srgb, ${statusColor} 55%, white)`
 
   const uptimeLabel = showUptimePct && overallPct !== undefined
     ? overallPct === null ? t('uptime.noData') : t('uptime.pct', { pct: overallPct.toFixed(1) })
@@ -373,7 +374,7 @@ function ServiceMonitorCard({
             display: 'inline-flex', alignItems: 'center', gap: '3px',
             fontSize: '10px', fontWeight: 600, letterSpacing: '0.03em',
             padding: '2px 7px', borderRadius: '999px',
-            background: 'rgba(249,115,22,0.18)', color: '#ea580c',
+            background: 'color-mix(in srgb, var(--bsp-degraded) 18%, transparent)', color: 'var(--bsp-degraded)',
           }}>
             <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>link</span>
             {t('status.affectedBy')}: {causingMonitors.map((m) => m.name).join(', ')}
@@ -453,14 +454,9 @@ function CompactMonitorRow({
   const isAffected = monitor.currentStatus === 'affected'
 
   const statusLabel = isUp ? t('status.operational') : isDown ? t('status.outage') : isDegraded ? t('status.degraded') : isAffected ? t('status.affected') : t('status.checking')
-  const statusBg    = isUp
-    ? 'rgba(34,197,94,0.1)'
-    : isDown ? '#ffdad6'
-    : isDegraded ? 'rgba(234,179,8,0.12)'
-    : isAffected ? 'rgba(249,115,22,0.18)'
-    : 'var(--m3-surface-container)'
-  const statusColor = isUp ? '#166634' : isDown ? '#ba1a1a' : isDegraded ? '#854d0e' : isAffected ? '#ea580c' : 'var(--m3-secondary)'
-  const dotColor    = isUp ? '#22c55e'  : isDown ? '#ba1a1a' : isDegraded ? '#eab308' : isAffected ? '#ea580c' : 'var(--m3-outline)'
+  const statusColor = isUp ? 'var(--bsp-up)' : isDown ? 'var(--bsp-down)' : isDegraded || isAffected ? 'var(--bsp-degraded)' : 'var(--m3-secondary)'
+  const statusBg    = isUp || isDown || isDegraded || isAffected ? `color-mix(in srgb, ${statusColor} 12%, transparent)` : 'var(--m3-surface-container)'
+  const dotColor    = statusColor
 
   return (
     <div
@@ -495,7 +491,7 @@ function CompactMonitorRow({
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: '3px',
             fontSize: '10px', fontWeight: 600,
-            color: '#ea580c', marginTop: '2px',
+            color: 'var(--bsp-degraded)', marginTop: '2px',
           }}>
             <span className="material-symbols-outlined" style={{ fontSize: '10px' }}>link</span>
             {t('status.affectedBy')}: {causingMonitors.map((m) => m.name).join(', ')}
@@ -566,9 +562,9 @@ function GroupBlock({ groupNode, monitors, statusMap, activeIncidents, maintenan
   const anyDegraded = liveMonitors.some((m) => m.currentStatus === 'degraded')
   const aggStatus   = allDown ? 'down' : someDown ? 'partial' : anyDegraded ? 'degraded' : 'up'
 
-  const aggColor    = aggStatus === 'down' ? '#ba1a1a' : aggStatus === 'partial' ? '#9a3412' : aggStatus === 'degraded' ? '#854d0e' : '#166534'
-  const aggDotColor = aggStatus === 'down' ? '#ba1a1a' : aggStatus === 'partial' ? '#ea580c' : aggStatus === 'degraded' ? '#eab308' : '#22c55e'
-  const aggBg       = aggStatus === 'up' ? 'rgba(34,197,94,0.1)' : aggStatus === 'down' ? '#ffdad6' : aggStatus === 'partial' ? 'rgba(234,88,12,0.1)' : 'rgba(234,179,8,0.12)'
+  const aggColor    = aggStatus === 'up' ? 'var(--bsp-up)' : aggStatus === 'down' ? 'var(--bsp-down)' : 'var(--bsp-degraded)'
+  const aggDotColor = aggColor
+  const aggBg       = `color-mix(in srgb, ${aggColor} 12%, transparent)`
   const aggLabel    = aggStatus === 'up' ? t('status.operational') : aggStatus === 'down' ? t('status.outage') : aggStatus === 'partial' ? t('status.partialOutage') : t('status.degraded')
 
   return (
@@ -854,8 +850,8 @@ function UptimeBars({ monitorId, barColor, barColorLight, isDown, isDegraded, on
 
   const barColorOf = (day: UptimeDay) =>
     day.status === 'up' ? `linear-gradient(to top, ${barColor}, ${barColorLight})`
-    : day.status === 'down' ? '#ba1a1a'
-    : day.status === 'degraded' ? '#eab308'
+    : day.status === 'down' ? 'var(--bsp-down)'
+    : day.status === 'degraded' ? 'var(--bsp-degraded)'
     : 'var(--m3-outline-variant)'
 
   const bars: UptimeDay[] = data
@@ -928,8 +924,8 @@ function UptimeBarsInline({ monitorId, barColor, barColorLight }: {
 
   const barColorOf = (day: UptimeDay) =>
     day.status === 'up' ? `linear-gradient(to top, ${barColor}, ${barColorLight})`
-    : day.status === 'down' ? '#ba1a1a'
-    : day.status === 'degraded' ? '#eab308'
+    : day.status === 'down' ? 'var(--bsp-down)'
+    : day.status === 'degraded' ? 'var(--bsp-degraded)'
     : 'var(--m3-outline-variant)'
 
   const bars: UptimeDay[] = data

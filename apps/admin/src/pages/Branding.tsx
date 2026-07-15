@@ -1,14 +1,16 @@
-import { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { DEFAULT_BRANDING_COLORS, type Branding } from '@bsp/shared'
 import { api } from '../api/client'
-import type { Branding } from '@bsp/shared'
 
 interface BrandingForm {
   enabled: boolean
   siteName: string
   logoType: 'image' | 'text'
   logoText: string
-  logoUrl?: string | null
+  logoUrl: string | null | undefined
+  logoLightUrl: string | null | undefined
+  logoDarkUrl: string | null | undefined
   primaryColor: string
   accentColor: string
   backgroundColor: string
@@ -19,6 +21,9 @@ interface BrandingForm {
   statusUpColor: string
   statusDownColor: string
   statusDegradedColor: string
+  elevatedBackground: string
+  chartBackground: string
+  chartGridColor: string
   customCss: string
 }
 
@@ -27,52 +32,93 @@ const DEFAULTS: BrandingForm = {
   siteName: 'Status Page',
   logoType: 'image',
   logoText: '',
-  primaryColor: '#5256a4',
-  accentColor: '#5c5faa',
-  backgroundColor: '#faf8ff',
-  cardBackground: '#f2f0fd',
-  cardBorderColor: '#c8c5d0',
-  textColor: '#1b1b22',
-  textMutedColor: '#5d5c72',
-  statusUpColor: '#1a7f37',
-  statusDownColor: '#c0392b',
-  statusDegradedColor: '#b05c00',
+  logoUrl: undefined,
+  logoLightUrl: undefined,
+  logoDarkUrl: undefined,
+  ...DEFAULT_BRANDING_COLORS,
   customCss: '',
 }
 
+const PREVIEW_SRC = window.location.port === '5173'
+  ? `${window.location.protocol}//${window.location.hostname}:5174/?branding-preview=1`
+  : '/?branding-preview=1'
+
+type LogoSlot = 'custom' | 'light' | 'dark'
+const LOGO_FIELDS = { custom: 'logoUrl', light: 'logoLightUrl', dark: 'logoDarkUrl' } as const
+const LOGO_ENDPOINTS = { custom: '/admin/branding/logo', light: '/admin/branding/logo/light', dark: '/admin/branding/logo/dark' } as const
+
 export default function BrandingPage() {
   const qc = useQueryClient()
+  const previewFrame = useRef<HTMLIFrameElement>(null)
   const { data: branding } = useQuery<Branding>({
     queryKey: ['branding'],
     queryFn: () => api.get('/admin/branding'),
   })
-
   const [form, setForm] = useState<BrandingForm>(DEFAULTS)
-  const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
+  const [logoFiles, setLogoFiles] = useState<Record<LogoSlot, File | null>>({ custom: null, light: null, dark: null })
+  const [logoPreviews, setLogoPreviews] = useState<Record<LogoSlot, string | null>>({ custom: null, light: null, dark: null })
+  const [cssEditorOpen, setCssEditorOpen] = useState(false)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    if (branding) {
-      setForm({
-        enabled: !!branding.enabled,
-        siteName: branding.siteName,
-        logoType: (branding.logoType as 'image' | 'text') ?? 'image',
-        logoText: branding.logoText ?? '',
-        primaryColor: branding.primaryColor,
-        accentColor: branding.accentColor,
-        backgroundColor: branding.backgroundColor ?? DEFAULTS.backgroundColor,
-        cardBackground: branding.cardBackground ?? DEFAULTS.cardBackground,
-        cardBorderColor: branding.cardBorderColor ?? DEFAULTS.cardBorderColor,
-        textColor: branding.textColor ?? DEFAULTS.textColor,
-        textMutedColor: branding.textMutedColor ?? DEFAULTS.textMutedColor,
-        statusUpColor: branding.statusUpColor ?? DEFAULTS.statusUpColor,
-        statusDownColor: branding.statusDownColor ?? DEFAULTS.statusDownColor,
-        statusDegradedColor: branding.statusDegradedColor ?? DEFAULTS.statusDegradedColor,
-        customCss: branding.customCss ?? '',
-      })
-    }
+    if (!branding) return
+    setForm({
+      enabled: !!branding.enabled,
+      siteName: branding.siteName,
+      logoType: branding.logoType === 'text' ? 'text' : 'image',
+      logoText: branding.logoText ?? '',
+      logoUrl: branding.logoUrl,
+      logoLightUrl: branding.logoLightUrl,
+      logoDarkUrl: branding.logoDarkUrl,
+      primaryColor: branding.primaryColor,
+      accentColor: branding.accentColor,
+      backgroundColor: branding.backgroundColor ?? DEFAULTS.backgroundColor,
+      cardBackground: branding.cardBackground ?? DEFAULTS.cardBackground,
+      cardBorderColor: branding.cardBorderColor ?? DEFAULTS.cardBorderColor,
+      textColor: branding.textColor ?? DEFAULTS.textColor,
+      textMutedColor: branding.textMutedColor ?? DEFAULTS.textMutedColor,
+      statusUpColor: branding.statusUpColor ?? DEFAULTS.statusUpColor,
+      statusDownColor: branding.statusDownColor ?? DEFAULTS.statusDownColor,
+      statusDegradedColor: branding.statusDegradedColor ?? DEFAULTS.statusDegradedColor,
+      elevatedBackground: branding.elevatedBackground ?? DEFAULTS.elevatedBackground,
+      chartBackground: branding.chartBackground ?? DEFAULTS.chartBackground,
+      chartGridColor: branding.chartGridColor ?? DEFAULTS.chartGridColor,
+      customCss: branding.customCss ?? '',
+    })
   }, [branding])
+
+  const currentLogoUrl = form.logoUrl === null ? null : logoPreviews.custom ?? branding?.logoUrl ?? null
+  const currentLightLogoUrl = form.logoLightUrl === null ? null : logoPreviews.light ?? branding?.logoLightUrl ?? null
+  const currentDarkLogoUrl = form.logoDarkUrl === null ? null : logoPreviews.dark ?? branding?.logoDarkUrl ?? null
+
+  const previewBranding = useMemo<Branding>(() => ({
+    id: branding?.id ?? 1,
+    faviconUrl: branding?.faviconUrl ?? null,
+    updatedAt: branding?.updatedAt ?? Date.now(),
+    ...form,
+    enabled: form.enabled ? 1 : 0,
+    logoText: form.logoText || null,
+    logoUrl: currentLogoUrl,
+    logoLightUrl: currentLightLogoUrl,
+    logoDarkUrl: currentDarkLogoUrl,
+    customCss: form.customCss || null,
+  }), [branding?.faviconUrl, branding?.id, branding?.updatedAt, currentDarkLogoUrl, currentLightLogoUrl, currentLogoUrl, form])
+
+  const sendPreview = useCallback(() => {
+    const target = previewFrame.current?.contentWindow
+    if (!target) return
+    const targetOrigin = new URL(PREVIEW_SRC, window.location.href).origin
+    target.postMessage({ type: 'bsp:branding-preview', branding: previewBranding }, targetOrigin)
+  }, [previewBranding])
+
+  useEffect(() => { sendPreview() }, [sendPreview])
+  useEffect(() => {
+    const ready = (event: MessageEvent) => {
+      if (event.source === previewFrame.current?.contentWindow && event.data?.type === 'bsp:branding-preview-ready') sendPreview()
+    }
+    window.addEventListener('message', ready)
+    return () => window.removeEventListener('message', ready)
+  }, [sendPreview])
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -82,28 +128,65 @@ export default function BrandingPage() {
         customCss: form.customCss || null,
         logoText: form.logoText || null,
         ...(form.logoUrl === null ? { logoUrl: null } : {}),
+        ...(form.logoLightUrl === null ? { logoLightUrl: null } : {}),
+        ...(form.logoDarkUrl === null ? { logoDarkUrl: null } : {}),
       })
-      if (logoFile) {
-        const fd = new FormData()
-        fd.append('file', logoFile)
-        await api.upload('/admin/branding/logo', fd)
+      const activeLogoSlots: LogoSlot[] = form.enabled ? ['custom'] : ['light', 'dark']
+      for (const slot of activeLogoSlots) {
+        const file = logoFiles[slot]
+        if (!file) continue
+        const data = new FormData()
+        data.append('file', file)
+        await api.upload(LOGO_ENDPOINTS[slot], data)
       }
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['branding'] })
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['branding'] })
+      setLogoFiles({ custom: null, light: null, dark: null })
+      setLogoPreviews({ custom: null, light: null, dark: null })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     },
   })
 
-  const set = (key: keyof BrandingForm) => (value: string) =>
-    setForm((f) => ({ ...f, [key]: value }))
+  function selectLogo(slot: LogoSlot, file: File | null) {
+    setLogoFiles((current) => ({ ...current, [slot]: file }))
+    if (!file) {
+      setLogoPreviews((current) => ({ ...current, [slot]: null }))
+      return
+    }
+    const field = LOGO_FIELDS[slot]
+    setForm((current) => ({ ...current, [field]: undefined }))
+    const reader = new FileReader()
+    reader.onload = () => setLogoPreviews((current) => ({ ...current, [slot]: String(reader.result) }))
+    reader.readAsDataURL(file)
+  }
 
-  const currentLogoUrl = form.logoUrl === null ? null : (logoPreviewUrl ?? branding?.logoUrl ?? null)
+  function removeLogo(slot: LogoSlot) {
+    selectLogo(slot, null)
+    const field = LOGO_FIELDS[slot]
+    setForm((current) => ({ ...current, [field]: null }))
+  }
+
+  function toggleBranding() {
+    const enabled = !form.enabled
+    const resetSlots: LogoSlot[] = enabled ? ['light', 'dark'] : ['custom']
+    setLogoFiles((current) => ({ ...current, ...Object.fromEntries(resetSlots.map((slot) => [slot, null])) }))
+    setLogoPreviews((current) => ({ ...current, ...Object.fromEntries(resetSlots.map((slot) => [slot, null])) }))
+    setForm((current) => ({
+      ...current,
+      enabled,
+      ...(enabled
+        ? { logoLightUrl: branding?.logoLightUrl, logoDarkUrl: branding?.logoDarkUrl }
+        : { logoUrl: branding?.logoUrl }),
+    }))
+    setCssEditorOpen(false)
+  }
+
+  const set = (key: keyof BrandingForm) => (value: string) => setForm((current) => ({ ...current, [key]: value }))
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* ── Controls panel ── */}
       <div className="w-80 shrink-0 flex flex-col overflow-hidden" style={{ background: 'var(--m3-surface-container-low)', borderRight: '1px solid var(--m3-outline-variant)' }}>
         <div className="px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
           <h2 className="font-headline font-bold text-base" style={{ color: 'var(--m3-on-surface)' }}>Branding</h2>
@@ -111,485 +194,210 @@ export default function BrandingPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
-
-          {/* Identity */}
           <div>
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--m3-secondary)' }}>
-              Identity
-            </p>
-            <div className="space-y-2">
+            <p className="font-mono text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--m3-secondary)' }}>Identity</p>
+            <div className="space-y-3">
               <Field label="Site name">
-                <input value={form.siteName} onChange={(e) => set('siteName')(e.target.value)}
-                  className="input-sig" placeholder="My Status Page" />
+                <input value={form.siteName} onChange={(event) => set('siteName')(event.target.value)} className="input-sig" placeholder="My Status Page" />
+                <p className="text-[10px] mt-1.5 leading-relaxed" style={{ color: 'var(--m3-secondary)' }}>Used in the browser tab title and page footer. It does not replace the logo.</p>
               </Field>
               <Field label="Logo">
-                {/* Logo type toggle */}
-                <div className="flex gap-1 p-0.5 rounded-lg mb-2" style={{ background: 'var(--m3-surface-container)' }}>
-                  {(['image', 'text'] as const).map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, logoType: type }))}
-                      className="flex-1 text-xs py-1.5 rounded-md font-semibold transition-all"
-                      style={{
-                        background: form.logoType === type ? 'var(--m3-surface-container-lowest)' : 'transparent',
-                        color: form.logoType === type ? 'var(--m3-on-surface)' : 'var(--m3-secondary)',
-                        boxShadow: form.logoType === type ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                      }}
-                    >
-                      {type === 'image' ? 'Image' : 'Text'}
-                    </button>
-                  ))}
+                <div className="flex gap-1 p-0.5 rounded-lg mb-3" style={{ background: 'var(--m3-surface-container)' }}>
+                  {(['image', 'text'] as const).map((type) => <button key={type} type="button" onClick={() => setForm((current) => ({ ...current, logoType: type }))} className="flex-1 text-xs py-1.5 rounded-md font-semibold transition-all" style={{ background: form.logoType === type ? 'var(--m3-surface-container-lowest)' : 'transparent', color: form.logoType === type ? 'var(--m3-on-surface)' : 'var(--m3-secondary)', boxShadow: form.logoType === type ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>{type === 'image' ? 'Image' : 'Text'}</button>)}
                 </div>
                 {form.logoType === 'image' ? (
-                  <>
-                    {currentLogoUrl && (
-                      <div className="flex items-center gap-2 mb-2">
-                        <img src={currentLogoUrl} alt="Logo" className="h-8 object-contain rounded px-2 py-1" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }} />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLogoFile(null)
-                            setLogoPreviewUrl(null)
-                            setForm((f) => ({ ...f, logoUrl: null as unknown as string }))
-                          }}
-                          className="text-xs px-2 py-1 rounded-lg transition-colors"
-                          style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
-                          title="Remove logo"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    )}
-                    <input
-                      id="branding-logo-file"
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] ?? null
-                        setLogoFile(file)
-                        if (file) setLogoPreviewUrl(URL.createObjectURL(file))
-                      }}
-                      className="sr-only"
-                    />
-                    <div className="flex items-center gap-2 min-w-0">
-                      <label
-                        htmlFor="branding-logo-file"
-                        className="btn-primary shrink-0 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer"
-                      >
-                        Choose image
-                      </label>
-                      <span className="text-xs truncate" style={{ color: 'var(--m3-secondary)' }} title={logoFile?.name}>
-                        {logoFile?.name ?? 'No file selected'}
-                      </span>
+                  form.enabled ? (
+                    <LogoInput id="branding-logo-custom" label="Universal logo" url={currentLogoUrl} file={logoFiles.custom} onSelect={(file) => selectLogo('custom', file)} onRemove={() => removeLogo('custom')} />
+                  ) : (
+                    <div className="space-y-4">
+                      <LogoInput id="branding-logo-light" label="Light mode logo" url={currentLightLogoUrl} file={logoFiles.light} onSelect={(file) => selectLogo('light', file)} onRemove={() => removeLogo('light')} />
+                      <LogoInput id="branding-logo-dark" label="Dark mode logo" url={currentDarkLogoUrl} file={logoFiles.dark} onSelect={(file) => selectLogo('dark', file)} onRemove={() => removeLogo('dark')} />
                     </div>
-                  </>
-                ) : (
-                  <input
-                    value={form.logoText}
-                    onChange={(e) => setForm((f) => ({ ...f, logoText: e.target.value }))}
-                    className="input-sig"
-                    placeholder="e.g. Acme Corp"
-                    maxLength={40}
-                  />
-                )}
+                  )
+                ) : <input value={form.logoText} onChange={(event) => setForm((current) => ({ ...current, logoText: event.target.value }))} className="input-sig" placeholder="e.g. Acme Corp" maxLength={40} />}
               </Field>
             </div>
           </div>
 
-          {/* ── Branding toggle ── */}
-          <div
-            className="flex items-center justify-between px-4 py-3 rounded-xl"
-            style={{ background: form.enabled ? 'rgba(34,197,94,0.08)' : 'var(--m3-surface-container)', border: `1px solid ${form.enabled ? 'rgba(34,197,94,0.3)' : 'var(--m3-outline-variant)'}` }}
-          >
-            <div>
-              <p className="font-sans text-sm font-semibold" style={{ color: 'var(--m3-on-surface)' }}>
-                Custom branding
-              </p>
-              <p className="font-sans text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>
-                {form.enabled ? 'Custom colors are active' : 'Default project colors are in use'}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setForm((f) => ({ ...f, enabled: !f.enabled }))}
-              className="relative flex-shrink-0 w-12 h-6 rounded-full transition-colors duration-200"
-              style={{ background: form.enabled ? '#22c55e' : 'var(--m3-outline-variant)' }}
-            >
-              <span
-                className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200"
-                style={{ transform: form.enabled ? 'translateX(22px)' : 'translateX(0px)' }}
-              />
-            </button>
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: form.enabled ? 'rgba(34,197,94,0.08)' : 'var(--m3-surface-container)', border: `1px solid ${form.enabled ? 'rgba(34,197,94,0.3)' : 'var(--m3-outline-variant)'}` }}>
+            <div><p className="text-sm font-semibold">Custom branding</p><p className="text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>{form.enabled ? 'Custom colors are active' : 'Default project colors are in use'}</p></div>
+            <button type="button" aria-label="Custom branding" aria-pressed={form.enabled} onClick={toggleBranding} className="relative flex-shrink-0 w-12 h-6 rounded-full transition-colors" style={{ background: form.enabled ? '#22c55e' : 'var(--m3-outline-variant)' }}><span className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform" style={{ transform: form.enabled ? 'translateX(22px)' : 'translateX(0)' }} /></button>
           </div>
 
-          {/* Tło i karty */}
-          <Section title="Background and cards">
+          <fieldset disabled={!form.enabled} className="min-w-0 border-0 p-0 m-0 space-y-6 transition-opacity" style={{ opacity: form.enabled ? 1 : 0.45 }}>
+          <Section title="Backgrounds">
             <ColorField label="Page background" value={form.backgroundColor} onChange={set('backgroundColor')} />
-            <ColorField label="Card / element background" value={form.cardBackground} onChange={set('cardBackground')} />
-            <ColorField label="Card border" value={form.cardBorderColor} onChange={set('cardBorderColor')} />
+            <ColorField label="Cards and groups" value={form.cardBackground} onChange={set('cardBackground')} />
+            <ColorField label="Elevated elements and tooltips" value={form.elevatedBackground} onChange={set('elevatedBackground')} />
+            <ColorField label="Charts" value={form.chartBackground} onChange={set('chartBackground')} />
           </Section>
-
-          {/* Tekst */}
+          <Section title="Borders and charts">
+            <ColorField label="Borders" value={form.cardBorderColor} onChange={set('cardBorderColor')} />
+            <ColorField label="Chart grid lines" value={form.chartGridColor} onChange={set('chartGridColor')} />
+          </Section>
           <Section title="Text">
             <ColorField label="Primary text" value={form.textColor} onChange={set('textColor')} />
             <ColorField label="Secondary text" value={form.textMutedColor} onChange={set('textMutedColor')} />
           </Section>
-
-          {/* Statusy */}
           <Section title="Status colors">
             <ColorField label="Operational (↑)" value={form.statusUpColor} onChange={set('statusUpColor')} />
             <ColorField label="Down (↓)" value={form.statusDownColor} onChange={set('statusDownColor')} />
             <ColorField label="Degraded (~)" value={form.statusDegradedColor} onChange={set('statusDegradedColor')} />
           </Section>
-
-          {/* Akcent */}
           <Section title="Accent">
-            <ColorField label="Primary color" value={form.primaryColor} onChange={set('primaryColor')} />
+            <ColorField label="Primary color and chart line" value={form.primaryColor} onChange={set('primaryColor')} />
             <ColorField label="Accent color" value={form.accentColor} onChange={set('accentColor')} />
           </Section>
-
-          {/* Custom CSS */}
           <Section title="Custom CSS">
-            <p className="text-[10px] text-slate-500 mb-2 leading-relaxed">
-              Available classes:{' '}
-              {[
-                '.bsp-page', '.bsp-header', '.bsp-status-banner',
-                '.bsp-monitor-card', '.bsp-monitor-name', '.bsp-monitor-type',
-                '.bsp-monitor-status', '.bsp-uptime-bar',
-                '.bsp-group-card', '.bsp-group-header', '.bsp-group-label',
-                '.bsp-text-block', '.bsp-divider', '.bsp-footer',
-              ].map((cls) => (
-                <code key={cls} className="text-indigo-400 mr-1">{cls}</code>
-              ))}
-            </p>
-            <textarea
-              value={form.customCss}
-              onChange={(e) => set('customCss')(e.target.value)}
-              rows={8}
-              className="input-sig font-mono text-xs resize-none"
-              placeholder="/* e.g. .bsp-monitor-card { border-radius: 0; } */"
-            />
+            <p className="text-[10px] mb-2 leading-relaxed" style={{ color: 'var(--m3-secondary)' }}>{form.enabled ? 'Open the full editor to customize the public page using documented classes and CSS variables.' : 'Enable custom branding to edit and apply custom CSS.'}</p>
+            <button type="button" disabled={!form.enabled} onClick={() => setCssEditorOpen(true)} className="btn-primary w-full px-3 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 disabled:cursor-not-allowed"><span aria-hidden="true" className="material-symbols-outlined" style={{ fontSize: 17 }}>code</span>Open CSS editor</button>
+            <p className="text-[10px]" style={{ color: 'var(--m3-secondary)' }}>{form.customCss ? `${form.customCss.split('\n').length} lines · ${form.customCss.length} characters` : 'No custom CSS yet'}</p>
           </Section>
+          </fieldset>
         </div>
 
-        {/* Save */}
         <div className="px-5 py-4 shrink-0 flex items-center gap-3" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
-          <button
-            onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isPending}
-            className="btn-primary flex-1 text-sm font-semibold py-2 rounded-lg transition-all"
-            style={{
-              background: saveMutation.isPending ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
-              color: saveMutation.isPending ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
-              opacity: saveMutation.isPending ? 0.7 : 1,
-            }}
-          >
-            {saveMutation.isPending ? 'Saving…' : 'Save branding'}
-          </button>
+          <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="btn-primary flex-1 text-sm font-semibold py-2 rounded-lg">{saveMutation.isPending ? 'Saving…' : 'Save branding'}</button>
           {saved && <span className="text-sm shrink-0" style={{ color: 'var(--m3-primary)' }}>Saved!</span>}
         </div>
       </div>
 
-      {/* ── Live preview panel ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="px-4 py-2 shrink-0 flex items-center gap-2" style={{ background: 'var(--m3-surface-container-low)', borderBottom: '1px solid var(--m3-outline-variant)' }}>
           <span className="w-2 h-2 rounded-full" style={{ background: 'var(--m3-primary)', animation: 'orbGlow 2s ease-in-out infinite' }} />
-          <span className="font-mono text-xs font-medium" style={{ color: 'var(--m3-on-surface)' }}>Live preview</span>
-          <span className="text-xs ml-1" style={{ color: 'var(--m3-secondary)' }}>— changes are visible before saving</span>
+          <span className="font-mono text-xs font-medium">Live preview</span>
+          <span className="text-xs ml-1" style={{ color: 'var(--m3-secondary)' }}>— saved Page Builder layout with unsaved branding changes</span>
         </div>
-        <div className="flex-1 overflow-auto">
-          <LivePreview form={form} logoUrl={currentLogoUrl} />
-        </div>
+        <iframe ref={previewFrame} src={PREVIEW_SRC} title="Public status page preview" onLoad={sendPreview} className="flex-1 w-full border-0" />
       </div>
+      {form.enabled && cssEditorOpen && <CssEditorModal value={form.customCss} onChange={set('customCss')} onClose={() => setCssEditorOpen(false)} />}
     </div>
   )
 }
 
-// ── UI helpers ─────────────────────────────────────────────────────────────────
+function LogoInput({ id, label, url, file, onSelect, onRemove }: {
+  id: string
+  label: string
+  url: string | null
+  file: File | null
+  onSelect: (file: File | null) => void
+  onRemove: () => void
+}) {
+  return <div>
+    <p className="text-[10px] font-semibold mb-1.5" style={{ color: 'var(--m3-secondary)' }}>{label}</p>
+    {url && <div className="flex items-center gap-2 mb-2"><div className="h-12 min-w-24 max-w-48 flex items-center rounded-lg px-3" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}><img src={url} alt="Logo" className="max-h-9 max-w-full object-contain" /></div><button type="button" onClick={onRemove} className="px-2 py-1 rounded-lg text-xs" style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }} aria-label="Remove logo">×</button></div>}
+    <input id={id} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={(event) => onSelect(event.target.files?.[0] ?? null)} className="sr-only" />
+    <div className="flex items-center gap-2 min-w-0"><label htmlFor={id} className="btn-primary shrink-0 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer">Choose image</label><span className="text-xs truncate" style={{ color: 'var(--m3-secondary)' }} title={file?.name}>{file?.name ?? 'No file selected'}</span></div>
+  </div>
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-3">
-      <p className="font-mono text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--m3-secondary)' }}>{title}</p>
-      <div className="space-y-2">{children}</div>
-    </div>
-  )
+  return <div className="space-y-3"><p className="font-mono text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--m3-secondary)' }}>{title}</p><div className="space-y-2">{children}</div></div>
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs mb-1.5" style={{ color: 'var(--m3-secondary)' }}>{label}</label>
-      {children}
-    </div>
-  )
+  return <div><label className="block text-xs mb-1.5" style={{ color: 'var(--m3-secondary)' }}>{label}</label>{children}</div>
 }
 
-function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <Field label={label}>
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={value.startsWith('rgba') ? '#000000' : value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-8 h-8 rounded-md cursor-pointer shrink-0 p-0.5"
-          style={{ border: '1px solid var(--m3-outline-variant)', background: 'var(--m3-surface-container-lowest)' }}
-        />
-        <input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          maxLength={25}
-          className="input-sig font-mono text-xs"
-        />
-      </div>
-    </Field>
-  )
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return <Field label={label}><div className="flex items-center gap-2"><input type="color" value={value.startsWith('rgba') ? '#000000' : value} onChange={(event) => onChange(event.target.value)} className="w-8 h-8 rounded-md cursor-pointer shrink-0 p-0.5" style={{ border: '1px solid var(--m3-outline-variant)', background: 'var(--m3-surface-container-lowest)' }} /><input value={value} onChange={(event) => onChange(event.target.value)} maxLength={25} className="input-sig font-mono text-xs" /></div></Field>
 }
 
-// ── Live preview ───────────────────────────────────────────────────────────────
+const CSS_CLASSES = [
+  ['.bsp-page', 'Entire public status page'],
+  ['.bsp-header', 'Sticky page header'],
+  ['.bsp-navigation', 'Header navigation content'],
+  ['.bsp-content', 'Main page content'],
+  ['.bsp-status-banner', 'Overall status badge'],
+  ['.bsp-maintenance-banner', 'Maintenance notice'],
+  ['.bsp-monitor-card', 'Monitor card'],
+  ['.bsp-monitor-name', 'Monitor name'],
+  ['.bsp-group-card', 'Monitor group'],
+  ['.bsp-group-label', 'Group name'],
+  ['.bsp-chart-card', 'Chart card and its background'],
+  ['.bsp-chart', 'Chart content'],
+  ['.bsp-chart-tooltip', 'Chart hover tooltip'],
+  ['.bsp-text-block', 'Page Builder markdown block'],
+  ['.bsp-divider', 'Page Builder divider'],
+  ['.bsp-incidents-section', 'System events section'],
+  ['.bsp-incident-card', 'Incident card or history row'],
+  ['.bsp-footer', 'Page footer'],
+] as const
 
-// Design system defaults (matches index.css --bsp-* aliases when branding disabled)
-const DESIGN_DEFAULTS = {
-  backgroundColor: '#f2f3ff',
-  cardBackground: '#f2f3ff',
-  cardBorderColor: '#c6c6cd',
-  textColor: '#131b2e',
-  textMutedColor: '#505f76',
-  primaryColor: '#000000',
-  accentColor: '#497cff',
-  statusUpColor: '#22c55e',
-  statusDownColor: '#ba1a1a',
-  statusDegradedColor: '#eab308',
-}
+const CSS_VARIABLES = [
+  '--bsp-bg', '--bsp-card-bg', '--bsp-elevated-bg', '--bsp-card-border',
+  '--bsp-text', '--bsp-text-muted', '--bsp-primary', '--bsp-accent',
+  '--bsp-up', '--bsp-down', '--bsp-degraded', '--bsp-chart-bg', '--bsp-chart-grid',
+] as const
 
-function LivePreview({ form, logoUrl }: { form: BrandingForm; logoUrl: string | null }) {
-  const v = form.enabled ? form : { ...form, ...DESIGN_DEFAULTS }
+function CssEditorModal({ value, onChange, onClose }: { value: string; onChange: (value: string) => void; onClose: () => void }) {
+  const textarea = useRef<HTMLTextAreaElement>(null)
+  const gutter = useRef<HTMLDivElement>(null)
+  const lineCount = Math.max(1, value.split('\n').length)
 
-  // Helper to generate status badge styles
-  const statusBadge = (status: 'up' | 'down' | 'degraded') => ({
-    up: { bg: `${v.statusUpColor}1a`, color: v.statusUpColor, label: 'Operational' },
-    down: { bg: `${v.statusDownColor}20`, color: v.statusDownColor, label: 'Outage' },
-    degraded: { bg: `${v.statusDegradedColor}18`, color: v.statusDegradedColor, label: 'Degraded' },
-  }[status])
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', closeOnEscape)
+    textarea.current?.focus()
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [onClose])
 
-  // Lighten a hex color for gradient top (mix with white ~40%)
-  function lighten(hex: string): string {
-    const n = parseInt(hex.replace('#', ''), 16)
-    const r = Math.min(255, ((n >> 16) & 0xff) + 80)
-    const g = Math.min(255, ((n >> 8) & 0xff) + 80)
-    const b = Math.min(255, (n & 0xff) + 80)
-    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
-  }
-
-  // Uptime bars row — gradient matching actual app
-  const _UptimeBars = ({ color, barCount = 30 }: { color: string; barCount?: number }) => {
-    const lightColor = lighten(color)
-    return (
-      <div style={{ display: 'flex', height: '40px', gap: '2px' }}>
-        {Array.from({ length: barCount }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              flex: 1,
-              borderRadius: '2px',
-              background: `linear-gradient(to top, ${color}, ${lightColor})`,
-              opacity: i >= barCount - 3 ? 0.5 : 1,
-            }}
-          />
-        ))}
-      </div>
-    )
-  }
-
-  // Full monitor card — 'right' position: bars inline between name and badge
-  const MonitorCard = ({ name, type, status }: {
-    name: string; type: string; status: 'up' | 'down' | 'degraded'
-  }) => {
-    const s = statusBadge(status)
-    const barColor = status === 'up' ? v.statusUpColor : status === 'down' ? v.statusDownColor : v.statusDegradedColor
-    const lightColor = lighten(barColor)
-    return (
-      <div style={{
-        background: v.cardBackground,
-        border: `1px solid ${v.cardBorderColor}`,
-        borderRadius: '16px',
-        padding: '28px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {/* Name + type */}
-          <div style={{ flexShrink: 0 }}>
-            <div style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: '28px', color: v.textColor, lineHeight: 1.15 }}>
-              {name}
-            </div>
-            <div style={{ fontFamily: 'monospace', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.09em', color: v.textMutedColor, marginTop: '4px' }}>
-              {type}
-            </div>
-          </div>
-          {/* Bars filling gap */}
-          <div style={{ flex: 1, display: 'flex', alignItems: 'stretch', gap: '2px', height: '48px' }}>
-            {Array.from({ length: 30 }).map((_, i) => (
-              <div key={i} style={{
-                flex: 1,
-                borderRadius: '3px',
-                background: `linear-gradient(to top, ${barColor}, ${lightColor})`,
-                opacity: i >= 27 ? 0.5 : 1,
-              }} />
-            ))}
-          </div>
-          {/* Badge */}
-          <span style={{
-            background: s.bg, color: s.color,
-            padding: '6px 14px', borderRadius: '999px',
-            fontSize: '13px', fontWeight: 700, flexShrink: 0,
-          }}>
-            {s.label}
-          </span>
-        </div>
-      </div>
-    )
-  }
-
-  // Compact row (group child)
-  const CompactRow = ({ name, status }: { name: string; status: 'up' | 'down' | 'degraded' }) => {
-    const s = statusBadge(status)
-    const dotColor = status === 'up' ? v.statusUpColor : status === 'down' ? v.statusDownColor : v.statusDegradedColor
-    return (
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: '10px',
-        padding: '10px 20px',
-        borderTop: `1px solid ${v.cardBorderColor}`,
-      }}>
-        <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
-        <span style={{ flex: 1, fontSize: '13px', color: v.textColor, fontWeight: 500 }}>{name}</span>
-        <span style={{ fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '999px', background: s.bg, color: s.color }}>
-          {s.label}
-        </span>
-      </div>
-    )
+  function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== 'Tab') return
+    event.preventDefault()
+    const input = event.currentTarget
+    const start = input.selectionStart
+    const end = input.selectionEnd
+    onChange(`${value.slice(0, start)}  ${value.slice(end)}`)
+    requestAnimationFrame(() => {
+      input.selectionStart = input.selectionEnd = start + 2
+    })
   }
 
   return (
-    <div style={{ background: v.backgroundColor, minHeight: '100%', fontFamily: 'Inter, sans-serif' }}>
-      {v.customCss && <style>{v.customCss}</style>}
+    <div className="fixed inset-0 z-[120] p-4 md:p-8 flex" role="dialog" aria-modal="true" aria-label="Custom CSS editor" style={{ background: 'rgba(0,0,0,0.65)' }}>
+      <div className="flex-1 min-w-0 rounded-2xl overflow-hidden flex flex-col" style={{ background: 'var(--m3-surface-container-lowest)', border: '1px solid var(--m3-outline-variant)', boxShadow: '0 24px 80px rgba(0,0,0,0.35)' }}>
+        <header className="px-5 py-4 flex items-center gap-4" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
+          <span aria-hidden="true" className="material-symbols-outlined rounded-xl p-2" style={{ background: 'var(--admin-icon-container)', color: 'var(--admin-icon-color)' }}>code</span>
+          <div><h2 className="font-headline text-lg font-semibold">Custom CSS editor</h2><p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>Changes are applied to the live preview immediately. Save branding when you are finished.</p></div>
+          <button type="button" onClick={onClose} className="btn-primary ml-auto px-5 py-2 rounded-lg text-sm font-semibold">Done</button>
+        </header>
 
-      {/* Nav */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '16px 32px',
-        borderBottom: `1px solid ${v.cardBorderColor}`,
-        background: v.backgroundColor,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {form.logoType === 'text' && form.logoText ? (
-            <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: '16px', color: v.textColor }}>
-              {form.logoText}
-            </span>
-          ) : logoUrl ? (
-            <img src={logoUrl} alt="" style={{ height: '22px', objectFit: 'contain' }} />
-          ) : null}
-          {!(form.logoType === 'text' && form.logoText) && (
-            <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, fontSize: '16px', color: v.textColor }}>
-              {v.siteName || 'Status Page'}
-            </span>
-          )}
-        </div>
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: '8px',
-          padding: '5px 14px', borderRadius: '999px',
-          background: `${v.statusUpColor}15`,
-          fontSize: '11px', fontWeight: 600, color: v.statusUpColor,
-        }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: v.statusUpColor, display: 'inline-block' }} />
-          All systems operational
-        </div>
-      </div>
-
-      {/* Hero */}
-      <div style={{ textAlign: 'center', padding: '32px 32px 24px' }}>
-        <div style={{
-          fontFamily: 'Manrope, sans-serif', fontWeight: 800,
-          fontSize: '36px', lineHeight: 1.1,
-          color: v.textColor, marginBottom: '8px',
-        }}>
-          All systems operational.
-        </div>
-        <div style={{ fontSize: '13px', color: v.textMutedColor }}>
-          3 services monitored in real time.
-        </div>
-      </div>
-
-      {/* Cards grid */}
-      <div style={{ padding: '0 32px 32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-        {/* Two monitor cards side by side */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <MonitorCard name="API Engine" type="HTTPS" status="up" />
-          <MonitorCard name="Web Console" type="HTTPS" status="degraded" />
-        </div>
-
-        {/* Group card */}
-        <div style={{
-          background: v.cardBackground,
-          border: `1px solid ${v.cardBorderColor}`,
-          borderRadius: '16px',
-          overflow: 'hidden',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '9px', height: '9px', borderRadius: '50%', background: v.statusUpColor }} />
-              <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 600, fontSize: '14px', color: v.textColor }}>
-                Infrastructure
-              </span>
-              <span style={{ fontSize: '11px', color: v.textMutedColor }}>3 services</span>
+        <div className="flex-1 min-h-0 grid lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="min-h-[420px] flex overflow-hidden" style={{ background: '#111318', color: '#e5e7eb' }}>
+            <div ref={gutter} aria-hidden="true" className="py-4 px-3 text-right select-none overflow-hidden font-mono text-xs leading-6" style={{ minWidth: 48, color: '#6b7280', background: '#0b0d11', borderRight: '1px solid #2c3038' }}>
+              {Array.from({ length: lineCount }, (_, index) => <div key={index}>{index + 1}</div>)}
             </div>
-            <span style={{ fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '999px', background: `${v.statusUpColor}1a`, color: v.statusUpColor }}>
-              Operational
-            </span>
+            <textarea
+              ref={textarea}
+              aria-label="Custom CSS"
+              value={value}
+              onChange={(event) => onChange(event.target.value)}
+              onKeyDown={handleKeyDown}
+              onScroll={(event) => { if (gutter.current) gutter.current.scrollTop = event.currentTarget.scrollTop }}
+              spellCheck={false}
+              className="flex-1 min-w-0 h-full resize-none outline-none border-0 p-4 font-mono text-xs leading-6"
+              style={{ background: '#111318', color: '#e5e7eb', tabSize: 2 }}
+              placeholder={'.bsp-monitor-card {\n  border-radius: 8px;\n}\n\n.bsp-chart-card {\n  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);\n}'}
+            />
           </div>
-          <CompactRow name="Primary DB Cluster" status="up" />
-          <CompactRow name="Cache Layer" status="degraded" />
-          <CompactRow name="Object Storage" status="up" />
-        </div>
 
-        {/* Active incident card */}
-        <div style={{
-          background: v.cardBackground,
-          borderRadius: '24px',
-          padding: '28px',
-          borderLeft: `4px solid ${v.statusDegradedColor}`,
-        }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '28px' }}>
-            <div style={{ fontSize: '11px', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.07em', color: v.textMutedColor }}>
-              Jun 14, 2026<br />14:20 UTC
-            </div>
-            <div>
-              <span style={{
-                display: 'inline-block', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
-                padding: '3px 10px', borderRadius: '999px', marginBottom: '10px',
-                background: `${v.statusDegradedColor}15`, color: v.statusDegradedColor,
-              }}>
-                Investigating
-              </span>
-              <div style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 700, fontSize: '18px', color: v.textColor, marginBottom: '12px' }}>
-                Elevated latency in EU region
-              </div>
-              <div style={{ borderLeft: `2px solid ${v.cardBorderColor}`, paddingLeft: '20px' }}>
-                <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: v.statusDegradedColor, marginBottom: '4px' }}>
-                  14:20 UTC — Investigating
-                </div>
-                <div style={{ fontSize: '12px', color: v.textColor }}>
-                  We are investigating reports of elevated response times affecting EU endpoints.
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div style={{ textAlign: 'center', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: v.textMutedColor, paddingTop: '8px' }}>
-          {v.siteName || 'Status Page'}
+          <aside className="overflow-y-auto p-5 space-y-6" style={{ background: 'var(--m3-surface-container-low)' }}>
+            <section>
+              <h3 className="font-semibold text-sm mb-2">Quick example</h3>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--m3-secondary)' }}>Custom branding uses one fixed appearance. Your selectors are applied directly to that branded page.</p>
+              <pre className="mt-3 rounded-lg p-3 text-[11px] overflow-x-auto" style={{ background: 'var(--m3-surface-container-high)' }}>{`.bsp-page {\n  background-image: none;\n}`}</pre>
+            </section>
+            <section>
+              <h3 className="font-semibold text-sm mb-3">Available classes</h3>
+              <div className="space-y-2">{CSS_CLASSES.map(([name, description]) => <div key={name}><code className="font-mono text-xs" style={{ color: 'var(--m3-on-primary-container)' }}>{name}</code><p className="text-[11px]" style={{ color: 'var(--m3-secondary)' }}>{description}</p></div>)}</div>
+            </section>
+            <section>
+              <h3 className="font-semibold text-sm mb-2">Branding variables</h3>
+              <p className="text-xs mb-3" style={{ color: 'var(--m3-secondary)' }}>These variables contain the current custom branding palette.</p>
+              <div className="flex flex-wrap gap-1.5">{CSS_VARIABLES.map((name) => <code key={name} className="font-mono text-[10px] px-2 py-1 rounded" style={{ background: 'var(--m3-surface-container-high)' }}>{name}</code>)}</div>
+            </section>
+          </aside>
         </div>
       </div>
     </div>

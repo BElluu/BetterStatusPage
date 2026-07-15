@@ -1,10 +1,11 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { db } from '../db/client.js'
 import { branding } from '../db/schema.js'
 import path from 'path'
 import fs from 'fs'
 import { uploadDir } from '../config.js'
 import { diffObjects, writeAudit } from '../services/audit.js'
+import { DEFAULT_BRANDING_COLORS } from '@bsp/shared'
 
 const ALLOWED_MIME_MAGIC: Array<{ mime: string; magic: number[] }> = [
   { mime: 'image/jpeg', magic: [0xFF, 0xD8, 0xFF] },
@@ -18,6 +19,19 @@ const MIME_TO_EXT: Record<string, string> = {
   'image/png':  '.png',
   'image/gif':  '.gif',
   'image/webp': '.webp',
+}
+
+const MANAGED_LOGO_BASENAMES = ['logo', 'logo-light', 'logo-dark'] as const
+
+function cleanupUnusedManagedLogoFiles(row: typeof branding.$inferSelect): void {
+  const referencedUrls = new Set([row.logoUrl, row.logoLightUrl, row.logoDarkUrl].filter((url): url is string => !!url))
+  const uploads = uploadDir()
+  for (const basename of MANAGED_LOGO_BASENAMES) {
+    for (const ext of Object.values(MIME_TO_EXT)) {
+      const url = `/uploads/${basename}${ext}`
+      if (!referencedUrls.has(url)) fs.rmSync(path.join(uploads, `${basename}${ext}`), { force: true })
+    }
+  }
 }
 
 export function detectImageMime(buf: Buffer): string | null {
@@ -38,24 +52,17 @@ export function detectImageMime(buf: Buffer): string | null {
 const DEFAULTS = {
   siteName: 'Status Page',
   logoUrl: null as string | null,
+  logoLightUrl: null as string | null,
+  logoDarkUrl: null as string | null,
   faviconUrl: null as string | null,
-  primaryColor: '#6366f1',
-  accentColor: '#f59e0b',
-  backgroundColor: '#0f172a',
-  cardBackground: '#0f172a',
-  cardBorderColor: '#1e293b',
-  textColor: '#f8fafc',
-  textMutedColor: '#94a3b8',
-  statusUpColor: '#10b981',
-  statusDownColor: '#ef4444',
-  statusDegradedColor: '#f59e0b',
+  ...DEFAULT_BRANDING_COLORS,
   customCss: null as string | null,
   enabled: 0 as number,
   logoType: 'image' as string,
   logoText: null as string | null,
 }
 
-type BrandingBody = Partial<Omit<typeof DEFAULTS, 'faviconUrl'> & { logoUrl: string | null }>
+type BrandingBody = Partial<Omit<typeof DEFAULTS, 'faviconUrl'>>
 
 export async function brandingRoutes(app: FastifyInstance) {
   app.get('/', async () => {
@@ -73,7 +80,8 @@ export async function brandingRoutes(app: FastifyInstance) {
       'siteName', 'primaryColor', 'accentColor', 'backgroundColor',
       'cardBackground', 'cardBorderColor', 'textColor', 'textMutedColor',
       'statusUpColor', 'statusDownColor', 'statusDegradedColor', 'customCss', 'enabled',
-      'logoType', 'logoText', 'logoUrl',
+      'elevatedBackground', 'chartBackground', 'chartGridColor',
+      'logoType', 'logoText', 'logoUrl', 'logoLightUrl', 'logoDarkUrl',
     ] as const
     for (const field of fields) {
       if (req.body[field] !== undefined) updates[field] = req.body[field]
@@ -87,6 +95,7 @@ export async function brandingRoutes(app: FastifyInstance) {
         ...(updates as Partial<typeof DEFAULTS>),
         updatedAt: now,
       }).returning())[0]!
+    cleanupUnusedManagedLogoFiles(row)
     const actor = req.user as { userId: number; email: string }
     const changedFields = Object.keys(updates).filter((field) => field !== 'updatedAt')
     const before = Object.fromEntries(changedFields.map((field) => [field, existing?.[field as keyof typeof existing] ?? null]))
@@ -102,7 +111,7 @@ export async function brandingRoutes(app: FastifyInstance) {
     return row
   })
 
-  app.post('/logo', async (req, reply) => {
+  async function uploadLogo(req: FastifyRequest, reply: FastifyReply, field: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl', basename: string) {
     const data = await req.file()
     if (!data) return reply.code(400).send({ error: 'No file' })
 
@@ -117,16 +126,15 @@ export async function brandingRoutes(app: FastifyInstance) {
     if (!fs.existsSync(uploads)) fs.mkdirSync(uploads, { recursive: true })
 
     const ext = MIME_TO_EXT[mime]!
-    const filename = `logo${ext}`
+    const filename = `${basename}${ext}`
     fs.writeFileSync(path.join(uploads, filename), buf)
 
     const logoUrl = `/uploads/${filename}`
     const existing = (await db.select().from(branding))[0]
-    if (existing) {
-      await db.update(branding).set({ logoUrl, updatedAt: Date.now() })
-    } else {
-      await db.insert(branding).values({ id: 1, ...DEFAULTS, logoUrl, updatedAt: Date.now() })
-    }
+    const row = existing
+      ? (await db.update(branding).set({ [field]: logoUrl, updatedAt: Date.now() }).returning())[0]!
+      : (await db.insert(branding).values({ id: 1, ...DEFAULTS, [field]: logoUrl, updatedAt: Date.now() }).returning())[0]!
+    cleanupUnusedManagedLogoFiles(row)
     const actor = req.user as { userId: number; email: string }
     await writeAudit(
       { userId: actor.userId, userEmail: actor.email },
@@ -134,8 +142,12 @@ export async function brandingRoutes(app: FastifyInstance) {
       'branding',
       1,
       existing?.siteName ?? DEFAULTS.siteName,
-      { logoUrl: { from: existing?.logoUrl ?? null, to: logoUrl } },
+      { [field]: { from: existing?.[field] ?? null, to: logoUrl } },
     )
     return { url: logoUrl }
-  })
+  }
+
+  app.post('/logo', async (req, reply) => uploadLogo(req, reply, 'logoUrl', 'logo'))
+  app.post('/logo/light', async (req, reply) => uploadLogo(req, reply, 'logoLightUrl', 'logo-light'))
+  app.post('/logo/dark', async (req, reply) => uploadLogo(req, reply, 'logoDarkUrl', 'logo-dark'))
 }
