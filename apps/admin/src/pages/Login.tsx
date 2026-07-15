@@ -203,15 +203,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full font-sans font-semibold rounded-xl py-3 text-sm transition-all mt-2"
-              style={{
-                background: loading
-                  ? 'var(--m3-surface-container-high)'
-                  : 'var(--m3-primary)',
-                color: loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.7 : 1,
-              }}
+              className="btn-primary w-full py-3 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98] mt-2"
             >
               {loading ? 'Signing in…' : challengeToken ? 'Verify & sign in' : 'Sign in'}
             </button>

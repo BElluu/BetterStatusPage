@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, clearSession, getCurrentUser, setSession, type AuthUser } from '../api/client'
+import { CopyButton } from '../components/CopyButton'
 
 interface TwoFactorSetup {
   secret: string
@@ -183,7 +184,7 @@ export default function SettingsPage() {
                   {recoveryCodes.map((recoveryCode) => <code key={recoveryCode}>{recoveryCode}</code>)}
                 </div>
               </div>
-              <button type="button" onClick={() => void navigator.clipboard.writeText(recoveryCodes.join('\n'))} className="px-4 py-2 rounded-xl" style={{ background: 'var(--m3-surface-container-high)' }}>Copy codes</button>
+              <CopyButton value={recoveryCodes.join('\n')} label="Copy codes" />
             </div>
           )}
 
@@ -191,7 +192,7 @@ export default function SettingsPage() {
             <div className="space-y-4">
               <PasswordField label="Current password" value={securityPassword} onChange={setSecurityPassword} placeholder="Confirm your password" />
               <TextField label="Authentication or recovery code" value={code} onChange={setCode} placeholder="Code" autoComplete="one-time-code" />
-              <button type="button" disabled={loading || !securityPassword || !code} onClick={() => void disableTwoFactor()} className="px-5 py-3 rounded-xl font-semibold" style={{ color: 'var(--m3-down)', border: '1px solid var(--m3-outline-variant)' }}>Disable 2FA</button>
+              <button type="button" disabled={loading || !securityPassword || !code} onClick={() => void disableTwoFactor()} className="btn-danger-outline px-5 py-3 rounded-xl font-semibold">Disable 2FA</button>
             </div>
           )}
         </section>
@@ -200,7 +201,7 @@ export default function SettingsPage() {
       <section className="rounded-2xl p-6 max-w-5xl" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
         <h2 className="font-headline font-semibold text-lg">Active sessions</h2>
         <p className="text-sm mt-1 mb-4" style={{ color: 'var(--m3-secondary)' }}>Sign out this browser and every other active session for your account.</p>
-        <button type="button" disabled={loading} onClick={() => void logoutEverywhere()} className="px-5 py-3 rounded-xl font-semibold" style={{ color: 'var(--m3-down)', border: '1px solid var(--m3-outline-variant)' }}>Sign out everywhere</button>
+        <button type="button" disabled={loading} onClick={() => void logoutEverywhere()} className="btn-danger-outline px-5 py-3 rounded-xl font-semibold">Sign out everywhere</button>
       </section>
     </div>
   )
