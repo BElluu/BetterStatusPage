@@ -11,6 +11,7 @@ import { auditRoutes } from '../src/routes/audit.js'
 import { brandingRoutes } from '../src/routes/branding.js'
 import { layoutRoutes } from '../src/routes/layout.js'
 import { notificationRoutes } from '../src/routes/notifications.js'
+import { DEFAULT_BRANDING_COLORS } from '@bsp/shared'
 
 const dataDir = mkdtempSync(join(tmpdir(), 'bsp-admin-resources-'))
 process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
@@ -45,9 +46,19 @@ describe('branding and layout', () => {
   it('returns defaults and persists branding updates', async () => {
     const defaults = await app.inject({ url: '/branding' })
     assert.equal(defaults.json().siteName, 'Status Page')
-    const updated = await app.inject({ method: 'PATCH', url: '/branding', payload: { siteName: 'Acme Status', enabled: 1, primaryColor: '#112233' } })
+    for (const [field, value] of Object.entries(DEFAULT_BRANDING_COLORS)) {
+      assert.equal(defaults.json()[field], value)
+    }
+    const updated = await app.inject({ method: 'PATCH', url: '/branding', payload: { siteName: 'Acme Status', enabled: 1, primaryColor: '#112233', logoUrl: '/uploads/logo.png', logoLightUrl: '/uploads/logo-light.png', logoDarkUrl: '/uploads/logo-dark.png', chartBackground: '#223344', chartGridColor: '#334455', elevatedBackground: '#445566' } })
     assert.equal(updated.json().siteName, 'Acme Status')
-    assert.equal((await app.inject({ url: '/branding' })).json().primaryColor, '#112233')
+    const persisted = (await app.inject({ url: '/branding' })).json()
+    assert.equal(persisted.primaryColor, '#112233')
+    assert.equal(persisted.logoUrl, '/uploads/logo.png')
+    assert.equal(persisted.logoLightUrl, '/uploads/logo-light.png')
+    assert.equal(persisted.logoDarkUrl, '/uploads/logo-dark.png')
+    assert.equal(persisted.chartBackground, '#223344')
+    assert.equal(persisted.chartGridColor, '#334455')
+    assert.equal(persisted.elevatedBackground, '#445566')
     assert.equal((await db.select().from(auditLog)).some((entry) => entry.entityType === 'branding'), true)
   })
 

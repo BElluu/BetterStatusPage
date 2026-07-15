@@ -51,12 +51,12 @@ function ChartTooltip({ active, payload, hours }: { active?: boolean; payload?: 
     ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
     : d.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
 
-  const statusColor = b.status === 'down' ? '#ba1a1a' : b.status === 'degraded' ? '#854d0e' : '#166534'
+  const statusColor = b.status === 'down' ? 'var(--bsp-down)' : b.status === 'degraded' ? 'var(--bsp-degraded)' : 'var(--bsp-up)'
   const statusLabel = b.status === 'down' ? 'Down' : b.status === 'degraded' ? 'Degraded' : b.status === 'up' ? 'Up' : b.status ?? '—'
 
   return (
-    <div style={{
-      background: 'var(--m3-surface-container-high)',
+    <div className="bsp-chart-tooltip" style={{
+      background: 'var(--bsp-elevated-bg)',
       border: '1px solid var(--m3-outline-variant)',
       borderRadius: '10px',
       padding: '10px 13px',
@@ -143,7 +143,7 @@ export function ResponseTimeChart({ monitorId, hours, buckets, aggregation, show
   const tickStep = data ? Math.max(1, Math.floor(data.length / 5)) : 1
   const ticks = data?.filter((_, i) => i % tickStep === 0).map((b) => b.ts) ?? []
 
-  const chartColor = 'var(--m3-primary, #6366f1)'
+  const chartColor = 'var(--bsp-primary, #6366f1)'
 
   const commonProps = {
     data: data ?? [],
@@ -178,7 +178,7 @@ export function ResponseTimeChart({ monitorId, hours, buckets, aggregation, show
   const grid = (
     <CartesianGrid
       strokeDasharray="3 3"
-      stroke="var(--m3-outline-variant, #e2e8f0)"
+      stroke="var(--bsp-chart-grid, #e2e8f0)"
       vertical={false}
     />
   )
@@ -200,7 +200,7 @@ export function ResponseTimeChart({ monitorId, hours, buckets, aggregation, show
       <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{
           width: '100%', height: '100%',
-          background: 'var(--m3-surface-container)',
+          background: 'var(--bsp-chart-bg)',
           borderRadius: 8,
           animation: 'pulse 1.5s ease-in-out infinite',
         }} />
@@ -217,7 +217,7 @@ export function ResponseTimeChart({ monitorId, hours, buckets, aggregation, show
   }
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className="bsp-chart" style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       {title && (
         <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--m3-secondary)', marginBottom: 4, paddingLeft: 48, flexShrink: 0 }}>
           {title}

@@ -105,9 +105,12 @@ await app.register(staticFiles, {
 })
 
 // Security headers
-app.addHook('onSend', (_req, reply, _payload, done) => {
+app.addHook('onSend', (req, reply, _payload, done) => {
+  const [requestPath, query = ''] = req.url.split('?', 2)
+  const isBrandingPreview = requestPath === '/'
+    && new URLSearchParams(query).get('branding-preview') === '1'
   reply.header('X-Content-Type-Options', 'nosniff')
-  reply.header('X-Frame-Options', 'DENY')
+  reply.header('X-Frame-Options', isBrandingPreview ? 'SAMEORIGIN' : 'DENY')
   reply.header('Referrer-Policy', 'strict-origin-when-cross-origin')
   reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()')
   reply.header('Cross-Origin-Opener-Policy', 'same-origin')
@@ -115,7 +118,7 @@ app.addHook('onSend', (_req, reply, _payload, done) => {
     "default-src 'self'",
     "base-uri 'self'",
     "object-src 'none'",
-    "frame-ancestors 'none'",
+    isBrandingPreview ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
     "form-action 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",

@@ -22,10 +22,10 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
   const [expanded, setExpanded] = useState(false)
 
   const statusCfg: Record<string, { color: string; dotColor: string; badgeBg: string }> = {
-    investigating: { color: '#ba1a1a', dotColor: '#ba1a1a', badgeBg: 'rgba(186,26,26,0.08)' },
-    identified:    { color: '#eab308', dotColor: '#eab308', badgeBg: 'rgba(234,179,8,0.10)' },
-    monitoring:    { color: '#3980f4', dotColor: '#3980f4', badgeBg: 'rgba(57,128,244,0.10)' },
-    resolved:      { color: '#22c55e', dotColor: '#22c55e', badgeBg: 'rgba(34,197,94,0.10)' },
+    investigating: { color: 'var(--bsp-down)', dotColor: 'var(--bsp-down)', badgeBg: 'color-mix(in srgb, var(--bsp-down) 10%, transparent)' },
+    identified:    { color: 'var(--bsp-degraded)', dotColor: 'var(--bsp-degraded)', badgeBg: 'color-mix(in srgb, var(--bsp-degraded) 10%, transparent)' },
+    monitoring:    { color: 'var(--bsp-primary)', dotColor: 'var(--bsp-primary)', badgeBg: 'color-mix(in srgb, var(--bsp-primary) 10%, transparent)' },
+    resolved:      { color: 'var(--bsp-up)', dotColor: 'var(--bsp-up)', badgeBg: 'color-mix(in srgb, var(--bsp-up) 10%, transparent)' },
   }
 
   const statusLabels: Record<string, string> = {
@@ -48,6 +48,7 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
     const duration = incident.resolvedAt ? formatDuration(incident.startedAt, incident.resolvedAt) : null
     return (
       <div
+        className="bsp-incident-card"
         style={{
           borderBottom: '1px solid var(--m3-outline-variant)',
           borderRadius: '16px',
@@ -162,6 +163,7 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
   /* ── Active: full card ───────────────────────────────────────────── */
   return (
     <div
+      className="bsp-incident-card"
       style={{
         background: 'var(--m3-surface-container-low)',
         borderRadius: '2rem',
