@@ -466,6 +466,35 @@ docker compose up -d app
 
 ---
 
+## Recover access when 2FA is lost
+
+An administrator can reset 2FA for another user from **Admin → Users**. The action requires the administrator's current password and exact confirmation of the target email address. It removes only the target user's 2FA configuration, revokes all of their active sessions, and writes an audit entry. It does not change their password.
+
+An administrator cannot use this action on their own account. If the installation has only one administrator and both the authenticator and recovery codes are unavailable, use the emergency CLI from a trusted host. Access to the application host and data volume is the authority for this operation.
+
+Build the application before running the local CLI:
+
+```bash
+npm run build
+npm run 2fa:reset -w apps/api -- --email admin@example.com --confirm admin@example.com
+```
+
+Docker Compose:
+
+```bash
+docker compose exec app node apps/api/dist/cli/resetTwoFactor.js --email admin@example.com --confirm admin@example.com
+```
+
+If the application container is not running, use the same persistent data volume through a one-off container:
+
+```bash
+docker compose run --rm app node apps/api/dist/cli/resetTwoFactor.js --email admin@example.com --confirm admin@example.com
+```
+
+The confirmation must exactly match the email. A successful reset revokes every session for the account and records an `emergency_cli` entry in the audit log. Sign in with the existing password and configure 2FA again immediately.
+
+---
+
 ## Firewall
 
 Only expose port 443 (and 80 for redirect) to the internet. Keep the app port (3000) internal:

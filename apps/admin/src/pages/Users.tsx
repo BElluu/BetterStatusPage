@@ -3,12 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, getCurrentUser } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { CopyButton } from '../components/CopyButton'
+import { ResetTwoFactorModal } from '../components/ResetTwoFactorModal'
 
 interface User {
   id: number
   email: string
   role: string
   mustChangePassword: number
+  twoFactorEnabled: number
   createdAt: number
 }
 
@@ -25,7 +27,9 @@ export default function UsersPage() {
   const [createdUser, setCreatedUser] = useState<{ email: string; temporaryPassword: string } | null>(null)
   const [resetResult, setResetResult] = useState<{ email: string; temporaryPassword: string } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null)
+  const [twoFactorResetTarget, setTwoFactorResetTarget] = useState<User | null>(null)
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users'],
@@ -63,6 +67,17 @@ export default function UsersPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   })
 
+  const resetTwoFactorMutation = useMutation({
+    mutationFn: ({ id, currentPassword }: { id: number; currentPassword: string }) =>
+      api.post<{ twoFactorEnabled: false }>(`/admin/users/${id}/reset-2fa`, { currentPassword }),
+    onSuccess: (_data, variables) => {
+      const user = users.find((candidate) => candidate.id === variables.id)
+      setMessage(user ? `Two-factor authentication reset for ${user.email}.` : 'Two-factor authentication reset.')
+      setTwoFactorResetTarget(null)
+      qc.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
+
   const currentUser = getCurrentUser()
 
   return (
@@ -81,6 +96,12 @@ export default function UsersPage() {
           New User
         </button>
       </div>
+
+      {message && (
+        <div className="rounded-xl px-4 py-3 text-sm max-w-2xl" style={{ background: 'var(--m3-up-bg)', border: '1px solid color-mix(in srgb, var(--m3-up) 25%, transparent)', color: 'var(--m3-up)' }}>
+          {message}
+        </div>
+      )}
 
       {/* Create user form */}
       {showCreate && (
@@ -223,6 +244,7 @@ export default function UsersPage() {
                   )}
                 </td>
                 <td className="px-4 py-3">
+                  <div className="flex items-center gap-2 flex-wrap">
                   {user.mustChangePassword ? (
                     <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'rgba(234,179,8,0.12)', color: '#b45309' }}>
                       Temp password
@@ -232,12 +254,30 @@ export default function UsersPage() {
                       Active
                     </span>
                   )}
+                  {!!user.twoFactorEnabled && (
+                    <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface)' }}>2FA</span>
+                  )}
+                  </div>
                 </td>
                 <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
                   {new Date(user.createdAt).toLocaleDateString()}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1">
+                    {!!user.twoFactorEnabled && currentUser?.userId !== user.id && (
+                      <button
+                        type="button"
+                        onClick={() => { resetTwoFactorMutation.reset(); setTwoFactorResetTarget(user); setMessage('') }}
+                        title="Reset 2FA"
+                        aria-label={`Reset 2FA for ${user.email}`}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-xs"
+                        style={{ color: 'var(--m3-secondary)' }}
+                        onMouseEnter={(event) => { event.currentTarget.style.background = 'var(--m3-down-bg)'; event.currentTarget.style.color = 'var(--m3-down)' }}
+                        onMouseLeave={(event) => { event.currentTarget.style.background = ''; event.currentTarget.style.color = 'var(--m3-secondary)' }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>no_encryption</span>
+                      </button>
+                    )}
                     <button
                       onClick={() => resetMutation.mutate(user.id)}
                       title="Reset password"
@@ -282,6 +322,15 @@ export default function UsersPage() {
             setDeleteTarget(null)
           }}
           onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+      {twoFactorResetTarget && (
+        <ResetTwoFactorModal
+          email={twoFactorResetTarget.email}
+          pending={resetTwoFactorMutation.isPending}
+          {...(resetTwoFactorMutation.error ? { error: resetTwoFactorMutation.error instanceof Error ? resetTwoFactorMutation.error.message : 'Failed to reset two-factor authentication' } : {})}
+          onConfirm={(currentPassword) => resetTwoFactorMutation.mutate({ id: twoFactorResetTarget.id, currentPassword })}
+          onCancel={() => { if (!resetTwoFactorMutation.isPending) setTwoFactorResetTarget(null) }}
         />
       )}
     </div>
