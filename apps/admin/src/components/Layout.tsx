@@ -41,6 +41,7 @@ export default function Layout() {
         { to: '/admin/vault',     label: 'Vault',     icon: 'shield_lock',  minRole: 'admin' },
         { to: '/admin/audit-log', label: 'Audit Log', icon: 'policy',       minRole: 'admin' },
         { to: '/admin/backups',   label: 'Backups',   icon: 'backup',       minRole: 'admin' },
+        { to: '/admin/system-health', label: 'System Health', icon: 'monitor_heart', minRole: 'admin' },
       ],
     },
   ]

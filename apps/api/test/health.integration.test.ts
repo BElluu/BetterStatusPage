@@ -39,7 +39,7 @@ describe('health endpoints', () => {
 
     const beforeSetup = await app.inject('/ready')
     assert.equal(beforeSetup.statusCode, 503)
-    assert.deepEqual(beforeSetup.json(), { status: 'not_ready', reason: 'setup_required' })
+    assert.deepEqual(beforeSetup.json(), { status: 'not_ready' })
 
     initDb()
     runMigrations()

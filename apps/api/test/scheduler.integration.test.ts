@@ -13,7 +13,7 @@ import {
 } from '../src/db/schema.js'
 import { sseService } from '../src/services/sse.service.js'
 import {
-  getDueMonitors, isInMaintenance, purgeOldResults, runCheck, runSchedulerTick,
+  getDueMonitors, getSchedulerHealth, isInMaintenance, purgeOldResults, runCheck, runSchedulerTick,
 } from '../src/workers/scheduler.js'
 
 const dataDir = mkdtempSync(join(tmpdir(), 'bsp-scheduler-test-'))
@@ -142,6 +142,13 @@ describe('scheduler orchestration', () => {
 
     assert.equal(checked, 25)
     assert.equal(maxActive, 7)
+    const health = getSchedulerHealth()
+    assert.equal(health.lastDueMonitors, 25)
+    assert.equal(health.lastFailedChecks, 0)
+    assert.equal(health.lastTickFailed, false)
+    assert.ok(health.lastStartedAt)
+    assert.ok(health.lastCompletedAt)
+    assert.ok(health.lastDurationMs !== null)
   })
 
   it('purges results older than 90 days', async () => {
