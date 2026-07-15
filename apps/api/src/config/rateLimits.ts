@@ -7,6 +7,12 @@ export const LOGIN_RATE_LIMIT = {
   timeWindow: '15 minutes',
 }
 
+export const SENSITIVE_ACTION_RATE_LIMIT = {
+  groupId: 'sensitive-action',
+  max: 5,
+  timeWindow: '15 minutes',
+}
+
 export const SETUP_RATE_LIMIT = {
   groupId: 'setup',
   max: 5,
