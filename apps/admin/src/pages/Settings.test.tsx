@@ -82,6 +82,8 @@ describe('SettingsPage security flows', () => {
     twoFactor = section('Two-factor authentication')
     expect(await twoFactor.findByText('recovery-1')).toBeInTheDocument()
     expect(twoFactor.getByText('recovery-2')).toBeInTheDocument()
+    await user.click(twoFactor.getByRole('button', { name: /Copy codes/ }))
+    expect(twoFactor.getByRole('button', { name: /Copied!/ })).toBeInTheDocument()
     expect(api.post).toHaveBeenNthCalledWith(2, '/auth/2fa/enable', { setupToken: 'setup-token', code: '123456' })
     expect(setSession).toHaveBeenCalledWith({ ...currentUser, twoFactorEnabled: true })
   })

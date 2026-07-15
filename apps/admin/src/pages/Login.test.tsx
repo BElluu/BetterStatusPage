@@ -45,12 +45,16 @@ describe('LoginPage two-factor flow', () => {
 
     await user.type(screen.getByLabelText('Email'), 'admin@example.test')
     await user.type(screen.getByLabelText('Password'), 'password')
-    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    const signIn = screen.getByRole('button', { name: 'Sign in' })
+    expect(signIn).toHaveClass('btn-primary')
+    await user.click(signIn)
 
     expect(await screen.findByLabelText('Authentication code')).toBeInTheDocument()
     expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
     await user.type(screen.getByLabelText('Authentication code'), '123456')
-    await user.click(screen.getByRole('button', { name: 'Verify & sign in' }))
+    const verify = screen.getByRole('button', { name: 'Verify & sign in' })
+    expect(verify).toHaveClass('btn-primary')
+    await user.click(verify)
 
     await waitFor(() => expect(setSession).toHaveBeenCalledWith(authenticatedUser))
     expect(screen.getByText('Admin home')).toBeInTheDocument()
