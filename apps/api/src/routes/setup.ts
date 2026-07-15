@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import bcrypt from 'bcryptjs'
+import { DEFAULT_BRANDING_COLORS } from '@bsp/shared'
 import { isSetupComplete, writeSetupComplete } from '../config.js'
 import { initDb, db } from '../db/client.js'
 import { runMigrations } from '../db/migrate.js'
@@ -57,7 +58,7 @@ export async function setupRoutes(app: FastifyInstance, options: SetupRouteOptio
         if (hasBranding.length === 0) {
           await db.insert(branding).values({
             id: 1, siteName: 'My Status Page',
-            primaryColor: '#6366f1', accentColor: '#f59e0b', updatedAt: Date.now(),
+            primaryColor: DEFAULT_BRANDING_COLORS.primaryColor, accentColor: DEFAULT_BRANDING_COLORS.accentColor, updatedAt: Date.now(),
           })
         }
         const hasLayout = await db.select({ id: layout.id }).from(layout)

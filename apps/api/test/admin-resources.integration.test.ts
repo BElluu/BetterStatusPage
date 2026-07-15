@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
+import multipart from '@fastify/multipart'
 import { db, initDb, sqlite } from '../src/db/client.js'
 import { runMigrations } from '../src/db/migrate.js'
 import { auditLog, monitors, notificationDeliveries } from '../src/db/schema.js'
@@ -11,9 +12,11 @@ import { auditRoutes } from '../src/routes/audit.js'
 import { brandingRoutes } from '../src/routes/branding.js'
 import { layoutRoutes } from '../src/routes/layout.js'
 import { notificationRoutes } from '../src/routes/notifications.js'
+import { DEFAULT_BRANDING_COLORS } from '@bsp/shared'
 
 const dataDir = mkdtempSync(join(tmpdir(), 'bsp-admin-resources-'))
 process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+process.env['UPLOAD_DIR'] = join(dataDir, 'uploads')
 const app = Fastify({ logger: false })
 let monitorId = 0
 
@@ -28,6 +31,7 @@ before(async () => {
   app.addHook('preHandler', async (request) => {
     request.user = { userId: 1, email: 'admin@example.test', role: 'admin' }
   })
+  await app.register(multipart)
   await app.register(brandingRoutes, { prefix: '/branding' })
   await app.register(layoutRoutes, { prefix: '/layout' })
   await app.register(notificationRoutes, { prefix: '/notifications' })
@@ -45,10 +49,46 @@ describe('branding and layout', () => {
   it('returns defaults and persists branding updates', async () => {
     const defaults = await app.inject({ url: '/branding' })
     assert.equal(defaults.json().siteName, 'Status Page')
-    const updated = await app.inject({ method: 'PATCH', url: '/branding', payload: { siteName: 'Acme Status', enabled: 1, primaryColor: '#112233' } })
+    for (const [field, value] of Object.entries(DEFAULT_BRANDING_COLORS)) {
+      assert.equal(defaults.json()[field], value)
+    }
+    const updated = await app.inject({ method: 'PATCH', url: '/branding', payload: { siteName: 'Acme Status', enabled: 1, primaryColor: '#112233', logoUrl: '/uploads/logo.png', logoLightUrl: '/uploads/logo-light.png', logoDarkUrl: '/uploads/logo-dark.png', chartBackground: '#223344', chartGridColor: '#334455', elevatedBackground: '#445566' } })
     assert.equal(updated.json().siteName, 'Acme Status')
-    assert.equal((await app.inject({ url: '/branding' })).json().primaryColor, '#112233')
+    const persisted = (await app.inject({ url: '/branding' })).json()
+    assert.equal(persisted.primaryColor, '#112233')
+    assert.equal(persisted.logoUrl, '/uploads/logo.png')
+    assert.equal(persisted.logoLightUrl, '/uploads/logo-light.png')
+    assert.equal(persisted.logoDarkUrl, '/uploads/logo-dark.png')
+    assert.equal(persisted.chartBackground, '#223344')
+    assert.equal(persisted.chartGridColor, '#334455')
+    assert.equal(persisted.elevatedBackground, '#445566')
     assert.equal((await db.select().from(auditLog)).some((entry) => entry.entityType === 'branding'), true)
+  })
+
+  it('replaces obsolete logo files and removes unreferenced uploads', async () => {
+    async function upload(url: string, filename: string, contentType: string, bytes: number[]) {
+      const boundary = '----bsp-test-boundary'
+      const before = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${contentType}\r\n\r\n`)
+      const after = Buffer.from(`\r\n--${boundary}--\r\n`)
+      return app.inject({
+        method: 'POST',
+        url,
+        headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+        payload: Buffer.concat([before, Buffer.from(bytes), after]),
+      })
+    }
+
+    const png = await upload('/branding/logo/light', 'light.png', 'image/png', [0x89, 0x50, 0x4e, 0x47])
+    assert.equal(png.statusCode, 200)
+    assert.equal(existsSync(join(dataDir, 'uploads', 'logo-light.png')), true)
+
+    const jpeg = await upload('/branding/logo/light', 'light.jpg', 'image/jpeg', [0xff, 0xd8, 0xff])
+    assert.equal(jpeg.statusCode, 200)
+    assert.equal(existsSync(join(dataDir, 'uploads', 'logo-light.jpg')), true)
+    assert.equal(existsSync(join(dataDir, 'uploads', 'logo-light.png')), false)
+
+    await app.inject({ method: 'PATCH', url: '/branding', payload: { logoLightUrl: null } })
+    assert.equal(existsSync(join(dataDir, 'uploads', 'logo-light.jpg')), false)
   })
 
   it('creates and replaces the page layout', async () => {

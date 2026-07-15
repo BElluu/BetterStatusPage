@@ -51,6 +51,7 @@
   /* BSP branding aliases — map to M3 defaults */
   --bsp-bg:          var(--m3-surface);
   --bsp-card-bg:     var(--m3-surface-container-low);
+  --bsp-elevated-bg: var(--m3-surface-container-high);
   --bsp-card-border: var(--m3-outline-variant);
   --bsp-text:        var(--m3-on-surface);
   --bsp-text-muted:  var(--m3-secondary);
@@ -59,6 +60,8 @@
   --bsp-up:          var(--m3-up-bar);
   --bsp-down:        var(--m3-down);
   --bsp-degraded:    var(--m3-degraded-bar);
+  --bsp-chart-bg:    var(--m3-surface-container-low);
+  --bsp-chart-grid:  var(--m3-outline-variant);
 
   --color-primary: var(--bsp-primary);
   --color-accent:  var(--bsp-accent);
@@ -131,6 +134,10 @@ body {
   background: var(--bsp-card-bg);
   border: 1px solid var(--bsp-card-border);
   border-radius: 16px;
+}
+.bsp-chart-card {
+  background: var(--bsp-chart-bg);
+  border-color: var(--bsp-card-border);
 }
 .bsp-monitor-name  { color: var(--bsp-text); }
 .bsp-group-label   { color: var(--bsp-text); }
