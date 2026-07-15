@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSSE } from './hooks/useSSE'
 import { useDarkMode } from './hooks/useDarkMode'
 import { useLocale } from './i18n/LocaleContext'
@@ -46,11 +46,56 @@ function hasIncidentsBlock(nodes: LayoutNode[]): boolean {
   return nodes.some((node) => node.type === 'incidents')
 }
 
+export function resolveBrandingLogoUrl(branding: Branding | null | undefined, isDark: boolean, brandingEnabled: boolean): string | null {
+  if (!branding) return null
+  if (brandingEnabled) return branding.logoUrl
+  return (isDark ? branding.logoDarkUrl : branding.logoLightUrl) ?? branding.logoUrl
+}
+
+export function resolveBrandingPalette(branding: Branding) {
+  return {
+    primaryColor: branding.primaryColor,
+    accentColor: branding.accentColor,
+    backgroundColor: branding.backgroundColor,
+    cardBackground: branding.cardBackground,
+    elevatedBackground: branding.elevatedBackground,
+    cardBorderColor: branding.cardBorderColor,
+    textColor: branding.textColor,
+    textMutedColor: branding.textMutedColor,
+    statusUpColor: branding.statusUpColor,
+    statusDownColor: branding.statusDownColor,
+    statusDegradedColor: branding.statusDegradedColor,
+    chartBackground: branding.chartBackground,
+    chartGridColor: branding.chartGridColor,
+  }
+}
+
+export function resolveBrandingCustomCss(branding: Branding | null | undefined): string | null {
+  return branding?.enabled ? branding.customCss : null
+}
+
 export default function App() {
   const qc = useQueryClient()
-  const [isDark, toggleDark] = useDarkMode()
+  const [savedDarkMode, toggleDark] = useDarkMode()
+  const previewMode = new URLSearchParams(window.location.search).get('branding-preview') === '1'
+  const [brandingPreview, setBrandingPreview] = useState<Branding | null>(null)
   const [eventsTab, setEventsTab] = useState<'active' | 'history'>('active')
   const { t } = useLocale()
+
+  useEffect(() => {
+    if (!previewMode || window.parent === window) return
+    const receivePreview = (event: MessageEvent) => {
+      if (event.source !== window.parent) return
+      const isLocalAdmin = window.location.port === '5174' && /^https?:\/\/(localhost|127\.0\.0\.1):5173$/.test(event.origin)
+      if (event.origin !== window.location.origin && !isLocalAdmin) return
+      const data = event.data as { type?: string; branding?: Branding }
+      if (data.type !== 'bsp:branding-preview' || !data.branding || typeof data.branding.siteName !== 'string') return
+      setBrandingPreview(data.branding)
+    }
+    window.addEventListener('message', receivePreview)
+    window.parent.postMessage({ type: 'bsp:branding-preview-ready' }, '*')
+    return () => window.removeEventListener('message', receivePreview)
+  }, [previewMode])
 
   const handleIncidentChange = useCallback(() => {
     qc.invalidateQueries({ queryKey: ['public-status'] })
@@ -75,7 +120,7 @@ export default function App() {
     queryFn: () => fetch('/api/v1/public/incidents?limit=10').then((r) => r.json()),
   })
 
-  const branding = layoutData?.branding ?? status?.branding
+  const branding = brandingPreview ?? layoutData?.branding ?? status?.branding
   const tree = layoutData?.tree
   const monitors = status?.monitors ?? EMPTY_MONITORS
   const activeIncidents = status?.activeIncidents ?? []
@@ -116,6 +161,12 @@ export default function App() {
   const layoutHasIncidents = tree ? hasIncidentsBlock(tree.children) : false
 
   const brandingEnabled = !!(branding?.enabled)
+  const isDark = brandingEnabled ? false : savedDarkMode
+  const brandingPalette = brandingEnabled ? resolveBrandingPalette(branding!) : null
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDark)
+  }, [isDark])
 
   const allUp = visibleMonitors.length === 0 || visibleMonitors.every((m) => m.currentStatus === 'up' || m.currentStatus === 'pending')
   const allDown = visibleMonitors.length > 0 && visibleMonitors.every((m) => m.currentStatus === 'down' || m.currentStatus === 'affected')
@@ -136,54 +187,67 @@ export default function App() {
     : t('overall.checking')
 
   const overallColor = allDown
-    ? (brandingEnabled ? branding!.statusDownColor : '#ba1a1a')
+    ? (brandingPalette?.statusDownColor ?? '#ba1a1a')
     : hasActiveIncidents
-    ? '#eab308'
+    ? (brandingPalette?.statusDegradedColor ?? '#eab308')
     : someDown
-    ? (brandingEnabled ? branding!.statusDownColor : '#ea580c')
+    ? (brandingPalette?.statusDownColor ?? '#ea580c')
     : anyDegraded
-    ? (brandingEnabled ? branding!.statusDegradedColor : '#eab308')
-    : (brandingEnabled ? branding!.statusUpColor : '#22c55e')
+    ? (brandingPalette?.statusDegradedColor ?? '#eab308')
+    : (brandingPalette?.statusUpColor ?? '#22c55e')
 
   const resolvedIncidents = incidents.filter((i) => i.status === 'resolved')
 
   const cssVars: React.CSSProperties = brandingEnabled ? {
-    '--bsp-bg': branding!.backgroundColor,
-    '--bsp-card-bg': branding!.cardBackground,
-    '--bsp-card-border': branding!.cardBorderColor,
-    '--bsp-text': branding!.textColor,
-    '--bsp-text-muted': branding!.textMutedColor,
-    '--bsp-primary': branding!.primaryColor,
-    '--bsp-accent': branding!.accentColor,
-    '--bsp-up': branding!.statusUpColor,
-    '--bsp-down': branding!.statusDownColor,
-    '--bsp-degraded': branding!.statusDegradedColor,
-    '--color-primary': branding!.primaryColor,
-    '--color-accent': branding!.accentColor,
+    '--bsp-bg': brandingPalette!.backgroundColor,
+    '--bsp-card-bg': brandingPalette!.cardBackground,
+    '--bsp-elevated-bg': brandingPalette!.elevatedBackground,
+    '--bsp-card-border': brandingPalette!.cardBorderColor,
+    '--bsp-text': brandingPalette!.textColor,
+    '--bsp-text-muted': brandingPalette!.textMutedColor,
+    '--bsp-primary': brandingPalette!.primaryColor,
+    '--bsp-accent': brandingPalette!.accentColor,
+    '--bsp-up': brandingPalette!.statusUpColor,
+    '--bsp-down': brandingPalette!.statusDownColor,
+    '--bsp-degraded': brandingPalette!.statusDegradedColor,
+    '--bsp-chart-bg': brandingPalette!.chartBackground,
+    '--bsp-chart-grid': brandingPalette!.chartGridColor,
+    '--color-primary': brandingPalette!.primaryColor,
+    '--color-accent': brandingPalette!.accentColor,
+    '--m3-surface': brandingPalette!.backgroundColor,
+    '--m3-surface-container-lowest': brandingPalette!.cardBackground,
+    '--m3-surface-container-low': brandingPalette!.cardBackground,
+    '--m3-surface-container': brandingPalette!.elevatedBackground,
+    '--m3-surface-container-high': brandingPalette!.elevatedBackground,
+    '--m3-surface-container-highest': brandingPalette!.elevatedBackground,
+    '--m3-on-surface': brandingPalette!.textColor,
+    '--m3-secondary': brandingPalette!.textMutedColor,
+    '--m3-outline-variant': brandingPalette!.cardBorderColor,
+    '--m3-primary': brandingPalette!.primaryColor,
+    '--m3-on-primary-container': brandingPalette!.accentColor,
   } as React.CSSProperties : {}
 
   const brandingStyles = brandingEnabled ? `
-.bsp-monitor-card { background: ${branding!.cardBackground}; border: 1px solid ${branding!.cardBorderColor}; border-radius: 16px; overflow: hidden; }
-.bsp-group-card { background: ${branding!.cardBackground}; border: 1px solid ${branding!.cardBorderColor}; border-radius: 16px; }
-.bsp-divider { border-top-color: ${branding!.cardBorderColor}; }
-.bsp-footer { color: ${branding!.textMutedColor}; border-top-color: ${branding!.cardBorderColor}; }
-.bsp-text-block { color: ${branding!.textMutedColor}; }
-.bsp-monitor-name { color: ${branding!.textColor}; }
-.bsp-group-label { color: ${branding!.textColor}; }
-.bsp-site-name { color: ${branding!.textColor}; }
+.bsp-monitor-card, .bsp-group-card { background: var(--bsp-card-bg); border-color: var(--bsp-card-border); }
+.bsp-chart-card { background: var(--bsp-chart-bg); border-color: var(--bsp-card-border); }
+.bsp-divider { border-top-color: var(--bsp-card-border); }
+.bsp-footer, .bsp-text-block { color: var(--bsp-text-muted); }
+.bsp-monitor-name, .bsp-group-label, .bsp-site-name { color: var(--bsp-text); }
 ` : ''
 
   const siteName = branding?.siteName || 'Status Page'
+  const imageLogoUrl = resolveBrandingLogoUrl(branding, isDark, brandingEnabled)
+  const customCss = resolveBrandingCustomCss(branding)
   document.title = siteName
 
   return (
-    <div className="bsp-page" style={{ ...cssVars, background: 'var(--m3-surface)', minHeight: '100vh' }}>
+    <div className="bsp-page" style={{ ...cssVars, background: 'var(--bsp-bg)', minHeight: '100vh' }}>
       {brandingStyles && <style>{brandingStyles}</style>}
-      {branding?.customCss && <style>{branding.customCss}</style>}
+      {customCss && <style>{customCss}</style>}
 
       {/* ── Top Navigation ── */}
-      <header style={{ background: 'var(--m3-surface)', position: 'sticky', top: 0, zIndex: 50 }}>
-        <nav className="flex justify-between items-center px-8 py-5 max-w-[1440px] mx-auto">
+      <header className="bsp-header" style={{ background: 'var(--bsp-bg)', position: 'sticky', top: 0, zIndex: 50 }}>
+        <nav className="bsp-navigation flex justify-between items-center px-8 py-5 max-w-[1440px] mx-auto">
           {/* Logo */}
           <div className="flex items-center">
             {branding?.logoType === 'text' && branding.logoText ? (
@@ -193,8 +257,8 @@ export default function App() {
               >
                 {branding.logoText}
               </span>
-            ) : branding?.logoUrl ? (
-              <img src={branding.logoUrl} alt={siteName} style={{ height: '40px', maxWidth: '200px', objectFit: 'contain' }} />
+            ) : imageLogoUrl ? (
+              <img src={imageLogoUrl} alt={siteName} style={{ height: '40px', maxWidth: '200px', objectFit: 'contain' }} />
             ) : (
               <img
                 src={isDark ? '/logo_dark.png' : '/logo_light.png'}
@@ -227,7 +291,7 @@ export default function App() {
 
       {/* ── Maintenance Banner ── */}
       {activeMaintenanceWindows.length > 0 && (
-        <div style={{ background: 'var(--bsp-maintenance-bg)', borderBottom: '1px solid var(--bsp-maintenance-border)' }}>
+        <div className="bsp-maintenance-banner" style={{ background: 'var(--bsp-maintenance-bg)', borderBottom: '1px solid var(--bsp-maintenance-border)' }}>
           <div className="max-w-[1440px] mx-auto px-8 py-3 flex flex-col gap-2">
             {activeMaintenanceWindows.map((win) => (
               <div key={win.id} className="flex items-start gap-3">
@@ -247,12 +311,12 @@ export default function App() {
         </div>
       )}
 
-      <main className="max-w-[1440px] mx-auto px-8" id="status">
+      <main className="bsp-content max-w-[1440px] mx-auto px-8" id="status">
 
         {/* ── Hero ── */}
         <section className="py-20 flex flex-col items-center text-center fade-up" style={{ animationDelay: '0ms' }}>
           <div
-            className="inline-flex items-center gap-3 px-4 py-2 rounded-full mb-8"
+            className="bsp-status-banner inline-flex items-center gap-3 px-4 py-2 rounded-full mb-8"
             style={{ background: 'var(--m3-surface-container-high)' }}
           >
             <span className="w-2.5 h-2.5 rounded-full animate-pulse" style={{ background: overallColor }} />
@@ -265,7 +329,7 @@ export default function App() {
             className="font-headline font-extrabold tracking-tight leading-[1.02] mb-6"
             style={{
               fontSize: 'clamp(2.5rem, 7vw, 5.5rem)',
-              color: brandingEnabled ? branding!.textColor : 'var(--m3-on-surface)',
+              color: brandingPalette?.textColor ?? 'var(--m3-on-surface)',
             }}
           >
             {overallStatus}
@@ -301,7 +365,7 @@ export default function App() {
 
         {/* ── Events Section (shown only when layout is not yet configured) ── */}
         {tree === undefined && (activeIncidents.length > 0 || resolvedIncidents.length > 0) && (
-          <section className="mb-32 fade-up" id="events" style={{ animationDelay: '160ms' }}>
+          <section className="bsp-incidents-section mb-32 fade-up" id="events" style={{ animationDelay: '160ms' }}>
             {/* Section header + tabs */}
             <div className="flex items-center justify-between mb-12">
               <h2 className="font-headline text-3xl font-extrabold tracking-tight" style={{ color: 'var(--m3-on-surface)' }}>
@@ -346,7 +410,7 @@ export default function App() {
                     className="p-12 rounded-xl text-center"
                     style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}
                   >
-                    <span className="material-symbols-outlined block mb-3" style={{ fontSize: '32px', color: '#22c55e' }}>
+                    <span className="material-symbols-outlined block mb-3" style={{ fontSize: '32px', color: 'var(--bsp-up)' }}>
                       check_circle
                     </span>
                     <p className="font-sans font-medium" style={{ color: 'var(--m3-secondary)' }}>
@@ -386,7 +450,11 @@ export default function App() {
             borderTop: '0',
           }}
         >
-          <img src={isDark ? '/logo_dark.png' : '/logo_light.png'} alt={siteName} style={{ height: '80px', objectFit: 'contain', margin: '0 auto 16px', opacity: 0.75 }} />
+          {branding?.logoType === 'text' && branding.logoText ? (
+            <span className="bsp-site-name font-headline font-extrabold block mb-4" style={{ fontSize: '22px' }}>{branding.logoText}</span>
+          ) : (
+            <img src={imageLogoUrl ?? (isDark ? '/logo_dark.png' : '/logo_light.png')} alt={siteName} style={{ height: '80px', maxWidth: '260px', objectFit: 'contain', margin: '0 auto 16px', opacity: 0.75 }} />
+          )}
           <p className="text-xs uppercase tracking-widest">{siteName}</p>
         </footer>
       </main>
@@ -412,12 +480,12 @@ function ServiceCard({
   const isDegraded = monitor.currentStatus === 'degraded'
 
   const statusLabel = isUp ? t('status.operational') : isDown ? t('status.outage') : isDegraded ? t('status.degraded') : t('status.checking')
-  const statusBg    = isUp ? 'rgba(34,197,94,0.1)'  : isDown ? '#ffdad6' : isDegraded ? 'rgba(234,179,8,0.12)' : 'var(--m3-surface-container)'
-  const statusColor = isUp ? '#166534' : isDown ? '#ba1a1a' : isDegraded ? '#854d0e' : 'var(--m3-secondary)'
+  const statusColor = isUp ? 'var(--bsp-up)' : isDown ? 'var(--bsp-down)' : isDegraded ? 'var(--bsp-degraded)' : 'var(--m3-secondary)'
+  const statusBg    = isUp || isDown || isDegraded ? `color-mix(in srgb, ${statusColor} 12%, transparent)` : 'var(--m3-surface-container)'
 
   // Generate 40 uptime bars — color from current status
-  const barColor = isDown ? '#ba1a1a' : isDegraded ? '#eab308' : '#22c55e'
-  const barColorLight = isDown ? '#f28b82' : isDegraded ? '#fcd34d' : '#4ade80'
+  const barColor = statusColor
+  const barColorLight = `color-mix(in srgb, ${statusColor} 55%, white)`
 
   return (
     <div

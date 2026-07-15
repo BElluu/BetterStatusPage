@@ -2,6 +2,7 @@ import 'dotenv/config'
 import bcrypt from 'bcryptjs'
 import { db } from './client.js'
 import { users, branding, layout } from './schema.js'
+import { DEFAULT_BRANDING_COLORS } from '@bsp/shared'
 
 const email = process.env['ADMIN_EMAIL']
 const password = process.env['ADMIN_PASSWORD']
@@ -29,8 +30,8 @@ if (existingBranding.length === 0) {
   await db.insert(branding).values({
     id: 1,
     siteName: 'My Status Page',
-    primaryColor: '#6366f1',
-    accentColor: '#f59e0b',
+    primaryColor: DEFAULT_BRANDING_COLORS.primaryColor,
+    accentColor: DEFAULT_BRANDING_COLORS.accentColor,
     updatedAt: Date.now(),
   })
   console.log('✓ Created default branding')
