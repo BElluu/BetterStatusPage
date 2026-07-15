@@ -17,6 +17,7 @@ import { userRoutes } from '../src/routes/users.js'
 import { vaultRoutes } from '../src/routes/vaults.js'
 import { resolveVaultSecret } from '../src/workers/resolveSecret.js'
 import { generateTotpCode } from '../src/crypto/totp.js'
+import { systemHealthRoutes } from '../src/routes/systemHealth.js'
 
 const dataDir = mkdtempSync(join(tmpdir(), 'bsp-security-test-'))
 process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
@@ -57,6 +58,7 @@ before(async () => {
       adminApp.addHook('preHandler', requireRole())
       adminApp.register(userRoutes, { prefix: '/users' })
       adminApp.register(vaultRoutes, { prefix: '/vaults' })
+      adminApp.register(systemHealthRoutes, { prefix: '/system-health' })
     })
   }, { prefix: '/admin' })
   await app.ready()
@@ -165,6 +167,23 @@ describe('user administration', () => {
     assert.equal((await app.inject({ method: 'POST', url: '/auth/login', payload: { email: user.email, password: 'permanent-password' } })).statusCode, 401)
 
     assert.equal((await app.inject({ method: 'DELETE', url: `/admin/users/${user.id}`, headers: adminHeaders })).statusCode, 200)
+  })
+})
+
+describe('system health administration', () => {
+  it('is restricted to administrators and does not expose raw internal errors', async () => {
+    assert.equal((await app.inject({ url: '/admin/system-health', headers: operatorHeaders })).statusCode, 403)
+
+    const response = await app.inject({ url: '/admin/system-health', headers: adminHeaders })
+    assert.equal(response.statusCode, 200)
+    const report = response.json()
+    assert.match(report.status, /^(healthy|degraded)$/)
+    assert.equal(typeof report.application.version, 'string')
+    assert.ok(report.application.version.length > 0)
+    assert.equal(typeof report.application.uptimeSeconds, 'number')
+    assert.equal(typeof report.database.responseMs, 'number')
+    assert.equal('lastError' in report.backups, false)
+    assert.equal('lastFilename' in report.backups, false)
   })
 })
 

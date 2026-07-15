@@ -101,14 +101,29 @@ export async function runSchedulerTick(
   run: (monitor: MonitorRow) => Promise<unknown> = runCheck,
   config: SchedulerConfig = getSchedulerConfig(),
 ) {
-  const now = Date.now()
-  const allMonitors = await db.select().from(monitors)
-  const due = getDueMonitors(allMonitors, now)
-  if (due.length === 0) return
+  const startedAt = Date.now()
+  schedulerHealth.lastStartedAt = startedAt
+  try {
+    const allMonitors = await db.select().from(monitors)
+    const due = getDueMonitors(allMonitors, startedAt)
+    let failedChecks = 0
 
-  for (let i = 0; i < due.length; i += config.checkConcurrency) {
-    const chunk = due.slice(i, i + config.checkConcurrency)
-    await Promise.allSettled(chunk.map(run))
+    for (let i = 0; i < due.length; i += config.checkConcurrency) {
+      const chunk = due.slice(i, i + config.checkConcurrency)
+      const results = await Promise.allSettled(chunk.map(run))
+      failedChecks += results.filter((result) => result.status === 'rejected').length
+    }
+
+    schedulerHealth.lastCompletedAt = Date.now()
+    schedulerHealth.lastDurationMs = schedulerHealth.lastCompletedAt - startedAt
+    schedulerHealth.lastDueMonitors = due.length
+    schedulerHealth.lastFailedChecks = failedChecks
+    schedulerHealth.lastTickFailed = false
+  } catch (error) {
+    schedulerHealth.lastCompletedAt = Date.now()
+    schedulerHealth.lastDurationMs = schedulerHealth.lastCompletedAt - startedAt
+    schedulerHealth.lastTickFailed = true
+    throw error
   }
 }
 
@@ -120,6 +135,30 @@ export async function purgeOldResults(now = Date.now(), config: SchedulerConfig 
 
 const tasks: ScheduledTask[] = []
 
+export interface SchedulerHealth {
+  running: boolean
+  lastStartedAt: number | null
+  lastCompletedAt: number | null
+  lastDurationMs: number | null
+  lastDueMonitors: number
+  lastFailedChecks: number
+  lastTickFailed: boolean
+}
+
+const schedulerHealth: SchedulerHealth = {
+  running: false,
+  lastStartedAt: null,
+  lastCompletedAt: null,
+  lastDurationMs: null,
+  lastDueMonitors: 0,
+  lastFailedChecks: 0,
+  lastTickFailed: false,
+}
+
+export function getSchedulerHealth(): SchedulerHealth {
+  return { ...schedulerHealth }
+}
+
 export function startScheduler(config: SchedulerConfig = getSchedulerConfig()): void {
   if (tasks.length > 0) return
   tasks.push(cron.schedule(config.tickCron, () => {
@@ -128,9 +167,11 @@ export function startScheduler(config: SchedulerConfig = getSchedulerConfig()): 
   tasks.push(cron.schedule(config.resultPurgeCron, () => {
     purgeOldResults(undefined, config).catch(console.error)
   }))
+  schedulerHealth.running = true
   console.log('[scheduler] Started')
 }
 
 export function stopScheduler(): void {
   for (const task of tasks.splice(0)) task.destroy()
+  schedulerHealth.running = false
 }
