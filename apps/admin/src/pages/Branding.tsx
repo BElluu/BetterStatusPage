@@ -131,7 +131,8 @@ export default function BrandingPage() {
         ...(form.logoLightUrl === null ? { logoLightUrl: null } : {}),
         ...(form.logoDarkUrl === null ? { logoDarkUrl: null } : {}),
       })
-      for (const slot of Object.keys(logoFiles) as LogoSlot[]) {
+      const activeLogoSlots: LogoSlot[] = form.enabled ? ['custom'] : ['light', 'dark']
+      for (const slot of activeLogoSlots) {
         const file = logoFiles[slot]
         if (!file) continue
         const data = new FormData()
@@ -165,6 +166,21 @@ export default function BrandingPage() {
     selectLogo(slot, null)
     const field = LOGO_FIELDS[slot]
     setForm((current) => ({ ...current, [field]: null }))
+  }
+
+  function toggleBranding() {
+    const enabled = !form.enabled
+    const resetSlots: LogoSlot[] = enabled ? ['light', 'dark'] : ['custom']
+    setLogoFiles((current) => ({ ...current, ...Object.fromEntries(resetSlots.map((slot) => [slot, null])) }))
+    setLogoPreviews((current) => ({ ...current, ...Object.fromEntries(resetSlots.map((slot) => [slot, null])) }))
+    setForm((current) => ({
+      ...current,
+      enabled,
+      ...(enabled
+        ? { logoLightUrl: branding?.logoLightUrl, logoDarkUrl: branding?.logoDarkUrl }
+        : { logoUrl: branding?.logoUrl }),
+    }))
+    setCssEditorOpen(false)
   }
 
   const set = (key: keyof BrandingForm) => (value: string) => setForm((current) => ({ ...current, [key]: value }))
@@ -205,7 +221,7 @@ export default function BrandingPage() {
 
           <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: form.enabled ? 'rgba(34,197,94,0.08)' : 'var(--m3-surface-container)', border: `1px solid ${form.enabled ? 'rgba(34,197,94,0.3)' : 'var(--m3-outline-variant)'}` }}>
             <div><p className="text-sm font-semibold">Custom branding</p><p className="text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>{form.enabled ? 'Custom colors are active' : 'Default project colors are in use'}</p></div>
-            <button type="button" aria-label="Custom branding" aria-pressed={form.enabled} onClick={() => { setForm((current) => ({ ...current, enabled: !current.enabled })); setCssEditorOpen(false) }} className="relative flex-shrink-0 w-12 h-6 rounded-full transition-colors" style={{ background: form.enabled ? '#22c55e' : 'var(--m3-outline-variant)' }}><span className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform" style={{ transform: form.enabled ? 'translateX(22px)' : 'translateX(0)' }} /></button>
+            <button type="button" aria-label="Custom branding" aria-pressed={form.enabled} onClick={toggleBranding} className="relative flex-shrink-0 w-12 h-6 rounded-full transition-colors" style={{ background: form.enabled ? '#22c55e' : 'var(--m3-outline-variant)' }}><span className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform" style={{ transform: form.enabled ? 'translateX(22px)' : 'translateX(0)' }} /></button>
           </div>
 
           <fieldset disabled={!form.enabled} className="min-w-0 border-0 p-0 m-0 space-y-6 transition-opacity" style={{ opacity: form.enabled ? 1 : 0.45 }}>

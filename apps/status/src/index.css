@@ -135,6 +135,10 @@ body {
   border: 1px solid var(--bsp-card-border);
   border-radius: 16px;
 }
+.bsp-chart-card {
+  background: var(--bsp-chart-bg);
+  border-color: var(--bsp-card-border);
+}
 .bsp-monitor-name  { color: var(--bsp-text); }
 .bsp-group-label   { color: var(--bsp-text); }
 .bsp-site-name     { color: var(--bsp-text); }

@@ -8,6 +8,7 @@ import { PageRenderer } from './components/PageRenderer'
 import { IncidentCard } from './components/IncidentCard'
 import { LanguageSwitcher } from './components/LanguageSwitcher'
 import { applyIncidentStatus } from './utils/incidentStatus'
+import { resolveBrandingCssVariables, resolveBrandingCustomCss, resolveBrandingLogoUrl } from './branding'
 
 interface MonitorDependency {
   dependentId: number
@@ -44,34 +45,6 @@ function collectLayoutMonitorIds(nodes: LayoutNode[]): Set<number> {
 
 function hasIncidentsBlock(nodes: LayoutNode[]): boolean {
   return nodes.some((node) => node.type === 'incidents')
-}
-
-export function resolveBrandingLogoUrl(branding: Branding | null | undefined, isDark: boolean, brandingEnabled: boolean): string | null {
-  if (!branding) return null
-  if (brandingEnabled) return branding.logoUrl
-  return (isDark ? branding.logoDarkUrl : branding.logoLightUrl) ?? branding.logoUrl
-}
-
-export function resolveBrandingPalette(branding: Branding) {
-  return {
-    primaryColor: branding.primaryColor,
-    accentColor: branding.accentColor,
-    backgroundColor: branding.backgroundColor,
-    cardBackground: branding.cardBackground,
-    elevatedBackground: branding.elevatedBackground,
-    cardBorderColor: branding.cardBorderColor,
-    textColor: branding.textColor,
-    textMutedColor: branding.textMutedColor,
-    statusUpColor: branding.statusUpColor,
-    statusDownColor: branding.statusDownColor,
-    statusDegradedColor: branding.statusDegradedColor,
-    chartBackground: branding.chartBackground,
-    chartGridColor: branding.chartGridColor,
-  }
-}
-
-export function resolveBrandingCustomCss(branding: Branding | null | undefined): string | null {
-  return branding?.enabled ? branding.customCss : null
 }
 
 export default function App() {
@@ -162,7 +135,6 @@ export default function App() {
 
   const brandingEnabled = !!(branding?.enabled)
   const isDark = brandingEnabled ? false : savedDarkMode
-  const brandingPalette = brandingEnabled ? resolveBrandingPalette(branding!) : null
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark)
@@ -187,53 +159,20 @@ export default function App() {
     : t('overall.checking')
 
   const overallColor = allDown
-    ? (brandingPalette?.statusDownColor ?? '#ba1a1a')
+    ? (brandingEnabled ? branding!.statusDownColor : '#ba1a1a')
     : hasActiveIncidents
-    ? (brandingPalette?.statusDegradedColor ?? '#eab308')
+    ? (brandingEnabled ? branding!.statusDegradedColor : '#eab308')
     : someDown
-    ? (brandingPalette?.statusDownColor ?? '#ea580c')
+    ? (brandingEnabled ? branding!.statusDownColor : '#ea580c')
     : anyDegraded
-    ? (brandingPalette?.statusDegradedColor ?? '#eab308')
-    : (brandingPalette?.statusUpColor ?? '#22c55e')
+    ? (brandingEnabled ? branding!.statusDegradedColor : '#eab308')
+    : (brandingEnabled ? branding!.statusUpColor : '#22c55e')
 
   const resolvedIncidents = incidents.filter((i) => i.status === 'resolved')
 
-  const cssVars: React.CSSProperties = brandingEnabled ? {
-    '--bsp-bg': brandingPalette!.backgroundColor,
-    '--bsp-card-bg': brandingPalette!.cardBackground,
-    '--bsp-elevated-bg': brandingPalette!.elevatedBackground,
-    '--bsp-card-border': brandingPalette!.cardBorderColor,
-    '--bsp-text': brandingPalette!.textColor,
-    '--bsp-text-muted': brandingPalette!.textMutedColor,
-    '--bsp-primary': brandingPalette!.primaryColor,
-    '--bsp-accent': brandingPalette!.accentColor,
-    '--bsp-up': brandingPalette!.statusUpColor,
-    '--bsp-down': brandingPalette!.statusDownColor,
-    '--bsp-degraded': brandingPalette!.statusDegradedColor,
-    '--bsp-chart-bg': brandingPalette!.chartBackground,
-    '--bsp-chart-grid': brandingPalette!.chartGridColor,
-    '--color-primary': brandingPalette!.primaryColor,
-    '--color-accent': brandingPalette!.accentColor,
-    '--m3-surface': brandingPalette!.backgroundColor,
-    '--m3-surface-container-lowest': brandingPalette!.cardBackground,
-    '--m3-surface-container-low': brandingPalette!.cardBackground,
-    '--m3-surface-container': brandingPalette!.elevatedBackground,
-    '--m3-surface-container-high': brandingPalette!.elevatedBackground,
-    '--m3-surface-container-highest': brandingPalette!.elevatedBackground,
-    '--m3-on-surface': brandingPalette!.textColor,
-    '--m3-secondary': brandingPalette!.textMutedColor,
-    '--m3-outline-variant': brandingPalette!.cardBorderColor,
-    '--m3-primary': brandingPalette!.primaryColor,
-    '--m3-on-primary-container': brandingPalette!.accentColor,
-  } as React.CSSProperties : {}
-
-  const brandingStyles = brandingEnabled ? `
-.bsp-monitor-card, .bsp-group-card { background: var(--bsp-card-bg); border-color: var(--bsp-card-border); }
-.bsp-chart-card { background: var(--bsp-chart-bg); border-color: var(--bsp-card-border); }
-.bsp-divider { border-top-color: var(--bsp-card-border); }
-.bsp-footer, .bsp-text-block { color: var(--bsp-text-muted); }
-.bsp-monitor-name, .bsp-group-label, .bsp-site-name { color: var(--bsp-text); }
-` : ''
+  const cssVars: React.CSSProperties = brandingEnabled
+    ? resolveBrandingCssVariables(branding!) as React.CSSProperties
+    : {}
 
   const siteName = branding?.siteName || 'Status Page'
   const imageLogoUrl = resolveBrandingLogoUrl(branding, isDark, brandingEnabled)
@@ -242,7 +181,6 @@ export default function App() {
 
   return (
     <div className="bsp-page" style={{ ...cssVars, background: 'var(--bsp-bg)', minHeight: '100vh' }}>
-      {brandingStyles && <style>{brandingStyles}</style>}
       {customCss && <style>{customCss}</style>}
 
       {/* ── Top Navigation ── */}
@@ -329,7 +267,7 @@ export default function App() {
             className="font-headline font-extrabold tracking-tight leading-[1.02] mb-6"
             style={{
               fontSize: 'clamp(2.5rem, 7vw, 5.5rem)',
-              color: brandingPalette?.textColor ?? 'var(--m3-on-surface)',
+              color: brandingEnabled ? branding!.textColor : 'var(--m3-on-surface)',
             }}
           >
             {overallStatus}
