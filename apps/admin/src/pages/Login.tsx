@@ -144,10 +144,11 @@ export default function LoginPage() {
             )}
 
             {!challengeToken && <div>
-              <label className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
+              <label htmlFor="login-email" className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
                 Email
               </label>
               <input
+                id="login-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -158,10 +159,11 @@ export default function LoginPage() {
             </div>}
 
             {!challengeToken && <div>
-              <label className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
+              <label htmlFor="login-password" className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
                 Password
               </label>
               <input
+                id="login-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -173,10 +175,11 @@ export default function LoginPage() {
 
             {challengeToken && (
               <div>
-                <label className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
+                <label htmlFor="login-two-factor-code" className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
                   Authentication code
                 </label>
                 <input
+                  id="login-two-factor-code"
                   type="text"
                   autoComplete="one-time-code"
                   value={code}

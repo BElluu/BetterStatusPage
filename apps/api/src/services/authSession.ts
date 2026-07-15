@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { and, eq, lt, ne } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { authSessions, users } from '../db/schema.js'
+import { normalizeRole } from './roles.js'
 
 export const SESSION_COOKIE = 'bsp_session'
 export const CSRF_COOKIE = 'bsp_csrf'
@@ -44,10 +45,6 @@ function equalHash(left: string, right: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b)
 }
 
-function normalizedRole(role: string): string {
-  return ['admin', 'operator', 'branding'].includes(role) ? role : 'branding'
-}
-
 export async function createAuthSession(
   app: FastifyInstance,
   reply: FastifyReply,
@@ -67,7 +64,7 @@ export async function createAuthSession(
     expiresAt,
   })
 
-  const role = normalizedRole(user.role)
+  const role = normalizeRole(user.role)
   const token = app.jwt.sign({ userId: user.id, email: user.email, role, sessionId })
   reply.setCookie(SESSION_COOKIE, token, cookieOptions(true))
   reply.setCookie(CSRF_COOKIE, csrfToken, cookieOptions(false))
@@ -114,7 +111,7 @@ export async function authenticateRequest(req: FastifyRequest): Promise<AuthIden
   const identity: AuthIdentity = {
     userId: user.id,
     email: user.email,
-    role: normalizedRole(user.role),
+    role: normalizeRole(user.role),
     sessionId: session.id,
     mustChangePassword: !!user.mustChangePassword,
     twoFactorEnabled: !!user.totpEnabled,

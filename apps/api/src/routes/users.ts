@@ -3,11 +3,9 @@ import bcrypt from 'bcryptjs'
 import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
-import { normalizeRole } from './auth.js'
 import { writeAudit, snapshot } from '../services/audit.js'
 import { revokeUserSessions } from '../services/authSession.js'
-
-const VALID_ROLES = ['admin', 'operator', 'branding'] as const
+import { normalizeRole, VALID_ROLES } from '../services/roles.js'
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
@@ -74,9 +72,6 @@ export async function userRoutes(app: FastifyInstance) {
     await db.update(users).set({
       passwordHash: hash,
       mustChangePassword: 1,
-      totpSecret: null,
-      totpEnabled: 0,
-      totpRecoveryCodes: null,
     }).where(eq(users.id, id))
     await revokeUserSessions(id)
     const actor = req.user as { userId: number; email: string }
