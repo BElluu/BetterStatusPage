@@ -7,6 +7,18 @@ export const users = sqliteTable('users', {
   role: text('role').notNull().default('admin'),
   mustChangePassword: integer('must_change_password').notNull().default(0),
   createdAt: integer('created_at').notNull(),
+  totpSecret: text('totp_secret'),
+  totpEnabled: integer('totp_enabled').notNull().default(0),
+  totpRecoveryCodes: text('totp_recovery_codes'),
+})
+
+export const authSessions = sqliteTable('auth_sessions', {
+  id: text('id').primaryKey(),
+  userId: integer('user_id').notNull(),
+  csrfTokenHash: text('csrf_token_hash').notNull(),
+  createdAt: integer('created_at').notNull(),
+  lastSeenAt: integer('last_seen_at').notNull(),
+  expiresAt: integer('expires_at').notNull(),
 })
 
 export const monitors = sqliteTable('monitors', {

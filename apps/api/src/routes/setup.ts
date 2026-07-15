@@ -6,9 +6,9 @@ import { runMigrations } from '../db/migrate.js'
 import { startBackgroundServices } from '../services/backgroundServices.js'
 import { users, branding, layout } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
-import { JWT_EXPIRES_IN } from '../config/secrets.js'
 import { SETUP_RATE_LIMIT } from '../config/rateLimits.js'
 import { withImmediateTransaction } from '../db/transaction.js'
+import { createAuthSession } from '../services/authSession.js'
 
 interface SetupRouteOptions {
   startBackgroundServices?: () => void
@@ -71,15 +71,12 @@ export async function setupRoutes(app: FastifyInstance, options: SetupRouteOptio
 
         return (await db.select().from(users).where(eq(users.email, email)))[0]!
       })
-      const token = app.jwt.sign(
-        { userId: user.id, email: user.email, role: user.role },
-        { expiresIn: JWT_EXPIRES_IN },
-      )
-
       writeSetupComplete('sqlite')
       const startServices = options.startBackgroundServices ?? startBackgroundServices
       startServices()
-      return { token }
+      const identity = await createAuthSession(app, reply, user)
+      const { sessionId: _sessionId, ...safeIdentity } = identity
+      return safeIdentity
     } finally {
       setupInProgress = false
     }

@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { after, before, describe, it, mock } from 'node:test'
 import Fastify from 'fastify'
 import jwt from '@fastify/jwt'
+import cookie from '@fastify/cookie'
 import { sqlite } from '../src/db/client.js'
 import { setupRoutes } from '../src/routes/setup.js'
 
@@ -17,6 +18,7 @@ const schedulerStart = mock.fn()
 
 before(async () => {
   await app.register(jwt, { secret: 'setup-integration-secret' })
+  await app.register(cookie)
   await app.register(setupRoutes, { prefix: '/setup', startBackgroundServices: schedulerStart })
   await app.ready()
 })
@@ -40,7 +42,8 @@ describe('first-run setup', () => {
       payload: { email: 'owner@example.test', password: 'secure-password' },
     })
     assert.equal(response.statusCode, 200)
-    assert.equal(typeof response.json().token, 'string')
+    assert.equal(response.json().email, 'owner@example.test')
+    assert.match(String(response.headers['set-cookie']), /bsp_session=/)
     assert.equal(existsSync(process.env['DATABASE_PATH']!), true)
     assert.equal(existsSync(process.env['SETUP_CONFIG_PATH']!), true)
     assert.equal(schedulerStart.mock.callCount(), 1)

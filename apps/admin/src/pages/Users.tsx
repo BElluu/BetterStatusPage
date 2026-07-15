@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, getCurrentUser } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
+import { CopyButton } from '../components/CopyButton'
 
 interface User {
   id: number
@@ -133,13 +134,7 @@ export default function UsersPage() {
                 >
                   {createdUser.temporaryPassword}
                 </code>
-                <button
-                  onClick={() => navigator.clipboard.writeText(createdUser.temporaryPassword)}
-                  className="text-xs px-3 py-2 rounded-lg"
-                  style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }}
-                >
-                  Copy
-                </button>
+                <CopyButton value={createdUser.temporaryPassword} />
               </div>
             </div>
             <button onClick={() => setCreatedUser(null)} style={{ color: 'var(--m3-secondary)', fontSize: '18px', lineHeight: 1 }}>×</button>
@@ -165,13 +160,7 @@ export default function UsersPage() {
                 >
                   {resetResult.temporaryPassword}
                 </code>
-                <button
-                  onClick={() => navigator.clipboard.writeText(resetResult.temporaryPassword)}
-                  className="text-xs px-3 py-2 rounded-lg"
-                  style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }}
-                >
-                  Copy
-                </button>
+                <CopyButton value={resetResult.temporaryPassword} />
               </div>
             </div>
             <button onClick={() => setResetResult(null)} style={{ color: 'var(--m3-secondary)', fontSize: '18px', lineHeight: 1 }}>×</button>

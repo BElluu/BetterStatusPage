@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { normalizeRole } from '../src/routes/auth.js'
+import { normalizeRole } from '../src/services/roles.js'
 
 describe('role normalization', () => {
   it('preserves supported roles', () => {

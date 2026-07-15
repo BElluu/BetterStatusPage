@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, setToken } from '../api/client'
+import { api, setSession, type AuthUser } from '../api/client'
 
 export default function ChangePasswordPage() {
   const navigate = useNavigate()
@@ -16,8 +16,8 @@ export default function ChangePasswordPage() {
     setError('')
     setLoading(true)
     try {
-      const res = await api.post<{ token: string }>('/auth/change-password', { newPassword: password })
-      setToken(res.token, false)
+      const res = await api.post<AuthUser>('/auth/change-password', { newPassword: password })
+      setSession(res)
       navigate('/admin/')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to change password')

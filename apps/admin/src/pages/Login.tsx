@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { setToken, api } from '../api/client'
+import { api, setSession, type AuthUser } from '../api/client'
 import { useDarkMode } from '../hooks/useDarkMode'
 
 export default function LoginPage() {
@@ -8,6 +8,8 @@ export default function LoginPage() {
   const [isDark, toggleDark] = useDarkMode()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [code, setCode] = useState('')
+  const [challengeToken, setChallengeToken] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -16,9 +18,20 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      const res = await api.post<{ token: string; mustChangePassword?: boolean }>('/auth/login', { email, password })
-      setToken(res.token, !!res.mustChangePassword)
-      navigate(res.mustChangePassword ? '/admin/change-password' : '/admin/')
+      if (challengeToken) {
+        const user = await api.post<AuthUser>('/auth/2fa/verify', { challengeToken, code })
+        setSession(user)
+        navigate(user.mustChangePassword ? '/admin/change-password' : '/admin/')
+      } else {
+        const res = await api.post<AuthUser | { requiresTwoFactor: true; challengeToken: string }>('/auth/login', { email, password })
+        if ('requiresTwoFactor' in res) {
+          setChallengeToken(res.challengeToken)
+          setPassword('')
+        } else {
+          setSession(res)
+          navigate(res.mustChangePassword ? '/admin/change-password' : '/admin/')
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
@@ -130,11 +143,12 @@ export default function LoginPage() {
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
+            {!challengeToken && <div>
+              <label htmlFor="login-email" className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
                 Email
               </label>
               <input
+                id="login-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -142,13 +156,14 @@ export default function LoginPage() {
                 className="input-m3"
                 placeholder="admin@example.com"
               />
-            </div>
+            </div>}
 
-            <div>
-              <label className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
+            {!challengeToken && <div>
+              <label htmlFor="login-password" className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
                 Password
               </label>
               <input
+                id="login-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -156,22 +171,41 @@ export default function LoginPage() {
                 className="input-m3"
                 placeholder="••••••••"
               />
-            </div>
+            </div>}
+
+            {challengeToken && (
+              <div>
+                <label htmlFor="login-two-factor-code" className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
+                  Authentication code
+                </label>
+                <input
+                  id="login-two-factor-code"
+                  type="text"
+                  autoComplete="one-time-code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  required
+                  autoFocus
+                  className="input-m3"
+                  placeholder="6-digit code or recovery code"
+                />
+                <button
+                  type="button"
+                  className="text-xs mt-2"
+                  style={{ color: 'var(--m3-secondary)' }}
+                  onClick={() => { setChallengeToken(''); setCode('') }}
+                >
+                  Back to password sign-in
+                </button>
+              </div>
+            )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full font-sans font-semibold rounded-xl py-3 text-sm transition-all mt-2"
-              style={{
-                background: loading
-                  ? 'var(--m3-surface-container-high)'
-                  : 'var(--m3-primary)',
-                color: loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.7 : 1,
-              }}
+              className="btn-primary w-full py-3 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98] mt-2"
             >
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading ? 'Signing in…' : challengeToken ? 'Verify & sign in' : 'Sign in'}
             </button>
           </form>
         </div>
