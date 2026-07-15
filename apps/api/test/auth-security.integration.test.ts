@@ -11,7 +11,7 @@ import Fastify from 'fastify'
 import { encrypt } from '../src/crypto/vault.js'
 import { generateRecoveryCodes, generateTotpCode, generateTotpSecret, hashRecoveryCode } from '../src/crypto/totp.js'
 import { db, initDb, sqlite } from '../src/db/client.js'
-import { authSessions, users } from '../src/db/schema.js'
+import { auditLog, authSessions, users } from '../src/db/schema.js'
 import { runMigrations } from '../src/db/migrate.js'
 import { requireAuth, requireRole } from '../src/middleware/auth.js'
 import { authRoutes } from '../src/routes/auth.js'
@@ -249,9 +249,25 @@ describe('authentication security regressions', () => {
     assert.equal(afterReset.totpRecoveryCodes, beforeReset.totpRecoveryCodes)
     assert.equal((await login(target.email, reset.json().temporaryPassword)).json().requiresTwoFactor, true)
 
-    const deleteChallenge = (await login(target.email, reset.json().temporaryPassword)).json().challengeToken
-    const deleteVerified = await app.inject({ method: 'POST', url: '/auth/2fa/verify', payload: { challengeToken: deleteChallenge, code: generateTotpCode(secret) } })
-    const deleteSession = sessionHeaders(deleteVerified)
+    const recoveryChallenge = (await login(target.email, reset.json().temporaryPassword)).json().challengeToken
+    const recoveryVerified = await app.inject({ method: 'POST', url: '/auth/2fa/verify', payload: { challengeToken: recoveryChallenge, code: generateTotpCode(secret) } })
+    const recoverySession = sessionHeaders(recoveryVerified)
+    assert.equal((await app.inject({ method: 'POST', url: `/admin/users/${admin.id}/reset-2fa`, headers: adminHeaders, payload: { currentPassword: password } })).statusCode, 400)
+    assert.equal((await app.inject({ method: 'POST', url: `/admin/users/${target.id}/reset-2fa`, headers: adminHeaders, payload: { currentPassword: 'wrong-password' } })).statusCode, 400)
+    const twoFactorReset = await app.inject({ method: 'POST', url: `/admin/users/${target.id}/reset-2fa`, headers: adminHeaders, payload: { currentPassword: password } })
+    assert.equal(twoFactorReset.statusCode, 200)
+    assert.deepEqual(twoFactorReset.json(), { twoFactorEnabled: false })
+    assert.equal((await app.inject({ url: '/auth/session', headers: recoverySession })).statusCode, 401)
+    const afterTwoFactorReset = (await db.select().from(users).where(eq(users.id, target.id)))[0]!
+    assert.equal(afterTwoFactorReset.totpEnabled, 0)
+    assert.equal(afterTwoFactorReset.totpSecret, null)
+    assert.equal(afterTwoFactorReset.totpRecoveryCodes, null)
+    const securityAudit = (await db.select().from(auditLog).where(eq(auditLog.entityId, String(target.id))))
+      .find((entry) => entry.entityType === 'user-security')
+    assert.ok(securityAudit)
+    assert.match(securityAudit.diff ?? '', /admin_recovery/)
+
+    const deleteSession = sessionHeaders(await login(target.email, reset.json().temporaryPassword))
     assert.equal((await app.inject({ method: 'DELETE', url: `/admin/users/${target.id}`, headers: adminHeaders })).statusCode, 200)
     assert.equal((await app.inject({ url: '/auth/session', headers: deleteSession })).statusCode, 401)
   })
