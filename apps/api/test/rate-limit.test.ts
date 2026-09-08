@@ -35,7 +35,7 @@ describe('rate limit isolation and proxy handling', () => {
   it('parses explicit trust proxy settings safely', () => {
     assert.equal(resolveTrustProxy(''), false)
     assert.equal(resolveTrustProxy('false'), false)
-    assert.equal(resolveTrustProxy('1'), 1)
+    assert.deepEqual(resolveTrustProxy('1'), ['127.0.0.1', '::1'])
     assert.deepEqual(resolveTrustProxy('127.0.0.1, ::1'), ['127.0.0.1', '::1'])
   })
 
