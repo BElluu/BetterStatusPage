@@ -95,6 +95,10 @@ export interface Monitor {
   intervalSecs: number
   timeoutMs: number
   retries: number
+  /** Consecutive failed checks required before an alert is sent. 1 = alert immediately. */
+  failureThreshold: number
+  /** Consecutive successful checks required before a recovery is sent. 1 = notify immediately. */
+  recoveryThreshold: number
   config: MonitorConfig
   currentStatus: MonitorStatus
   lastCheckedAt: number | null

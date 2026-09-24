@@ -36,6 +36,14 @@ export const monitors = sqliteTable('monitors', {
   tags: text('tags').notNull().default('[]'), // JSON MonitorTag[]
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
+  failureThreshold: integer('failure_threshold').notNull().default(1),
+  recoveryThreshold: integer('recovery_threshold').notNull().default(1),
+  /** Last status an alert was evaluated against — drives threshold debouncing, not the public status. */
+  alertConfirmedStatus: text('alert_confirmed_status').notNull().default('pending'),
+  /** Candidate status currently accumulating consecutive observations. */
+  alertPendingStatus: text('alert_pending_status'),
+  alertPendingCount: integer('alert_pending_count').notNull().default(0),
 })
 
 export const monitorResults = sqliteTable('monitor_results', {
@@ -115,6 +123,8 @@ export const notificationChannels = sqliteTable('notification_channels', {
   notifyOnRecovery: integer('notify_on_recovery').notNull().default(0),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
+  alertPolicy: text('alert_policy').notNull().default('{}'), // JSON ChannelAlertPolicy
 })
 
 export const monitorNotificationChannels = sqliteTable('monitor_notification_channels', {
@@ -144,6 +154,9 @@ export const notificationDeliveries = sqliteTable('notification_deliveries', {
   lastError: text('last_error'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
+  suppressionReason: text('suppression_reason'),
+  groupKey: text('group_key'),
 })
 
 export const notificationDeliveryAttempts = sqliteTable('notification_delivery_attempts', {
