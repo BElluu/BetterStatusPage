@@ -3,6 +3,7 @@ import { db } from '../db/client.js'
 import { notificationChannels, monitorNotificationChannels, smtpSettings, notificationDeliveries, notificationDeliveryAttempts } from '../db/schema.js'
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
 import { retryNotificationDelivery, testNotificationChannel } from '../workers/notifier.js'
+import { normalizeAlertPolicy, parseAlertPolicy } from '../services/alertPolicy.js'
 import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
 
 export async function notificationRoutes(app: FastifyInstance) {
@@ -30,6 +31,7 @@ export async function notificationRoutes(app: FastifyInstance) {
         attemptCount: notificationDeliveries.attemptCount, maxAttempts: notificationDeliveries.maxAttempts,
         nextAttemptAt: notificationDeliveries.nextAttemptAt, lastAttemptAt: notificationDeliveries.lastAttemptAt,
         deliveredAt: notificationDeliveries.deliveredAt, lastError: notificationDeliveries.lastError,
+        suppressionReason: notificationDeliveries.suppressionReason, groupKey: notificationDeliveries.groupKey,
         createdAt: notificationDeliveries.createdAt, updatedAt: notificationDeliveries.updatedAt,
       }).from(notificationDeliveries).where(where).orderBy(desc(notificationDeliveries.createdAt)).limit(limit).offset((page - 1) * limit),
       db.select({ count: sql<number>`count(*)` }).from(notificationDeliveries).where(where),
@@ -62,14 +64,30 @@ export async function notificationRoutes(app: FastifyInstance) {
 
   // ── Channels CRUD ──────────────────────────────────────────────────────────
 
+  type ChannelRow = typeof notificationChannels.$inferSelect
+  /** Channels leave the API with both JSON columns expanded and the policy filled in with defaults. */
+  function parseChannel(r: ChannelRow) {
+    return { ...r, config: JSON.parse(r.config), alertPolicy: parseAlertPolicy(r.alertPolicy) }
+  }
+
+  /** Flat, auditable view of the hygiene settings — nested JSON would produce useless diffs. */
+  function policyAuditFields(r: ChannelRow): Record<string, unknown> {
+    const p = parseAlertPolicy(r.alertPolicy)
+    return {
+      quietHours: p.quietHours.enabled ? `${p.quietHours.start}–${p.quietHours.end} ${p.quietHours.timezone} (${p.quietHours.mode})` : 'off',
+      throttle: p.throttle.enabled ? `${p.throttle.maxAlerts} alerts / ${p.throttle.windowMinutes} min` : 'off',
+      grouping: p.grouping.enabled ? `${p.grouping.minMonitors}+ monitors / ${p.grouping.windowSeconds} s` : 'off',
+    }
+  }
+
   app.get('/channels', async () => {
     const rows = await db.select().from(notificationChannels)
-    return rows.map((r) => ({ ...r, config: JSON.parse(r.config) }))
+    return rows.map(parseChannel)
   })
 
   app.post<{ Body: {
     name: string; type: string
-    config: unknown; enabled?: number; notifyOnRecovery?: number
+    config: unknown; enabled?: number; notifyOnRecovery?: number; alertPolicy?: unknown
   } }>('/channels', async (req) => {
     const now = Date.now()
     const results = await db.insert(notificationChannels).values({
@@ -78,24 +96,25 @@ export async function notificationRoutes(app: FastifyInstance) {
       config: JSON.stringify(req.body.config ?? {}),
       enabled: req.body.enabled ?? 1,
       notifyOnRecovery: req.body.notifyOnRecovery ?? 0,
+      alertPolicy: JSON.stringify(normalizeAlertPolicy(req.body.alertPolicy)),
       createdAt: now,
       updatedAt: now,
     }).returning()
     const r = results[0]!
     const actor = req.user as { userId: number; email: string }
     writeAudit({ userId: actor.userId, userEmail: actor.email }, 'create', 'notification_channel', r.id, r.name,
-      snapshot({ name: r.name, type: r.type, enabled: r.enabled, notifyOnRecovery: r.notifyOnRecovery }))
-    return { ...r, config: JSON.parse(r.config) }
+      snapshot({ name: r.name, type: r.type, enabled: r.enabled, notifyOnRecovery: r.notifyOnRecovery, ...policyAuditFields(r) }))
+    return parseChannel(r)
   })
 
   app.get<{ Params: { id: string } }>('/channels/:id', async (req, reply) => {
     const r = (await db.select().from(notificationChannels).where(eq(notificationChannels.id, Number(req.params.id))))[0]
     if (!r) return reply.code(404).send({ error: 'Not found' })
-    return { ...r, config: JSON.parse(r.config) }
+    return parseChannel(r)
   })
 
   app.patch<{ Params: { id: string }; Body: Partial<{
-    name: string; type: string; config: unknown; enabled: number; notifyOnRecovery: number
+    name: string; type: string; config: unknown; enabled: number; notifyOnRecovery: number; alertPolicy: unknown
   }> }>('/channels/:id', async (req, reply) => {
     const id = Number(req.params.id)
     const existing = (await db.select().from(notificationChannels).where(eq(notificationChannels.id, id)))[0]
@@ -107,16 +126,17 @@ export async function notificationRoutes(app: FastifyInstance) {
     if (req.body.config !== undefined)            updates.config = JSON.stringify(req.body.config)
     if (req.body.enabled !== undefined)           updates.enabled = req.body.enabled
     if (req.body.notifyOnRecovery !== undefined)  updates.notifyOnRecovery = req.body.notifyOnRecovery
+    if (req.body.alertPolicy !== undefined)       updates.alertPolicy = JSON.stringify(normalizeAlertPolicy(req.body.alertPolicy))
 
     const results = await db.update(notificationChannels).set(updates).where(eq(notificationChannels.id, id)).returning()
     const r = results[0]!
     const actor = req.user as { userId: number; email: string }
-    const before = { name: existing.name, type: existing.type, enabled: existing.enabled, notifyOnRecovery: existing.notifyOnRecovery } as Record<string, unknown>
-    const after  = { name: r.name, type: r.type, enabled: r.enabled, notifyOnRecovery: r.notifyOnRecovery } as Record<string, unknown>
+    const before = { name: existing.name, type: existing.type, enabled: existing.enabled, notifyOnRecovery: existing.notifyOnRecovery, ...policyAuditFields(existing) } as Record<string, unknown>
+    const after  = { name: r.name, type: r.type, enabled: r.enabled, notifyOnRecovery: r.notifyOnRecovery, ...policyAuditFields(r) } as Record<string, unknown>
     const diff = diffObjects(before, after)
     if (req.body.config !== undefined) diff['config'] = { from: '[previous config]', to: '[updated config]' }
     if (Object.keys(diff).length) writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'notification_channel', id, existing.name, diff)
-    return { ...r, config: JSON.parse(r.config) }
+    return parseChannel(r)
   })
 
   app.delete<{ Params: { id: string } }>('/channels/:id', async (req, reply) => {

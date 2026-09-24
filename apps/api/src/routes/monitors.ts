@@ -22,9 +22,16 @@ export async function monitorRoutes(app: FastifyInstance) {
     return rows.map(parseMonitor)
   })
 
+  /** Thresholds are "consecutive checks", so anything below 1 is meaningless. */
+  function clampThreshold(value: number | undefined, fallback: number): number {
+    if (value === undefined || !Number.isFinite(value)) return fallback
+    return Math.min(20, Math.max(1, Math.round(value)))
+  }
+
   app.post<{ Body: {
     name: string; type: string
     intervalSecs?: number; timeoutMs?: number; retries?: number; config: unknown
+    failureThreshold?: number; recoveryThreshold?: number
     tags?: Array<{ label: string; color: string }>
   } }>('/', async (req) => {
     const now = Date.now()
@@ -34,9 +41,12 @@ export async function monitorRoutes(app: FastifyInstance) {
       intervalSecs: req.body.intervalSecs ?? 60,
       timeoutMs: req.body.timeoutMs ?? 10000,
       retries: req.body.retries ?? 1,
+      failureThreshold: clampThreshold(req.body.failureThreshold, 1),
+      recoveryThreshold: clampThreshold(req.body.recoveryThreshold, 1),
       config: JSON.stringify(req.body.config ?? {}),
       tags: JSON.stringify(req.body.tags ?? []),
       currentStatus: 'pending',
+      alertConfirmedStatus: 'pending',
       webhookToken: req.body.type === 'webhook' ? generateWebhookToken() : null,
       createdAt: now,
       updatedAt: now,
@@ -44,7 +54,10 @@ export async function monitorRoutes(app: FastifyInstance) {
     const m = parseMonitor(results[0]!)
     const actor = req.user as { userId: number; email: string }
     writeAudit({ userId: actor.userId, userEmail: actor.email }, 'create', 'monitor', m.id, m.name,
-      snapshot({ name: m.name, type: m.type, intervalSecs: m.intervalSecs, timeoutMs: m.timeoutMs, retries: m.retries }))
+      snapshot({
+        name: m.name, type: m.type, intervalSecs: m.intervalSecs, timeoutMs: m.timeoutMs, retries: m.retries,
+        failureThreshold: m.failureThreshold, recoveryThreshold: m.recoveryThreshold,
+      }))
     return m
   })
 
@@ -57,6 +70,7 @@ export async function monitorRoutes(app: FastifyInstance) {
   app.patch<{ Params: { id: string }; Body: Partial<{
     name: string; type: string
     intervalSecs: number; timeoutMs: number; retries: number; config: unknown
+    failureThreshold: number; recoveryThreshold: number
     tags: Array<{ label: string; color: string }>
   }> }>('/:id', async (req, reply) => {
     const id = Number(req.params.id)
@@ -69,14 +83,16 @@ export async function monitorRoutes(app: FastifyInstance) {
     if (req.body.intervalSecs !== undefined) updates.intervalSecs = req.body.intervalSecs
     if (req.body.timeoutMs !== undefined) updates.timeoutMs = req.body.timeoutMs
     if (req.body.retries !== undefined) updates.retries = req.body.retries
+    if (req.body.failureThreshold !== undefined) updates.failureThreshold = clampThreshold(req.body.failureThreshold, existing.failureThreshold)
+    if (req.body.recoveryThreshold !== undefined) updates.recoveryThreshold = clampThreshold(req.body.recoveryThreshold, existing.recoveryThreshold)
     if (req.body.config !== undefined) updates.config = JSON.stringify(req.body.config)
     if (req.body.tags !== undefined) updates.tags = JSON.stringify(req.body.tags)
 
     const results = await db.update(monitors).set(updates).where(eq(monitors.id, id)).returning()
     const m = parseMonitor(results[0]!)
     const actor = req.user as { userId: number; email: string }
-    const before = { name: existing.name, type: existing.type, intervalSecs: existing.intervalSecs, timeoutMs: existing.timeoutMs, retries: existing.retries, tags: existing.tags }
-    const after  = { name: m.name, type: m.type, intervalSecs: m.intervalSecs, timeoutMs: m.timeoutMs, retries: m.retries, tags: JSON.stringify(m.tags) }
+    const before = { name: existing.name, type: existing.type, intervalSecs: existing.intervalSecs, timeoutMs: existing.timeoutMs, retries: existing.retries, failureThreshold: existing.failureThreshold, recoveryThreshold: existing.recoveryThreshold, tags: existing.tags }
+    const after  = { name: m.name, type: m.type, intervalSecs: m.intervalSecs, timeoutMs: m.timeoutMs, retries: m.retries, failureThreshold: m.failureThreshold, recoveryThreshold: m.recoveryThreshold, tags: JSON.stringify(m.tags) }
     const diff = diffObjects(before as Record<string, unknown>, after as Record<string, unknown>)
     if (req.body.config !== undefined) diff['config'] = { from: '[previous config]', to: '[updated config]' }
     if (Object.keys(diff).length) writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'monitor', id, existing.name, diff)

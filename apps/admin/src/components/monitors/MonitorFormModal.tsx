@@ -57,6 +57,8 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
     monitor ? (monitor.config as unknown as Record<string, unknown>) : (defaultConfigs.https as Record<string, unknown>),
   )
   const [retries, setRetries]           = useState(monitor?.retries ?? 1)
+  const [failureThreshold, setFailureThreshold]   = useState(monitor?.failureThreshold ?? 1)
+  const [recoveryThreshold, setRecoveryThreshold] = useState(monitor?.recoveryThreshold ?? 1)
   const [tags, setTags]                 = useState<MonitorTag[]>(monitor?.tags ?? [])
   const [sidePanel, setSidePanel] = useState<'request' | 'auth' | 'tags' | 'channels' | 'dependencies' | null>(null)
   const [webhookToken, setWebhookToken] = useState<string | null>(monitor?.webhookToken ?? null)
@@ -169,7 +171,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
     setError('')
     setLoading(true)
     try {
-      const body = { name, type, intervalSecs, timeoutMs, retries, config, tags }
+      const body = { name, type, intervalSecs, timeoutMs, retries, failureThreshold, recoveryThreshold, config, tags }
       if (isEdit) {
         await api.patch(`/admin/monitors/${monitor.id}`, body)
         await api.put(`/admin/notifications/monitor/${monitor.id}/channels`, { channelIds: [...selectedChannelIds] })
@@ -296,6 +298,19 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
               <input type="number" value={retries} onChange={(e) => setRetries(Math.max(1, Number(e.target.value)))} min={1} max={10} className="input-sig" />
             </Field>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Alert after (checks)">
+              <input type="number" value={failureThreshold} onChange={(e) => setFailureThreshold(Math.max(1, Number(e.target.value)))} min={1} max={20} className="input-sig" />
+            </Field>
+            <Field label="Recover after (checks)">
+              <input type="number" value={recoveryThreshold} onChange={(e) => setRecoveryThreshold(Math.max(1, Number(e.target.value)))} min={1} max={20} className="input-sig" />
+            </Field>
+          </div>
+          <p className="text-xs -mt-2" style={{ color: 'var(--m3-secondary)' }}>
+            Consecutive checks required before a notification is sent. Raise the first value to stop a flapping
+            endpoint from paging on every blip — the status page still updates immediately. 1 = notify on every change.
+          </p>
 
           <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
 

@@ -48,6 +48,7 @@ Before exposing a production instance, read:
 
 - [Deployment guide](docs/deployment.md)
 - [Backup and restore guide](docs/backup-restore.md)
+- [Alert hygiene guide](docs/alert-hygiene.md)
 - [Security policy](SECURITY.md)
 
 ---
@@ -85,6 +86,19 @@ Every delivery is persisted with its individual attempts. Failed sends retry aut
 > See **[docs/discord-integration.md](docs/discord-integration.md)** for a step-by-step Discord setup guide.
 > See **[docs/teams-integration.md](docs/teams-integration.md)** for a step-by-step Microsoft Teams setup guide.
 > See **[docs/slack-integration.md](docs/slack-integration.md)** for a step-by-step Slack setup guide.
+
+### 🤫 Alert hygiene — the reason people keep alerts switched on
+
+An alerting system you had to mute is worse than no alerting system. Four controls, all **off by default**, so nothing changes until you ask for it:
+
+- **Failure / recovery thresholds** — per monitor. Alert only after N consecutive failed checks. One flapping endpoint stops paging you every minute, while the public status page still updates instantly.
+- **Quiet hours** — per channel, with a real IANA timezone. Notifications are either held until the window ends or dropped. "Hold" is the sane default: you sleep, nothing is lost.
+- **Rate cap** — per channel: *no more than X alerts from this monitor per hour*. Recoveries are never capped, so the all-clear always gets through.
+- **Grouping** — per channel: if enough distinct monitors fall inside the same window, you get **one** digest instead of twenty messages. Windows that never became a burst are sent individually, so a lone alert is never swallowed.
+
+Everything the rules stop is still recorded in the delivery history with the reason — so you can check what was *not* sent and loosen the rule if it was too strict.
+
+> See **[docs/alert-hygiene.md](docs/alert-hygiene.md)** for how the rules combine, how to pick values, and the API shape.
 
 ### 🔐 A vault for your secrets
 
