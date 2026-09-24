@@ -81,16 +81,16 @@ Generated archives live in a separate `bsp_backups` volume mounted at `/app/back
 
 ### Prerequisites
 
-- **Node.js 22.14+** — uses the built-in `node:sqlite` module
-- **npm 10+**
+- **Node.js 26.10+** — uses the built-in `node:sqlite` module
+- **npm 11+**
 - Linux (Ubuntu 22.04+ recommended) or any OS with Node.js support
 
-### 1. Install Node.js 22
+### 1. Install Node.js 26
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_26.x | sudo -E bash -
 sudo apt-get install -y nodejs
-node --version   # should print v22.x.x
+node --version   # should print v26.x.x
 ```
 
 ### 2. Clone and install dependencies
