@@ -6,6 +6,9 @@
     "packages/*",
     "apps/*"
   ],
+  "engines": {
+    "node": ">=26.10.0"
+  },
   "scripts": {
     "predev": "npm run build -w @bsp/shared",
     "dev": "concurrently \"npm run dev -w @bsp/shared\" \"npm run dev -w apps/api\" \"npm run dev -w apps/admin\" \"npm run dev -w apps/status\"",
@@ -32,7 +35,7 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/smtp-server": "^3.5.13",
-    "@vitest/coverage-v8": "^4.1.9",
+    "@vitest/coverage-v8": "^4.1.11",
     "concurrently": "^9.1.2",
     "eslint": "^10.6.0",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -42,7 +45,7 @@
     "tsx": "^4.23.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.62.0",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.11"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "4.60.1",
