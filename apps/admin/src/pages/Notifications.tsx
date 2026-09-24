@@ -243,7 +243,7 @@ export function DeliveryHistory({ channels }: { channels: NotificationChannel[] 
     <div className="overflow-x-auto pb-1">
       <div className="grid grid-cols-3 gap-2 min-w-[560px]">
         <select aria-label="Status" className="input-sig text-sm min-w-32" value={status} onChange={(e) => changeFilter(setStatus, e.target.value)}>
-          <option value="">All statuses</option><option value="pending">Pending</option><option value="delivered">Delivered</option><option value="failed">Failed</option>
+          <option value="">All statuses</option><option value="pending">Pending</option><option value="delivered">Delivered</option><option value="failed">Failed</option><option value="suppressed">Suppressed</option>
         </select>
         <select aria-label="Channel" className="input-sig text-sm min-w-40" value={channelId} onChange={(e) => changeFilter(setChannelId, e.target.value)}>
           <option value="">All channels</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
@@ -266,11 +266,27 @@ export function DeliveryHistory({ channels }: { channels: NotificationChannel[] 
   </section>
 }
 
+const SUPPRESSION_LABELS: Record<string, string> = {
+  'quiet-hours': 'Quiet hours',
+  'throttled': 'Rate cap',
+  'grouped': 'Merged into digest',
+}
+
+const SUPPRESSION_DETAILS: Record<string, string> = {
+  'quiet-hours': 'The channel was inside its quiet window and is set to drop notifications rather than hold them.',
+  'throttled': 'This monitor already hit the channel’s alert cap for the current window. Recoveries are never capped.',
+  'grouped': 'Several monitors changed state at once, so this event was sent as part of a single digest notification instead.',
+}
+
 function DeliveryRow({ delivery, expanded, detail, onToggle, onRetry, retrying }: { delivery: NotificationDelivery; expanded: boolean; detail?: NotificationDelivery & { attempts: NotificationDeliveryAttempt[] }; onToggle: () => void; onRetry: () => void; retrying: boolean }) {
   const statusName = (status: string) => status === 'up' ? 'Operational' : status === 'down' ? 'Down' : status === 'degraded' ? 'Degraded' : status === 'pending' ? 'Pending' : status === 'affected' ? 'Affected' : status
-  const statusColor = delivery.status === 'delivered' ? '#10b981' : delivery.status === 'failed' ? 'var(--m3-error)' : '#f59e0b'
-  const statusLabel = delivery.status === 'delivered' ? 'Delivered' : delivery.status === 'failed' ? 'Failed' : 'Pending'
+  const statusColor = delivery.status === 'delivered' ? '#10b981' : delivery.status === 'failed' ? 'var(--m3-error)' : delivery.status === 'suppressed' ? 'var(--m3-outline)' : '#f59e0b'
+  const statusLabel = delivery.status === 'delivered' ? 'Delivered' : delivery.status === 'failed' ? 'Failed' : delivery.status === 'suppressed' ? 'Suppressed' : 'Pending'
   const eventLabel = delivery.eventType === 'alert' ? 'Alert' : delivery.eventType === 'recovery' ? 'Recovery' : 'Test'
+  const suppression = SUPPRESSION_LABELS[delivery.suppressionReason ?? '']
+  const heldUntil = delivery.status === 'pending' && delivery.attemptCount === 0 && delivery.nextAttemptAt && delivery.nextAttemptAt > Date.now()
+    ? new Date(delivery.nextAttemptAt).toLocaleString()
+    : null
   return <>
     <tr className="cursor-pointer" onClick={onToggle} style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
       <td className="px-4 py-3 whitespace-nowrap" style={{ color: 'var(--m3-secondary)' }}>{new Date(delivery.createdAt).toLocaleString()}</td>
@@ -278,13 +294,18 @@ function DeliveryRow({ delivery, expanded, detail, onToggle, onRetry, retrying }
       <td className="px-4 py-3"><p>{delivery.channelName}</p><p className="text-xs capitalize" style={{ color: 'var(--m3-secondary)' }}>{delivery.channelType}</p></td>
       <td className="px-4 py-3">{eventLabel}</td>
       <td className="px-4 py-3">{delivery.attemptCount}</td>
-      <td className="px-4 py-3"><span className="inline-flex items-center gap-1.5 text-xs font-semibold"><span className="w-2 h-2 rounded-full" style={{ background: statusColor }} />{statusLabel}</span></td>
+      <td className="px-4 py-3">
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold"><span className="w-2 h-2 rounded-full" style={{ background: statusColor }} />{statusLabel}</span>
+        {suppression && <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>{suppression}</p>}
+        {heldUntil && <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>Held until {heldUntil}</p>}
+      </td>
       <td className="px-4 py-3 text-right"><span className="material-symbols-outlined" style={{ color: 'var(--m3-secondary)', fontSize: '18px' }}>{expanded ? 'expand_less' : 'expand_more'}</span></td>
     </tr>
     {expanded && <tr><td colSpan={7} className="px-4 py-4" style={{ background: 'var(--m3-surface-container)' }}>
       {delivery.lastError && <div className="rounded-xl px-3 py-2 mb-3 text-sm" style={{ background: 'var(--m3-error-container)', color: 'var(--m3-on-error-container)' }}>{delivery.lastError}</div>}
+      {suppression && <div className="rounded-xl px-3 py-2 mb-3 text-sm" style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface-variant)' }}>{SUPPRESSION_DETAILS[delivery.suppressionReason ?? '']}</div>}
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2 flex-1"><p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Attempts</p>{!detail ? <p className="text-sm">Loading…</p> : detail.attempts.map((attempt) => <div key={attempt.id} className="flex flex-wrap gap-x-4 gap-y-1 text-xs"><span className="font-semibold">#{attempt.attemptNumber}</span><span style={{ color: attempt.status === 'delivered' ? '#10b981' : 'var(--m3-error)' }}>{attempt.status === 'delivered' ? 'Delivered' : 'Failed'}</span><span style={{ color: 'var(--m3-secondary)' }}>{new Date(attempt.completedAt).toLocaleString()}</span>{attempt.error && <span style={{ color: 'var(--m3-secondary)' }}>{attempt.error}</span>}</div>)}</div>
+        <div className="space-y-2 flex-1"><p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Attempts</p>{!detail ? <p className="text-sm">Loading…</p> : detail.attempts.length === 0 ? <p className="text-sm" style={{ color: 'var(--m3-secondary)' }}>Never attempted.</p> : detail.attempts.map((attempt) => <div key={attempt.id} className="flex flex-wrap gap-x-4 gap-y-1 text-xs"><span className="font-semibold">#{attempt.attemptNumber}</span><span style={{ color: attempt.status === 'delivered' ? '#10b981' : 'var(--m3-error)' }}>{attempt.status === 'delivered' ? 'Delivered' : 'Failed'}</span><span style={{ color: 'var(--m3-secondary)' }}>{new Date(attempt.completedAt).toLocaleString()}</span>{attempt.error && <span style={{ color: 'var(--m3-secondary)' }}>{attempt.error}</span>}</div>)}</div>
         {delivery.status === 'failed' && <button type="button" disabled={retrying} onClick={(event) => { event.stopPropagation(); onRetry() }} className="btn-primary px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap" style={{ opacity: retrying ? 0.6 : 1 }}>{retrying ? 'Retrying…' : 'Retry now'}</button>}
       </div>
     </td></tr>}

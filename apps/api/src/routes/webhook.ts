@@ -4,6 +4,7 @@ import { monitors, monitorResults } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
 import { sseService } from '../services/sse.service.js'
 import { sendNotifications } from '../workers/notifier.js'
+import { evaluateAlertTransition } from '../services/alertThresholds.js'
 import { WEBHOOK_RATE_LIMIT } from '../config/rateLimits.js'
 
 async function handleWebhook(req: FastifyRequest<{ Params: { token: string } }>, reply: FastifyReply) {
@@ -22,13 +23,24 @@ async function handleWebhook(req: FastifyRequest<{ Params: { token: string } }>,
   })
 
   const prevStatus = row.currentStatus
+  // A heartbeat counts as one successful check, so recoveryThreshold applies here too.
+  const transition = evaluateAlertTransition(row, 'up')
   await db.update(monitors)
-    .set({ currentStatus: 'up', lastCheckedAt: now, updatedAt: now })
+    .set({
+      currentStatus: 'up',
+      lastCheckedAt: now,
+      updatedAt: now,
+      alertConfirmedStatus: transition.alertConfirmedStatus,
+      alertPendingStatus: transition.alertPendingStatus,
+      alertPendingCount: transition.alertPendingCount,
+    })
     .where(eq(monitors.id, row.id))
 
   if (prevStatus !== 'up') {
     sseService.broadcast('monitor.status', { monitorId: row.id, status: 'up', responseMs: null, checkedAt: now })
-    sendNotifications(row, 'up', prevStatus, null).catch((err) =>
+  }
+  if (transition.fire) {
+    sendNotifications(row, transition.fire.status, transition.fire.previousStatus, null).catch((err) =>
       console.error('[webhook] sendNotifications failed:', err),
     )
   }
