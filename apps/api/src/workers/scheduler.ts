@@ -8,6 +8,7 @@ import { checkPing } from './ping.js'
 import { checkDns } from './dns.js'
 import { checkSqlServer } from './sqlserver.js'
 import { sendNotifications } from './notifier.js'
+import { evaluateAlertTransition } from '../services/alertThresholds.js'
 import { lt, eq, and, lte, gte, inArray } from 'drizzle-orm'
 import type { HttpsConfig, PingConfig, DnsConfig, SqlServerConfig, MonitorStatus } from '@bsp/shared'
 import { getSchedulerConfig, type SchedulerConfig } from '../config/scheduler.js'
@@ -81,16 +82,26 @@ export async function runCheck(monitor: typeof monitors.$inferSelect) {
     errorMessage: result.error,
   })
 
-  const prevStatus = monitor.currentStatus
-  await db.update(monitors).set({ currentStatus: result.status, lastCheckedAt: checkedAt, updatedAt: checkedAt }).where(eq(monitors.id, monitor.id))
+  // The public status always reflects the latest observation; only alerting is debounced, via
+  // the separate alert_* columns, so a flapping endpoint cannot page anyone every interval.
+  const transition = evaluateAlertTransition(monitor, result.status)
+  await db.update(monitors).set({
+    currentStatus: result.status,
+    lastCheckedAt: checkedAt,
+    updatedAt: checkedAt,
+    alertConfirmedStatus: transition.alertConfirmedStatus,
+    alertPendingStatus: transition.alertPendingStatus,
+    alertPendingCount: transition.alertPendingCount,
+  }).where(eq(monitors.id, monitor.id))
 
   // Always broadcast so the admin UI can update lastCheckedAt and status in real-time.
   sseService.broadcast('monitor.status', { monitorId: monitor.id, status: result.status, responseMs: result.responseMs, checkedAt })
 
-  if (prevStatus !== result.status) {
+  const fire = transition.fire
+  if (fire) {
     isInMaintenance(monitor.id).then((inMaintenance) => {
       if (inMaintenance) return
-      sendNotifications(monitor, result.status, prevStatus, result.error).catch((err) =>
+      sendNotifications(monitor, fire.status, fire.previousStatus, result.error).catch((err) =>
         console.error('[notifier] sendNotifications failed:', err),
       )
     }).catch((err) => console.error('[scheduler] isInMaintenance check failed:', err))

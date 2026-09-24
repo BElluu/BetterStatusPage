@@ -263,6 +263,16 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE monitors ADD COLUMN webhook_token TEXT`, desc: 'monitors.webhook_token' },
   { sql: `ALTER TABLE smtp_settings ADD COLUMN vault_config TEXT`, desc: 'smtp_settings.vault_config' },
   { sql: `ALTER TABLE monitors ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`, desc: 'monitors.tags' },
+  { sql: `ALTER TABLE monitors ADD COLUMN failure_threshold INTEGER NOT NULL DEFAULT 1`, desc: 'monitors.failure_threshold' },
+  { sql: `ALTER TABLE monitors ADD COLUMN recovery_threshold INTEGER NOT NULL DEFAULT 1`, desc: 'monitors.recovery_threshold' },
+  { sql: `ALTER TABLE monitors ADD COLUMN alert_confirmed_status TEXT NOT NULL DEFAULT 'pending'`, desc: 'monitors.alert_confirmed_status' },
+  { sql: `ALTER TABLE monitors ADD COLUMN alert_pending_status TEXT`, desc: 'monitors.alert_pending_status' },
+  { sql: `ALTER TABLE monitors ADD COLUMN alert_pending_count INTEGER NOT NULL DEFAULT 0`, desc: 'monitors.alert_pending_count' },
+  { sql: `ALTER TABLE notification_channels ADD COLUMN alert_policy TEXT NOT NULL DEFAULT '{}'`, desc: 'notification_channels.alert_policy' },
+  { sql: `ALTER TABLE notification_deliveries ADD COLUMN suppression_reason TEXT`, desc: 'notification_deliveries.suppression_reason' },
+  { sql: `ALTER TABLE notification_deliveries ADD COLUMN group_key TEXT`, desc: 'notification_deliveries.group_key' },
+  { sql: `CREATE INDEX IF NOT EXISTS idx_notification_deliveries_group ON notification_deliveries(group_key, status)`, desc: 'notification_deliveries group index' },
+  { sql: `CREATE INDEX IF NOT EXISTS idx_notification_deliveries_throttle ON notification_deliveries(channel_id, monitor_id, event_type, created_at)`, desc: 'notification_deliveries throttle index' },
 ]
 
 function runDataMigration(name: string, migrate: () => void): void {
@@ -305,6 +315,17 @@ function alignBrandingDefaultsWithLightMode(): void {
   })
 }
 
+/**
+ * Alert thresholds debounce against `alert_confirmed_status`. Existing rows default it to
+ * 'pending', which would make the first check after upgrade look like a state change; seed it
+ * from the status the monitor is already in so the upgrade is silent.
+ */
+function seedAlertConfirmedStatus(): void {
+  runDataMigration('monitors-seed-alert-confirmed-status-v1', () => {
+    sqlite.exec(`UPDATE monitors SET alert_confirmed_status = current_status`)
+  })
+}
+
 function migrateLegacyLogoVariants(): void {
   runDataMigration('branding-legacy-logo-variants-v1', () => {
     sqlite.exec(`
@@ -328,5 +349,6 @@ export function runMigrations(): void {
   }
   alignBrandingDefaultsWithLightMode()
   migrateLegacyLogoVariants()
+  seedAlertConfirmedStatus()
   console.log('✓ Migrations applied')
 }
