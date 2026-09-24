@@ -13,7 +13,7 @@
 *Monitor your services. Alert your team. Keep your users in the loop.*
 *No cloud. No subscription. No drama.*
 
-[![Node.js](https://img.shields.io/badge/Node.js-22+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/Node.js-26+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev)
 [![Fastify](https://img.shields.io/badge/Fastify-5-000000?logo=fastify&logoColor=white)](https://fastify.dev)
@@ -35,7 +35,7 @@ You know the drill. Your API goes down at 3 AM, users start tweeting, your boss 
 
 BetterStatusPage is currently in its MVP phase. The current target is a practical self-hosted deployment for small teams and personal infrastructure:
 
-- one Node.js 22 process,
+- one Node.js 26 process,
 - SQLite persistence,
 - Docker Compose deployment,
 - Nginx reverse proxy,
@@ -184,7 +184,7 @@ Status changes propagate to both the admin dashboard and the public page instant
 └────────────┼──────────────────────────────┼────────────────┘
              │  REST + SSE                   │  REST + SSE
 ┌────────────▼──────────────────────────────▼────────────────┐
-│                    Fastify 5  (Node.js 22+)                 │
+│                    Fastify 5  (Node.js 26+)                 │
 │                                                             │
 │   ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │   │  Admin API   │  │  Public API  │  │  Webhook API     │  │
@@ -280,8 +280,8 @@ Open `http://your-server:3000/admin` for first-run setup. For internet-facing de
 
 ### You'll need
 
-- **Node.js 22.14+** — we use the built-in `node:sqlite` module, so no ancient runtimes
-- **npm 10+**
+- **Node.js 26.10+** — we use the built-in `node:sqlite` module, so no ancient runtimes
+- **npm 11+**
 
 ### Installation
 
