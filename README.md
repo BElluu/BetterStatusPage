@@ -1,5 +1,7 @@
 <div align="center">
 
+**English** · [Polski](README.pl.md)
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="apps/status/public/logo_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="apps/status/public/logo_light.png">
@@ -151,7 +153,7 @@ The audit log page (admin-only) lets you filter by **user**, **entity type**, **
 ### 🌍 i18n, branding, the works
 
 - **Multi-language support** — add your own locale, translate every string, set a default
-- **Full branding** — site name, logo, favicon, 13 theme colors, and a custom CSS field for when you really want to go off
+- **Full branding** — site name, logo, favicon, 13 theme colors, and a custom CSS field for when you really want to go wild
 - **Dark mode** — because it's not optional anymore
 
 ### 🔗 Monitor dependencies
@@ -211,7 +213,7 @@ Status changes propagate to both the admin dashboard and the public page instant
 
 **SQLite instead of Postgres** — A status page for most teams doesn't need a database server. SQLite in WAL mode handles concurrent reads and writes without breaking a sweat, has zero ops overhead, and your entire database is a single file you can back up with `cp`. If your status page grows to the point where SQLite is a bottleneck, you have much bigger problems (and probably a dedicated ops team).
 
-**SSE instead of WebSockets** — Status updates only ever flow server → client. SSE handles that perfectly, uses plain HTTP, works through proxies without config changes, and auto-reconnects. Why bring a sledgehammer to a nail job?
+**SSE instead of WebSockets** — Status updates only ever flow server → client. SSE handles that perfectly, uses plain HTTP, works through proxies without config changes, and auto-reconnects. Why bring a bazooka to a knife fight?
 
 **Monorepo with `@bsp/shared`** — The API and both frontends share one TypeScript package for all domain types. Change a type in one place, the compiler yells at you everywhere it matters. No "oh we forgot to update the frontend types" post-mortems.
 
@@ -223,7 +225,7 @@ Status changes propagate to both the admin dashboard and the public page instant
 
 | Layer | Technology | Version |
 |-------|-----------|---------|
-| Runtime | Node.js | 22+ |
+| Runtime | Node.js | 26+ |
 | Language | TypeScript | 5.7 |
 | Backend | Fastify | 5.x |
 | Database | SQLite (`node:sqlite`) | built-in |
@@ -535,7 +537,7 @@ Found a bug? Have an idea? PRs are welcome — just open an issue first for anyt
 
 ## License
 
-MIT — do whatever you want, just don't blame us if your monitors miss a 3 AM outage because you forgot to set `JWT_SECRET`. 😅
+MIT — do whatever you want. Just please don't set the status page font to Comic Sans. 😅
 
 ---
 
