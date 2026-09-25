@@ -245,3 +245,67 @@ export const branding = sqliteTable('branding', {
   logoLightUrl: text('logo_light_url'),
   logoDarkUrl: text('logo_dark_url'),
 })
+
+export const subscriptionSettings = sqliteTable('subscription_settings', {
+  id: integer('id').primaryKey(),
+  enabled: integer('enabled').notNull().default(0),
+  allowEmail: integer('allow_email').notNull().default(1),
+  allowWebhook: integer('allow_webhook').notNull().default(0),
+  allowedEvents: text('allowed_events').notNull().default('[]'), // JSON SubscriberEventType[]
+  allowComponentScope: integer('allow_component_scope').notNull().default(1),
+  /** Unused since the public URL moved to the PUBLIC_URL environment variable; kept for sqlite-proxy position mapping. */
+  publicUrl: text('public_url').notNull().default(''),
+  rssEnabled: integer('rss_enabled').notNull().default(1),
+  updatedAt: integer('updated_at').notNull(),
+  // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
+  allowSlack: integer('allow_slack').notNull().default(1),
+  apiEnabled: integer('api_enabled').notNull().default(1),
+})
+
+export const subscribers = sqliteTable('subscribers', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  type: text('type').notNull(), // 'email' | 'webhook'
+  /** `email:<address>` or `webhook:<url>` — one subscription per destination. */
+  targetKey: text('target_key').notNull().unique(),
+  /** Delivery target for email subscribers; empty for webhook subscribers. */
+  email: text('email').notNull(),
+  webhookUrl: text('webhook_url'),
+  status: text('status').notNull().default('pending'),
+  events: text('events').notNull().default('[]'), // JSON SubscriberEventType[]
+  monitorIds: text('monitor_ids').notNull().default('[]'), // JSON number[] — empty = everything
+  tags: text('tags').notNull().default('[]'), // JSON string[]
+  confirmTokenHash: text('confirm_token_hash'),
+  confirmExpiresAt: integer('confirm_expires_at'),
+  confirmationSentAt: integer('confirmation_sent_at'),
+  /** Long-lived capability behind the manage and unsubscribe links, so it must stay readable. */
+  manageToken: text('manage_token').notNull().unique(),
+  createdAt: integer('created_at').notNull(),
+  confirmedAt: integer('confirmed_at'),
+  unsubscribedAt: integer('unsubscribed_at'),
+  lastNotifiedAt: integer('last_notified_at'),
+  lastError: text('last_error'),
+  updatedAt: integer('updated_at').notNull(),
+  // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
+  webhookMethod: text('webhook_method').notNull().default('POST'),
+  /** AES-GCM encrypted JSON WebhookHeader[] — values are usually credentials. */
+  webhookHeaders: text('webhook_headers'),
+  notifyOnFailure: integer('notify_on_failure').notNull().default(0),
+  consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+  failureNotifiedAt: integer('failure_notified_at'),
+  disabledAt: integer('disabled_at'),
+})
+
+export const subscriberDeliveries = sqliteTable('subscriber_deliveries', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  subscriberId: integer('subscriber_id').notNull(),
+  eventType: text('event_type').notNull(),
+  event: text('event').notNull(), // JSON SubscriberEvent, rendered per subscriber at send time
+  status: text('status').notNull().default('pending'), // 'pending' | 'delivered' | 'failed' | 'cancelled'
+  attemptCount: integer('attempt_count').notNull().default(0),
+  maxAttempts: integer('max_attempts').notNull().default(4),
+  nextAttemptAt: integer('next_attempt_at'),
+  lastError: text('last_error'),
+  deliveredAt: integer('delivered_at'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})

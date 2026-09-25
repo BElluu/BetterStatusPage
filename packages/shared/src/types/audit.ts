@@ -6,6 +6,8 @@ export type AuditEntityType =
   | 'maintenance'
   | 'notification_channel'
   | 'smtp_settings'
+  | 'subscription_settings'
+  | 'subscriber'
   | 'vault'
   | 'vault_secret'
   | 'user'
