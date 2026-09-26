@@ -5,7 +5,8 @@ import {
   maintenanceWindows, maintenanceWindowMonitors, monitorDependencies,
 } from '../db/schema.js'
 import { eq, desc, gte, ne, inArray, and, lte } from 'drizzle-orm'
-import { sseService } from '../services/sse.service.js'
+import { serveEventStream, sseService } from '../services/sse.service.js'
+import { getPublishedMonitorIds, publishedMonitorIdsSnapshot } from '../services/publishedMonitors.js'
 import type { LayoutTree, LayoutNode, GroupNode, MonitorNode } from '@bsp/shared'
 import { PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
 
@@ -18,6 +19,12 @@ function parseInteger(value: string | undefined, fallback: number, min: number, 
 
 export async function publicRoutes(app: FastifyInstance) {
   let statusCache: { expiresAt: number; value: Promise<unknown> } | null = null
+  // Clients refetch the status as soon as an incident event arrives; a cached copy from just
+  // before the change would hide it from them until the next periodic refresh.
+  const stopListening = sseService.onBroadcast((event) => {
+    if (event.startsWith('incident.')) statusCache = null
+  })
+  app.addHook('onClose', async () => { stopListening() })
 
   app.get('/status', async (_req, reply) => {
     reply.header('Cache-Control', 'public, max-age=2, stale-while-revalidate=5')
@@ -33,6 +40,7 @@ export async function publicRoutes(app: FastifyInstance) {
   })
 
   async function loadPublicStatus() {
+    const published = await getPublishedMonitorIds()
     const allMonitors = await db.select({
       id: monitors.id,
       name: monitors.name,
@@ -40,11 +48,12 @@ export async function publicRoutes(app: FastifyInstance) {
       currentStatus: monitors.currentStatus,
       lastCheckedAt: monitors.lastCheckedAt,
     }).from(monitors)
+    const publishedMonitors = allMonitors.filter((monitor) => published.has(monitor.id))
     const rawActiveIncidents = await db.select().from(incidents).where(ne(incidents.status, 'resolved')).orderBy(desc(incidents.createdAt))
     const activeIncidents = await Promise.all(rawActiveIncidents.map(async (incident) => {
       const updates = await db.select().from(incidentUpdates).where(eq(incidentUpdates.incidentId, incident.id)).orderBy(desc(incidentUpdates.postedAt))
       const monitorLinks = await db.select().from(incidentMonitors).where(eq(incidentMonitors.incidentId, incident.id))
-      return { ...incident, updates, monitorIds: monitorLinks.map((l) => l.monitorId) }
+      return { ...incident, updates, monitorIds: publicIds(monitorLinks, published) }
     }))
     const brandingRow = (await db.select().from(branding))[0] ?? null
 
@@ -52,14 +61,20 @@ export async function publicRoutes(app: FastifyInstance) {
     const activeWindowRows = await db.select().from(maintenanceWindows).where(
       and(lte(maintenanceWindows.startsAt, now), gte(maintenanceWindows.endsAt, now)),
     )
-    const activeMaintenanceWindows = await Promise.all(activeWindowRows.map(async (win) => {
+    const windowsWithLinks = await Promise.all(activeWindowRows.map(async (win) => {
       const links = await db.select().from(maintenanceWindowMonitors).where(eq(maintenanceWindowMonitors.windowId, win.id))
-      return { ...win, monitorIds: links.map((l) => l.monitorId) }
+      return { win, links }
     }))
+    // An empty list means "every monitor", so a window that only covers internal monitors is left
+    // out entirely rather than published with its (hidden) links stripped.
+    const activeMaintenanceWindows = windowsWithLinks
+      .filter(({ links }) => links.length === 0 || links.some((link) => published.has(link.monitorId)))
+      .map(({ win, links }) => ({ ...win, monitorIds: publicIds(links, published) }))
 
-    const allDependencies = await db.select().from(monitorDependencies)
+    const publishedDependencies = (await db.select().from(monitorDependencies))
+      .filter((dep) => published.has(dep.dependentId) && published.has(dep.dependsOnId))
 
-    return { branding: brandingRow, monitors: allMonitors, activeIncidents, activeMaintenanceWindows, monitorDependencies: allDependencies }
+    return { branding: brandingRow, monitors: publishedMonitors, activeIncidents, activeMaintenanceWindows, monitorDependencies: publishedDependencies }
   }
 
   app.get('/layout', async () => {
@@ -86,11 +101,12 @@ export async function publicRoutes(app: FastifyInstance) {
     const offset = (page - 1) * limit
 
     const all = await db.select().from(incidents).orderBy(desc(incidents.createdAt)).limit(limit).offset(offset)
+    const published = await getPublishedMonitorIds()
     return Promise.all(all.map(async (incident) => {
       const updates = await db.select().from(incidentUpdates)
         .where(eq(incidentUpdates.incidentId, incident.id)).orderBy(desc(incidentUpdates.postedAt))
       const monitorLinks = await db.select().from(incidentMonitors).where(eq(incidentMonitors.incidentId, incident.id))
-      return { ...incident, updates, monitorIds: monitorLinks.map((l) => l.monitorId) }
+      return { ...incident, updates, monitorIds: publicIds(monitorLinks, published) }
     }))
   })
 
@@ -102,7 +118,7 @@ export async function publicRoutes(app: FastifyInstance) {
     const updates = await db.select().from(incidentUpdates)
       .where(eq(incidentUpdates.incidentId, incident.id)).orderBy(desc(incidentUpdates.postedAt))
     const monitorLinks = await db.select().from(incidentMonitors).where(eq(incidentMonitors.incidentId, incident.id))
-    return { ...incident, updates, monitorIds: monitorLinks.map((l) => l.monitorId) }
+    return { ...incident, updates, monitorIds: publicIds(monitorLinks, await getPublishedMonitorIds()) }
   })
 
   app.get<{ Params: { id: string }; Querystring: { days?: string } }>('/monitor/:id/uptime', {
@@ -113,8 +129,7 @@ export async function publicRoutes(app: FastifyInstance) {
     if (days === null || monitorId === null) {
       return reply.code(400).send({ error: 'Invalid monitor id or days; days must be between 1 and 90' })
     }
-    const monitor = (await db.select({ id: monitors.id }).from(monitors).where(eq(monitors.id, monitorId)))[0]
-    if (!monitor) return reply.code(404).send({ error: 'Not found' })
+    if (!(await getPublishedMonitorIds()).has(monitorId)) return reply.code(404).send({ error: 'Not found' })
     const since = Date.now() - days * 24 * 60 * 60 * 1000
     const filtered = await db.select().from(monitorResults).where(
       and(eq(monitorResults.monitorId, monitorId), gte(monitorResults.checkedAt, since)),
@@ -182,8 +197,7 @@ export async function publicRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: 'Invalid monitor id, hours, or buckets' })
       }
 
-      const monitor = (await db.select().from(monitors).where(eq(monitors.id, monitorId)))[0]
-      if (!monitor) return reply.code(404).send({ error: 'Not found' })
+      if (!(await getPublishedMonitorIds()).has(monitorId)) return reply.code(404).send({ error: 'Not found' })
 
       const now   = Date.now()
       const since = now - hours * 3_600_000
@@ -228,24 +242,31 @@ export async function publicRoutes(app: FastifyInstance) {
     },
   )
 
+  // Visitors only hear about published monitors; the admin panel has its own authenticated stream.
   app.get('/events', async (req, reply) => {
-    reply.raw.setHeader('Content-Type', 'text/event-stream')
-    reply.raw.setHeader('Cache-Control', 'no-cache')
-    reply.raw.setHeader('Connection', 'keep-alive')
-    reply.raw.setHeader('X-Accel-Buffering', 'no')
-    reply.raw.flushHeaders()
-
-    sseService.add(reply)
-    reply.raw.write('event: ping\ndata: {}\n\n')
-
-    const pingInterval = setInterval(() => {
-      try { reply.raw.write(`event: ping\ndata: ${JSON.stringify({ ts: Date.now() })}\n\n`) }
-      catch { clearInterval(pingInterval) }
-    }, 30000)
-
-    req.raw.on('close', () => { clearInterval(pingInterval); sseService.remove(reply) })
-    await new Promise<void>((resolve) => { req.raw.on('close', resolve) })
+    await getPublishedMonitorIds()
+    await serveEventStream(req, reply, publicEventFilter)
   })
+}
+
+function publicIds(links: Array<{ monitorId: number }>, published: ReadonlySet<number>): number[] {
+  return links.map((link) => link.monitorId).filter((id) => published.has(id))
+}
+
+/**
+ * Status changes of internal monitors are not sent at all, and incident events lose their links to
+ * internal monitors. The status page only uses incident events as a cue to refetch.
+ */
+function publicEventFilter(event: string, data: unknown): { data: unknown } | null {
+  const published = publishedMonitorIdsSnapshot()
+  if (event === 'monitor.status') {
+    return published.has((data as { monitorId: number }).monitorId) ? { data } : null
+  }
+  if (event.startsWith('incident.') && data && typeof data === 'object' && Array.isArray((data as { monitorIds?: unknown }).monitorIds)) {
+    const incident = data as { monitorIds: number[] }
+    return { data: { ...incident, monitorIds: incident.monitorIds.filter((id) => published.has(id)) } }
+  }
+  return { data }
 }
 
 function sanitizeTree(node: LayoutTree, validIds: Set<number>): LayoutTree {

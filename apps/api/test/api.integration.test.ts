@@ -11,6 +11,7 @@ import { runMigrations } from '../src/db/migrate.js'
 import { layout, monitorResults, monitors } from '../src/db/schema.js'
 import { publicRoutes } from '../src/routes/public.js'
 import { webhookRoutes } from '../src/routes/webhook.js'
+import { refreshPublishedMonitorIds } from '../src/services/publishedMonitors.js'
 
 const dataDir = mkdtempSync(join(tmpdir(), 'bsp-api-test-'))
 process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
@@ -142,6 +143,16 @@ describe('public API integration', () => {
       createdAt: now,
       updatedAt: now,
     }).returning()
+    const unpublished = await app.inject({ method: 'GET', url: `/api/v1/public/monitor/${inserted[0]!.id}/uptime?days=30` })
+    assert.equal(unpublished.statusCode, 404)
+
+    await db.update(layout).set({
+      tree: JSON.stringify({ id: 'root', type: 'page', children: [
+        { id: 'valid', type: 'monitor', monitorId, showUptimeBar: true },
+        { id: 'new', type: 'monitor', monitorId: inserted[0]!.id, showUptimeBar: true },
+      ] }),
+    })
+    await refreshPublishedMonitorIds()
 
     const response = await app.inject({
       method: 'GET',
