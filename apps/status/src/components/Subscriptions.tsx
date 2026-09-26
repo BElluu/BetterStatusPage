@@ -667,9 +667,54 @@ export function SubscriptionLinkDialog({ link, options, onClose }: {
   options: PublicSubscriptionOptions | undefined
   onClose: () => void
 }) {
+  return link.mode === 'confirm'
+    ? <ConfirmLinkDialog token={link.token} onClose={onClose} />
+    : <ManageLinkDialog link={{ mode: link.mode, token: link.token }} options={options} onClose={onClose} />
+}
+
+/**
+ * Opening the link in the confirmation email is the confirmation — no second click on the page.
+ * The manage link is not shown here; it arrives by email right after.
+ */
+function ConfirmLinkDialog({ token, onClose }: { token: string; onClose: () => void }) {
   const { t } = useLocale()
-  const [mode, setMode] = useState<LinkMode>(link.mode)
-  const [token, setToken] = useState(link.token)
+  const [state, setState] = useState<'confirming' | 'done' | 'invalid' | 'error'>('confirming')
+  const started = useRef(false)
+
+  useEffect(() => {
+    // Exactly one request: StrictMode runs effects twice in development, and confirming the same
+    // token a second time would report the link as already used.
+    if (started.current) return
+    started.current = true
+    send('POST', '/confirm', { token })
+      .then(() => setState('done'))
+      .catch((err: { status?: number }) => setState(err.status === 404 ? 'invalid' : 'error'))
+  }, [token])
+
+  const title = state === 'done' ? t('subscribe.subscribedTitle') : state === 'confirming' ? t('subscribe.confirming') : t('subscribe.confirmTitle')
+  return (
+    <Dialog title={title} onClose={onClose}>
+      <div className="space-y-5">
+        {state === 'confirming' && <p className="text-sm" style={{ color: 'var(--bsp-text-muted)' }}>{t('subscribe.confirming')}</p>}
+        {state === 'done' && <Notice tone="ok">{t('subscribe.confirmedEmailSent')}</Notice>}
+        {state === 'invalid' && <Notice tone="error">{t('subscribe.invalidLink')}</Notice>}
+        {state === 'error' && <Notice tone="error">{t('subscribe.error')}</Notice>}
+        {state !== 'confirming' && (
+          <div className="flex justify-end"><PrimaryButton onClick={onClose}>{t('subscribe.close')}</PrimaryButton></div>
+        )}
+      </div>
+    </Dialog>
+  )
+}
+
+function ManageLinkDialog({ link, options, onClose }: {
+  link: { mode: Exclude<LinkMode, 'confirm'>; token: string }
+  options: PublicSubscriptionOptions | undefined
+  onClose: () => void
+}) {
+  const { t } = useLocale()
+  const [mode, setMode] = useState<Exclude<LinkMode, 'confirm'>>(link.mode)
+  const token = link.token
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
   const [prefs, setPrefs] = useState<SubscriptionPreferences | null>(null)
@@ -704,13 +749,6 @@ export function SubscriptionLinkDialog({ link, options, onClose }: {
     try { await work() } catch (err) { fail(err) } finally { setBusy(false) }
   }
 
-  const confirm = () => run(async () => {
-    const result = await send<{ manageToken: string }>('POST', '/confirm', { token })
-    setToken(result.manageToken)
-    setNotice({ tone: 'ok', text: t('subscribe.confirmed') })
-    setMode('manage')
-  })
-
   const doUnsubscribe = () => run(async () => {
     await send('POST', '/unsubscribe', { token })
     setNotice({ tone: 'ok', text: t('subscribe.unsubscribed') })
@@ -729,17 +767,13 @@ export function SubscriptionLinkDialog({ link, options, onClose }: {
     setNotice({ tone: 'ok', text: resubscribe ? t('subscribe.confirmed') : t('subscribe.saved') })
   })
 
-  const title = mode === 'confirm' ? t('subscribe.confirmTitle') : mode === 'unsubscribe' ? t('subscribe.unsubscribeTitle') : t('subscribe.manageTitle')
+  const title = mode === 'unsubscribe' ? t('subscribe.unsubscribeTitle') : t('subscribe.manageTitle')
 
   return (
     <Dialog title={title} onClose={onClose}>
       <div className="space-y-5">
         {invalid ? (
           <Notice tone="error">{t('subscribe.invalidLink')}</Notice>
-        ) : mode === 'confirm' ? (
-          <div className="flex justify-end">
-            <PrimaryButton disabled={busy} onClick={confirm}>{t('subscribe.confirmButton')}</PrimaryButton>
-          </div>
         ) : mode === 'unsubscribe' ? (
           <div className="flex justify-end gap-2">
             <SecondaryButton onClick={() => setMode('manage')}>{t('subscribe.manage')}</SecondaryButton>

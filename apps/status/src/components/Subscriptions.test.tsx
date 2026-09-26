@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -163,22 +164,36 @@ describe('subscription links', () => {
     expect(readSubscriptionLink()).toBeNull()
   })
 
-  it('confirms only after an explicit click, then shows preferences', async () => {
-    const user = userEvent.setup()
-    const fetchMock = vi.fn(async (url: string) => new Response(JSON.stringify(
-      url.endsWith('/confirm')
-        ? { manageToken: 'manage-token', preferences: {} }
-        : { type: 'email', email: 're••••@example.com', webhookUrl: null, status: 'active', events: ['incident.created'], monitorIds: [], tags: [] },
-    )))
-    vi.stubGlobal('fetch', fetchMock)
+  it('confirms as soon as the email link is opened and shows only the result', async () => {
+    const fetchMock = mockFetch({ type: 'email' })
     render(<SubscriptionLinkDialog link={{ mode: 'confirm', token: 'confirm-token' }} options={options} onClose={() => {}} />)
 
-    expect(fetchMock).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('button', { name: 'Confirm subscription' }))
-    expect(await screen.findByText('re••••@example.com')).toBeInTheDocument()
-    expect(screen.getByText('You are subscribed.')).toBeInTheDocument()
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
-    expect(JSON.parse(String((fetchMock.mock.calls[1] as unknown as [string, RequestInit])[1].body))).toEqual({ token: 'manage-token' })
+    expect(await screen.findByText(/Your subscription is confirmed/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'You are subscribed' })).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('/api/v1/public/subscriptions/confirm')
+    expect(JSON.parse(String(init.body))).toEqual({ token: 'confirm-token' })
+    // No preferences here — the manage link arrives by email.
+    expect(screen.queryByText('Notify me about')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Unsubscribe' })).not.toBeInTheDocument()
+  })
+
+  it('confirms only once even when React runs the effect twice', async () => {
+    const fetchMock = mockFetch({ type: 'email' })
+    render(
+      <StrictMode>
+        <SubscriptionLinkDialog link={{ mode: 'confirm', token: 'confirm-token' }} options={options} onClose={() => {}} />
+      </StrictMode>,
+    )
+    expect(await screen.findByText(/Your subscription is confirmed/)).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('explains an expired confirmation link', async () => {
+    mockFetch({ error: 'Invalid or expired link' }, 404)
+    render(<SubscriptionLinkDialog link={{ mode: 'confirm', token: 'old' }} options={options} onClose={() => {}} />)
+    expect(await screen.findByText('This link is invalid or has expired.')).toBeInTheDocument()
   })
 
   it('explains an expired link', async () => {
