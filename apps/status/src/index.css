@@ -208,6 +208,31 @@ html.dark .card-hover:hover {
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.35);
 }
 
+/* ── Primary actions (Subscribe, dialog buttons) ───────────────────
+   Same values as the admin console's .btn-primary, so both apps read as one product. */
+.bsp-page {
+  --bsp-action-bg:       #dbe7ff;
+  --bsp-action-bg-hover: #c9d9ff;
+  --bsp-action-fg:       #172033;
+  --bsp-action-focus:    rgba(73, 124, 255, 0.28);
+}
+html.dark .bsp-page {
+  --bsp-action-bg:       var(--bsp-text);
+  --bsp-action-bg-hover: var(--bsp-text);
+  --bsp-action-fg:       var(--bsp-bg);
+  --bsp-action-focus:    rgba(229, 231, 235, 0.28);
+}
+.bsp-action {
+  transition: background-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+.bsp-action:hover:not(:disabled) {
+  background: var(--bsp-action-bg-hover) !important;
+}
+.bsp-action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--bsp-action-focus);
+}
+
 /* ── Hero gradient (Subscribe button) ────────────────────────────── */
 .hero-gradient {
   background: linear-gradient(135deg, #000000 0%, #497cff 100%);

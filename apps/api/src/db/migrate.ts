@@ -236,6 +236,63 @@ CREATE TABLE IF NOT EXISTS monitor_dependencies (
 );
 `
 
+// Column order must match schema.ts — sqlite-proxy maps result rows by position.
+const subscriptionsMigration = `
+CREATE TABLE IF NOT EXISTS subscription_settings (
+  id INTEGER PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  allow_email INTEGER NOT NULL DEFAULT 1,
+  allow_webhook INTEGER NOT NULL DEFAULT 0,
+  allowed_events TEXT NOT NULL DEFAULT '[]',
+  allow_component_scope INTEGER NOT NULL DEFAULT 1,
+  public_url TEXT NOT NULL DEFAULT '',
+  rss_enabled INTEGER NOT NULL DEFAULT 1,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS subscribers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT NOT NULL,
+  target_key TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL,
+  webhook_url TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  events TEXT NOT NULL DEFAULT '[]',
+  monitor_ids TEXT NOT NULL DEFAULT '[]',
+  tags TEXT NOT NULL DEFAULT '[]',
+  confirm_token_hash TEXT,
+  confirm_expires_at INTEGER,
+  confirmation_sent_at INTEGER,
+  manage_token TEXT NOT NULL UNIQUE,
+  created_at INTEGER NOT NULL,
+  confirmed_at INTEGER,
+  unsubscribed_at INTEGER,
+  last_notified_at INTEGER,
+  last_error TEXT,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_subscribers_status ON subscribers(status);
+CREATE INDEX IF NOT EXISTS idx_subscribers_confirm_token ON subscribers(confirm_token_hash);
+
+CREATE TABLE IF NOT EXISTS subscriber_deliveries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  subscriber_id INTEGER NOT NULL,
+  event_type TEXT NOT NULL,
+  event TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL DEFAULT 4,
+  next_attempt_at INTEGER,
+  last_error TEXT,
+  delivered_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY (subscriber_id) REFERENCES subscribers(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_subscriber_deliveries_status_next ON subscriber_deliveries(status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_subscriber_deliveries_created ON subscriber_deliveries(created_at);
+`
+
 const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `DROP TABLE IF EXISTS monitor_groups`, desc: 'drop monitor_groups (unused)' },
   { sql: `ALTER TABLE monitors DROP COLUMN group_id`, desc: 'monitors: drop legacy group_id' },
@@ -272,6 +329,14 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE notification_deliveries ADD COLUMN suppression_reason TEXT`, desc: 'notification_deliveries.suppression_reason' },
   { sql: `ALTER TABLE notification_deliveries ADD COLUMN group_key TEXT`, desc: 'notification_deliveries.group_key' },
   { sql: `CREATE INDEX IF NOT EXISTS idx_notification_deliveries_group ON notification_deliveries(group_key, status)`, desc: 'notification_deliveries group index' },
+  { sql: `ALTER TABLE subscription_settings ADD COLUMN allow_slack INTEGER NOT NULL DEFAULT 1`, desc: 'subscription_settings.allow_slack' },
+  { sql: `ALTER TABLE subscription_settings ADD COLUMN api_enabled INTEGER NOT NULL DEFAULT 1`, desc: 'subscription_settings.api_enabled' },
+  { sql: `ALTER TABLE subscribers ADD COLUMN webhook_method TEXT NOT NULL DEFAULT 'POST'`, desc: 'subscribers.webhook_method' },
+  { sql: `ALTER TABLE subscribers ADD COLUMN webhook_headers TEXT`, desc: 'subscribers.webhook_headers' },
+  { sql: `ALTER TABLE subscribers ADD COLUMN notify_on_failure INTEGER NOT NULL DEFAULT 0`, desc: 'subscribers.notify_on_failure' },
+  { sql: `ALTER TABLE subscribers ADD COLUMN consecutive_failures INTEGER NOT NULL DEFAULT 0`, desc: 'subscribers.consecutive_failures' },
+  { sql: `ALTER TABLE subscribers ADD COLUMN failure_notified_at INTEGER`, desc: 'subscribers.failure_notified_at' },
+  { sql: `ALTER TABLE subscribers ADD COLUMN disabled_at INTEGER`, desc: 'subscribers.disabled_at' },
   { sql: `CREATE INDEX IF NOT EXISTS idx_notification_deliveries_throttle ON notification_deliveries(channel_id, monitor_id, event_type, created_at)`, desc: 'notification_deliveries throttle index' },
 ]
 
@@ -343,6 +408,7 @@ export function runMigrations(): void {
   sqlite.exec(auditMigration)
   sqlite.exec(maintenanceMigration)
   sqlite.exec(dependenciesMigration)
+  sqlite.exec(subscriptionsMigration)
   for (const { sql, desc } of columnMigrations) {
     try { sqlite.exec(sql) } catch { /* column already exists */ }
     console.log(`✓ Column migration: ${desc}`)

@@ -404,6 +404,7 @@ Before exposing an instance publicly:
 | `BACKUP_DIR` | No | Directory for generated backup archives. Default: `./data/backups` |
 | `ALLOWED_ORIGINS` | No | Comma-separated CORS origins. Leave unset if Nginx handles CORS, or in single-domain setups. |
 | `TRUST_PROXY` | No | Trusted proxy setting (`1` for one reverse proxy, or trusted addresses). Enable only when the app port is not directly exposed. |
+| `PUBLIC_URL` | For email/webhook subscriptions | Public address of the status page, e.g. `https://status.example.com`. All links sent to subscribers are built from it; see [subscriptions](subscriptions.md#public-url). |
 | `SCHEDULER_TICK_SECONDS` | No | How often the scheduler scans for due monitors. Default: `10`. Must be 1-59 seconds. |
 | `MONITOR_CHECK_CONCURRENCY` | No | Maximum number of due monitors checked concurrently. Default: `20`. |
 | `MONITOR_RESULT_RETENTION_DAYS` | No | Monitor result retention period. Default: `90`. |

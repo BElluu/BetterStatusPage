@@ -412,6 +412,27 @@ async function sendEmail(
   config: { to: string; subject: string; body: string },
   vars: Record<string, string>,
 ) {
+  await sendSmtpMail({
+    to: substituteVars(config.to, vars),
+    subject: substituteVars(config.subject, vars),
+    text: substituteVars(config.body, vars),
+  })
+}
+
+export async function isSmtpConfigured(): Promise<boolean> {
+  const smtp = (await db.select({ host: smtpSettings.host }).from(smtpSettings))[0]
+  return !!smtp?.host
+}
+
+/** Sends one message through the configured SMTP server. Throws when SMTP is not set up. */
+export async function sendSmtpMail(message: {
+  to: string
+  subject: string
+  text: string
+  /** Sent alongside `text` as multipart/alternative; clients that cannot render HTML show the text. */
+  html?: string
+  headers?: Record<string, string>
+}): Promise<void> {
   const smtp = (await db.select().from(smtpSettings))[0]
   if (!smtp?.host) throw new Error('SMTP not configured')
 
@@ -440,9 +461,11 @@ async function sendEmail(
 
   await transporter.sendMail({
     from,
-    to: substituteVars(config.to, vars),
-    subject: substituteVars(config.subject, vars),
-    text: substituteVars(config.body, vars),
+    to: message.to,
+    subject: message.subject,
+    text: message.text,
+    ...(message.html ? { html: message.html } : {}),
+    ...(message.headers ? { headers: message.headers } : {}),
   })
 }
 

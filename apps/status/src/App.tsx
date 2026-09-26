@@ -7,6 +7,7 @@ import type { Branding, Incident, PublicMonitor, MaintenanceWindow, LayoutTree, 
 import { PageRenderer } from './components/PageRenderer'
 import { IncidentCard } from './components/IncidentCard'
 import { LanguageSwitcher } from './components/LanguageSwitcher'
+import { FEED_URL, SubscribeDialog, SubscriptionLinkDialog, clearSubscriptionLink, readSubscriptionLink, useSubscriptionOptions } from './components/Subscriptions'
 import { applyIncidentStatus } from './utils/incidentStatus'
 import { resolveBrandingCssVariables, resolveBrandingCustomCss, resolveBrandingLogoUrl } from './branding'
 
@@ -54,6 +55,26 @@ export default function App() {
   const [brandingPreview, setBrandingPreview] = useState<Branding | null>(null)
   const [eventsTab, setEventsTab] = useState<'active' | 'history'>('active')
   const { t } = useLocale()
+  const [showSubscribe, setShowSubscribe] = useState(false)
+  const [subscriptionLink, setSubscriptionLink] = useState(() => (previewMode ? null : readSubscriptionLink()))
+  const { data: subscriptionOptions } = useSubscriptionOptions()
+  const rssEnabled = !!subscriptionOptions?.methods.includes('rss')
+  const subscribable = (subscriptionOptions?.methods.length ?? 0) > 0
+
+  useEffect(() => {
+    if (subscriptionLink) clearSubscriptionLink()
+  }, [subscriptionLink])
+
+  useEffect(() => {
+    if (!rssEnabled) return
+    const link = document.createElement('link')
+    link.rel = 'alternate'
+    link.type = 'application/rss+xml'
+    link.title = 'Incidents'
+    link.href = FEED_URL
+    document.head.appendChild(link)
+    return () => link.remove()
+  }, [rssEnabled])
 
   useEffect(() => {
     if (!previewMode || window.parent === window) return
@@ -208,6 +229,16 @@ export default function App() {
 
           {/* Actions */}
           <div className="flex items-center gap-3">
+            {subscribable && !previewMode && (
+              <button
+                onClick={() => setShowSubscribe(true)}
+                className="bsp-subscribe-button bsp-action inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold transition-all active:scale-95"
+                style={{ background: 'var(--bsp-action-bg)', color: 'var(--bsp-action-fg)' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>notifications</span>
+                {t('subscribe.button')}
+              </button>
+            )}
             <LanguageSwitcher />
             {!brandingEnabled && (
               <button
@@ -394,8 +425,21 @@ export default function App() {
             <img src={imageLogoUrl ?? (isDark ? '/logo_dark.png' : '/logo_light.png')} alt={siteName} style={{ height: '80px', maxWidth: '260px', objectFit: 'contain', margin: '0 auto 16px', opacity: 0.75 }} />
           )}
           <p className="text-xs uppercase tracking-widest">{siteName}</p>
+          {rssEnabled && (
+            <a href={FEED_URL} className="bsp-feed-link inline-flex items-center gap-1 text-xs mt-3" style={{ color: 'var(--m3-secondary)' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>rss_feed</span>
+              {t('subscribe.rss')}
+            </a>
+          )}
         </footer>
       </main>
+
+      {showSubscribe && subscriptionOptions && subscribable && (
+        <SubscribeDialog options={subscriptionOptions} onClose={() => setShowSubscribe(false)} />
+      )}
+      {subscriptionLink && (
+        <SubscriptionLinkDialog link={subscriptionLink} options={subscriptionOptions} onClose={() => setSubscriptionLink(null)} />
+      )}
     </div>
   )
 }

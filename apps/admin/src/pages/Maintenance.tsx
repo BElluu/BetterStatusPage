@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { MaintenanceWindow, Monitor } from '@bsp/shared'
 import { ConfirmModal } from '../components/ConfirmModal'
+import { NotifySubscribersCheckbox } from '../components/subscribers/NotifySubscribersCheckbox'
 
 type Tab = 'active' | 'upcoming' | 'past'
 
@@ -368,6 +369,7 @@ function MaintenanceModal({
   const [endsAt, setEndsAt] = useState(initial ? toLocalDatetimeValue(initial.endsAt) : defaultEnd)
   const [selectedMonitors, setSelectedMonitors] = useState<number[]>(initial?.monitorIds ?? [])
   const [allMonitors, setAllMonitors] = useState(initial ? initial.monitorIds.length === 0 : false)
+  const [notifySubscribers, setNotifySubscribers] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -392,7 +394,7 @@ function MaintenanceModal({
       if (isEdit) {
         await api.patch(`/admin/maintenance/${initial!.id}`, payload)
       } else {
-        await api.post('/admin/maintenance', payload)
+        await api.post('/admin/maintenance', { ...payload, notifySubscribers })
       }
       onSaved()
     } catch {
@@ -531,6 +533,8 @@ function MaintenanceModal({
                 </p>
               )}
             </div>
+
+            {!isEdit && <NotifySubscribersCheckbox checked={notifySubscribers} onChange={setNotifySubscribers} />}
 
             {error && (
               <p className="text-sm" style={{ color: 'var(--m3-down)' }}>{error}</p>

@@ -27,6 +27,9 @@ import { auditRoutes } from './routes/audit.js'
 import { publicRoutes } from './routes/public.js'
 import { publicLocaleRoutes, adminLocaleRoutes } from './routes/locales.js'
 import { webhookRoutes } from './routes/webhook.js'
+import { adminSubscriberRoutes, publicSubscriptionRoutes } from './routes/subscriptions.js'
+import { feedRoutes } from './routes/feeds.js'
+import { statusApiRoutes } from './routes/statusApi.js'
 import { requireAuth, requireRole } from './middleware/auth.js'
 import { uploadDir } from './config.js'
 import { backupRoutes } from './routes/backups.js'
@@ -47,6 +50,16 @@ const app = Fastify({
     redact: {
       paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
       censor: '[redacted]',
+    },
+    serializers: {
+      // One-click unsubscribe links carry their capability token in the query string.
+      req: (req) => ({
+        method: req.method,
+        url: req.url.replace(/([?&]token=)[^&]*/gi, '$1[redacted]'),
+        host: req.host,
+        remoteAddress: req.ip,
+        ...(req.socket?.remotePort !== undefined ? { remotePort: req.socket.remotePort } : {}),
+      }),
     },
   },
   trustProxy: resolveTrustProxy(),
@@ -145,6 +158,9 @@ await app.register(authRoutes, { prefix: '/api/v1/auth' })
 await app.register(publicRoutes, { prefix: '/api/v1/public' })
 await app.register(publicLocaleRoutes, { prefix: '/api/v1/public/locales' })
 await app.register(webhookRoutes, { prefix: '/api/v1/hook' })
+await app.register(feedRoutes, { prefix: '/api/v1/public' })
+await app.register(statusApiRoutes, { prefix: '/api/v1/public' })
+await app.register(publicSubscriptionRoutes, { prefix: '/api/v1/public/subscriptions' })
 
 await app.register(async (adminApp) => {
   adminApp.addHook('preHandler', requireAuth)
@@ -173,6 +189,7 @@ await app.register(async (adminApp) => {
   await adminApp.register(async (sub) => {
     sub.addHook('preHandler', requireRole('operator'))
     await sub.register(notificationRoutes, { prefix: '/notifications' })
+    await sub.register(adminSubscriberRoutes, { prefix: '/subscribers' })
   })
 
   // maintenance windows: operator+
