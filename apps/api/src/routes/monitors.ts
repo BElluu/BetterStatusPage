@@ -6,7 +6,11 @@ import { eq, desc, gte, and, inArray } from 'drizzle-orm'
 import { runCheck } from '../workers/scheduler.js'
 import { testHttps, testSqlServer, testPing, testDns } from '../workers/testRunner.js'
 import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
-import type { HttpsConfig, SqlServerConfig, PingConfig, DnsConfig } from '@bsp/shared'
+import type { HttpsConfig, SqlServerConfig, PingConfig, DnsConfig, MonitorType } from '@bsp/shared'
+
+const MONITOR_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'webhook']
+const MIN_TEST_TIMEOUT_MS = 500
+const MAX_TEST_TIMEOUT_MS = 60_000
 
 function generateWebhookToken(): string {
   return randomBytes(24).toString('hex')
@@ -33,7 +37,11 @@ export async function monitorRoutes(app: FastifyInstance) {
     intervalSecs?: number; timeoutMs?: number; retries?: number; config: unknown
     failureThreshold?: number; recoveryThreshold?: number
     tags?: Array<{ label: string; color: string }>
-  } }>('/', async (req) => {
+  } }>('/', async (req, reply) => {
+    if (typeof req.body?.name !== 'string' || !req.body.name.trim()) return reply.code(400).send({ error: 'Name is required' })
+    if (!MONITOR_TYPES.includes(req.body.type as MonitorType)) {
+      return reply.code(400).send({ error: `Type must be one of: ${MONITOR_TYPES.join(', ')}` })
+    }
     const now = Date.now()
     const results = await db.insert(monitors).values({
       name: req.body.name,
@@ -112,7 +120,14 @@ export async function monitorRoutes(app: FastifyInstance) {
   })
 
   app.post<{ Body: { type: string; config: unknown; timeoutMs?: number } }>('/test', async (req, reply) => {
-    const { type, config, timeoutMs = 10000 } = req.body
+    const { type, config, timeoutMs: requestedTimeout } = req.body ?? {}
+    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+      return reply.code(400).send({ error: 'config must be an object' })
+    }
+    if (requestedTimeout !== undefined && !Number.isFinite(requestedTimeout)) {
+      return reply.code(400).send({ error: 'timeoutMs must be a number' })
+    }
+    const timeoutMs = Math.min(MAX_TEST_TIMEOUT_MS, Math.max(MIN_TEST_TIMEOUT_MS, requestedTimeout ?? 10000))
     if (type === 'https') return testHttps(config as HttpsConfig, timeoutMs)
     if (type === 'sqlserver') return testSqlServer(config as SqlServerConfig, timeoutMs)
     if (type === 'ping') return testPing(config as PingConfig, timeoutMs)

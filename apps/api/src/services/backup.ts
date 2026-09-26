@@ -27,6 +27,17 @@ export const DEFAULT_BACKUP_CONFIG: BackupConfig = { enabled: false, frequency: 
 export const DEFAULT_BACKUP_STATUS: BackupStatus = { state: 'idle', lastStartedAt: null, lastCompletedAt: null, lastFilename: null, lastError: null }
 
 function quoteSql(value: string): string { return `'${value.replaceAll("'", "''")}'` }
+/** Closes the handle even when the file is not SQLite, so temp-dir cleanup never hits a locked file. */
+function checkIntegrity(file: string): void {
+  const checkDb = new DatabaseSync(file, { readOnly: true })
+  let result: string
+  try {
+    result = (checkDb.prepare('PRAGMA integrity_check').get() as { integrity_check: string }).integrity_check
+  } finally {
+    checkDb.close()
+  }
+  if (result !== 'ok') throw new Error(`SQLite integrity check failed: ${result}`)
+}
 function keyFingerprint(): string | null {
   const key = process.env['VAULT_ENCRYPTION_KEY']
   return key ? crypto.createHash('sha256').update(key).digest('hex') : null
@@ -93,10 +104,7 @@ export async function createBackup(outputDirectory = backupDir()): Promise<Backu
     try {
       const sourceDb = new DatabaseSync(databasePath())
       try { sourceDb.exec(`VACUUM INTO ${quoteSql(snapshot)}`) } finally { sourceDb.close() }
-      const checkDb = new DatabaseSync(snapshot, { readOnly: true })
-      const integrity = checkDb.prepare('PRAGMA integrity_check').get() as { integrity_check: string }
-      checkDb.close()
-      if (integrity.integrity_check !== 'ok') throw new Error(`SQLite integrity check failed: ${integrity.integrity_check}`)
+      checkIntegrity(snapshot)
 
       const uploads = collectFiles(uploadDir(), 'uploads')
       const manifest: BackupManifest = {
@@ -143,10 +151,7 @@ export function validateBackup(input: string): BackupManifest {
     if (!entries.includes('manifest.json') || !entries.includes('database.sqlite')) throw new Error('Backup is missing required files')
     const manifest = JSON.parse(fs.readFileSync(path.join(temp, 'manifest.json'), 'utf8')) as BackupManifest
     if (manifest.formatVersion !== BACKUP_FORMAT_VERSION) throw new Error(`Unsupported backup version: ${manifest.formatVersion}`)
-    const checkDb = new DatabaseSync(path.join(temp, 'database.sqlite'), { readOnly: true })
-    const integrity = checkDb.prepare('PRAGMA integrity_check').get() as { integrity_check: string }
-    checkDb.close()
-    if (integrity.integrity_check !== 'ok') throw new Error(`SQLite integrity check failed: ${integrity.integrity_check}`)
+    checkIntegrity(path.join(temp, 'database.sqlite'))
     return manifest
   } finally { fs.rmSync(temp, { recursive: true, force: true }) }
 }

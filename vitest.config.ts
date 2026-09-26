@@ -9,13 +9,14 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'json-summary'],
-      include: ['apps/admin/src/components/**/*.tsx', 'apps/status/src/components/**/*.tsx'],
-      exclude: ['**/*.test.tsx'],
+      include: ['apps/admin/src/**/*.{ts,tsx}', 'apps/status/src/**/*.{ts,tsx}'],
+      // Entry points and static translation tables carry no testable logic.
+      exclude: ['**/*.test.{ts,tsx}', '**/main.tsx', '**/i18n/defaults.ts', '**/i18n/statusDefaults.ts'],
       thresholds: {
-        lines: 20,
-        functions: 15,
-        statements: 20,
-        branches: 20,
+        lines: 45,
+        functions: 40,
+        statements: 40,
+        branches: 40,
       },
     },
   },

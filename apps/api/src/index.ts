@@ -11,6 +11,7 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 
 import { isSetupComplete } from './config.js'
+import { errorHandler } from './errorHandler.js'
 import { closeDb, initDb } from './db/client.js'
 import { runMigrations } from './db/migrate.js'
 import { setupRoutes } from './routes/setup.js'
@@ -64,6 +65,8 @@ const app = Fastify({
   },
   trustProxy: resolveTrustProxy(),
 })
+
+app.setErrorHandler(errorHandler)
 
 // CORS
 const allowedOrigins = process.env['ALLOWED_ORIGINS']?.split(',').map((o) => o.trim())
