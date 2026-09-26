@@ -1,18 +1,4 @@
-import { expect, test } from '@playwright/test'
-
-const email = 'e2e-admin@example.test'
-const password = 'e2e-secure-password'
-const apiUrl = `http://127.0.0.1:${process.env['E2E_API_PORT'] ?? '3000'}`
-
-test.beforeAll(async ({ request }) => {
-  const status = await request.get(`${apiUrl}/api/v1/setup/status`)
-  if ((await status.json()).needsSetup) {
-    const setup = await request.post(`${apiUrl}/api/v1/setup/complete`, {
-      data: { email, password },
-    })
-    expect(setup.ok()).toBeTruthy()
-  }
-})
+import { ADMIN, ADMIN_URL, expect, test } from './fixtures'
 
 test('public status page loads seeded branding', async ({ page }) => {
   await page.goto('/')
@@ -20,9 +6,9 @@ test('public status page loads seeded branding', async ({ page }) => {
 })
 
 test('administrator can log in and reach the dashboard', async ({ page }) => {
-  await page.goto('http://127.0.0.1:5173/admin/login')
-  await page.locator('input[type="email"]').fill(email)
-  await page.locator('input[type="password"]').fill(password)
+  await page.goto(`${ADMIN_URL}/login`)
+  await page.locator('input[type="email"]').fill(ADMIN.email)
+  await page.locator('input[type="password"]').fill(ADMIN.password)
   await page.locator('button[type="submit"]').click()
   await expect(page).toHaveURL(/\/admin\/?$/)
 })
@@ -31,6 +17,6 @@ test('public and admin layouts work on a mobile viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
   await expect(page.locator('body')).toBeVisible()
-  await page.goto('http://127.0.0.1:5173/admin/login')
+  await page.goto(`${ADMIN_URL}/login`)
   await expect(page.locator('input[type="email"]')).toBeVisible()
 })

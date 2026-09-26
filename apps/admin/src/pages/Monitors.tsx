@@ -39,7 +39,7 @@ export default function MonitorsPage() {
     let closed = false
     function connect() {
       if (closed) return
-      es = new EventSource('/api/v1/public/events')
+      es = new EventSource('/api/v1/admin/monitors/events')
       es.addEventListener('monitor.status', (e) => {
         const data = JSON.parse(e.data) as { monitorId: number; status: MonitorStatus; responseMs: number | null; checkedAt: number }
         qc.setQueryData<Monitor[]>(['monitors'], (old) =>

@@ -6,6 +6,8 @@ import { eq, desc, gte, and, inArray } from 'drizzle-orm'
 import { runCheck } from '../workers/scheduler.js'
 import { testHttps, testSqlServer, testPing, testDns } from '../workers/testRunner.js'
 import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
+import { refreshPublishedMonitorIds } from '../services/publishedMonitors.js'
+import { serveEventStream } from '../services/sse.service.js'
 import type { HttpsConfig, SqlServerConfig, PingConfig, DnsConfig, MonitorType } from '@bsp/shared'
 
 const MONITOR_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'webhook']
@@ -25,6 +27,9 @@ export async function monitorRoutes(app: FastifyInstance) {
     const rows = await db.select().from(monitors)
     return rows.map(parseMonitor)
   })
+
+  // Live status of every monitor, internal ones included; the public stream only carries published ones.
+  app.get('/events', async (req, reply) => serveEventStream(req, reply))
 
   /** Thresholds are "consecutive checks", so anything below 1 is meaningless. */
   function clampThreshold(value: number | undefined, fallback: number): number {
@@ -112,6 +117,7 @@ export async function monitorRoutes(app: FastifyInstance) {
     const existing = (await db.select().from(monitors).where(eq(monitors.id, id)))[0]
     await db.delete(monitors).where(eq(monitors.id, id))
     if (existing) {
+      await refreshPublishedMonitorIds()
       const actor = req.user as { userId: number; email: string }
       writeAudit({ userId: actor.userId, userEmail: actor.email }, 'delete', 'monitor', id, existing.name,
         snapshot({ name: existing.name, type: existing.type }))

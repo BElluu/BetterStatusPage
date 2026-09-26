@@ -7,6 +7,8 @@ const dataDir = process.env['E2E_DATA_DIR'] ?? './.e2e'
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
+  // Scenarios share one API instance and database.
+  workers: 1,
   retries: process.env['CI'] ? 2 : 0,
   reporter: process.env['CI'] ? [['html', { open: 'never' }], ['list']] : 'list',
   use: {
@@ -14,10 +16,13 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'setup', testMatch: /auth\.setup\.ts/ },
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, dependencies: ['setup'] },
+  ],
   webServer: [
     {
-      command: 'node --import tsx apps/api/src/index.ts',
+      command: 'node e2e/reset-data.ts && node --import tsx apps/api/src/index.ts',
       url: `${apiUrl}/api/v1/setup/status`,
       reuseExistingServer: false,
       timeout: 120_000,
@@ -30,6 +35,7 @@ export default defineConfig({
         UPLOAD_DIR: `${dataDir}/uploads`,
         JWT_SECRET: 'e2e-jwt-secret-with-sufficient-entropy',
         VAULT_ENCRYPTION_KEY: '0123456789abcdef'.repeat(4),
+        PUBLIC_URL: 'http://127.0.0.1:5174',
       },
     },
     {
