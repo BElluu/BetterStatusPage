@@ -13,10 +13,24 @@ interface LocaleCtx {
   setLocale: (code: string) => void
 }
 
+function translate(
+  translations: Partial<Record<TranslationKey, string>>,
+  key: TranslationKey,
+  params?: Record<string, string | number>,
+): string {
+  let value = translations[key] ?? EN_DEFAULTS[key] ?? key
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      value = value.replace(`{${k}}`, String(v))
+    }
+  }
+  return value
+}
+
 const Context = createContext<LocaleCtx>({
   locale: 'en',
   availableLocales: [],
-  t: (key) => EN_DEFAULTS[key] ?? key,
+  t: (key, params) => translate({}, key, params),
   setLocale: () => {},
 })
 
@@ -68,15 +82,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     setLocaleState(code)
   }, [])
 
-  const t: TFn = useCallback((key, params) => {
-    let value = translations[key] ?? EN_DEFAULTS[key] ?? key
-    if (params) {
-      for (const [k, v] of Object.entries(params)) {
-        value = value.replace(`{${k}}`, String(v))
-      }
-    }
-    return value
-  }, [translations])
+  const t: TFn = useCallback((key, params) => translate(translations, key, params), [translations])
 
   return (
     <Context.Provider value={{ locale, availableLocales, t, setLocale }}>

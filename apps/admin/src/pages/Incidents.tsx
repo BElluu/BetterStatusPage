@@ -243,6 +243,13 @@ export default function IncidentsPage() {
                         </button>
                         <NotifySubscribersCheckbox checked={updateNotify} onChange={setUpdateNotify} />
                       </div>
+                      {postUpdateMutation.isError && (
+                        <p role="alert" className="text-sm" style={{ color: 'var(--m3-down)' }}>
+                          {postUpdateMutation.error instanceof Error && postUpdateMutation.error.message
+                            ? postUpdateMutation.error.message
+                            : 'Failed to post the update. Please try again.'}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -287,14 +294,18 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
   const [selectedMonitors, setSelectedMonitors] = useState<number[]>([])
   const [notifySubscribers, setNotifySubscribers] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    setError('')
     try {
       // Monitors go in the same request so component-scoped subscribers are matched.
       await api.post<Incident>('/admin/incidents', { title, status, impact, monitorIds: selectedMonitors, notifySubscribers })
       onSaved()
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to create the incident. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -388,6 +399,10 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
           </div>
 
           <NotifySubscribersCheckbox checked={notifySubscribers} onChange={setNotifySubscribers} />
+
+          {error && (
+            <p role="alert" className="text-sm" style={{ color: 'var(--m3-down)' }}>{error}</p>
+          )}
 
           <div className="flex justify-end gap-3 pt-2">
             <button
