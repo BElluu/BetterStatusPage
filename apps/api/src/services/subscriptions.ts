@@ -445,14 +445,60 @@ export async function requestSubscription(input: SubscriptionRequest, now = Date
   deliverInBackground(() => sendConfirmationEmail(row!, confirmToken, publicUrl))
 }
 
-export async function confirmSubscription(token: string, now = Date.now()): Promise<{ preferences: SubscriptionPreferences; manageToken: string }> {
+const EVENT_NAMES: Record<SubscriberEventType, string> = {
+  'incident.created': 'New incidents',
+  'incident.updated': 'Incident updates',
+  'incident.resolved': 'Resolved incidents',
+  'maintenance.scheduled': 'Scheduled maintenance',
+}
+
+/** Sent once a subscription is confirmed — the one place the subscriber gets their manage link. */
+async function sendSubscribedEmail(row: SubscriberRow, publicUrl: string): Promise<void> {
+  const brand = await loadEmailBrand(publicUrl)
+  const subscriber = toSubscriber(row)
+  const links = subscriptionLinks(publicUrl, row.manageToken)
+  const components = await getPublicComponents()
+  const scope = [
+    ...subscriber.monitorIds.map((id) => components.find((component) => component.id === id)?.name).filter((name): name is string => !!name),
+    ...subscriber.tags.map((tag) => `#${tag}`),
+  ]
+  await sendSmtpMail({
+    to: row.email,
+    subject: `You are subscribed to ${brand.siteName}`,
+    ...renderEmail(brand, {
+      preheader: `You will now receive status updates from ${brand.siteName}.`,
+      badge: { label: 'Subscribed', color: toneColor(brand, 'resolved') },
+      title: 'You are subscribed',
+      paragraphs: [`Thanks for confirming. From now on we will let you know when ${brand.siteName} publishes an update you asked for.`],
+      details: [
+        ...(row.type === 'webhook' ? [{ label: 'Webhook', value: row.webhookUrl ?? '' }] : []),
+        { label: 'Notifications', value: subscriber.events.map((type) => EVENT_NAMES[type]).join(', ') },
+        { label: 'Components', value: scope.length ? scope.join(', ') : 'All components' },
+      ],
+      cta: { label: 'Manage or unsubscribe', url: links.manageUrl },
+      footer: 'Keep this email: the button above is how you change what you receive or stop the notifications at any time.',
+    }),
+    headers: {
+      'List-Unsubscribe': `<${links.oneClickUrl}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
+  })
+}
+
+/**
+ * Confirms from the link in the email alone. The manage token is not returned to the page — it
+ * reaches the subscriber only by email, together with the confirmation of what they signed up for.
+ */
+export async function confirmSubscription(token: string, now = Date.now()): Promise<{ type: SubscriberType }> {
   if (!token) throw new SubscriptionError('Invalid or expired link', 404)
   const row = (await db.select().from(subscribers).where(eq(subscribers.confirmTokenHash, hashToken(token))))[0]
   if (!row || row.status !== 'pending' || (row.confirmExpiresAt ?? 0) < now) throw new SubscriptionError('Invalid or expired link', 404)
   const [updated] = await db.update(subscribers).set({
     status: 'active', confirmedAt: now, confirmTokenHash: null, confirmExpiresAt: null, updatedAt: now,
   }).where(eq(subscribers.id, row.id)).returning()
-  return { preferences: toPreferences(updated!), manageToken: updated!.manageToken }
+  const publicUrl = resolvePublicUrl()
+  deliverInBackground(() => sendSubscribedEmail(updated!, publicUrl))
+  return { type: updated!.type as SubscriberType }
 }
 
 async function findByManageToken(token: string): Promise<SubscriberRow> {

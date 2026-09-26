@@ -93,12 +93,16 @@ async function subscribeAndConfirm(body: Record<string, unknown>): Promise<strin
   const response = await inject({ method: 'POST', url: '/api/v1/public/subscriptions', payload: body })
   assert.equal(response.statusCode, 202, response.body)
   await waitFor(() => emails.length > before)
+  const beforeConfirm = emails.length
   const confirm = await inject({
     method: 'POST', url: '/api/v1/public/subscriptions/confirm',
     payload: { token: tokenFrom(emails.at(-1)!, 'confirm') },
   })
   assert.equal(confirm.statusCode, 200, confirm.body)
-  return (confirm.json() as { manageToken: string }).manageToken
+  // The manage link is only ever delivered by email, never to the page that confirmed.
+  assert.equal('manageToken' in confirm.json(), false)
+  await waitFor(() => emails.length > beforeConfirm)
+  return tokenFrom(emails.at(-1)!, 'manage')
 }
 
 async function enable(overrides: Record<string, unknown> = {}) {
@@ -244,15 +248,24 @@ describe('status page subscriptions', () => {
 
     const confirm = await inject({ method: 'POST', url: '/api/v1/public/subscriptions/confirm', payload: { token: tokenFrom(emails[0]!, 'confirm') } })
     assert.equal(confirm.statusCode, 200)
+    assert.deepEqual(confirm.json(), { type: 'email' })
     ;[row] = await db.select().from(subscribers)
     assert.equal(row!.status, 'active')
     assert.equal(row!.confirmTokenHash, null)
+
+    // Confirming sends one email that carries the single manage-or-unsubscribe link.
+    await waitFor(() => emails.length === 2)
+    assert.match(emails[1]!, /Subject: You are subscribed/)
+    assert.equal(tokenFrom(emails[1]!, 'manage'), row!.manageToken)
+    assert.doesNotMatch(emails[1]!, /subscription=unsubscribe/)
+    const reused = await inject({ method: 'POST', url: '/api/v1/public/subscriptions/confirm', payload: { token: tokenFrom(emails[0]!, 'confirm') } })
+    assert.equal(reused.statusCode, 404)
 
     // Re-submitting an active address neither changes it nor mails again inside the cooldown.
     const again = await inject({ method: 'POST', url: '/api/v1/public/subscriptions', payload: { type: 'email', email: 'reader@example.test', events: ['incident.resolved'] } })
     assert.equal(again.statusCode, 202)
     await new Promise((resolve) => setTimeout(resolve, 100))
-    assert.equal(emails.length, 1)
+    assert.equal(emails.length, 2)
     ;[row] = await db.select().from(subscribers)
     assert.equal(JSON.parse(row!.events).length, 4)
   })
@@ -279,6 +292,7 @@ describe('status page subscriptions', () => {
     const confirm = await inject({ method: 'POST', url: '/api/v1/public/subscriptions/confirm', payload: { token: tokenFrom(emails[0]!, 'confirm') } })
     assert.equal(confirm.statusCode, 200)
     assert.equal((await db.select().from(subscribers))[0]!.status, 'active')
+    await waitFor(() => emails.length === 2)
   })
 
   it('delivers incident events only to subscribers whose events and components match', async () => {
