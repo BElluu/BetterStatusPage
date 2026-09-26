@@ -4,6 +4,7 @@ import { and, eq, lt, ne } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { authSessions, users } from '../db/schema.js'
 import { normalizeRole } from './roles.js'
+import { sseService } from './sse.service.js'
 
 export const SESSION_COOKIE = 'bsp_session'
 export const CSRF_COOKIE = 'bsp_csrf'
@@ -135,6 +136,7 @@ export async function verifyCsrf(req: FastifyRequest, identity: AuthIdentity): P
 
 export async function revokeSession(sessionId: string): Promise<void> {
   await db.delete(authSessions).where(eq(authSessions.id, sessionId))
+  sseService.disconnectSessions((session) => session.sessionId === sessionId)
 }
 
 export async function revokeUserSessions(userId: number, exceptSessionId?: string): Promise<void> {
@@ -142,4 +144,5 @@ export async function revokeUserSessions(userId: number, exceptSessionId?: strin
     ? and(eq(authSessions.userId, userId), ne(authSessions.id, exceptSessionId))
     : eq(authSessions.userId, userId)
   await db.delete(authSessions).where(condition)
+  sseService.disconnectSessions((session) => session.userId === userId && session.sessionId !== exceptSessionId)
 }

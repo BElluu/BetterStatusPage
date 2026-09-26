@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
-import { notificationChannels, monitorNotificationChannels, smtpSettings, notificationDeliveries, notificationDeliveryAttempts } from '../db/schema.js'
+import { monitors, notificationChannels, monitorNotificationChannels, smtpSettings, notificationDeliveries, notificationDeliveryAttempts } from '../db/schema.js'
 import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { retryNotificationDelivery, testNotificationChannel } from '../workers/notifier.js'
 import { normalizeAlertPolicy, parseAlertPolicy } from '../services/alertPolicy.js'
@@ -176,6 +176,9 @@ export async function notificationRoutes(app: FastifyInstance) {
 
   app.put<{ Params: { monitorId: string }; Body: { channelIds: number[] } }>('/monitor/:monitorId/channels', async (req, reply) => {
     const monitorId = Number(req.params.monitorId)
+    if (!Number.isSafeInteger(monitorId) || monitorId <= 0) return reply.code(400).send({ error: 'Invalid monitor id' })
+    const monitor = (await db.select({ id: monitors.id }).from(monitors).where(eq(monitors.id, monitorId)))[0]
+    if (!monitor) return reply.code(404).send({ error: 'Monitor not found' })
     const channelIds = req.body?.channelIds
     if (!Array.isArray(channelIds) || !channelIds.every((id) => Number.isSafeInteger(id) && id > 0)) {
       return reply.code(400).send({ error: 'channelIds must be an array of channel ids' })

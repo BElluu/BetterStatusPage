@@ -52,6 +52,41 @@ test('a branding user edits the site name, which the status page picks up', asyn
   }
 })
 
+test('an operator whose access is revoked is sent to the login page from a live Monitors page', async ({ browser, adminApi }) => {
+  // A dedicated account: revoking the shared operator's sessions would break other scenarios.
+  const email = `e2e-revoked-${Date.now()}@example.test`
+  const created = await ok<{ id: number; temporaryPassword: string }>(adminApi.post('admin/users', { data: { email } }))
+  await ok(adminApi.patch(`admin/users/${created.id}/role`, { data: { role: 'operator' } }))
+
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  await page.goto(`${ADMIN_URL}/login`)
+  await page.locator('input[type="email"]').fill(email)
+  await page.locator('input[type="password"]').fill(created.temporaryPassword)
+  await page.locator('button[type="submit"]').click()
+  await page.getByPlaceholder('Minimum 8 characters').fill('operator-to-revoke')
+  await page.getByPlaceholder('Repeat the password').fill('operator-to-revoke')
+  await page.getByRole('button', { name: 'Set Password & Continue' }).click()
+  await expect(page).toHaveURL(/\/admin\/?$/)
+  // Revoke only once the page has settled, so the live stream (not an in-flight request) must notice.
+  const listLoaded = page.waitForResponse((response) => response.url().endsWith('/api/v1/admin/monitors') && response.ok())
+  const streamOpened = page.waitForResponse((response) => response.url().endsWith('/api/v1/admin/monitors/events') && response.ok())
+  await page.getByRole('navigation').getByRole('link', { name: /Monitors/ }).click()
+  await expect(page.getByRole('heading', { name: 'Monitors' })).toBeVisible()
+  await Promise.all([listLoaded, streamOpened])
+
+  // Demoting the user revokes every session; the open live stream ends and the page must notice.
+  await ok(adminApi.patch(`admin/users/${created.id}/role`, { data: { role: 'branding' } }))
+  await expect(page).toHaveURL(/\/admin\/login$/, { timeout: 10_000 })
+
+  // And it stays there instead of retrying the stream in the background.
+  const retries: string[] = []
+  page.on('request', (request) => { if (request.url().includes('/admin/monitors/events')) retries.push(request.url()) })
+  await page.waitForTimeout(3_000)
+  expect(retries).toEqual([])
+  await context.close()
+})
+
 test('a new user must replace the temporary password, then can sign out', async ({ adminPage: admin, browser }) => {
   const email = `e2e-new-${Date.now()}@example.test`
   await admin.goto(`${ADMIN_URL}/users`)

@@ -1,19 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider, useLocale } from './LocaleContext'
-
-function memoryStorage(initial: Record<string, string> = {}): Storage {
-  const values = new Map(Object.entries(initial))
-  return {
-    get length() { return values.size },
-    clear: () => values.clear(),
-    getItem: (key) => values.get(key) ?? null,
-    key: (index) => [...values.keys()][index] ?? null,
-    removeItem: (key) => { values.delete(key) },
-    setItem: (key, value) => { values.set(key, String(value)) },
-  }
-}
 
 function mockApi(routes: Record<string, unknown>) {
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
@@ -44,15 +32,10 @@ const locales = [
 const polish = { translations: { 'page.hero': 'Status sieci w czasie rzeczywistym', 'page.monitoredLine': '{n} monitorowanych usług.' } }
 
 describe('LocaleProvider', () => {
-  let storage: Storage
+  const storage = window.localStorage
 
   beforeEach(() => {
-    storage = memoryStorage()
-    vi.stubGlobal('localStorage', storage)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
+    storage.clear()
   })
 
   it('falls back to English defaults outside a provider', () => {

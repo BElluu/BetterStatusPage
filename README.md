@@ -327,6 +327,7 @@ Open the admin URL and you'll be greeted by a setup wizard. Create your admin ac
 ```bash
 npm run lint            # ESLint for API, shared types, and both React apps
 npm test                # API integration tests + frontend component tests
+npm run test:api:coverage  # API tests with enforced coverage thresholds
 npm run test:coverage   # frontend coverage report with enforced thresholds
 npm run build           # strict TypeScript and production builds for all workspaces
 npm run backup          # create a consistent database + uploads backup (after build)
@@ -339,7 +340,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The E2E suite stores runtime data under `.e2e/`. GitHub Actions runs lint, tests, coverage, builds, Playwright E2E, and a production Docker smoke test on pull requests and pushes to `main`.
+The E2E suite starts from an empty instance every run (runtime data lives under `.e2e/` and is wiped first), walks through the setup wizard, and then covers monitors, incidents, maintenance, email subscriptions and role-based access. GitHub Actions runs lint, tests, coverage, builds, Playwright E2E, and a production Docker smoke test on pull requests and pushes to `main`.
 
 ### Production
 

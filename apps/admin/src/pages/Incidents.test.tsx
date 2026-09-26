@@ -124,6 +124,11 @@ describe('IncidentsPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Incident is locked')
     expect(screen.getByPlaceholderText('Describe the current situation…')).toHaveValue('Still looking.')
+
+    // The error belongs to that attempt: it must not follow the operator to another incident.
+    await user.click(screen.getByText('Checkout errors'))
+    await user.click(screen.getByText('Checkout errors'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('hides the notify option while subscriptions are disabled', async () => {

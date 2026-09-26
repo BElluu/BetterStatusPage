@@ -287,12 +287,19 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
     let method = (config.method ?? 'GET').toUpperCase()
     let body: string | undefined = config.body
     let sendCredentials = true
+    // Send exactly what the scheduled check sends. Its CAS flow replays one cookie jar on every hop;
+    // otherwise it relies on fetch, which keeps no cookie jar and drops Authorization and Cookie
+    // once a redirect leaves the original origin.
+    const hopHeaders = (): Record<string, string> => {
+      if (casServerBaseUrl) return { ...(config.headers ?? {}), ...authHeaders, ...cookieHdr() }
+      return sendCredentials ? { ...(config.headers ?? {}), ...authHeaders } : withoutCredentials(config.headers)
+    }
     steps.push({ label: `${method} ${config.url}`, status: 'info' })
     let currentUrl2 = config.url
     for (let hops = 0; hops < 10; hops++) {
       res = await fetch(currentUrl2, {
         method,
-        headers: { ...(sendCredentials ? { ...(config.headers ?? {}), ...authHeaders } : withoutAuthorization(config.headers)), ...cookieHdr() },
+        headers: hopHeaders(),
         ...(body !== undefined && method !== 'GET' && method !== 'HEAD' ? { body } : {}),
         signal: controller.signal,
         redirect: 'manual',
@@ -333,7 +340,7 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
 
       steps.push({ label: `→ ${res.status} ${next}${cookieNote}`, status: 'info', cookies: newJarSnap })
       // Follow redirects the way fetch does for scheduled checks: 303 (and 301/302 after POST)
-      // turn into a body-less GET, and credentials never follow the request to another origin.
+      // turn into a body-less GET, and credentials stay behind when the request changes origin.
       if ((res.status === 303 && method !== 'GET' && method !== 'HEAD') || ((res.status === 301 || res.status === 302) && method === 'POST')) {
         method = 'GET'
         body = undefined
@@ -551,8 +558,11 @@ export async function testDns(config: DnsConfig, timeoutMs: number): Promise<Tes
   }
 }
 
-function withoutAuthorization(headers: Record<string, string> | undefined): Record<string, string> {
-  return Object.fromEntries(Object.entries(headers ?? {}).filter(([name]) => name.toLowerCase() !== 'authorization'))
+/** The headers fetch strips when a redirect crosses origins. */
+const CROSS_ORIGIN_STRIPPED = new Set(['authorization', 'cookie', 'proxy-authorization'])
+
+function withoutCredentials(headers: Record<string, string> | undefined): Record<string, string> {
+  return Object.fromEntries(Object.entries(headers ?? {}).filter(([name]) => !CROSS_ORIGIN_STRIPPED.has(name.toLowerCase())))
 }
 
 function errMsg(err: unknown): string {
