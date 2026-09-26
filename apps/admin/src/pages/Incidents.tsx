@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { Incident, Monitor } from '@bsp/shared'
 import { ConfirmModal } from '../components/ConfirmModal'
+import { NotifySubscribersCheckbox } from '../components/subscribers/NotifySubscribersCheckbox'
 
 const statusColors: Record<string, string> = {
   investigating: '#ff4d6a',
@@ -26,6 +27,7 @@ export default function IncidentsPage() {
   const [confirmDelete, setConfirmDelete] = useState<Incident | null>(null)
   const [updateBody, setUpdateBody] = useState('')
   const [updateStatus, setUpdateStatus] = useState('monitoring')
+  const [updateNotify, setUpdateNotify] = useState(true)
 
   const { data: incidents = [] } = useQuery<Incident[]>({
     queryKey: ['incidents'],
@@ -38,11 +40,12 @@ export default function IncidentsPage() {
   })
 
   const postUpdateMutation = useMutation({
-    mutationFn: ({ id, body, status }: { id: number; body: string; status: string }) =>
-      api.post(`/admin/incidents/${id}/updates`, { body, status }),
+    mutationFn: ({ id, body, status, notifySubscribers }: { id: number; body: string; status: string; notifySubscribers: boolean }) =>
+      api.post(`/admin/incidents/${id}/updates`, { body, status, notifySubscribers }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['incidents'] })
       setUpdateBody('')
+      setUpdateNotify(true)
     },
   })
 
@@ -213,7 +216,7 @@ export default function IncidentsPage() {
                         placeholder="Describe the current situation…"
                         className="input-sig resize-none"
                       />
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
                         <select
                           value={updateStatus}
                           onChange={(e) => setUpdateStatus(e.target.value)}
@@ -228,7 +231,7 @@ export default function IncidentsPage() {
                         <button
                           onClick={() => {
                             if (!updateBody.trim()) return
-                            postUpdateMutation.mutate({ id: incident.id, body: updateBody, status: updateStatus })
+                            postUpdateMutation.mutate({ id: incident.id, body: updateBody, status: updateStatus, notifySubscribers: updateNotify })
                           }}
                           className="btn-primary text-sm font-semibold px-4 py-2 rounded-lg transition-all"
                           style={{
@@ -238,6 +241,7 @@ export default function IncidentsPage() {
                         >
                           Post Update
                         </button>
+                        <NotifySubscribersCheckbox checked={updateNotify} onChange={setUpdateNotify} />
                       </div>
                     </div>
                   )}
@@ -281,16 +285,15 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
   const [status, setStatus] = useState('investigating')
   const [impact, setImpact] = useState('minor')
   const [selectedMonitors, setSelectedMonitors] = useState<number[]>([])
+  const [notifySubscribers, setNotifySubscribers] = useState(true)
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     try {
-      const incident = await api.post<Incident>('/admin/incidents', { title, status, impact })
-      if (selectedMonitors.length > 0) {
-        await api.post(`/admin/incidents/${incident.id}/monitors`, { monitorIds: selectedMonitors })
-      }
+      // Monitors go in the same request so component-scoped subscribers are matched.
+      await api.post<Incident>('/admin/incidents', { title, status, impact, monitorIds: selectedMonitors, notifySubscribers })
       onSaved()
     } finally {
       setLoading(false)
@@ -383,6 +386,8 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
               )}
             </div>
           </div>
+
+          <NotifySubscribersCheckbox checked={notifySubscribers} onChange={setNotifySubscribers} />
 
           <div className="flex justify-end gap-3 pt-2">
             <button

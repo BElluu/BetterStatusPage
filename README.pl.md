@@ -51,6 +51,7 @@ Zanim wystawisz instancję produkcyjną, przeczytaj:
 - [Przewodnik wdrożeniowy](docs/deployment.md) *(EN)*
 - [Przewodnik po kopiach zapasowych i przywracaniu](docs/backup-restore.md) *(EN)*
 - [Przewodnik po higienie alertów](docs/alert-hygiene.md) *(EN)*
+- [Przewodnik po subskrypcjach strony statusu](docs/subscriptions.md) *(EN)*
 - [Polityka bezpieczeństwa](SECURITY.md) *(EN)*
 
 ---
@@ -119,6 +120,18 @@ Publiczna strona statusu to nie tylko lista zielonych kropek. To w pełni konfig
 ### 📢 Zarządzanie incydentami
 
 Twórz incydenty, ustawiaj wagę (none → minor → major → critical), powiązuj dotknięte monitory, publikuj aktualizacje w czasie rzeczywistym w miarę rozwoju sytuacji i oznaczaj jako rozwiązane, gdy kurz opadnie. Na stronie publicznej aktywny incydent typu minor oznacza powiązane monitory jako zdegradowane, a incydenty major i critical — jako niedziałające. Rozwiązanie incydentu przywraca status raportowany przez sprawdzenia monitoringu.
+
+### 📬 Subskrypcje dla odbiorców
+
+Kanały powiadomień budzą Twój zespół, a subskrypcje informują **Twoich użytkowników**. Odwiedzający zapisują się ze strony statusu przez e-mail lub webhook, dodają kanał do Slacka poleceniem `/feed subscribe`, śledzą kanał RSS/Atom albo odpytują publiczne API JSON (`summary.json`, `components.json`).
+
+- **Ty decydujesz, co może być wysyłane** — wybierasz dostępne kanały i typy zdarzeń (nowe incydenty, aktualizacje, rozwiązania, planowane prace serwisowe). Subskrybenci wybierają spośród nich i mogą je zawęzić do interesujących ich komponentów lub tagów.
+- **Double opt-in** przez e-mail, a w każdej wiadomości link do zarządzania subskrypcją i wypis jednym kliknięciem (RFC 8058)
+- **Tylko to, co publikujesz** — incydenty i prace serwisowe, nigdy flapy monitorów. Pole *Notify subscribers* pozwala opublikować wpis po cichu.
+- **Konfigurowalne webhooki** — subskrybent wybiera metodę HTTP i własne nagłówki, może dostać maila, gdy jego endpoint przestanie odpowiadać, a stale zawodzące endpointy są automatycznie wstrzymywane
+- **Bezpieczny publiczny formularz** — limit żądań, honeypot, brak możliwości sprawdzenia, kto jest zapisany, i adresy webhooków, które nigdy nie wskażą Twojej sieci wewnętrznej
+
+> Zobacz **[docs/subscriptions.md](docs/subscriptions.md)** — konfiguracja, zasady dostarczania i format webhooka *(EN)*.
 
 ### 🔧 Okna serwisowe
 

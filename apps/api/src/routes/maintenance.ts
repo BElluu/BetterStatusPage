@@ -3,6 +3,7 @@ import { db } from '../db/client.js'
 import { maintenanceWindows, maintenanceWindowMonitors } from '../db/schema.js'
 import { eq, and, lte, gte } from 'drizzle-orm'
 import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
+import { notifyMaintenanceSubscribers } from '../workers/subscriberNotifier.js'
 
 async function withMonitorIds(win: typeof maintenanceWindows.$inferSelect) {
   const links = await db.select().from(maintenanceWindowMonitors).where(eq(maintenanceWindowMonitors.windowId, win.id))
@@ -39,9 +40,10 @@ export async function maintenanceRoutes(app: FastifyInstance) {
     endsAt: number
     description?: string
     monitorIds?: number[]
+    notifySubscribers?: boolean
   } }>('/', async (req) => {
     const now = Date.now()
-    const { name, startsAt, endsAt, description, monitorIds = [] } = req.body
+    const { name, startsAt, endsAt, description, monitorIds = [], notifySubscribers = true } = req.body
     const results = await db.insert(maintenanceWindows).values({
       name,
       startsAt,
@@ -59,6 +61,11 @@ export async function maintenanceRoutes(app: FastifyInstance) {
     const actor = req.user as { userId: number; email: string }
     writeAudit({ userId: actor.userId, userEmail: actor.email }, 'create', 'maintenance', win.id, win.name,
       snapshot({ name: win.name, startsAt: win.startsAt, endsAt: win.endsAt, monitorIds }))
+    // Announcing a window that is already over would only be noise.
+    if (notifySubscribers && win.endsAt > now) {
+      await notifyMaintenanceSubscribers(win.id)
+        .catch((error) => console.error('[subscriptions] Failed to queue maintenance notice:', error))
+    }
     return withMonitorIds(win)
   })
 

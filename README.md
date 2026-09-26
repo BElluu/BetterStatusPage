@@ -51,6 +51,7 @@ Before exposing a production instance, read:
 - [Deployment guide](docs/deployment.md)
 - [Backup and restore guide](docs/backup-restore.md)
 - [Alert hygiene guide](docs/alert-hygiene.md)
+- [Status page subscriptions guide](docs/subscriptions.md)
 - [Security policy](SECURITY.md)
 
 ---
@@ -119,6 +120,18 @@ The public status page isn't just a list of green dots. It's a fully customizabl
 ### 📢 Incident management
 
 Create incidents, set severity (none → minor → major → critical), link affected monitors, post real-time updates as the situation unfolds, and mark resolved when the dust settles. On the public page, an active minor incident marks its linked monitors as degraded, while major and critical incidents mark them as down. Resolving the incident restores the status reported by monitoring checks.
+
+### 📬 Subscriptions for your audience
+
+Notification channels wake up your team; subscriptions keep **your users** in the loop. Visitors subscribe from the status page by email or webhook, add the feed to a Slack channel with `/feed subscribe`, follow the RSS/Atom feed, or poll the JSON status API (`summary.json`, `components.json`).
+
+- **You decide what can be sent** — pick the channels and event types on offer (new incidents, updates, resolutions, scheduled maintenance). Subscribers choose from those, and can narrow them to the components or tags they care about.
+- **Double opt-in** by email, with a manage link and RFC 8058 one-click unsubscribe in every message
+- **Only what you publish** — incidents and maintenance, never monitor flaps. A *Notify subscribers* checkbox lets you post quietly.
+- **Configurable webhooks** — subscribers pick the HTTP method and custom headers, can be emailed when their endpoint stops responding, and failing endpoints are paused automatically
+- **A safe public form** — rate limit, honeypot, no way to discover who is subscribed, and webhook URLs that can never point into your own network
+
+> See **[docs/subscriptions.md](docs/subscriptions.md)** for setup, delivery rules and the webhook payload.
 
 ### 🔧 Maintenance windows
 
@@ -366,6 +379,11 @@ SCHEDULER_TICK_SECONDS=10
 MONITOR_CHECK_CONCURRENCY=20
 MONITOR_RESULT_RETENTION_DAYS=90
 MONITOR_RESULT_PURGE_CRON=0 2 * * *
+
+# Public URL of the status page — required for email and webhook subscriptions; all subscriber links use it
+PUBLIC_URL=https://status.example.com
+# Optional: let subscriber webhooks reach internal addresses (intranet status pages only)
+SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
 ```
 
 > 🔑 **Generate a vault encryption key:**

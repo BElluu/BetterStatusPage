@@ -26,6 +26,10 @@ const STATUS_PAGE_GROUPS: Array<{ label: string; keys: TranslationKey[] }> = [
     label: 'Incident Statuses',
     keys: ['incident.investigating','incident.identified','incident.monitoring','incident.resolved'],
   },
+  {
+    label: 'Subscriptions',
+    keys: (Object.keys(EN_DEFAULTS) as TranslationKey[]).filter((key) => key.startsWith('subscribe.')),
+  },
 ]
 
 /* ── Key row editor ──────────────────────────────────────────────── */
