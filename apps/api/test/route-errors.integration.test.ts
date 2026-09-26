@@ -7,7 +7,7 @@ import Fastify from 'fastify'
 import { eq } from 'drizzle-orm'
 import { db, initDb, sqlite } from '../src/db/client.js'
 import { runMigrations } from '../src/db/migrate.js'
-import { auditLog, monitors, notificationDeliveries, smtpSettings, vaultSecrets } from '../src/db/schema.js'
+import { auditLog, monitorNotificationChannels, monitors, notificationDeliveries, smtpSettings, vaultSecrets } from '../src/db/schema.js'
 import { vaultRoutes } from '../src/routes/vaults.js'
 import { monitorRoutes } from '../src/routes/monitors.js'
 import { notificationRoutes } from '../src/routes/notifications.js'
@@ -384,6 +384,15 @@ describe('notification routes', () => {
     const unknown = await app.inject({ method: 'PUT', url: `/notifications/monitor/${monitor.id}/channels`, payload: { channelIds: [c.id, 999_999] } })
     assert.equal(unknown.statusCode, 400)
     assert.deepEqual((await app.inject({ url: `/notifications/monitor/${monitor.id}/channels` })).json(), [c.id])
+  })
+
+  it('rejects channel links for a malformed or unknown monitor instead of storing orphans', async () => {
+    const c = (await app.inject({ method: 'POST', url: '/notifications/channels', payload: { name: 'Orphan check', type: 'webhook', config: {} } })).json()
+    const malformed = await app.inject({ method: 'PUT', url: '/notifications/monitor/abc/channels', payload: { channelIds: [c.id] } })
+    assert.equal(malformed.statusCode, 400)
+    const unknown = await app.inject({ method: 'PUT', url: '/notifications/monitor/999999/channels', payload: { channelIds: [c.id] } })
+    assert.equal(unknown.statusCode, 404)
+    assert.deepEqual((await db.select().from(monitorNotificationChannels).where(eq(monitorNotificationChannels.monitorId, 999999))), [])
   })
 
   it('requires a name and a known type when creating a channel', async () => {

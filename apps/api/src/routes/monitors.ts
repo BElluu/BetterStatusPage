@@ -8,6 +8,7 @@ import { testHttps, testSqlServer, testPing, testDns } from '../workers/testRunn
 import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
 import { refreshPublishedMonitorIds } from '../services/publishedMonitors.js'
 import { serveEventStream } from '../services/sse.service.js'
+import { authenticateRequest, type AuthIdentity } from '../services/authSession.js'
 import type { HttpsConfig, SqlServerConfig, PingConfig, DnsConfig, MonitorType } from '@bsp/shared'
 
 const MONITOR_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'webhook']
@@ -29,7 +30,18 @@ export async function monitorRoutes(app: FastifyInstance) {
   })
 
   // Live status of every monitor, internal ones included; the public stream only carries published ones.
-  app.get('/events', async (req, reply) => serveEventStream(req, reply))
+  // Signing out, a role change or a deleted account ends the stream right away (the session is
+  // revoked); the keep-alive also re-checks the session so an expired one cannot keep listening.
+  app.get('/events', async (req, reply) => {
+    const { sessionId, userId } = req.user as AuthIdentity
+    await serveEventStream(req, reply, {
+      session: { sessionId, userId },
+      stillAllowed: async () => {
+        const identity = await authenticateRequest(req)
+        return identity.role === 'admin' || identity.role === 'operator'
+      },
+    })
+  })
 
   /** Thresholds are "consecutive checks", so anything below 1 is meaningless. */
   function clampThreshold(value: number | undefined, fallback: number): number {

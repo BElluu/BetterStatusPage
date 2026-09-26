@@ -327,6 +327,7 @@ Otwórz adres panelu admina, a przywita Cię kreator konfiguracji. Utwórz konto
 ```bash
 npm run lint            # ESLint dla API, współdzielonych typów i obu aplikacji React
 npm test                # testy integracyjne API + testy komponentów frontendu
+npm run test:api:coverage  # testy API z wymuszonymi progami pokrycia
 npm run test:coverage   # raport pokrycia frontendu z wymuszonymi progami
 npm run build           # ścisły TypeScript i buildy produkcyjne wszystkich workspace'ów
 npm run backup          # spójna kopia zapasowa bazy danych + uploadów (po buildzie)
@@ -339,7 +340,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Zestaw E2E przechowuje dane robocze w `.e2e/`. GitHub Actions uruchamia lint, testy, pokrycie, buildy, Playwright E2E i produkcyjny test dymny Dockera dla pull requestów i pushy do `main`.
+Zestaw E2E przy każdym uruchomieniu startuje od pustej instancji (dane robocze w `.e2e/` są najpierw czyszczone), przechodzi kreator konfiguracji, a potem obejmuje monitory, incydenty, okna serwisowe, subskrypcje e-mail i dostęp oparty na rolach. GitHub Actions uruchamia lint, testy, pokrycie, buildy, Playwright E2E i produkcyjny test dymny Dockera dla pull requestów i pushy do `main`.
 
 ### Produkcja
 

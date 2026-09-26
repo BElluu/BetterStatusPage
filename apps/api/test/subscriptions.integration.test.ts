@@ -11,7 +11,7 @@ import { eq } from 'drizzle-orm'
 import { db, initDb, sqlite } from '../src/db/client.js'
 import { runMigrations } from '../src/db/migrate.js'
 import {
-  incidentMonitors, incidentUpdates, incidents, layout, maintenanceWindows, monitors, smtpSettings,
+  incidentMonitors, incidentUpdates, incidents, layout, maintenanceWindowMonitors, maintenanceWindows, monitors, smtpSettings,
   subscriberDeliveries, subscribers, subscriptionSettings,
 } from '../src/db/schema.js'
 import { publicSubscriptionRoutes } from '../src/routes/subscriptions.js'
@@ -345,6 +345,41 @@ describe('status page subscriptions', () => {
       ['api-only@example.test', 'core-tag@example.test', 'everything@example.test'])
   })
 
+  it('never reaches scoped subscribers through internal monitors and skips internal-only maintenance', async () => {
+    await enable({ allowedEvents: ['incident.created', 'incident.updated', 'incident.resolved', 'maintenance.scheduled'] })
+    // The internal monitor shares a tag with a public one; the tag must not match through it.
+    await db.update(monitors).set({ tags: JSON.stringify([{ label: 'core', color: '#000' }]) }).where(eq(monitors.id, internal))
+    try {
+      await subscribeAndConfirm({ type: 'email', email: 'everything@example.test' })
+      await subscribeAndConfirm({ type: 'email', email: 'api-only@example.test', monitorIds: [publicA] })
+      await subscribeAndConfirm({ type: 'email', email: 'core-tag@example.test', tags: ['core'] })
+      emails.length = 0
+      const internalIncident = await inject({ method: 'POST', url: '/api/v1/admin/incidents', payload: { title: 'Replica lag', monitorIds: [internal] } })
+      assert.equal(internalIncident.statusCode, 200, internalIncident.body)
+      await drainDeliveries()
+      const incidentRecipients = emails.map((mail) => mail.match(/To: (\S+)/)![1])
+      assert.ok(incidentRecipients.includes('everything@example.test'), 'unscoped subscribers still hear about every published incident')
+      assert.equal(incidentRecipients.includes('core-tag@example.test'), false)
+      assert.equal(incidentRecipients.includes('api-only@example.test'), false)
+      assert.doesNotMatch(emails.join('\n'), /Secret DB replica/)
+
+      const later = Date.now() + 86_400_000
+      emails.length = 0
+      const hidden = await inject({ method: 'POST', url: '/api/v1/admin/maintenance', payload: { name: 'Replica rebuild', startsAt: later, endsAt: later + 3_600_000, monitorIds: [internal] } })
+      assert.equal(hidden.statusCode, 200, hidden.body)
+      await drainDeliveries()
+      assert.equal(emails.length, 0)
+
+      const visible = await inject({ method: 'POST', url: '/api/v1/admin/maintenance', payload: { name: 'API upgrade', startsAt: later, endsAt: later + 3_600_000, monitorIds: [publicA] } })
+      assert.equal(visible.statusCode, 200, visible.body)
+      await drainDeliveries()
+      assert.ok(emails.some((mail) => /To: everything@example\.test/.test(mail) && /API upgrade/.test(mail)))
+      assert.doesNotMatch(emails.join('\n'), /Replica rebuild/)
+    } finally {
+      await db.update(monitors).set({ tags: JSON.stringify([{ label: 'internal-only', color: '#000' }]) }).where(eq(monitors.id, internal))
+    }
+  })
+
   it('stops sending after one-click unsubscribe and lets subscribers manage preferences', async () => {
     await enable()
     const manageToken = await subscribeAndConfirm({ type: 'email', email: 'leaving@example.test' })
@@ -579,6 +614,11 @@ describe('status page subscriptions', () => {
     await db.insert(maintenanceWindows).values({
       name: 'Network work', startsAt: now + 3_600_000, endsAt: now + 7_200_000, description: null, createdAt: now, updatedAt: now,
     })
+    // Only covers an internal monitor, so it is as invisible in the feed as it is on the page.
+    const [internalWindow] = await db.insert(maintenanceWindows).values({
+      name: 'Replica rebuild', startsAt: now + 3_600_000, endsAt: now + 7_200_000, description: null, createdAt: now - 1, updatedAt: now,
+    }).returning()
+    await db.insert(maintenanceWindowMonitors).values({ windowId: internalWindow!.id, monitorId: internal })
 
     const feed = await inject({ url: '/api/v1/public/slack.rss' })
     assert.equal(feed.statusCode, 200)

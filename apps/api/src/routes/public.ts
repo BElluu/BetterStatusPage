@@ -245,7 +245,7 @@ export async function publicRoutes(app: FastifyInstance) {
   // Visitors only hear about published monitors; the admin panel has its own authenticated stream.
   app.get('/events', async (req, reply) => {
     await getPublishedMonitorIds()
-    await serveEventStream(req, reply, publicEventFilter)
+    await serveEventStream(req, reply, { filter: publicEventFilter })
   })
 }
 

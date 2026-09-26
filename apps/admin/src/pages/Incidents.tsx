@@ -90,7 +90,7 @@ export default function IncidentsPage() {
               {/* Header row */}
               <div
                 className="px-5 py-4 flex items-center gap-3 cursor-pointer transition-colors"
-                onClick={() => setExpandedId(isExpanded ? null : incident.id)}
+                onClick={() => { setExpandedId(isExpanded ? null : incident.id); postUpdateMutation.reset() }}
                 onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = 'var(--m3-surface-container)')}
                 onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.background = '')}
               >

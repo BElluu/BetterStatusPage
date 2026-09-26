@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { desc, inArray } from 'drizzle-orm'
 import { db } from '../db/client.js'
-import { branding, incidentMonitors, incidentUpdates, incidents, maintenanceWindows } from '../db/schema.js'
+import { branding, incidentMonitors, incidentUpdates, incidents, maintenanceWindowMonitors, maintenanceWindows } from '../db/schema.js'
 import type { SubscriberEventType } from '@bsp/shared'
 import { PUBLIC_FEED_RATE_LIMIT } from '../config/rateLimits.js'
 import { feedMethodAvailable, getPublicComponents, getSubscriptionSettings } from '../services/subscriptions.js'
@@ -169,7 +169,15 @@ async function loadSlackFeed(req: FastifyRequest) {
 
   if (allowed.has('maintenance.scheduled')) {
     const windows = await db.select().from(maintenanceWindows).orderBy(desc(maintenanceWindows.createdAt)).limit(FEED_SIZE)
-    for (const win of windows) {
+    const windowLinks = windows.length
+      ? await db.select().from(maintenanceWindowMonitors).where(inArray(maintenanceWindowMonitors.windowId, windows.map((w) => w.id)))
+      : []
+    // Windows that only cover internal monitors are hidden on the page, so they stay out of the feed too.
+    const isPublic = (windowId: number) => {
+      const links = windowLinks.filter((link) => link.windowId === windowId)
+      return links.length === 0 || links.some((link) => componentNames.has(link.monitorId))
+    }
+    for (const win of windows.filter((w) => isPublic(w.id))) {
       const when = `${new Date(win.startsAt).toISOString().replace('T', ' ').slice(0, 16)} → ${new Date(win.endsAt).toISOString().replace('T', ' ').slice(0, 16)} UTC`
       items.push({
         guid: `maintenance-${win.id}`,

@@ -59,7 +59,13 @@ const httpServer = createHttpServer(async (req, res) => {
       res.writeHead(302, { Location: '/healthy' }).end()
       return
     case '/redirect-to':
-      res.writeHead(302, { Location: url.searchParams.get('target') ?? '/healthy' }).end()
+      res.writeHead(302, { 'Set-Cookie': `session=${SESSION_SECRET}`, Location: url.searchParams.get('target') ?? '/healthy' }).end()
+      return
+    case '/set-cookie-then-require':
+      res.writeHead(302, { 'Set-Cookie': 'gate=open', Location: '/cookie-gate' }).end()
+      return
+    case '/cookie-gate':
+      res.writeHead(hasCookie(req, 'gate') ? 200 : 401).end('gate')
       return
     case '/redirect-loop':
       res.writeHead(302, { Location: '/redirect-loop' }).end()
@@ -270,9 +276,9 @@ describe('monitor test runner: HTTPS', () => {
   })
 
   it('does not forward credentials when a redirect leaves the origin', async () => {
-    const seen: Array<{ authorization: string | undefined; probe: string | undefined }> = []
+    const seen: Array<{ authorization: string | undefined; cookie: string | undefined; probe: string | undefined }> = []
     const other = createHttpServer((req, res) => {
-      seen.push({ authorization: req.headers.authorization, probe: req.headers['x-probe'] as string | undefined })
+      seen.push({ authorization: req.headers.authorization, cookie: req.headers.cookie, probe: req.headers['x-probe'] as string | undefined })
       res.writeHead(200).end('elsewhere')
     })
     await new Promise<void>((resolve) => other.listen(0, '127.0.0.1', resolve))
@@ -282,12 +288,13 @@ describe('monitor test runner: HTTPS', () => {
       const target = encodeURIComponent(`http://127.0.0.1:${address.port}/landing`)
       const result = await testHttps({
         url: `${baseUrl}/redirect-to?target=${target}`, method: 'GET', expectedStatus: 200,
-        headers: { 'X-Probe': 'kept', Authorization: 'Bearer custom-header-token' },
+        headers: { 'X-Probe': 'kept', Authorization: 'Bearer custom-header-token', Cookie: 'configured=1' },
         auth: { type: 'basic', basic: { username: 'user', password: 'password' } },
       }, 2_000)
       assert.equal(result.overall, 'ok', labels(result).join(' | '))
       assert.equal(lastAuthorization, `Basic ${Buffer.from('user:password').toString('base64')}`)
-      assert.deepEqual(seen, [{ authorization: undefined, probe: 'kept' }])
+      // Neither the configured Cookie header nor the cookie the first hop set may reach the other origin.
+      assert.deepEqual(seen, [{ authorization: undefined, cookie: undefined, probe: 'kept' }])
     } finally {
       other.closeAllConnections()
       await new Promise<void>((resolve) => other.close(() => resolve()))
@@ -390,6 +397,8 @@ describe('monitor test runner: parity with the scheduled HTTPS check', () => {
     ['timeout', { url: '/slow', method: 'GET', expectedStatus: 200 }, 150],
     ['basic auth', { url: '/protected', method: 'GET', expectedStatus: 200, auth: { type: 'basic', basic: { username: 'user', password: 'password' } } }, 2_000],
     ['wrong basic auth', { url: '/protected', method: 'GET', expectedStatus: 200, auth: { type: 'basic', basic: { username: 'user', password: 'nope' } } }, 2_000],
+    // fetch keeps no cookie jar, so a cookie set on a redirect is not sent back on the next hop.
+    ['cookie set on a same-origin redirect', { url: '/set-cookie-then-require', method: 'GET', expectedStatus: 200 }, 2_000],
     ['CAS', { url: '/cas-service', method: 'GET', expectedStatus: 200, keyword: 'authenticated', auth: { type: 'cas', cas: { casServerUrl: '/cas', username: 'user', password: 'password' } } }, 3_000],
     ['two-layer CAS', { url: '/cas-two', method: 'GET', expectedStatus: 200, auth: { type: 'cas', cas: { casServerUrl: '/cas', username: 'user', password: 'password' } } }, 3_000],
   ]
