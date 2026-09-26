@@ -7,15 +7,16 @@ export async function checkDns(
   timeoutMs: number,
 ): Promise<{ status: MonitorStatus; responseMs: number | null; error: string | null }> {
   const start = Date.now()
+  let timer: ReturnType<typeof setTimeout> | undefined
   try {
     const resolver = new Resolver()
     if (config.resolver) {
       resolver.setServers([config.resolver])
     }
 
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('DNS query timed out')), timeoutMs),
-    )
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('DNS query timed out')), timeoutMs)
+    })
 
     const records: string[] = await Promise.race([
       (async () => {
@@ -51,5 +52,7 @@ export async function checkDns(
   } catch (err) {
     const responseMs = Date.now() - start
     return { status: 'down', responseMs, error: err instanceof Error ? err.message : String(err) }
+  } finally {
+    clearTimeout(timer)
   }
 }

@@ -32,6 +32,16 @@ function serializePayload(type: SecretType, payload: SecretPayload): string {
   throw new Error('Unknown type')
 }
 
+const DUPLICATE_SECRET_ERROR = 'A secret with this name already exists in the vault'
+
+/** Drizzle wraps driver errors ("Failed query: …"); the SQLite constraint text lives on `cause`. */
+function isUniqueViolation(error: unknown): boolean {
+  for (let current = error; current instanceof Error; current = current.cause) {
+    if (current.message.includes('UNIQUE constraint failed')) return true
+  }
+  return false
+}
+
 function safeDecrypt(encryptedValue: string): unknown {
   try {
     return JSON.parse(decrypt(encryptedValue))
@@ -139,8 +149,7 @@ export async function vaultRoutes(app: FastifyInstance) {
         const { encryptedValue: _ev, ...safe } = row!
         return safe
       } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : ''
-        if (msg.includes('UNIQUE')) return reply.code(409).send({ error: 'A secret with this name already exists in the vault' })
+        if (isUniqueViolation(e)) return reply.code(409).send({ error: DUPLICATE_SECRET_ERROR })
         throw e
       }
     },
@@ -180,8 +189,7 @@ export async function vaultRoutes(app: FastifyInstance) {
         const { encryptedValue: _ev, ...safe } = row!
         return safe
       } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : ''
-        if (msg.includes('UNIQUE')) return reply.code(409).send({ error: 'A secret with this name already exists in the vault' })
+        if (isUniqueViolation(e)) return reply.code(409).send({ error: DUPLICATE_SECRET_ERROR })
         throw e
       }
     },

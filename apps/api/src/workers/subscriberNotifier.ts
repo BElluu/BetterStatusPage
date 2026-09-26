@@ -1,10 +1,10 @@
-import { and, desc, eq, inArray, lt, lte } from 'drizzle-orm'
+import { and, desc, eq, lt, lte } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import {
-  incidentMonitors, incidentUpdates, incidents, maintenanceWindowMonitors, maintenanceWindows, monitors,
+  incidentMonitors, incidentUpdates, incidents, maintenanceWindowMonitors, maintenanceWindows,
   subscriberDeliveries, subscribers,
 } from '../db/schema.js'
-import type { MonitorTag, SubscriberEventType, SubscriptionComponent, WebhookMethod } from '@bsp/shared'
+import type { SubscriberEventType, SubscriptionComponent, WebhookMethod } from '@bsp/shared'
 import { sendSmtpMail } from './notifier.js'
 import { postSubscriberWebhook } from '../services/publicWebhook.js'
 import { resolvePublicUrl } from '../config/publicUrl.js'
@@ -54,21 +54,13 @@ const BATCH_SIZE = 200
 
 // ── Fan-out ──────────────────────────────────────────────────────────────────
 
-async function monitorTagMap(monitorIds: number[]): Promise<Set<string>> {
-  if (monitorIds.length === 0) return new Set()
-  const rows = await db.select({ tags: monitors.tags }).from(monitors).where(inArray(monitors.id, monitorIds))
-  const tags = new Set<string>()
-  for (const row of rows) {
-    try {
-      for (const tag of JSON.parse(row.tags) as MonitorTag[]) if (tag?.label) tags.add(tag.label)
-    } catch { /* ignore malformed tags */ }
-  }
-  return tags
-}
-
 /**
  * Queues one delivery per matching active subscriber. An event linked to no monitors is
  * treated as page-wide and reaches everyone who opted into its type.
+ *
+ * Only monitors on the published page count: an event tied solely to internal monitors is not about
+ * any component a subscriber could have picked, so scoped subscribers never hear about it, and a
+ * maintenance window that covers only internal monitors is not announced at all (the page hides it).
  */
 export async function notifySubscribers(event: SubscriberEvent, monitorIds: number[], now = Date.now()): Promise<number> {
   const settings = await getSubscriptionSettings()
@@ -76,13 +68,20 @@ export async function notifySubscribers(event: SubscriberEvent, monitorIds: numb
   const channels = allowedChannels(settings)
   if (channels.length === 0) return 0
 
-  const eventTags = await monitorTagMap(monitorIds)
+  const linked = (await getPublicComponents()).filter((component) => monitorIds.includes(component.id))
+  const internalOnly = monitorIds.length > 0 && linked.length === 0
+  if (internalOnly && event.type === 'maintenance.scheduled') return 0
+  const linkedIds = new Set(linked.map((component) => component.id))
+  const linkedTags = new Set(linked.flatMap((component) => component.tags))
+
   const active = (await db.select().from(subscribers).where(eq(subscribers.status, 'active'))).map(toSubscriber)
   const recipients = active.filter((subscriber) => {
     if (!channels.includes(subscriber.type) || !subscriber.events.includes(event.type)) return false
     const scoped = settings.allowComponentScope && (subscriber.monitorIds.length > 0 || subscriber.tags.length > 0)
-    if (!scoped || monitorIds.length === 0) return true
-    return subscriber.monitorIds.some((id) => monitorIds.includes(id)) || subscriber.tags.some((tag) => eventTags.has(tag))
+    if (!scoped) return true
+    if (internalOnly) return false
+    if (linked.length === 0) return true
+    return subscriber.monitorIds.some((id) => linkedIds.has(id)) || subscriber.tags.some((tag) => linkedTags.has(tag))
   })
   if (recipients.length === 0) return 0
 

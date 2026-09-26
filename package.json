@@ -17,6 +17,7 @@
     "lint": "eslint . --max-warnings=0",
     "test": "npm run test:api && npm run test:frontend",
     "test:api": "npm run build -w @bsp/shared && tsx --test apps/api/test/*.test.ts",
+    "test:api:coverage": "npm run build -w @bsp/shared && node --import tsx --test --experimental-test-coverage --test-coverage-include=\"apps/api/src/**\" --test-coverage-lines=94 --test-coverage-branches=78 --test-coverage-functions=91 apps/api/test/*.test.ts",
     "test:frontend": "npm run build -w @bsp/shared && vitest run",
     "test:coverage": "npm run build -w @bsp/shared && vitest run --coverage",
     "test:e2e": "playwright test",

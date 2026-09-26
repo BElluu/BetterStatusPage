@@ -36,10 +36,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test
-        run: npm test
+      # Both suites fail the job when coverage drops below the thresholds (API: package.json
+      # test:api:coverage, frontend: vitest.config.ts).
+      - name: API tests with coverage
+        run: npm run test:api:coverage
 
-      - name: Frontend coverage
+      - name: Frontend tests with coverage
         run: npm run test:coverage
 
       - name: Build

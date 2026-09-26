@@ -232,9 +232,10 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
 
   // ── HTTP request ──────────────────────────────────────────────────────────
   const t = Date.now()
+  // The timeout covers the whole exchange, including reading the body, and is always cleared.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
     const jar = new Map<string, string>(probeCookies)
 
     function collectCookies(res: Response): string[] {
@@ -283,13 +284,23 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
     // We intercept that redirect and get a fresh ticket — this time NGINX passes
     // the ticket through to the app (NGXCAS is valid), so the app can validate
     // it and establish its own authenticated session.
-    steps.push({ label: `GET ${config.url}`, status: 'info' })
+    let method = (config.method ?? 'GET').toUpperCase()
+    let body: string | undefined = config.body
+    let sendCredentials = true
+    // Send exactly what the scheduled check sends. Its CAS flow replays one cookie jar on every hop;
+    // otherwise it relies on fetch, which keeps no cookie jar and drops Authorization and Cookie
+    // once a redirect leaves the original origin.
+    const hopHeaders = (): Record<string, string> => {
+      if (casServerBaseUrl) return { ...(config.headers ?? {}), ...authHeaders, ...cookieHdr() }
+      return sendCredentials ? { ...(config.headers ?? {}), ...authHeaders } : withoutCredentials(config.headers)
+    }
+    steps.push({ label: `${method} ${config.url}`, status: 'info' })
     let currentUrl2 = config.url
     for (let hops = 0; hops < 10; hops++) {
       res = await fetch(currentUrl2, {
-        method: config.method ?? 'GET',
-        headers: { ...(config.headers ?? {}), ...authHeaders, ...cookieHdr() },
-        ...(config.body !== undefined ? { body: config.body } : {}),
+        method,
+        headers: hopHeaders(),
+        ...(body !== undefined && method !== 'GET' && method !== 'HEAD' ? { body } : {}),
         signal: controller.signal,
         redirect: 'manual',
       })
@@ -328,10 +339,16 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
       }
 
       steps.push({ label: `→ ${res.status} ${next}${cookieNote}`, status: 'info', cookies: newJarSnap })
+      // Follow redirects the way fetch does for scheduled checks: 303 (and 301/302 after POST)
+      // turn into a body-less GET, and credentials stay behind when the request changes origin.
+      if ((res.status === 303 && method !== 'GET' && method !== 'HEAD') || ((res.status === 301 || res.status === 302) && method === 'POST')) {
+        method = 'GET'
+        body = undefined
+      }
+      if (new URL(next).origin !== new URL(currentUrl2).origin) sendCredentials = false
       currentUrl2 = next
     }
 
-    clearTimeout(timer)
     const responseMs = Date.now() - t
 
     const expectedStatus = config.expectedStatus ?? 200
@@ -342,12 +359,12 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
     steps.push({ label: `Response: HTTP ${res.status}`, status: 'ok', durationMs: responseMs })
 
     // Keep the body in memory for validation, but never expose it in diagnostics.
-    const body = await res.text()
-    steps.push({ label: 'Response body', status: 'info', detail: `${Buffer.byteLength(body, 'utf8')} bytes (content omitted)` })
+    const responseBody = await res.text()
+    steps.push({ label: 'Response body', status: 'info', detail: `${Buffer.byteLength(responseBody, 'utf8')} bytes (content omitted)` })
 
     // ── Keyword check ───────────────────────────────────────────────────
     if (config.keyword) {
-      if (body.includes(config.keyword)) {
+      if (responseBody.includes(config.keyword)) {
         steps.push({ label: `Keyword "${config.keyword}" found in response`, status: 'ok' })
       } else {
         steps.push({ label: `Keyword "${config.keyword}" not found in response`, status: 'error' })
@@ -357,6 +374,8 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
   } catch (err) {
     steps.push({ label: 'Request failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
     return { overall: 'error', steps, totalMs: Date.now() - totalStart }
+  } finally {
+    clearTimeout(timer)
   }
 
   return { overall: 'ok', steps, totalMs: Date.now() - totalStart }
@@ -505,6 +524,7 @@ export async function testDns(config: DnsConfig, timeoutMs: number): Promise<Tes
     steps.push({ label: `Custom resolver: ${config.resolver}`, status: 'info' })
   }
   const t = Date.now()
+  let timer: ReturnType<typeof setTimeout> | undefined
   try {
     const records: string[] = await Promise.race([
       (async () => {
@@ -517,7 +537,7 @@ export async function testDns(config: DnsConfig, timeoutMs: number): Promise<Tes
           default:      return resolver.resolve(config.hostname)
         }
       })(),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('DNS query timed out')), timeoutMs)),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('DNS query timed out')), timeoutMs) }),
     ])
     const responseMs = Date.now() - t
     steps.push({ label: `DNS ${config.recordType} for ${config.hostname}`, status: 'ok', detail: records.join(', '), durationMs: responseMs })
@@ -533,7 +553,16 @@ export async function testDns(config: DnsConfig, timeoutMs: number): Promise<Tes
   } catch (err) {
     steps.push({ label: `DNS ${config.recordType} query for ${config.hostname} failed`, status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
     return { overall: 'error', steps, totalMs: Date.now() - totalStart }
+  } finally {
+    clearTimeout(timer)
   }
+}
+
+/** The headers fetch strips when a redirect crosses origins. */
+const CROSS_ORIGIN_STRIPPED = new Set(['authorization', 'cookie', 'proxy-authorization'])
+
+function withoutCredentials(headers: Record<string, string> | undefined): Record<string, string> {
+  return Object.fromEntries(Object.entries(headers ?? {}).filter(([name]) => !CROSS_ORIGIN_STRIPPED.has(name.toLowerCase())))
 }
 
 function errMsg(err: unknown): string {

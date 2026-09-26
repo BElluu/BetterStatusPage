@@ -39,7 +39,7 @@ export default function MonitorsPage() {
     let closed = false
     function connect() {
       if (closed) return
-      es = new EventSource('/api/v1/public/events')
+      es = new EventSource('/api/v1/admin/monitors/events')
       es.addEventListener('monitor.status', (e) => {
         const data = JSON.parse(e.data) as { monitorId: number; status: MonitorStatus; responseMs: number | null; checkedAt: number }
         qc.setQueryData<Monitor[]>(['monitors'], (old) =>
@@ -49,7 +49,16 @@ export default function MonitorsPage() {
           ),
         )
       })
-      es.onerror = () => { es?.close(); es = null; if (!closed) retryTimer = setTimeout(connect, 2000) }
+      // The stream ends when the session is revoked. Check the session before reconnecting: the API
+      // client sends a signed-out user to the login page instead of retrying forever.
+      es.onerror = () => {
+        es?.close()
+        es = null
+        if (closed) return
+        retryTimer = setTimeout(() => {
+          api.get('/auth/session').then(connect, () => { /* redirected to login */ })
+        }, 2000)
+      }
     }
     connect()
     return () => { closed = true; if (retryTimer) clearTimeout(retryTimer); es?.close() }

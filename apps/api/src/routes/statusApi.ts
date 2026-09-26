@@ -122,7 +122,13 @@ async function loadState(baseUrl: string) {
       url,
       components: refs(incidentLinks.filter((link) => link.incidentId === incident.id).map((link) => link.monitorId)),
     }))
-  const apiMaintenances: ApiActiveMaintenance[] = windows
+  // An empty component list means "everything", so a window that only covers internal monitors is
+  // left out entirely instead of being published as page-wide maintenance.
+  const publicWindows = windows.filter((win) => {
+    const links = windowLinks.filter((link) => link.windowId === win.id)
+    return links.length === 0 || links.some((link) => publicIds.has(link.monitorId))
+  })
+  const apiMaintenances: ApiActiveMaintenance[] = publicWindows
     .sort((a, b) => a.startsAt - b.startsAt)
     .map((win) => ({
       id: win.id,
@@ -140,7 +146,7 @@ async function loadState(baseUrl: string) {
   const leafStatuses = flat(components).map((component) => component.status)
   const pageStatus: ApiPageStatus = apiIncidents.length > 0 || leafStatuses.some((s) => s !== 'operational' && s !== 'under_maintenance')
     ? 'has_issues'
-    : running.length > 0 ? 'under_maintenance' : 'operational'
+    : publicWindows.some((win) => win.startsAt <= now) ? 'under_maintenance' : 'operational'
 
   return { components, apiIncidents, apiMaintenances, pageStatus, url }
 }
