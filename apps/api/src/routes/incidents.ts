@@ -145,6 +145,9 @@ export async function incidentRoutes(app: FastifyInstance) {
       const updatedIncident = (await db.select().from(incidents).where(eq(incidents.id, incidentId)))[0]!
       const enriched = await enrichIncident(updatedIncident)
       sseService.broadcast('incident.updated', enriched)
+      const actor = req.user as { userId: number; email: string }
+      const diff = diffObjects({ status: existing.status }, { status: updatedIncident.status })
+      if (Object.keys(diff).length) writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'incident', incidentId, existing.title, diff)
       if (req.body.notifySubscribers !== false) {
         const update = updateResults[0]!
         const type = update.status === 'resolved' && existing.status !== 'resolved' ? 'incident.resolved' : 'incident.updated'

@@ -63,6 +63,11 @@ before(async () => {
     name: 'Billing upgrade', startsAt: now - HOUR, endsAt: now + HOUR, description: 'Card processor swap', createdAt: now, updatedAt: now,
   }).returning()
   await db.insert(maintenanceWindowMonitors).values({ windowId: running!.id, monitorId: ids['Billing']! })
+  // Covers only a monitor that is not on the page: never published, and never page-wide maintenance.
+  const [internalWindow] = await db.insert(maintenanceWindows).values({
+    name: 'Replica rebuild', startsAt: now - HOUR, endsAt: now + HOUR, description: 'Internal only', createdAt: now, updatedAt: now,
+  }).returning()
+  await db.insert(maintenanceWindowMonitors).values({ windowId: internalWindow!.id, monitorId: ids['Internal DB']! })
   await db.insert(maintenanceWindows).values([
     { name: 'Network work', startsAt: now + 24 * HOUR, endsAt: now + 26 * HOUR, description: null, createdAt: now, updatedAt: now },
     { name: 'Finished', startsAt: now - 5 * HOUR, endsAt: now - 4 * HOUR, description: null, createdAt: now, updatedAt: now },
@@ -100,7 +105,7 @@ describe('public status API', () => {
       ['Billing upgrade', 'in_progress', 120],
       ['Network work', 'not_started', 120],
     ])
-    assert.doesNotMatch(response.body, /Internal DB|Old outage|Finished/)
+    assert.doesNotMatch(response.body, /Internal DB|Old outage|Finished|Replica rebuild|Internal only/)
   })
 
   it('lists public components with the statuses visitors see, grouped as on the page', async () => {

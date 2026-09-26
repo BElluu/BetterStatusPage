@@ -129,6 +129,22 @@ describe('incident CRUD', () => {
     assert.equal(update.statusCode, 200)
     assert.equal(update.json().body, 'Root cause identified')
 
+    const incidentAudit = (await db.select().from(auditLog))
+      .filter((entry) => entry.entityType === 'incident' && entry.entityId === String(incident.id))
+    const statusChange = incidentAudit.find((entry) => entry.action === 'update')
+    assert.ok(statusChange, 'status change via timeline update is audited')
+    assert.deepEqual(JSON.parse(statusChange.diff!), { status: { from: 'investigating', to: 'identified' } })
+
+    const sameStatus = await app.inject({
+      method: 'POST',
+      url: `/incidents/${incident.id}/updates`,
+      payload: { body: 'Still identified', status: 'identified' },
+    })
+    assert.equal(sameStatus.statusCode, 200)
+    const updatesAfterNoop = (await db.select().from(auditLog))
+      .filter((entry) => entry.entityType === 'incident' && entry.action === 'update' && entry.entityId === String(incident.id))
+    assert.equal(updatesAfterNoop.length, 1, 'update without a status change is not audited')
+
     const patched = await app.inject({
       method: 'PATCH',
       url: `/incidents/${incident.id}`,
@@ -140,7 +156,7 @@ describe('incident CRUD', () => {
     const list = await app.inject({ method: 'GET', url: '/incidents' })
     const stored = list.json().find((item: { id: number }) => item.id === incident.id)
     assert.deepEqual(stored.monitorIds, [monitor.id])
-    assert.equal(stored.updates[0].body, 'Root cause identified')
+    assert.equal(stored.updates[0].body, 'Still identified')
 
     assert.equal((await app.inject({ method: 'DELETE', url: `/incidents/${incident.id}` })).statusCode, 204)
     assert.equal((await app.inject({ method: 'DELETE', url: `/monitors/${monitor.id}` })).statusCode, 204)

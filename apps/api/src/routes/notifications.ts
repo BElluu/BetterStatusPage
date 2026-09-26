@@ -1,17 +1,21 @@
 import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
-import { notificationChannels, monitorNotificationChannels, smtpSettings, notificationDeliveries, notificationDeliveryAttempts } from '../db/schema.js'
-import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
+import { monitors, notificationChannels, monitorNotificationChannels, smtpSettings, notificationDeliveries, notificationDeliveryAttempts } from '../db/schema.js'
+import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { retryNotificationDelivery, testNotificationChannel } from '../workers/notifier.js'
 import { normalizeAlertPolicy, parseAlertPolicy } from '../services/alertPolicy.js'
 import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
+import { withImmediateTransaction } from '../db/transaction.js'
+import type { NotificationChannelType } from '@bsp/shared'
+
+const CHANNEL_TYPES: readonly NotificationChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack']
 
 export async function notificationRoutes(app: FastifyInstance) {
   app.get<{
     Querystring: { page?: string; limit?: string; status?: string; channelId?: string; channelType?: string; monitorId?: string; eventType?: string; from?: string; to?: string }
   }>('/deliveries', async (req) => {
-    const page = Math.max(1, Number(req.query.page ?? 1))
-    const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 25)))
+    const page = Math.max(1, Number(req.query.page ?? 1) || 1)
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 25) || 25))
     const conditions = []
     if (req.query.status) conditions.push(eq(notificationDeliveries.status, req.query.status))
     if (req.query.channelId) conditions.push(eq(notificationDeliveries.channelId, Number(req.query.channelId)))
@@ -88,7 +92,11 @@ export async function notificationRoutes(app: FastifyInstance) {
   app.post<{ Body: {
     name: string; type: string
     config: unknown; enabled?: number; notifyOnRecovery?: number; alertPolicy?: unknown
-  } }>('/channels', async (req) => {
+  } }>('/channels', async (req, reply) => {
+    if (typeof req.body?.name !== 'string' || !req.body.name.trim()) return reply.code(400).send({ error: 'Name is required' })
+    if (!CHANNEL_TYPES.includes(req.body.type as NotificationChannelType)) {
+      return reply.code(400).send({ error: `Type must be one of: ${CHANNEL_TYPES.join(', ')}` })
+    }
     const now = Date.now()
     const results = await db.insert(notificationChannels).values({
       name: req.body.name,
@@ -166,14 +174,28 @@ export async function notificationRoutes(app: FastifyInstance) {
     return links.map((l) => l.channelId)
   })
 
-  app.put<{ Params: { monitorId: string }; Body: { channelIds: number[] } }>('/monitor/:monitorId/channels', async (req) => {
+  app.put<{ Params: { monitorId: string }; Body: { channelIds: number[] } }>('/monitor/:monitorId/channels', async (req, reply) => {
     const monitorId = Number(req.params.monitorId)
-    await db.delete(monitorNotificationChannels).where(eq(monitorNotificationChannels.monitorId, monitorId))
-    if (req.body.channelIds.length > 0) {
-      await db.insert(monitorNotificationChannels).values(
-        req.body.channelIds.map((channelId) => ({ monitorId, channelId })),
-      )
+    if (!Number.isSafeInteger(monitorId) || monitorId <= 0) return reply.code(400).send({ error: 'Invalid monitor id' })
+    const monitor = (await db.select({ id: monitors.id }).from(monitors).where(eq(monitors.id, monitorId)))[0]
+    if (!monitor) return reply.code(404).send({ error: 'Monitor not found' })
+    const channelIds = req.body?.channelIds
+    if (!Array.isArray(channelIds) || !channelIds.every((id) => Number.isSafeInteger(id) && id > 0)) {
+      return reply.code(400).send({ error: 'channelIds must be an array of channel ids' })
     }
+    const uniqueIds = [...new Set(channelIds)]
+    if (uniqueIds.length > 0) {
+      // The link table has no foreign key, so unknown ids would be stored silently.
+      const known = await db.select({ id: notificationChannels.id }).from(notificationChannels).where(inArray(notificationChannels.id, uniqueIds))
+      if (known.length !== uniqueIds.length) return reply.code(400).send({ error: 'Unknown notification channel' })
+    }
+    // Replace the links atomically so a failed insert never leaves the monitor without channels.
+    await withImmediateTransaction(async () => {
+      await db.delete(monitorNotificationChannels).where(eq(monitorNotificationChannels.monitorId, monitorId))
+      if (uniqueIds.length > 0) {
+        await db.insert(monitorNotificationChannels).values(uniqueIds.map((channelId) => ({ monitorId, channelId })))
+      }
+    })
     return { ok: true }
   })
 

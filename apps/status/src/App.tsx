@@ -100,7 +100,9 @@ export default function App() {
 
   const { data: status } = useQuery<PublicStatus>({
     queryKey: ['public-status'],
-    queryFn: () => fetch('/api/v1/public/status').then((r) => r.json()),
+    // Revalidate instead of reusing the browser's short-lived copy, so an SSE-triggered refetch
+    // really picks up the change it was notified about.
+    queryFn: () => fetch('/api/v1/public/status', { cache: 'no-cache' }).then((r) => r.json()),
     refetchInterval: 5 * 60_000,
   })
 
