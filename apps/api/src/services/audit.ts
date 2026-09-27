@@ -44,9 +44,14 @@ export function snapshot(obj: Record<string, unknown>): Record<string, unknown> 
   return redactObj(obj)
 }
 
-interface Actor {
+export interface Actor {
   userId: number
   userEmail: string
+}
+
+/** Audit actor for an authenticated identity. */
+export function auditActor(identity: { userId: number; email: string }): Actor {
+  return { userId: identity.userId, userEmail: identity.email }
 }
 
 /**

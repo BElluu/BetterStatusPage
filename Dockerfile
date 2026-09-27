@@ -62,6 +62,11 @@ ENV DATABASE_PATH=/app/data/db.sqlite
 ENV UPLOAD_DIR=/app/data/uploads
 ENV BACKUP_DIR=/app/backups
 
-RUN mkdir -p /app/backups
+# Run unprivileged. The writable directories belong to the built-in "node" user; a fresh named
+# volume inherits this ownership. Volumes created by older images that ran as root need a one-off
+# `chown -R 1000:1000` (see docs/deployment.md).
+RUN mkdir -p /app/backups && chown -R node:node /app/data /app/backups
+
+USER node
 
 CMD ["node", "apps/api/dist/index.js"]

@@ -1,18 +1,14 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import { eq } from 'drizzle-orm'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
+import { db, sqlite } from '../src/db/client.js'
 import { auditLog, smtpSettings, subscribers } from '../src/db/schema.js'
 import { adminSubscriberRoutes } from '../src/routes/subscriptions.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 import { SUBSCRIBER_EVENT_TYPES } from '@bsp/shared'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-admin-subscriptions-test-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-admin-subscriptions-test-')
 const originalPublicUrl = process.env['PUBLIC_URL']
 delete process.env['PUBLIC_URL']
 
@@ -41,8 +37,7 @@ async function addSubscriber(values: Partial<typeof subscribers.$inferInsert> = 
 }
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
   app.addHook('preHandler', async (request) => {
     request.user = { userId: 7, email: 'admin@example.test', role: 'admin' }
   })
@@ -52,10 +47,9 @@ before(async () => {
 
 after(async () => {
   await app.close()
-  sqlite.close()
   if (originalPublicUrl === undefined) delete process.env['PUBLIC_URL']
   else process.env['PUBLIC_URL'] = originalPublicUrl
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 describe('admin subscription settings', () => {

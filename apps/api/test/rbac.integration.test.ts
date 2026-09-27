@@ -1,23 +1,18 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import jwt from '@fastify/jwt'
 import { requireAuth, requireRole } from '../src/middleware/auth.js'
 import { authSessions, users } from '../src/db/schema.js'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
+import { db } from '../src/db/client.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const app = Fastify({ logger: false })
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-rbac-test-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-rbac-test-')
 const authorizations: Record<string, { authorization: string }> = {}
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
   await app.register(jwt, { secret: 'test-secret-with-sufficient-entropy' })
   app.get('/authenticated', { preHandler: requireAuth }, async () => ({ ok: true }))
   app.get('/operator', { preHandler: requireRole('operator') }, async () => ({ ok: true }))
@@ -36,8 +31,7 @@ before(async () => {
 
 after(async () => {
   await app.close()
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 function authorization(role: string) {

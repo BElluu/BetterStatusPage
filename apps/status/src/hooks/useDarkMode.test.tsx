@@ -34,4 +34,15 @@ describe('status page useDarkMode', () => {
     expect(document.documentElement).not.toHaveClass('dark')
     expect(localStorage.getItem('bsp-dark-mode')).toBe('false')
   })
+
+  it('keeps every mounted instance in sync', () => {
+    prefersDark(false)
+    const header = renderHook(() => useDarkMode())
+    const footer = renderHook(() => useDarkMode())
+
+    act(() => header.result.current[1]())
+
+    expect(footer.result.current[0]).toBe(true)
+    expect(document.documentElement).toHaveClass('dark')
+  })
 })

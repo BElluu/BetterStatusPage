@@ -1,26 +1,22 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import jwt from '@fastify/jwt'
 import rateLimit from '@fastify/rate-limit'
 import cookie from '@fastify/cookie'
 import bcrypt from 'bcryptjs'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
+import { db } from '../src/db/client.js'
 import { users } from '../src/db/schema.js'
 import { requireAuth, requireRole } from '../src/middleware/auth.js'
 import { authRoutes } from '../src/routes/auth.js'
 import { userRoutes } from '../src/routes/users.js'
-import { vaultRoutes } from '../src/routes/vaults.js'
+import { vaultCatalogRoutes, vaultRoutes } from '../src/routes/vaults.js'
 import { resolveVaultSecret } from '../src/workers/resolveSecret.js'
 import { generateTotpCode } from '../src/crypto/totp.js'
 import { systemHealthRoutes } from '../src/routes/systemHealth.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-security-test-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-security-test-')
 process.env['VAULT_ENCRYPTION_KEY'] = 'abcdef0123456789'.repeat(4)
 
 const app = Fastify({ logger: false })
@@ -39,8 +35,7 @@ function sessionHeaders(response: { headers: Record<string, string | string[] | 
 }
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
   const passwordHash = await bcrypt.hash(adminPassword, 4)
   const [admin, operator] = await db.insert(users).values([
     { email: 'admin@example.test', passwordHash, role: 'admin', createdAt: Date.now() },
@@ -57,6 +52,7 @@ before(async () => {
     protectedApp.register(async (adminApp) => {
       adminApp.addHook('preHandler', requireRole())
       adminApp.register(userRoutes, { prefix: '/users' })
+      adminApp.register(vaultCatalogRoutes, { prefix: '/vaults' })
       adminApp.register(vaultRoutes, { prefix: '/vaults' })
       adminApp.register(systemHealthRoutes, { prefix: '/system-health' })
     })
@@ -69,8 +65,7 @@ before(async () => {
 
 after(async () => {
   await app.close()
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 describe('authentication', () => {

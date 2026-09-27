@@ -3,15 +3,11 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { pipeline } from 'stream/promises'
-import { applyRetention, backupFile, currentVaultKeyMatches, DEFAULT_BACKUP_CONFIG, listBackups, readBackupConfig, readBackupStatus, validateBackup, writeBackupConfig, type BackupConfig } from '../services/backup.js'
-import { createBackupInWorker } from '../services/backupRunner.js'
-import { writeAudit } from '../services/audit.js'
+import { applyRetention, backupFile, currentVaultKeyMatches, DEFAULT_BACKUP_CONFIG, listBackups, readBackupConfig, readBackupStatus, writeBackupConfig, type BackupConfig } from '../services/backup.js'
+import { createBackupInWorker, validateBackupInWorker } from '../services/backupRunner.js'
+import { auditActor, writeAudit } from '../services/audit.js'
+import { requestIdentity } from '../middleware/auth.js'
 import { restartBackupScheduler } from '../workers/backupScheduler.js'
-
-function actor(req: { user: unknown }) {
-  const user = req.user as { userId: number; email: string }
-  return { userId: user.userId, userEmail: user.email }
-}
 
 function parseConfig(value: Partial<BackupConfig>): BackupConfig {
   const config = { ...DEFAULT_BACKUP_CONFIG, ...value }
@@ -29,7 +25,7 @@ export async function backupRoutes(app: FastifyInstance) {
     try {
       const result = await createBackupInWorker()
       applyRetention(readBackupConfig().retention)
-      await writeAudit(actor(req), 'create', 'backup', result.filename, result.filename)
+      await writeAudit(auditActor(requestIdentity(req)), 'create', 'backup', result.filename, result.filename)
       return result
     } catch (error) { return reply.code(409).send({ error: error instanceof Error ? error.message : String(error) }) }
   })
@@ -39,7 +35,7 @@ export async function backupRoutes(app: FastifyInstance) {
       writeBackupConfig(config)
       applyRetention(config.retention)
       restartBackupScheduler()
-      await writeAudit(actor(req), 'update', 'backup-config', null, 'Backup schedule', {
+      await writeAudit(auditActor(requestIdentity(req)), 'update', 'backup-config', null, 'Backup schedule', {
         enabled: config.enabled,
         frequency: config.frequency,
         hour: config.hour,
@@ -65,7 +61,7 @@ export async function backupRoutes(app: FastifyInstance) {
       const file = backupFile(req.params.filename)
       if (!fs.existsSync(file)) return reply.code(404).send({ error: 'Backup not found' })
       fs.rmSync(file)
-      await writeAudit(actor(req), 'delete', 'backup', req.params.filename, req.params.filename)
+      await writeAudit(auditActor(requestIdentity(req)), 'delete', 'backup', req.params.filename, req.params.filename)
       return reply.code(204).send()
     } catch (error) { return reply.code(400).send({ error: error instanceof Error ? error.message : String(error) }) }
   })
@@ -77,7 +73,7 @@ export async function backupRoutes(app: FastifyInstance) {
     try {
       await pipeline(data.file, fs.createWriteStream(input, { mode: 0o600 }))
       if (data.file.truncated) throw new Error('Backup file exceeds the 2 GB validation limit')
-      const manifest = validateBackup(input)
+      const manifest = await validateBackupInWorker(input)
       return { valid: true, manifest, vaultKeyMatches: currentVaultKeyMatches(manifest) }
     } catch (error) { return reply.code(400).send({ error: error instanceof Error ? error.message : String(error) }) }
     finally { fs.rmSync(tempDir, { recursive: true, force: true }) }

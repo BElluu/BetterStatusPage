@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import type { TranslationKey, LocaleSummary } from '@bsp/shared'
 import { EN_DEFAULTS } from './defaults'
+import { getJSON } from '../api'
 
 const LS_KEY = 'bsp-locale'
 
@@ -45,9 +46,8 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   // Fetch list of available locales; determine active locale if not yet set
   useEffect(() => {
-    fetch('/api/v1/public/locales')
-      .then((r) => r.json())
-      .then((data: LocaleSummary[]) => {
+    getJSON<LocaleSummary[]>('/api/v1/public/locales')
+      .then((data) => {
         if (!Array.isArray(data) || data.length === 0) return
         setAvailableLocales(data)
 
@@ -69,9 +69,8 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       setTranslations({})
       return
     }
-    fetch(`/api/v1/public/locales/${locale}`)
-      .then((r) => r.json())
-      .then((data: { translations: Partial<Record<TranslationKey, string>> }) => {
+    getJSON<{ translations?: Partial<Record<TranslationKey, string>> }>(`/api/v1/public/locales/${locale}`)
+      .then((data) => {
         setTranslations(data.translations ?? {})
       })
       .catch(() => setTranslations({}))

@@ -4,8 +4,10 @@ import { monitors, notificationChannels, monitorNotificationChannels, smtpSettin
 import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { retryNotificationDelivery, testNotificationChannel } from '../workers/notifier.js'
 import { normalizeAlertPolicy, parseAlertPolicy } from '../services/alertPolicy.js'
-import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
+import { auditActor, writeAudit, diffObjects, snapshot } from '../services/audit.js'
+import { requestIdentity } from '../middleware/auth.js'
 import { withImmediateTransaction } from '../db/transaction.js'
+import { parsePagination } from '../lib/pagination.js'
 import type { NotificationChannelType } from '@bsp/shared'
 
 const CHANNEL_TYPES: readonly NotificationChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack']
@@ -14,8 +16,7 @@ export async function notificationRoutes(app: FastifyInstance) {
   app.get<{
     Querystring: { page?: string; limit?: string; status?: string; channelId?: string; channelType?: string; monitorId?: string; eventType?: string; from?: string; to?: string }
   }>('/deliveries', async (req) => {
-    const page = Math.max(1, Number(req.query.page ?? 1) || 1)
-    const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 25) || 25))
+    const { page, limit, offset } = parsePagination(req.query, { defaultLimit: 25, maxLimit: 100 })
     const conditions = []
     if (req.query.status) conditions.push(eq(notificationDeliveries.status, req.query.status))
     if (req.query.channelId) conditions.push(eq(notificationDeliveries.channelId, Number(req.query.channelId)))
@@ -37,7 +38,7 @@ export async function notificationRoutes(app: FastifyInstance) {
         deliveredAt: notificationDeliveries.deliveredAt, lastError: notificationDeliveries.lastError,
         suppressionReason: notificationDeliveries.suppressionReason, groupKey: notificationDeliveries.groupKey,
         createdAt: notificationDeliveries.createdAt, updatedAt: notificationDeliveries.updatedAt,
-      }).from(notificationDeliveries).where(where).orderBy(desc(notificationDeliveries.createdAt)).limit(limit).offset((page - 1) * limit),
+      }).from(notificationDeliveries).where(where).orderBy(desc(notificationDeliveries.createdAt)).limit(limit).offset(offset),
       db.select({ count: sql<number>`count(*)` }).from(notificationDeliveries).where(where),
     ])
     const total = count[0]?.count ?? 0
@@ -59,8 +60,8 @@ export async function notificationRoutes(app: FastifyInstance) {
     if (!existing) return reply.code(404).send({ error: 'Delivery not found' })
     if (existing.status !== 'failed') return reply.code(409).send({ error: 'Only failed deliveries can be retried' })
     await retryNotificationDelivery(id)
-    const actor = req.user as { userId: number; email: string }
-    await writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'notification_delivery', id, `${existing.channelName} · ${existing.monitorName}`, {
+    const actor = requestIdentity(req)
+    await writeAudit(auditActor(actor), 'update', 'notification_delivery', id, `${existing.channelName} · ${existing.monitorName}`, {
       manualRetry: { from: false, to: true },
     })
     return (await db.select().from(notificationDeliveries).where(eq(notificationDeliveries.id, id)))[0]
@@ -109,8 +110,8 @@ export async function notificationRoutes(app: FastifyInstance) {
       updatedAt: now,
     }).returning()
     const r = results[0]!
-    const actor = req.user as { userId: number; email: string }
-    writeAudit({ userId: actor.userId, userEmail: actor.email }, 'create', 'notification_channel', r.id, r.name,
+    const actor = requestIdentity(req)
+    writeAudit(auditActor(actor), 'create', 'notification_channel', r.id, r.name,
       snapshot({ name: r.name, type: r.type, enabled: r.enabled, notifyOnRecovery: r.notifyOnRecovery, ...policyAuditFields(r) }))
     return parseChannel(r)
   })
@@ -138,12 +139,12 @@ export async function notificationRoutes(app: FastifyInstance) {
 
     const results = await db.update(notificationChannels).set(updates).where(eq(notificationChannels.id, id)).returning()
     const r = results[0]!
-    const actor = req.user as { userId: number; email: string }
+    const actor = requestIdentity(req)
     const before = { name: existing.name, type: existing.type, enabled: existing.enabled, notifyOnRecovery: existing.notifyOnRecovery, ...policyAuditFields(existing) } as Record<string, unknown>
     const after  = { name: r.name, type: r.type, enabled: r.enabled, notifyOnRecovery: r.notifyOnRecovery, ...policyAuditFields(r) } as Record<string, unknown>
     const diff = diffObjects(before, after)
     if (req.body.config !== undefined) diff['config'] = { from: '[previous config]', to: '[updated config]' }
-    if (Object.keys(diff).length) writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'notification_channel', id, existing.name, diff)
+    if (Object.keys(diff).length) writeAudit(auditActor(actor), 'update', 'notification_channel', id, existing.name, diff)
     return parseChannel(r)
   })
 
@@ -153,8 +154,8 @@ export async function notificationRoutes(app: FastifyInstance) {
     await db.delete(monitorNotificationChannels).where(eq(monitorNotificationChannels.channelId, id))
     await db.delete(notificationChannels).where(eq(notificationChannels.id, id))
     if (existing) {
-      const actor = req.user as { userId: number; email: string }
-      writeAudit({ userId: actor.userId, userEmail: actor.email }, 'delete', 'notification_channel', id, existing.name,
+      const actor = requestIdentity(req)
+      writeAudit(auditActor(actor), 'delete', 'notification_channel', id, existing.name,
         snapshot({ name: existing.name, type: existing.type }))
     }
     return reply.code(204).send()
@@ -215,9 +216,18 @@ export async function notificationRoutes(app: FastifyInstance) {
     host: string; port: number; secure: number
     user: string; password?: string; fromAddress: string; fromName: string
     vault?: { vaultId: number; secretId: number; fieldMapping?: Record<string, string> } | null
-  } }>('/smtp', async (req) => {
+  } }>('/smtp', async (req, reply) => {
     const now = Date.now()
     const existing = (await db.select().from(smtpSettings))[0]
+
+    const passwordSupplied = !!req.body.password && req.body.password !== '••••••••'
+    // Never forward the stored password to a different server or account: changing where it goes
+    // requires re-entering it.
+    if (existing?.password && !req.body.vault && !passwordSupplied && (
+      req.body.host !== existing.host || Number(req.body.port) !== existing.port || (req.body.user ?? '') !== existing.user
+    )) {
+      return reply.code(400).send({ error: 'Re-enter the SMTP password when changing the host, port or username' })
+    }
 
     const values = {
       host: req.body.host,
@@ -233,13 +243,13 @@ export async function notificationRoutes(app: FastifyInstance) {
     if (existing) {
       const password = req.body.vault
         ? ''
-        : (req.body.password && req.body.password !== '••••••••' ? req.body.password : existing.password)
+        : (passwordSupplied ? req.body.password! : existing.password)
       await db.update(smtpSettings).set({ ...values, password }).where(eq(smtpSettings.id, 1))
     } else {
       await db.insert(smtpSettings).values({ id: 1, ...values, password: req.body.vault ? '' : (req.body.password ?? '') })
     }
 
-    const actor = req.user as { userId: number; email: string }
+    const actor = requestIdentity(req)
     const diff: Record<string, unknown> = {}
     if (existing) {
       const before = { host: existing.host, port: existing.port, secure: existing.secure, user: existing.user, fromAddress: existing.fromAddress, fromName: existing.fromName } as Record<string, unknown>
@@ -247,7 +257,7 @@ export async function notificationRoutes(app: FastifyInstance) {
       Object.assign(diff, diffObjects(before, after))
     }
     if (req.body.password && req.body.password !== '••••••••') diff['password'] = { from: '[redacted]', to: '[redacted]' }
-    writeAudit({ userId: actor.userId, userEmail: actor.email }, existing ? 'update' : 'create', 'smtp_settings', 1, 'SMTP Settings', Object.keys(diff).length ? diff : undefined)
+    writeAudit(auditActor(actor), existing ? 'update' : 'create', 'smtp_settings', 1, 'SMTP Settings', Object.keys(diff).length ? diff : undefined)
     return { ok: true }
   })
 

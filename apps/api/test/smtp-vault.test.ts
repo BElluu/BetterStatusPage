@@ -1,17 +1,13 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import { SMTPServer } from 'smtp-server'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
+import { db, sqlite } from '../src/db/client.js'
 import { smtpSettings, vaults, vaultSecrets } from '../src/db/schema.js'
 import { encrypt } from '../src/crypto/vault.js'
 import { isSmtpConfigured, sendSmtpMail } from '../src/workers/notifier.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-smtp-vault-test-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-smtp-vault-test-')
 process.env['VAULT_ENCRYPTION_KEY'] = 'abcdef0123456789'.repeat(4)
 
 const logins: Array<{ username: string; password: string }> = []
@@ -58,8 +54,7 @@ async function configureSmtp(values: Partial<typeof smtpSettings.$inferInsert>):
 const message = { to: 'ops@example.test', subject: 'Monitor down', text: 'API is down' }
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
   await new Promise<void>((resolve) => smtpServer.listen(0, '127.0.0.1', resolve))
   const address = smtpServer.server.address()
   if (!address || typeof address === 'string') throw new Error('SMTP test server did not bind')
@@ -76,8 +71,7 @@ beforeEach(() => {
 
 after(async () => {
   await new Promise<void>((resolve) => smtpServer.close(() => resolve()))
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 describe('SMTP delivery', () => {

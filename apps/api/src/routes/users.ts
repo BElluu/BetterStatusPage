@@ -1,9 +1,11 @@
 import type { FastifyInstance } from 'fastify'
 import bcrypt from 'bcryptjs'
+import { randomInt } from 'node:crypto'
 import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
-import { writeAudit, snapshot } from '../services/audit.js'
+import { auditActor, writeAudit, snapshot } from '../services/audit.js'
+import { requestIdentity } from '../middleware/auth.js'
 import { revokeUserSessions } from '../services/authSession.js'
 import { normalizeRole, VALID_ROLES } from '../services/roles.js'
 import { resetTwoFactor } from '../services/twoFactor.js'
@@ -12,7 +14,7 @@ import { SENSITIVE_ACTION_RATE_LIMIT } from '../config/rateLimits.js'
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
   let result = ''
-  for (let i = 0; i < 12; i++) result += chars[Math.floor(Math.random() * chars.length)]
+  for (let i = 0; i < 12; i++) result += chars[randomInt(chars.length)]
   return result
 }
 
@@ -39,15 +41,15 @@ export async function userRoutes(app: FastifyInstance) {
     const result = await db.insert(users).values({
       email, passwordHash: hash, role: 'branding', mustChangePassword: 1, createdAt: Date.now(),
     }).returning({ id: users.id, email: users.email, role: users.role, createdAt: users.createdAt })
-    const actor = req.user as { userId: number; email: string }
-    writeAudit({ userId: actor.userId, userEmail: actor.email }, 'create', 'user', result[0]!.id, email,
+    const actor = requestIdentity(req)
+    writeAudit(auditActor(actor), 'create', 'user', result[0]!.id, email,
       snapshot({ email, role: 'branding' }))
     return { ...result[0], temporaryPassword }
   })
 
   app.patch<{ Params: { id: string }; Body: { role: string } }>('/:id/role', async (req, reply) => {
     const id = Number(req.params.id)
-    const jwt = req.user as { userId: number }
+    const jwt = requestIdentity(req)
     if (jwt.userId === id) return reply.code(400).send({ error: 'Cannot change your own role' })
     if (!(VALID_ROLES as readonly string[]).includes(req.body.role)) {
       return reply.code(400).send({ error: 'Invalid role' })
@@ -58,8 +60,8 @@ export async function userRoutes(app: FastifyInstance) {
     if (!result.length) return reply.code(404).send({ error: 'User not found' })
     if (existing) {
       await revokeUserSessions(id)
-      const actor = req.user as { userId: number; email: string }
-      writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'user', id, existing.email,
+      const actor = requestIdentity(req)
+      writeAudit(auditActor(actor), 'update', 'user', id, existing.email,
         { role: { from: existing.role, to: req.body.role } })
     }
     return result[0]
@@ -76,8 +78,8 @@ export async function userRoutes(app: FastifyInstance) {
       mustChangePassword: 1,
     }).where(eq(users.id, id))
     await revokeUserSessions(id)
-    const actor = req.user as { userId: number; email: string }
-    writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'user', id, user.email,
+    const actor = requestIdentity(req)
+    writeAudit(auditActor(actor), 'update', 'user', id, user.email,
       { action: 'password_reset' })
     return { temporaryPassword }
   })
@@ -86,7 +88,7 @@ export async function userRoutes(app: FastifyInstance) {
     config: { rateLimit: SENSITIVE_ACTION_RATE_LIMIT },
   }, async (req, reply) => {
     const id = Number(req.params.id)
-    const actor = req.user as { userId: number; email: string }
+    const actor = requestIdentity(req)
     if (!Number.isInteger(id)) return reply.code(400).send({ error: 'Invalid user ID' })
     if (actor.userId === id) {
       return reply.code(400).send({ error: 'Use account settings to disable your own two-factor authentication' })
@@ -103,7 +105,7 @@ export async function userRoutes(app: FastifyInstance) {
     if (!await resetTwoFactor(id)) return reply.code(409).send({ error: 'Two-factor authentication is already disabled' })
 
     await writeAudit(
-      { userId: actor.userId, userEmail: actor.email },
+      auditActor(actor),
       'update', 'user-security', id, target.email,
       { twoFactorReset: { from: true, to: false }, method: 'admin_recovery' },
     )
@@ -112,13 +114,13 @@ export async function userRoutes(app: FastifyInstance) {
 
   app.delete<{ Params: { id: string } }>('/:id', async (req, reply) => {
     const id = Number(req.params.id)
-    const actor = req.user as { userId: number; email: string }
+    const actor = requestIdentity(req)
     if (actor.userId === id) return reply.code(400).send({ error: 'Cannot delete your own account' })
     const existing = (await db.select().from(users).where(eq(users.id, id)))[0]
     await revokeUserSessions(id)
     await db.delete(users).where(eq(users.id, id))
     if (existing) {
-      writeAudit({ userId: actor.userId, userEmail: actor.email }, 'delete', 'user', id, existing.email,
+      writeAudit(auditActor(actor), 'delete', 'user', id, existing.email,
         snapshot({ email: existing.email, role: existing.role }))
     }
     return { success: true }

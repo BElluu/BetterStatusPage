@@ -15,6 +15,7 @@ describe('rate limit isolation and proxy handling', () => {
     app.get<{ Params: { token: string } }>('/hook/:token', {
       config: { rateLimit: WEBHOOK_RATE_LIMIT },
     }, async () => ({ ok: true }))
+    app.get('/ip', async (req) => ({ ip: req.ip }))
     await app.ready()
   })
 
@@ -32,10 +33,19 @@ describe('rate limit isolation and proxy handling', () => {
     assert.equal((await app.inject({ url: '/setup', headers: clientB })).statusCode, 200)
   })
 
+  it('trusts a proxy reaching the app over a private (Docker) network but not a public peer', async () => {
+    const headers = { 'x-forwarded-for': '203.0.113.30' }
+    const viaDocker = await app.inject({ url: '/ip', headers, remoteAddress: '172.18.0.5' })
+    assert.equal(viaDocker.json().ip, '203.0.113.30')
+    const direct = await app.inject({ url: '/ip', headers, remoteAddress: '198.51.100.7' })
+    assert.equal(direct.json().ip, '198.51.100.7')
+  })
+
   it('parses explicit trust proxy settings safely', () => {
     assert.equal(resolveTrustProxy(''), false)
     assert.equal(resolveTrustProxy('false'), false)
-    assert.deepEqual(resolveTrustProxy('1'), ['127.0.0.1', '::1'])
+    assert.deepEqual(resolveTrustProxy('1'), ['loopback', 'uniquelocal'])
+    assert.deepEqual(resolveTrustProxy('172.18.0.0/16'), '172.18.0.0/16')
     assert.deepEqual(resolveTrustProxy('127.0.0.1, ::1'), ['127.0.0.1', '::1'])
   })
 

@@ -1,29 +1,24 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import rateLimit from '@fastify/rate-limit'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
+import { db } from '../src/db/client.js'
 import {
   incidentMonitors, incidents, layout, maintenanceWindowMonitors, maintenanceWindows, monitorDependencies, monitors,
 } from '../src/db/schema.js'
 import { publicRoutes } from '../src/routes/public.js'
 import { refreshPublishedMonitorIds } from '../src/services/publishedMonitors.js'
 import { sseService } from '../src/services/sse.service.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-published-monitors-test-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-published-monitors-test-')
 
 const app = Fastify({ logger: false })
 const ids: Record<string, number> = {}
 let baseUrl = ''
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
   const now = Date.now()
   const rows = await db.insert(monitors).values(['Website', 'Charted API', 'Internal DB', 'Internal cache'].map((name) => ({
     name, type: 'https', config: '{}', currentStatus: 'up', createdAt: now, updatedAt: now,
@@ -74,8 +69,7 @@ before(async () => {
 after(async () => {
   sseService.closeAll()
   await app.close()
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 describe('public API exposes only published monitors', () => {

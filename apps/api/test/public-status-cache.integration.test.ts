@@ -1,24 +1,19 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import rateLimit from '@fastify/rate-limit'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
+import { db } from '../src/db/client.js'
 import { incidents } from '../src/db/schema.js'
 import { publicRoutes } from '../src/routes/public.js'
 import { sseService } from '../src/services/sse.service.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-public-status-cache-test-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-public-status-cache-test-')
 
 const app = Fastify({ logger: false })
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
   await app.register(rateLimit, { global: false })
   await app.register(publicRoutes, { prefix: '/public' })
   await app.ready()
@@ -26,8 +21,7 @@ before(async () => {
 
 after(async () => {
   await app.close()
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 async function activeIncidentTitles(): Promise<string[]> {

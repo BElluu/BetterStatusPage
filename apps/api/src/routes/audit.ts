@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
 import { auditLog } from '../db/schema.js'
 import { desc, eq, like, gte, lte, and, sql } from 'drizzle-orm'
+import { parsePagination } from '../lib/pagination.js'
 
 export async function auditRoutes(app: FastifyInstance) {
   app.get<{
@@ -15,9 +16,7 @@ export async function auditRoutes(app: FastifyInstance) {
       to?: string     // unix ms
     }
   }>('/', async (req) => {
-    const page   = Math.max(1, Number(req.query.page  ?? 1))
-    const limit  = Math.min(100, Math.max(1, Number(req.query.limit ?? 50)))
-    const offset = (page - 1) * limit
+    const { page, limit, offset } = parsePagination(req.query, { defaultLimit: 50, maxLimit: 100 })
 
     const conditions = []
     if (req.query.userEmail) conditions.push(like(auditLog.userEmail, `%${req.query.userEmail}%`))

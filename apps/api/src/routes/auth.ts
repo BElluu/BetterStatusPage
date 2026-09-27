@@ -13,7 +13,7 @@ import {
   totpUri,
   verifyTotp,
 } from '../crypto/totp.js'
-import { requireAuth } from '../middleware/auth.js'
+import { ALLOW_PENDING_PASSWORD_CHANGE, requestIdentity, requireAuth } from '../middleware/auth.js'
 import {
   clearAuthCookies,
   createAuthSession,
@@ -70,19 +70,19 @@ export async function authRoutes(app: FastifyInstance) {
     return finishLogin(app, reply, user)
   })
 
-  app.get('/session', { preHandler: requireAuth }, async (req) => {
-    return publicSession(req.user as AuthIdentity)
+  app.get('/session', { preHandler: requireAuth, config: ALLOW_PENDING_PASSWORD_CHANGE }, async (req) => {
+    return publicSession(requestIdentity(req))
   })
 
-  app.post('/logout', { preHandler: requireAuth }, async (req, reply) => {
-    const identity = req.user as AuthIdentity
+  app.post('/logout', { preHandler: requireAuth, config: ALLOW_PENDING_PASSWORD_CHANGE }, async (req, reply) => {
+    const identity = requestIdentity(req)
     await revokeSession(identity.sessionId)
     clearAuthCookies(reply)
     return reply.code(204).send()
   })
 
-  app.post('/logout-all', { preHandler: requireAuth }, async (req, reply) => {
-    const identity = req.user as AuthIdentity
+  app.post('/logout-all', { preHandler: requireAuth, config: ALLOW_PENDING_PASSWORD_CHANGE }, async (req, reply) => {
+    const identity = requestIdentity(req)
     await revokeUserSessions(identity.userId)
     clearAuthCookies(reply)
     return reply.code(204).send()
@@ -90,12 +90,13 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post<{ Body: { newPassword: string; currentPassword?: string } }>('/change-password', {
     preHandler: requireAuth,
+    config: ALLOW_PENDING_PASSWORD_CHANGE,
   }, async (req, reply) => {
     const { newPassword, currentPassword } = req.body
     if (!newPassword || newPassword.length < 8 || newPassword.length > 128) {
       return reply.code(400).send({ error: 'Password must be between 8 and 128 characters' })
     }
-    const identity = req.user as AuthIdentity
+    const identity = requestIdentity(req)
     const user = (await db.select().from(users).where(eq(users.id, identity.userId)))[0]
     if (!user) return reply.code(404).send({ error: 'User not found' })
 
@@ -119,7 +120,7 @@ export async function authRoutes(app: FastifyInstance) {
   })
 
   app.post<{ Body: { currentPassword: string } }>('/2fa/setup', { preHandler: requireAuth }, async (req, reply) => {
-    const identity = req.user as AuthIdentity
+    const identity = requestIdentity(req)
     const user = (await db.select().from(users).where(eq(users.id, identity.userId)))[0]
     if (!user || !await verifyPassword(user, req.body.currentPassword)) {
       return reply.code(400).send({ error: 'Current password is incorrect' })
@@ -142,7 +143,7 @@ export async function authRoutes(app: FastifyInstance) {
   })
 
   app.post<{ Body: { setupToken: string; code: string } }>('/2fa/enable', { preHandler: requireAuth }, async (req, reply) => {
-    const identity = req.user as AuthIdentity
+    const identity = requestIdentity(req)
     let setup: { purpose?: string; userId?: number; encryptedSecret?: string }
     try { setup = app.jwt.verify(req.body.setupToken) }
     catch { return reply.code(400).send({ error: 'Two-factor setup expired' }) }
@@ -169,7 +170,7 @@ export async function authRoutes(app: FastifyInstance) {
   })
 
   app.post<{ Body: { currentPassword: string; code: string } }>('/2fa/disable', { preHandler: requireAuth }, async (req, reply) => {
-    const identity = req.user as AuthIdentity
+    const identity = requestIdentity(req)
     const user = (await db.select().from(users).where(eq(users.id, identity.userId)))[0]
     if (!user || !await verifyPassword(user, req.body.currentPassword)) {
       return reply.code(400).send({ error: 'Current password is incorrect' })

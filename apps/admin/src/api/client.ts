@@ -66,7 +66,14 @@ async function request<T>(
   })
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText })) as { error?: string }
+    const err = await res.json().catch(() => ({ error: res.statusText })) as { error?: string; code?: string }
+    if (res.status === 403 && err.code === 'PASSWORD_CHANGE_REQUIRED') {
+      const user = getCurrentUser()
+      if (user && !user.mustChangePassword) setSession({ ...user, mustChangePassword: true })
+      if (!window.location.pathname.includes('/change-password')) {
+        window.location.href = '/admin/change-password'
+      }
+    }
     if (res.status === 401) {
       clearSession()
       const isLoginRequest = path === '/auth/login' || path === '/auth/2fa/verify'

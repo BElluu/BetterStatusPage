@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { getJSON } from './api'
 import { useSSE } from './hooks/useSSE'
 import { useDarkMode } from './hooks/useDarkMode'
 import { useLocale } from './i18n/LocaleContext'
@@ -102,18 +103,18 @@ export default function App() {
     queryKey: ['public-status'],
     // Revalidate instead of reusing the browser's short-lived copy, so an SSE-triggered refetch
     // really picks up the change it was notified about.
-    queryFn: () => fetch('/api/v1/public/status', { cache: 'no-cache' }).then((r) => r.json()),
+    queryFn: () => getJSON<PublicStatus>('/api/v1/public/status', { cache: 'no-cache' }),
     refetchInterval: 5 * 60_000,
   })
 
   const { data: layoutData } = useQuery<PublicLayout>({
     queryKey: ['public-layout'],
-    queryFn: () => fetch('/api/v1/public/layout').then((r) => r.json()),
+    queryFn: () => getJSON<PublicLayout>('/api/v1/public/layout'),
   })
 
   const { data: incidents = [] } = useQuery<Incident[]>({
     queryKey: ['public-incidents'],
-    queryFn: () => fetch('/api/v1/public/incidents?limit=10').then((r) => r.json()),
+    queryFn: () => getJSON<Incident[]>('/api/v1/public/incidents?limit=10'),
   })
 
   const branding = brandingPreview ?? layoutData?.branding ?? status?.branding

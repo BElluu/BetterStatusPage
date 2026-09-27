@@ -4,6 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceArea, ResponsiveContainer,
 } from 'recharts'
+import { getJSON } from '../api'
 
 export interface HistoryBucket {
   ts: number
@@ -118,9 +119,8 @@ export function ResponseTimeChart({ monitorId, hours, buckets, aggregation, show
   useEffect(() => {
     let cancelled = false
     const fetchData = () => {
-      fetch(`/api/v1/public/monitor/${monitorId}/history?hours=${hours}&buckets=${buckets}`)
-        .then((r) => r.json())
-        .then((res: { buckets: HistoryBucket[] }) => { if (!cancelled) { setData(res.buckets); setLoading(false) } })
+      getJSON<{ buckets: HistoryBucket[] }>(`/api/v1/public/monitor/${monitorId}/history?hours=${hours}&buckets=${buckets}`)
+        .then((res) => { if (!cancelled) { setData(res.buckets); setLoading(false) } })
         .catch(() => { if (!cancelled) setLoading(false) })
     }
 

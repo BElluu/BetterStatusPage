@@ -3,12 +3,14 @@ import { randomBytes } from 'crypto'
 import { db } from '../db/client.js'
 import { monitors, monitorResults, monitorDependencies } from '../db/schema.js'
 import { eq, desc, gte, and, inArray } from 'drizzle-orm'
+import { withImmediateTransaction } from '../db/transaction.js'
 import { runCheck } from '../workers/scheduler.js'
 import { testHttps, testSqlServer, testPing, testDns } from '../workers/testRunner.js'
-import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
+import { auditActor, writeAudit, diffObjects, snapshot } from '../services/audit.js'
+import { requestIdentity } from '../middleware/auth.js'
 import { refreshPublishedMonitorIds } from '../services/publishedMonitors.js'
 import { serveEventStream } from '../services/sse.service.js'
-import { authenticateRequest, type AuthIdentity } from '../services/authSession.js'
+import { authenticateRequest } from '../services/authSession.js'
 import type { HttpsConfig, SqlServerConfig, PingConfig, DnsConfig, MonitorType } from '@bsp/shared'
 
 const MONITOR_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'webhook']
@@ -17,6 +19,37 @@ const MAX_TEST_TIMEOUT_MS = 60_000
 
 function generateWebhookToken(): string {
   return randomBytes(24).toString('hex')
+}
+
+/**
+ * A monitor that (transitively) depends on itself would keep the whole loop 'affected' forever.
+ * Returns the first requested dependency from which `monitorId` is already reachable, or null.
+ * The monitor's own current edges are ignored because the request replaces them.
+ */
+function findDependencyCycle(
+  monitorId: number,
+  dependsOnIds: readonly number[],
+  edges: ReadonlyArray<{ dependentId: number; dependsOnId: number }>,
+): number | null {
+  const graph = new Map<number, number[]>()
+  for (const edge of edges) {
+    if (edge.dependentId === monitorId) continue
+    const targets = graph.get(edge.dependentId)
+    if (targets) targets.push(edge.dependsOnId)
+    else graph.set(edge.dependentId, [edge.dependsOnId])
+  }
+  const visited = new Set<number>()
+  for (const start of dependsOnIds) {
+    const stack = [start]
+    while (stack.length > 0) {
+      const current = stack.pop()!
+      if (current === monitorId) return start
+      if (visited.has(current)) continue
+      visited.add(current)
+      stack.push(...(graph.get(current) ?? []))
+    }
+  }
+  return null
 }
 
 export async function monitorRoutes(app: FastifyInstance) {
@@ -33,7 +66,7 @@ export async function monitorRoutes(app: FastifyInstance) {
   // Signing out, a role change or a deleted account ends the stream right away (the session is
   // revoked); the keep-alive also re-checks the session so an expired one cannot keep listening.
   app.get('/events', async (req, reply) => {
-    const { sessionId, userId } = req.user as AuthIdentity
+    const { sessionId, userId } = requestIdentity(req)
     await serveEventStream(req, reply, {
       session: { sessionId, userId },
       stillAllowed: async () => {
@@ -77,8 +110,8 @@ export async function monitorRoutes(app: FastifyInstance) {
       updatedAt: now,
     }).returning()
     const m = parseMonitor(results[0]!)
-    const actor = req.user as { userId: number; email: string }
-    writeAudit({ userId: actor.userId, userEmail: actor.email }, 'create', 'monitor', m.id, m.name,
+    const actor = requestIdentity(req)
+    writeAudit(auditActor(actor), 'create', 'monitor', m.id, m.name,
       snapshot({
         name: m.name, type: m.type, intervalSecs: m.intervalSecs, timeoutMs: m.timeoutMs, retries: m.retries,
         failureThreshold: m.failureThreshold, recoveryThreshold: m.recoveryThreshold,
@@ -115,12 +148,12 @@ export async function monitorRoutes(app: FastifyInstance) {
 
     const results = await db.update(monitors).set(updates).where(eq(monitors.id, id)).returning()
     const m = parseMonitor(results[0]!)
-    const actor = req.user as { userId: number; email: string }
+    const actor = requestIdentity(req)
     const before = { name: existing.name, type: existing.type, intervalSecs: existing.intervalSecs, timeoutMs: existing.timeoutMs, retries: existing.retries, failureThreshold: existing.failureThreshold, recoveryThreshold: existing.recoveryThreshold, tags: existing.tags }
     const after  = { name: m.name, type: m.type, intervalSecs: m.intervalSecs, timeoutMs: m.timeoutMs, retries: m.retries, failureThreshold: m.failureThreshold, recoveryThreshold: m.recoveryThreshold, tags: JSON.stringify(m.tags) }
     const diff = diffObjects(before as Record<string, unknown>, after as Record<string, unknown>)
     if (req.body.config !== undefined) diff['config'] = { from: '[previous config]', to: '[updated config]' }
-    if (Object.keys(diff).length) writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'monitor', id, existing.name, diff)
+    if (Object.keys(diff).length) writeAudit(auditActor(actor), 'update', 'monitor', id, existing.name, diff)
     return m
   })
 
@@ -130,8 +163,8 @@ export async function monitorRoutes(app: FastifyInstance) {
     await db.delete(monitors).where(eq(monitors.id, id))
     if (existing) {
       await refreshPublishedMonitorIds()
-      const actor = req.user as { userId: number; email: string }
-      writeAudit({ userId: actor.userId, userEmail: actor.email }, 'delete', 'monitor', id, existing.name,
+      const actor = requestIdentity(req)
+      writeAudit(auditActor(actor), 'delete', 'monitor', id, existing.name,
         snapshot({ name: existing.name, type: existing.type }))
     }
     return reply.code(204).send()
@@ -187,17 +220,26 @@ export async function monitorRoutes(app: FastifyInstance) {
     const existing = (await db.select().from(monitors).where(eq(monitors.id, id)))[0]
     if (!existing) return reply.code(404).send({ error: 'Not found' })
 
-    const safeIds = (req.body.dependsOnIds ?? []).filter((depId) => depId !== id)
+    const requested = req.body?.dependsOnIds ?? []
+    if (!Array.isArray(requested)) return reply.code(400).send({ error: 'dependsOnIds must be an array of monitor ids' })
+    const safeIds = [...new Set(requested.filter((depId) => Number.isInteger(depId) && depId !== id))]
 
-    await db.delete(monitorDependencies).where(eq(monitorDependencies.dependentId, id))
-    if (safeIds.length > 0) {
-      // Only insert IDs that actually reference existing monitors
-      const existingTargets = await db.select().from(monitors).where(inArray(monitors.id, safeIds))
-      const validIds = existingTargets.map((m) => m.id)
+    // Only IDs that actually reference existing monitors are kept.
+    const validIds = safeIds.length > 0
+      ? (await db.select({ id: monitors.id }).from(monitors).where(inArray(monitors.id, safeIds))).map((m) => m.id)
+      : []
+    const cycleVia = findDependencyCycle(id, validIds, await db.select().from(monitorDependencies))
+    if (cycleVia !== null) {
+      const via = (await db.select({ name: monitors.name }).from(monitors).where(eq(monitors.id, cycleVia)))[0]
+      return reply.code(400).send({ error: `Dependency cycle: ${via?.name ?? `monitor ${cycleVia}`} already depends on this monitor` })
+    }
+
+    await withImmediateTransaction(async () => {
+      await db.delete(monitorDependencies).where(eq(monitorDependencies.dependentId, id))
       if (validIds.length > 0) {
         await db.insert(monitorDependencies).values(validIds.map((depId) => ({ dependentId: id, dependsOnId: depId })))
       }
-    }
+    })
     return { ok: true }
   })
 

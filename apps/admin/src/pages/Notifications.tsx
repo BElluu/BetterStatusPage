@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { NotificationChannel, NotificationDelivery, NotificationDeliveryAttempt, SmtpSettings, VaultRef } from '@bsp/shared'
 import ChannelFormModal from '../components/notifications/ChannelFormModal'
+import { DiscordIcon, SlackIcon, TeamsIcon } from '../components/notifications/icons'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { Link } from 'react-router-dom'
+import { ModalShell } from '../components/ModalShell'
 
 export default function NotificationsPage() {
   const qc = useQueryClient()
@@ -72,7 +73,7 @@ export default function NotificationsPage() {
         className="flex items-start gap-3 rounded-xl px-4 py-3"
         style={{ background: 'rgba(57,128,244,0.08)', border: '1px solid rgba(57,128,244,0.20)' }}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#3980f4', flexShrink: 0, marginTop: '1px' }}>info</span>
+        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--m3-on-primary-container)', flexShrink: 0, marginTop: '1px' }}>info</span>
         <p className="text-sm" style={{ color: 'var(--m3-on-surface-variant)' }}>
           Create notification channels here, then assign them to individual monitors via the monitor's edit form.
           Use <code className="text-xs px-1 rounded" style={{ background: 'var(--m3-surface-container-high)', fontFamily: 'monospace' }}>{'{{monitor_name}}'}</code>,{' '}
@@ -145,16 +146,16 @@ export default function NotificationsPage() {
                     <td className="px-4 py-3 font-mono text-xs max-w-xs truncate" style={{ color: 'var(--m3-secondary)' }}>{recipient}</td>
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--m3-secondary)' }}>
                       {ch.notifyOnRecovery ? (
-                        <span className="flex items-center gap-1" style={{ color: '#10b981' }}>
+                        <span className="flex items-center gap-1" style={{ color: 'var(--m3-up-bar)' }}>
                           <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span> Yes
                         </span>
                       ) : '—'}
                     </td>
                     <td className="px-4 py-3">
                       <span className="flex items-center gap-1 text-xs font-medium w-fit"
-                        style={{ color: ch.enabled ? '#10b981' : 'var(--m3-secondary)' }}
+                        style={{ color: ch.enabled ? 'var(--m3-up-bar)' : 'var(--m3-secondary)' }}
                       >
-                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: ch.enabled ? '#10b981' : 'var(--m3-outline-variant)' }} />
+                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: ch.enabled ? 'var(--m3-up-bar)' : 'var(--m3-outline-variant)' }} />
                         {ch.enabled ? 'Active' : 'Disabled'}
                       </span>
                     </td>
@@ -280,7 +281,7 @@ const SUPPRESSION_DETAILS: Record<string, string> = {
 
 function DeliveryRow({ delivery, expanded, detail, onToggle, onRetry, retrying }: { delivery: NotificationDelivery; expanded: boolean; detail?: NotificationDelivery & { attempts: NotificationDeliveryAttempt[] }; onToggle: () => void; onRetry: () => void; retrying: boolean }) {
   const statusName = (status: string) => status === 'up' ? 'Operational' : status === 'down' ? 'Down' : status === 'degraded' ? 'Degraded' : status === 'pending' ? 'Pending' : status === 'affected' ? 'Affected' : status
-  const statusColor = delivery.status === 'delivered' ? '#10b981' : delivery.status === 'failed' ? 'var(--m3-error)' : delivery.status === 'suppressed' ? 'var(--m3-outline)' : '#f59e0b'
+  const statusColor = delivery.status === 'delivered' ? 'var(--m3-up-bar)' : delivery.status === 'failed' ? 'var(--m3-error)' : delivery.status === 'suppressed' ? 'var(--m3-outline)' : 'var(--m3-degraded-bar)'
   const statusLabel = delivery.status === 'delivered' ? 'Delivered' : delivery.status === 'failed' ? 'Failed' : delivery.status === 'suppressed' ? 'Suppressed' : 'Pending'
   const eventLabel = delivery.eventType === 'alert' ? 'Alert' : delivery.eventType === 'recovery' ? 'Recovery' : 'Test'
   const suppression = SUPPRESSION_LABELS[delivery.suppressionReason ?? '']
@@ -305,7 +306,7 @@ function DeliveryRow({ delivery, expanded, detail, onToggle, onRetry, retrying }
       {delivery.lastError && <div className="rounded-xl px-3 py-2 mb-3 text-sm" style={{ background: 'var(--m3-error-container)', color: 'var(--m3-on-error-container)' }}>{delivery.lastError}</div>}
       {suppression && <div className="rounded-xl px-3 py-2 mb-3 text-sm" style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface-variant)' }}>{SUPPRESSION_DETAILS[delivery.suppressionReason ?? '']}</div>}
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2 flex-1"><p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Attempts</p>{!detail ? <p className="text-sm">Loading…</p> : detail.attempts.length === 0 ? <p className="text-sm" style={{ color: 'var(--m3-secondary)' }}>Never attempted.</p> : detail.attempts.map((attempt) => <div key={attempt.id} className="flex flex-wrap gap-x-4 gap-y-1 text-xs"><span className="font-semibold">#{attempt.attemptNumber}</span><span style={{ color: attempt.status === 'delivered' ? '#10b981' : 'var(--m3-error)' }}>{attempt.status === 'delivered' ? 'Delivered' : 'Failed'}</span><span style={{ color: 'var(--m3-secondary)' }}>{new Date(attempt.completedAt).toLocaleString()}</span>{attempt.error && <span style={{ color: 'var(--m3-secondary)' }}>{attempt.error}</span>}</div>)}</div>
+        <div className="space-y-2 flex-1"><p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Attempts</p>{!detail ? <p className="text-sm">Loading…</p> : detail.attempts.length === 0 ? <p className="text-sm" style={{ color: 'var(--m3-secondary)' }}>Never attempted.</p> : detail.attempts.map((attempt) => <div key={attempt.id} className="flex flex-wrap gap-x-4 gap-y-1 text-xs"><span className="font-semibold">#{attempt.attemptNumber}</span><span style={{ color: attempt.status === 'delivered' ? 'var(--m3-up-bar)' : 'var(--m3-error)' }}>{attempt.status === 'delivered' ? 'Delivered' : 'Failed'}</span><span style={{ color: 'var(--m3-secondary)' }}>{new Date(attempt.completedAt).toLocaleString()}</span>{attempt.error && <span style={{ color: 'var(--m3-secondary)' }}>{attempt.error}</span>}</div>)}</div>
         {delivery.status === 'failed' && <button type="button" disabled={retrying} onClick={(event) => { event.stopPropagation(); onRetry() }} className="btn-primary px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap" style={{ opacity: retrying ? 0.6 : 1 }}>{retrying ? 'Retrying…' : 'Retry now'}</button>}
       </div>
     </td></tr>}
@@ -439,252 +440,228 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
     ? (secretsByVault[vault.vaultId] ?? []).find((s) => s.id === vault.secretId)
     : undefined
 
-  return createPortal(
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.55)', overflowY: 'auto' }}>
-      <div style={{ display: 'flex', minHeight: '100%', alignItems: 'flex-start', justifyContent: 'center', padding: '16px' }}>
-        <div className="rounded-2xl w-full max-w-lg my-8"
-          style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-          <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-            <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>SMTP Settings</h3>
-            <button onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none"
-              style={{ color: 'var(--m3-secondary)' }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container-high)' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '' }}
-            >×</button>
+  return (
+    <ModalShell align="top">
+      <div className="rounded-2xl w-full max-w-lg my-8"
+        style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
+        <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
+          <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>SMTP Settings</h3>
+          <button onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none"
+            style={{ color: 'var(--m3-secondary)' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container-high)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '' }}
+          >×</button>
+        </div>
+
+        <form onSubmit={handleSave} className="p-6 space-y-4">
+          {error && (
+            <div className="rounded-lg px-4 py-3 text-sm" style={{ background: 'rgba(255,77,106,0.08)', border: '1px solid rgba(255,77,106,0.2)', color: 'var(--m3-down)' }}>{error}</div>
+          )}
+          <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>Used by all email notification channels.</p>
+
+          {/* Host + Port */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <SmtpField label="Host">
+                <input value={host} onChange={(e) => setHost(e.target.value)} className="input-sig" placeholder="smtp.example.com" />
+              </SmtpField>
+            </div>
+            <SmtpField label="Port">
+              <input type="number" value={port} onChange={(e) => setPort(Number(e.target.value))} className="input-sig" />
+            </SmtpField>
           </div>
 
-          <form onSubmit={handleSave} className="p-6 space-y-4">
-            {error && (
-              <div className="rounded-lg px-4 py-3 text-sm" style={{ background: 'rgba(255,77,106,0.08)', border: '1px solid rgba(255,77,106,0.2)', color: 'var(--m3-down)' }}>{error}</div>
-            )}
-            <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>Used by all email notification channels.</p>
-
-            {/* Host + Port */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-2">
-                <SmtpField label="Host">
-                  <input value={host} onChange={(e) => setHost(e.target.value)} className="input-sig" placeholder="smtp.example.com" />
-                </SmtpField>
-              </div>
-              <SmtpField label="Port">
-                <input type="number" value={port} onChange={(e) => setPort(Number(e.target.value))} className="input-sig" />
-              </SmtpField>
+          {/* TLS toggle */}
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <div className="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
+              style={{ background: secure ? 'var(--m3-primary)' : 'var(--m3-outline-variant)' }}
+              onClick={() => setSecure((v) => !v)}
+            >
+              <div className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
+                style={{ background: secure ? 'var(--m3-on-primary)' : 'var(--m3-secondary)', left: secure ? '22px' : '2px' }} />
             </div>
+            <span className="text-sm" style={{ color: 'var(--m3-on-surface-variant)' }}>Use TLS/SSL (port 465)</span>
+          </label>
 
-            {/* TLS toggle */}
-            <label className="flex items-center gap-3 cursor-pointer select-none">
-              <div className="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
-                style={{ background: secure ? 'var(--m3-primary)' : 'var(--m3-outline-variant)' }}
-                onClick={() => setSecure((v) => !v)}
-              >
-                <div className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
-                  style={{ background: secure ? 'var(--m3-on-primary)' : 'var(--m3-secondary)', left: secure ? '22px' : '2px' }} />
-              </div>
-              <span className="text-sm" style={{ color: 'var(--m3-on-surface-variant)' }}>Use TLS/SSL (port 465)</span>
-            </label>
+          <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
 
-            <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
-
-            {/* Credentials source toggle */}
-            <div>
-              <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Credentials</label>
-              <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--m3-outline-variant)', width: 'fit-content' }}>
-                {(['direct', 'vault'] as const).map((src) => (
-                  <button key={src} type="button"
-                    onClick={() => {
-                      setCredSource(src)
-                      if (src === 'vault' && vaults[0]) {
-                        loadSecrets(vaults[0].id)
-                        if (!vault) setVault({ vaultId: vaults[0].id, secretId: 0 })
-                      }
-                    }}
-                    className={`px-4 py-1.5 text-xs font-medium transition-all ${credSource === src ? 'selection-active' : ''}`}
-                    style={{
-                      background: credSource === src ? 'var(--m3-primary-fixed)' : 'transparent',
-                      color:      credSource === src ? 'var(--m3-primary)' : 'var(--m3-secondary)',
-                    }}
-                  >
-                    {src === 'direct' ? 'Direct input' : 'From Vault'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Direct credentials */}
-            {credSource === 'direct' && (
-              <>
-                <div className="flex items-start gap-2 rounded-lg px-3 py-2"
-                  style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.20)' }}>
-                  <span style={{ color: '#eab308', lineHeight: '20px' }}>⚠</span>
-                  <p className="text-xs" style={{ color: 'var(--m3-on-surface-variant)' }}>
-                    For security, store credentials in Vault rather than entering them directly here.
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <SmtpField label="Username">
-                    <input value={user} onChange={(e) => setUser(e.target.value)} className="input-sig" placeholder="user@example.com" autoComplete="off" />
-                  </SmtpField>
-                  <SmtpField label="Password">
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input-sig" autoComplete="new-password" placeholder="••••••••" />
-                  </SmtpField>
-                </div>
-              </>
-            )}
-
-            {/* Vault credentials */}
-            {credSource === 'vault' && (
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <SmtpField label="Vault">
-                    <select className="input-sig" value={vault?.vaultId || ''}
-                      onChange={(e) => {
-                        const id = Number(e.target.value)
-                        loadSecrets(id)
-                        setVault({ vaultId: id, secretId: 0 })
-                      }}
-                    >
-                      <option value="">— select vault —</option>
-                      {vaults.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-                    </select>
-                  </SmtpField>
-                  <SmtpField label="Secret">
-                    <select className="input-sig" value={vault?.secretId || ''}
-                      disabled={!vault?.vaultId}
-                      onChange={(e) => setVault((v) => ({ vaultId: v!.vaultId, secretId: Number(e.target.value) }))}
-                    >
-                      <option value="">— select secret —</option>
-                      {(vault?.vaultId ? (secretsByVault[vault.vaultId] ?? []) : []).map((s) => (
-                        <option key={s.id} value={s.id}>{s.name} ({s.type})</option>
-                      ))}
-                    </select>
-                  </SmtpField>
-                </div>
-
-                {selectedSecret?.type === 'userpass' && (
-                  <p className="text-xs rounded-lg px-3 py-2" style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }}>
-                    Auto-mapped: <strong>username</strong> → SMTP user, <strong>password</strong> → SMTP password.
-                  </p>
-                )}
-
-                {selectedSecret?.type === 'json' && vault?.secretId && (
-                  <div className="space-y-2">
-                    <p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>JSON Field Mapping</p>
-                    {(['username', 'password'] as const).map((field) => (
-                      <div key={field} className="grid items-center gap-3" style={{ gridTemplateColumns: '90px 1fr' }}>
-                        <span className="text-xs font-medium" style={{ color: 'var(--m3-on-surface-variant)' }}>{field}</span>
-                        <input className="input-sig text-xs" placeholder={`JSON key (e.g. "${field}")`}
-                          value={vault?.fieldMapping?.[field] ?? ''}
-                          onChange={(e) => setVault((v) => ({
-                            ...v!,
-                            fieldMapping: { ...(v?.fieldMapping ?? {}), [field]: e.target.value },
-                          }))}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {vaults.length === 0 && (
-                  <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>No vaults found. Create one in the Vault section first.</p>
-                )}
-              </div>
-            )}
-
-            <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
-
-            {/* From */}
-            <div className="grid grid-cols-2 gap-3">
-              <SmtpField label="From Address">
-                <input value={fromAddress} onChange={(e) => setFromAddress(e.target.value)} className="input-sig" placeholder="alerts@example.com" />
-              </SmtpField>
-              <SmtpField label="From Name">
-                <input value={fromName} onChange={(e) => setFromName(e.target.value)} className="input-sig" />
-              </SmtpField>
-            </div>
-
-            <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
-
-            {/* Test email */}
-            <div className="space-y-2">
-              <label className="block font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Send Test Email</label>
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  value={testTo}
-                  onChange={(e) => setTestTo(e.target.value)}
-                  placeholder="recipient@example.com"
-                  className="input-sig flex-1"
-                />
-                <button
-                  type="button"
-                  onClick={handleTest}
-                  disabled={testing || !testTo}
-                  className="px-3 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 flex-shrink-0"
+          {/* Credentials source toggle */}
+          <div>
+            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Credentials</label>
+            <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--m3-outline-variant)', width: 'fit-content' }}>
+              {(['direct', 'vault'] as const).map((src) => (
+                <button key={src} type="button"
+                  onClick={() => {
+                    setCredSource(src)
+                    if (src === 'vault' && vaults[0]) {
+                      loadSecrets(vaults[0].id)
+                      if (!vault) setVault({ vaultId: vaults[0].id, secretId: 0 })
+                    }
+                  }}
+                  className={`px-4 py-1.5 text-xs font-medium transition-all ${credSource === src ? 'selection-active' : ''}`}
                   style={{
-                    background: 'var(--m3-surface-container-high)',
-                    color: testing || !testTo ? 'var(--m3-secondary)' : 'var(--m3-on-surface)',
-                    border: '1px solid var(--m3-outline-variant)',
-                    opacity: !testTo ? 0.5 : 1,
+                    background: credSource === src ? 'var(--m3-primary-fixed)' : 'transparent',
+                    color:      credSource === src ? 'var(--m3-primary)' : 'var(--m3-secondary)',
                   }}
                 >
-                  {testing
-                    ? <><span className="material-symbols-outlined animate-spin" style={{ fontSize: '15px' }}>progress_activity</span> Sending…</>
-                    : <><span className="material-symbols-outlined" style={{ fontSize: '15px' }}>send</span> Send</>
-                  }
+                  {src === 'direct' ? 'Direct input' : 'From Vault'}
                 </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Direct credentials */}
+          {credSource === 'direct' && (
+            <>
+              <div className="flex items-start gap-2 rounded-lg px-3 py-2"
+                style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.20)' }}>
+                <span style={{ color: 'var(--m3-degraded-bar)', lineHeight: '20px' }}>⚠</span>
+                <p className="text-xs" style={{ color: 'var(--m3-on-surface-variant)' }}>
+                  For security, store credentials in Vault rather than entering them directly here.
+                </p>
               </div>
-              {testMsg && (
-                <div className="rounded-lg px-3 py-2 text-xs"
-                  style={{
-                    background: testMsg.ok ? 'rgba(34,197,94,0.08)' : 'rgba(255,77,106,0.08)',
-                    border: `1px solid ${testMsg.ok ? 'rgba(34,197,94,0.25)' : 'rgba(255,77,106,0.2)'}`,
-                    color: testMsg.ok ? '#22c55e' : 'var(--m3-down)',
-                  }}
-                >{testMsg.text}</div>
+              <div className="grid grid-cols-2 gap-3">
+                <SmtpField label="Username">
+                  <input value={user} onChange={(e) => setUser(e.target.value)} className="input-sig" placeholder="user@example.com" autoComplete="off" />
+                </SmtpField>
+                <SmtpField label="Password">
+                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input-sig" autoComplete="new-password" placeholder="••••••••" />
+                </SmtpField>
+              </div>
+            </>
+          )}
+
+          {/* Vault credentials */}
+          {credSource === 'vault' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <SmtpField label="Vault">
+                  <select className="input-sig" value={vault?.vaultId || ''}
+                    onChange={(e) => {
+                      const id = Number(e.target.value)
+                      loadSecrets(id)
+                      setVault({ vaultId: id, secretId: 0 })
+                    }}
+                  >
+                    <option value="">— select vault —</option>
+                    {vaults.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
+                </SmtpField>
+                <SmtpField label="Secret">
+                  <select className="input-sig" value={vault?.secretId || ''}
+                    disabled={!vault?.vaultId}
+                    onChange={(e) => setVault((v) => ({ vaultId: v!.vaultId, secretId: Number(e.target.value) }))}
+                  >
+                    <option value="">— select secret —</option>
+                    {(vault?.vaultId ? (secretsByVault[vault.vaultId] ?? []) : []).map((s) => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.type})</option>
+                    ))}
+                  </select>
+                </SmtpField>
+              </div>
+
+              {selectedSecret?.type === 'userpass' && (
+                <p className="text-xs rounded-lg px-3 py-2" style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }}>
+                  Auto-mapped: <strong>username</strong> → SMTP user, <strong>password</strong> → SMTP password.
+                </p>
+              )}
+
+              {selectedSecret?.type === 'json' && vault?.secretId && (
+                <div className="space-y-2">
+                  <p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>JSON Field Mapping</p>
+                  {(['username', 'password'] as const).map((field) => (
+                    <div key={field} className="grid items-center gap-3" style={{ gridTemplateColumns: '90px 1fr' }}>
+                      <span className="text-xs font-medium" style={{ color: 'var(--m3-on-surface-variant)' }}>{field}</span>
+                      <input className="input-sig text-xs" placeholder={`JSON key (e.g. "${field}")`}
+                        value={vault?.fieldMapping?.[field] ?? ''}
+                        onChange={(e) => setVault((v) => ({
+                          ...v!,
+                          fieldMapping: { ...(v?.fieldMapping ?? {}), [field]: e.target.value },
+                        }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {vaults.length === 0 && (
+                <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>No vaults found. Create one in the Vault section first.</p>
               )}
             </div>
+          )}
 
-            <div className="flex justify-end gap-3 pt-1">
-              <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-lg" style={{ color: 'var(--m3-secondary)' }}>Cancel</button>
-              <button type="submit" disabled={saving}
-                className="btn-primary px-4 py-2 text-sm font-semibold rounded-lg transition-all"
-                style={{ background: saving ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)', color: saving ? 'var(--m3-secondary)' : 'var(--m3-on-primary)', opacity: saving ? 0.7 : 1 }}
+          <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
+
+          {/* From */}
+          <div className="grid grid-cols-2 gap-3">
+            <SmtpField label="From Address">
+              <input value={fromAddress} onChange={(e) => setFromAddress(e.target.value)} className="input-sig" placeholder="alerts@example.com" />
+            </SmtpField>
+            <SmtpField label="From Name">
+              <input value={fromName} onChange={(e) => setFromName(e.target.value)} className="input-sig" />
+            </SmtpField>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
+
+          {/* Test email */}
+          <div className="space-y-2">
+            <label className="block font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Send Test Email</label>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={testTo}
+                onChange={(e) => setTestTo(e.target.value)}
+                placeholder="recipient@example.com"
+                className="input-sig flex-1"
+              />
+              <button
+                type="button"
+                onClick={handleTest}
+                disabled={testing || !testTo}
+                className="px-3 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 flex-shrink-0"
+                style={{
+                  background: 'var(--m3-surface-container-high)',
+                  color: testing || !testTo ? 'var(--m3-secondary)' : 'var(--m3-on-surface)',
+                  border: '1px solid var(--m3-outline-variant)',
+                  opacity: !testTo ? 0.5 : 1,
+                }}
               >
-                {saving ? 'Saving…' : 'Save Settings'}
+                {testing
+                  ? <><span className="material-symbols-outlined animate-spin" style={{ fontSize: '15px' }}>progress_activity</span> Sending…</>
+                  : <><span className="material-symbols-outlined" style={{ fontSize: '15px' }}>send</span> Send</>
+                }
               </button>
             </div>
-          </form>
-        </div>
+            {testMsg && (
+              <div className="rounded-lg px-3 py-2 text-xs"
+                style={{
+                  background: testMsg.ok ? 'rgba(34,197,94,0.08)' : 'rgba(255,77,106,0.08)',
+                  border: `1px solid ${testMsg.ok ? 'rgba(34,197,94,0.25)' : 'rgba(255,77,106,0.2)'}`,
+                  color: testMsg.ok ? 'var(--m3-up-bar)' : 'var(--m3-down)',
+                }}
+              >{testMsg.text}</div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-1">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-lg" style={{ color: 'var(--m3-secondary)' }}>Cancel</button>
+            <button type="submit" disabled={saving}
+              className="btn-primary px-4 py-2 text-sm font-semibold rounded-lg transition-all"
+              style={{ background: saving ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)', color: saving ? 'var(--m3-secondary)' : 'var(--m3-on-primary)', opacity: saving ? 0.7 : 1 }}
+            >
+              {saving ? 'Saving…' : 'Save Settings'}
+            </button>
+          </div>
+        </form>
       </div>
-    </div>,
-    document.body,
+    </ModalShell>
   )
 }
 
-function SlackIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true">
-      <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zm2.521-10.123a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.527 2.527 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
-    </svg>
-  )
-}
 
-function TeamsIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true">
-      <path d="M17.5 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zm-7 1a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zm7 6c2.67 0 8 1.34 8 4v1.5h-8.5V13c0-1.42-.8-2.67-2-3.3.8-.13 1.63-.2 2.5-.2zM2 14c0-2.66 5.34-4 8.5-4S19 11.34 19 14v2H2v-2z" />
-    </svg>
-  )
-}
 
-function DiscordIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true">
-      <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.032.054a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
-    </svg>
-  )
-}
 
 function SmtpField({ label, children }: { label: string; children: React.ReactNode }) {
   return (

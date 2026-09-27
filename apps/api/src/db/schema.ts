@@ -6,8 +6,9 @@ export const users = sqliteTable('users', {
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   role: text('role').notNull().default('admin'),
-  mustChangePassword: integer('must_change_password').notNull().default(0),
   createdAt: integer('created_at').notNull(),
+  // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
+  mustChangePassword: integer('must_change_password').notNull().default(0),
   totpSecret: text('totp_secret'),
   totpEnabled: integer('totp_enabled').notNull().default(0),
   totpRecoveryCodes: text('totp_recovery_codes'),
@@ -28,15 +29,15 @@ export const monitors = sqliteTable('monitors', {
   type: text('type').notNull(), // 'https'|'ping'|'dns'|'sqlserver'
   intervalSecs: integer('interval_secs').notNull().default(60),
   timeoutMs: integer('timeout_ms').notNull().default(10000),
-  retries: integer('retries').notNull().default(1),
   config: text('config').notNull(), // JSON
   currentStatus: text('current_status').notNull().default('pending'),
   lastCheckedAt: integer('last_checked_at'),
-  webhookToken: text('webhook_token'),
-  tags: text('tags').notNull().default('[]'), // JSON MonitorTag[]
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
+  retries: integer('retries').notNull().default(1),
+  webhookToken: text('webhook_token'),
+  tags: text('tags').notNull().default('[]'), // JSON MonitorTag[]
   failureThreshold: integer('failure_threshold').notNull().default(1),
   recoveryThreshold: integer('recovery_threshold').notNull().default(1),
   /** Last status an alert was evaluated against — drives threshold debouncing, not the public status. */
@@ -178,8 +179,9 @@ export const smtpSettings = sqliteTable('smtp_settings', {
   password: text('password').notNull().default(''),
   fromAddress: text('from_address').notNull().default(''),
   fromName: text('from_name').notNull().default('BSP Alerts'),
-  vaultConfig: text('vault_config'), // JSON VaultRef | null
   updatedAt: integer('updated_at').notNull(),
+  // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
+  vaultConfig: text('vault_config'), // JSON VaultRef | null
 })
 
 export const auditLog = sqliteTable('audit_log', {

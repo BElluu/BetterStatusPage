@@ -95,9 +95,13 @@ describe('IncidentsPage', () => {
     renderPage()
 
     await user.click(await screen.findByText('Checkout errors'))
-    // An empty update is ignored.
+    // An empty update cannot be posted.
+    expect(screen.getByRole('button', { name: 'Post Update' })).toBeDisabled()
+    await user.type(screen.getByPlaceholderText('Describe the current situation…'), '   ')
+    expect(screen.getByRole('button', { name: 'Post Update' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Post Update' }))
     expect(api.post).not.toHaveBeenCalled()
+    await user.clear(screen.getByPlaceholderText('Describe the current situation…'))
 
     await user.type(screen.getByPlaceholderText('Describe the current situation…'), 'Fix deployed.')
     await user.selectOptions(screen.getByDisplayValue('Monitoring'), 'resolved')
@@ -129,6 +133,25 @@ describe('IncidentsPage', () => {
     await user.click(screen.getByText('Checkout errors'))
     await user.click(screen.getByText('Checkout errors'))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('disables Post Update while a post is in flight so it cannot be sent twice', async () => {
+    const user = userEvent.setup()
+    let resolvePost: (value: unknown) => void = () => {}
+    vi.mocked(api.post).mockImplementationOnce(() => new Promise((resolve) => { resolvePost = resolve }))
+    renderPage()
+
+    await user.click(await screen.findByText('Checkout errors'))
+    await user.type(screen.getByPlaceholderText('Describe the current situation…'), 'Fix deployed.')
+    const button = screen.getByRole('button', { name: 'Post Update' })
+    await user.click(button)
+
+    await waitFor(() => expect(button).toBeDisabled())
+    await user.click(button)
+    expect(api.post).toHaveBeenCalledTimes(1)
+
+    resolvePost({})
+    await waitFor(() => expect(screen.getByPlaceholderText('Describe the current situation…')).toHaveValue(''))
   })
 
   it('hides the notify option while subscriptions are disabled', async () => {
