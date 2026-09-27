@@ -1,22 +1,18 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
 import { createServer as createHttpServer } from 'node:http'
 import { createServer as createTcpServer } from 'node:net'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import cookie from '@fastify/cookie'
 import jwt from '@fastify/jwt'
 import { requireAuth, requireRole } from '../src/middleware/auth.js'
 import { authSessions, users, vaultSecrets, vaults } from '../src/db/schema.js'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
+import { db } from '../src/db/client.js'
 import { encrypt } from '../src/crypto/vault.js'
 import { monitorRoutes } from '../src/routes/monitors.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-test-runner-route-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-test-runner-route-')
 process.env['VAULT_ENCRYPTION_KEY'] = 'abcdef0123456789'.repeat(4)
 
 const app = Fastify({ logger: false })
@@ -39,8 +35,7 @@ let userpassSecretId = 0
 let emptyValueSecretId = 0
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
 
   await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve))
   const httpAddress = httpServer.address()
@@ -89,8 +84,7 @@ after(async () => {
   httpServer.closeAllConnections()
   await new Promise<void>((resolve) => httpServer.close(() => resolve()))
   await new Promise<void>((resolve) => tcpServer.close(() => resolve()))
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 function runTest(payload: unknown, headers: Record<string, string> = authorizations['admin']!) {

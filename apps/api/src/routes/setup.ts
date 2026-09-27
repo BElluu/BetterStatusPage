@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify'
 import bcrypt from 'bcryptjs'
 import { DEFAULT_BRANDING_COLORS } from '@bsp/shared'
-import { isSetupComplete, writeSetupComplete } from '../config.js'
+import fs from 'fs'
+import { isSetupComplete, setupConfigPath, writeSetupComplete } from '../config.js'
 import { initDb, db } from '../db/client.js'
 import { runMigrations } from '../db/migrate.js'
 import { startBackgroundServices } from '../services/backgroundServices.js'
@@ -51,8 +52,12 @@ export async function setupRoutes(app: FastifyInstance, options: SetupRouteOptio
       runMigrations()
 
       const hash = await bcrypt.hash(password, 10)
+      let setupMarkerWritten = false
       const user = await withImmediateTransaction(async () => {
+        // Setup is not complete, so a row with this email can only be left over from an
+        // interrupted attempt — take it over instead of blocking the retry.
         await db.insert(users).values({ email, passwordHash: hash, role: 'admin', createdAt: Date.now() })
+          .onConflictDoUpdate({ target: users.email, set: { passwordHash: hash, role: 'admin', mustChangePassword: 0 } })
 
         const hasBranding = await db.select({ id: branding.id }).from(branding)
         if (hasBranding.length === 0) {
@@ -70,9 +75,16 @@ export async function setupRoutes(app: FastifyInstance, options: SetupRouteOptio
           })
         }
 
-        return (await db.select().from(users).where(eq(users.email, email)))[0]!
+        const admin = (await db.select().from(users).where(eq(users.email, email)))[0]!
+        // Last step: if writing the marker fails the admin insert rolls back with it.
+        writeSetupComplete('sqlite')
+        setupMarkerWritten = true
+        return admin
+      }).catch((error: unknown) => {
+        // COMMIT itself failed after the marker was written — undo it so setup can be retried.
+        if (setupMarkerWritten) fs.rmSync(setupConfigPath(), { force: true })
+        throw error
       })
-      writeSetupComplete('sqlite')
       const startServices = options.startBackgroundServices ?? startBackgroundServices
       startServices()
       const identity = await createAuthSession(app, reply, user)

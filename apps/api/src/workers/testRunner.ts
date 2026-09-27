@@ -1,5 +1,8 @@
 import type { HttpsConfig, SqlServerConfig, PingConfig, DnsConfig } from '@bsp/shared'
 import { resolveVaultSecret } from './resolveSecret.js'
+import { CookieJar, discardBody, errMsg, redactedCookies, requestWithCas, resolveHttpAuth, type HttpFetch, type HttpResponse, type ResolvedHttpAuth } from './httpAuth.js'
+import { closeSqlServerPool, openSqlServerPool, sqlServerTarget } from './sqlserver.js'
+import type { ConnectionPool } from 'mssql'
 import net from 'net'
 import { Resolver } from 'dns/promises'
 
@@ -24,356 +27,60 @@ export interface TestResult {
 export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise<TestResult> {
   const steps: TestStep[] = []
   const totalStart = Date.now()
+  const fail = (): TestResult => ({ overall: 'error', steps, totalMs: Date.now() - totalStart })
 
-  let authHeaders: Record<string, string> = {}
-  let finalUrl = config.url
-  const probeCookies = new Map<string, string>()
-  let casServerBaseUrl: string | null = null
-  let casTgtUrl: string | null = null
-
-  const auth = config.auth
-
-  // ── Auth resolution ─────────────────────────────────────────────────────
-  if (!auth || auth.type === 'none') {
-    steps.push({ label: 'Authorization: none', status: 'info' })
-
-  } else if (auth.type === 'basic') {
-    const cfg = auth.basic ?? { username: '', password: '' }
-    const t = Date.now()
-    try {
-      let username = cfg.username ?? ''
-      let password = cfg.password ?? ''
-      if (cfg.vault) {
-        const creds = await resolveVaultSecret(cfg.vault)
-        username = creds['username'] ?? username
-        password = creds['password'] ?? creds['value'] ?? password
-      }
-      const encoded = Buffer.from(`${username}:${password}`).toString('base64')
-      authHeaders = { Authorization: `Basic ${encoded}` }
-      steps.push({
-        label: cfg.vault ? 'Basic Auth: credentials resolved from Vault' : 'Basic Auth: using direct credentials',
-        status: 'ok',
-        detail: `User: ${username}`,
-        durationMs: cfg.vault ? Date.now() - t : undefined,
-      })
-    } catch (err) {
-      steps.push({ label: 'Basic Auth: failed to resolve credentials', status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
-      return { overall: 'error', steps, totalMs: Date.now() - totalStart }
-    }
-
-  } else if (auth.type === 'oauth2') {
-    const cfg = auth.oauth2 ?? { tokenUrl: '', clientId: '', clientSecret: '' }
-    let clientId     = cfg.clientId ?? ''
-    let clientSecret = cfg.clientSecret ?? ''
-
-    if (cfg.vault) {
-      const t = Date.now()
-      try {
-        const creds = await resolveVaultSecret(cfg.vault)
-        clientId     = creds['clientId']     ?? creds['username'] ?? clientId
-        clientSecret = creds['clientSecret'] ?? creds['password'] ?? creds['value'] ?? clientSecret
-        steps.push({ label: 'OAuth2: credentials resolved from Vault', status: 'ok', detail: `Client ID: ${clientId}`, durationMs: Date.now() - t })
-      } catch (err) {
-        steps.push({ label: 'OAuth2: Vault resolution failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
-        return { overall: 'error', steps, totalMs: Date.now() - totalStart }
-      }
-    }
-
-    const tokenUrl = cfg.tokenUrl ?? ''
-    if (!tokenUrl) {
-      steps.push({ label: 'OAuth2: Token URL is missing', status: 'error' })
-      return { overall: 'error', steps, totalMs: Date.now() - totalStart }
-    }
-
-    const t = Date.now()
-    try {
-      const params = new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: clientId,
-        client_secret: clientSecret,
-      })
-      if (cfg.scope) params.set('scope', cfg.scope)
-      const tokenRes = await fetch(tokenUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      })
-      if (!tokenRes.ok) throw new Error(`HTTP ${tokenRes.status} ${tokenRes.statusText}`)
-      const tokenData = await tokenRes.json() as { access_token?: string; expires_in?: number; token_type?: string }
-      if (!tokenData.access_token) throw new Error('Response missing access_token')
-      authHeaders = { Authorization: `Bearer ${tokenData.access_token}` }
-      const meta = [
-        tokenData.token_type ?? 'Bearer',
-        tokenData.expires_in != null ? `expires in ${tokenData.expires_in}s` : null,
-      ].filter(Boolean).join(', ')
-      steps.push({ label: `OAuth2: token obtained from ${tokenUrl}`, status: 'ok', detail: meta, durationMs: Date.now() - t })
-    } catch (err) {
-      steps.push({ label: `OAuth2: token request to ${tokenUrl} failed`, status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
-      return { overall: 'error', steps, totalMs: Date.now() - totalStart }
-    }
-
-  } else if (auth.type === 'cas') {
-    const cfg = auth.cas ?? { casServerUrl: '', username: '', password: '' }
-    const casServerUrl = cfg.casServerUrl ?? ''
-    let username = cfg.username ?? ''
-    let password = cfg.password ?? ''
-
-    if (cfg.vault) {
-      const t = Date.now()
-      try {
-        const creds = await resolveVaultSecret(cfg.vault)
-        username = creds['username'] ?? username
-        password = creds['password'] ?? creds['value'] ?? password
-        steps.push({ label: 'CAS: credentials resolved from Vault', status: 'ok', durationMs: Date.now() - t })
-      } catch (err) {
-        steps.push({ label: 'CAS: Vault resolution failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
-        return { overall: 'error', steps, totalMs: Date.now() - totalStart }
-      }
-    }
-    if (!casServerUrl) {
-      steps.push({ label: 'CAS: Server URL is missing', status: 'error' })
-      return { overall: 'error', steps, totalMs: Date.now() - totalStart }
-    }
-
-    // TGT
-    const t1 = Date.now()
-    let tgtUrl: string
-    try {
-      const tgtRes = await fetch(`${casServerUrl}/v1/tickets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ username, password }).toString(),
-      })
-      if (!tgtRes.ok) throw new Error(`HTTP ${tgtRes.status} ${tgtRes.statusText}`)
-      tgtUrl = tgtRes.headers.get('location') ?? ''
-      if (!tgtUrl) throw new Error('No Location header in TGT response')
-      casServerBaseUrl = casServerUrl
-      casTgtUrl = tgtUrl
-      steps.push({ label: `CAS: TGT obtained from ${casServerUrl}`, status: 'ok', durationMs: Date.now() - t1 })
-    } catch (err) {
-      steps.push({ label: 'CAS: TGT request failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t1 })
-      return { overall: 'error', steps, totalMs: Date.now() - totalStart }
-    }
-
-    // Probe: follow the redirect chain manually, collecting session cookies at each hop.
-    // The ticket must be validated within the same session the app created during this probe.
-    let effectiveServiceUrl = config.url
-    const tProbe = Date.now()
-    try {
-      let nextUrl = config.url
-      for (let hops = 0; hops < 10; hops++) {
-        const cookieHeader = [...probeCookies.entries()].map(([k, v]) => `${k}=${v}`).join('; ')
-        const r = await fetch(nextUrl, {
-          redirect: 'manual',
-          ...(cookieHeader ? { headers: { Cookie: cookieHeader } } : {}),
-          signal: AbortSignal.timeout(5000),
-        })
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const setCookies: string[] = (r.headers as any).getSetCookie?.() ?? []
-        const newCookieNames: string[] = []
-        for (const c of setCookies) {
-          const kv = c.split(';')[0]?.trim() ?? ''
-          const eq = kv.indexOf('=')
-          if (eq > 0) {
-            probeCookies.set(kv.substring(0, eq), kv.substring(eq + 1))
-            newCookieNames.push(kv.substring(0, eq))
-          }
-        }
-        const jarSnap = newCookieNames.length > 0 ? Object.fromEntries(newCookieNames.map(n => [n, '[redacted]'])) : undefined
-        const cookieDetail = newCookieNames.length > 0 ? `Set-Cookie: ${newCookieNames.join(', ')}` : undefined
-        if (r.status < 300 || r.status >= 400) {
-          steps.push({ label: `CAS probe hop ${hops + 1}: ${r.status} ${nextUrl}`, status: 'info', detail: cookieDetail, cookies: jarSnap })
-          break
-        }
-        const location = r.headers.get('location')
-        steps.push({ label: `CAS probe hop ${hops + 1}: ${r.status} ${nextUrl} → ${location ?? '(no location)'}`, status: 'info', detail: cookieDetail, cookies: jarSnap })
-        if (!location) break
-        const resolved = new URL(location, nextUrl)
-        const service = resolved.searchParams.get('service')
-        if (service) {
-          effectiveServiceUrl = service
-          steps.push({ label: 'CAS: effective service URL discovered', status: 'info', detail: effectiveServiceUrl, durationMs: Date.now() - tProbe })
-          break
-        }
-        nextUrl = resolved.toString()
-      }
-      if (effectiveServiceUrl === config.url) {
-        steps.push({ label: 'CAS: probe — no service param found, using original URL', status: 'info', durationMs: Date.now() - tProbe })
-      }
-      steps.push({
-        label: `CAS probe: ${probeCookies.size} session cookie(s) collected`,
-        status: 'info',
-        detail: probeCookies.size > 0 ? [...probeCookies.keys()].join(', ') : 'none',
-      })
-    } catch (e) {
-      steps.push({ label: 'CAS: probe failed, using original URL', status: 'info', detail: errMsg(e), durationMs: Date.now() - tProbe })
-    }
-
-    // Service ticket
-    const t2 = Date.now()
-    try {
-      const stRes = await fetch(tgtUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ service: effectiveServiceUrl }).toString(),
-      })
-      if (!stRes.ok) throw new Error(`HTTP ${stRes.status} ${stRes.statusText}`)
-      const ticket = (await stRes.text()).trim()
-      const u = new URL(effectiveServiceUrl)
-      u.searchParams.set('ticket', ticket)
-      finalUrl = u.toString()
-      steps.push({ label: 'CAS: service ticket obtained', status: 'ok', detail: `${ticket.substring(0, 24)}…`, durationMs: Date.now() - t2 })
-      steps.push({ label: 'CAS: submitting ticket to', status: 'info', detail: finalUrl })
-    } catch (err) {
-      steps.push({ label: 'CAS: service ticket request failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t2 })
-      return { overall: 'error', steps, totalMs: Date.now() - totalStart }
-    }
-  }
-
-  // ── HTTP request ──────────────────────────────────────────────────────────
-  const t = Date.now()
-  // The timeout covers the whole exchange, including reading the body, and is always cleared.
+  // The timeout covers the whole exchange — token/ticket requests, redirects and reading the body —
+  // exactly like the scheduled check, and is always cleared.
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const timer = setTimeout(() => controller.abort(new Error(`Timed out after ${timeoutMs} ms`)), timeoutMs)
+  const opts = { fetch: globalFetch, signal: controller.signal, onStep: (s: TestStep) => { steps.push(s) } }
   try {
-    const jar = new Map<string, string>(probeCookies)
+    // ── Auth resolution ─────────────────────────────────────────────────────
+    let auth: ResolvedHttpAuth
+    try {
+      auth = await resolveHttpAuth(config.auth, config.url, opts)
+    } catch (err) {
+      // Failures inside the auth flow report their own step; anything else still needs one.
+      if (steps.at(-1)?.status !== 'error') steps.push({ label: 'Authorization failed', status: 'error', detail: errMsg(err) })
+      return fail()
+    }
 
-    function collectCookies(res: Response): string[] {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const setCookies: string[] = (res.headers as any).getSetCookie?.() ?? []
-      const names: string[] = []
-      for (const c of setCookies) {
-        const kv = c.split(';')[0]?.trim() ?? ''
-        const eq = kv.indexOf('=')
-        if (eq > 0) { jar.set(kv.substring(0, eq), kv.substring(eq + 1)); names.push(kv.substring(0, eq)) }
+    // ── HTTP request ──────────────────────────────────────────────────────────
+    const t = Date.now()
+    try {
+      const method = (config.method ?? 'GET').toUpperCase()
+      steps.push({ label: `${method} ${config.url}`, status: 'info' })
+      const res = auth.cas
+        ? await requestWithCas(config, { ...auth, cas: auth.cas }, opts)
+        : await followRedirects(config, auth.headers, controller.signal, steps)
+
+      const responseMs = Date.now() - t
+
+      const expectedStatus = config.expectedStatus ?? 200
+      if (res.status !== expectedStatus) {
+        await discardBody(res)
+        steps.push({ label: `Response: HTTP ${res.status}`, status: 'error', detail: `Expected HTTP ${expectedStatus}`, durationMs: responseMs })
+        return fail()
       }
-      return names
-    }
+      steps.push({ label: `Response: HTTP ${res.status}`, status: 'ok', durationMs: responseMs })
 
-    function cookieHdr(): Record<string, string> {
-      const h = [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ')
-      return h ? { Cookie: h } : {}
-    }
+      // Keep the body in memory for validation, but never expose it in diagnostics.
+      const responseBody = await res.text()
+      steps.push({ label: 'Response body', status: 'info', detail: `${Buffer.byteLength(responseBody, 'utf8')} bytes (content omitted)` })
 
-    // ── Phase 1 (CAS only): RegisterServiceTicket ────────────────────────
-    // Single GET to {serviceUrl}?ticket={st} — nginx validates the ticket and
-    // responds with Set-Cookie: NGXCAS (and possibly SL_Session).
-    // We do NOT follow the redirect further; we just need the cookies.
-    let res!: Response
-    if (casServerBaseUrl) {
-      const tTicket = Date.now()
-      res = await fetch(finalUrl, {
-        method: 'GET',
-        headers: { ...cookieHdr() },
-        signal: controller.signal,
-        redirect: 'manual',
-      })
-      collectCookies(res)
-      steps.push({
-        label: `CAS: ticket registered → ${res.status}`,
-        status: 'ok',
-        detail: `Cookies collected: ${[...jar.keys()].join(', ')}`,
-        cookies: Object.fromEntries([...jar.keys()].map((name) => [name, '[redacted]'])),
-        durationMs: Date.now() - tTicket,
-      })
-    }
-
-    // ── Phase 2: visit the monitored URL with all auth cookies ────────────
-    // NGXCAS is now set, so NGINX will let requests through.
-    // If the app has its own CAS layer, it will redirect to CAS login.
-    // We intercept that redirect and get a fresh ticket — this time NGINX passes
-    // the ticket through to the app (NGXCAS is valid), so the app can validate
-    // it and establish its own authenticated session.
-    let method = (config.method ?? 'GET').toUpperCase()
-    let body: string | undefined = config.body
-    let sendCredentials = true
-    // Send exactly what the scheduled check sends. Its CAS flow replays one cookie jar on every hop;
-    // otherwise it relies on fetch, which keeps no cookie jar and drops Authorization and Cookie
-    // once a redirect leaves the original origin.
-    const hopHeaders = (): Record<string, string> => {
-      if (casServerBaseUrl) return { ...(config.headers ?? {}), ...authHeaders, ...cookieHdr() }
-      return sendCredentials ? { ...(config.headers ?? {}), ...authHeaders } : withoutCredentials(config.headers)
-    }
-    steps.push({ label: `${method} ${config.url}`, status: 'info' })
-    let currentUrl2 = config.url
-    for (let hops = 0; hops < 10; hops++) {
-      res = await fetch(currentUrl2, {
-        method,
-        headers: hopHeaders(),
-        ...(body !== undefined && method !== 'GET' && method !== 'HEAD' ? { body } : {}),
-        signal: controller.signal,
-        redirect: 'manual',
-      })
-      const newCookies = collectCookies(res)
-      const newJarSnap = newCookies.length ? Object.fromEntries(newCookies.map(n => [n, '[redacted]'])) : undefined
-      const cookieNote = newCookies.length ? ` [Set-Cookie: ${newCookies.join(', ')}]` : ''
-      if (res.status < 300 || res.status >= 400) break
-      const loc = res.headers.get('location')
-      if (!loc) break
-      const next = new URL(loc, currentUrl2).toString()
-
-      // CAS redirect from app-level auth → get a new ticket and submit it directly.
-      // NGINX has NGXCAS so it won't interfere; the app will receive the ticket.
-      if (casTgtUrl && casServerBaseUrl && next.startsWith(`${casServerBaseUrl}/login`)) {
-        const svc = new URL(next).searchParams.get('service')
-        if (svc) {
-          const tInt = Date.now()
-          try {
-            const stRes2 = await fetch(casTgtUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: new URLSearchParams({ service: svc }).toString(),
-            })
-            if (!stRes2.ok) throw new Error(`HTTP ${stRes2.status}`)
-            const ticket2 = (await stRes2.text()).trim()
-            const u2 = new URL(svc)
-            u2.searchParams.set('ticket', ticket2)
-            steps.push({ label: `CAS: app-level ticket obtained${cookieNote}`, status: 'info', detail: '[redacted]', cookies: newJarSnap, durationMs: Date.now() - tInt })
-            currentUrl2 = u2.toString()
-            continue
-          } catch (err2) {
-            steps.push({ label: 'CAS: app-level ticket request failed', status: 'error', detail: errMsg(err2) })
-            break
-          }
+      // ── Keyword check ───────────────────────────────────────────────────
+      if (config.keyword) {
+        if (responseBody.includes(config.keyword)) {
+          steps.push({ label: `Keyword "${config.keyword}" found in response`, status: 'ok' })
+        } else {
+          steps.push({ label: `Keyword "${config.keyword}" not found in response`, status: 'error' })
+          return fail()
         }
       }
-
-      steps.push({ label: `→ ${res.status} ${next}${cookieNote}`, status: 'info', cookies: newJarSnap })
-      // Follow redirects the way fetch does for scheduled checks: 303 (and 301/302 after POST)
-      // turn into a body-less GET, and credentials stay behind when the request changes origin.
-      if ((res.status === 303 && method !== 'GET' && method !== 'HEAD') || ((res.status === 301 || res.status === 302) && method === 'POST')) {
-        method = 'GET'
-        body = undefined
-      }
-      if (new URL(next).origin !== new URL(currentUrl2).origin) sendCredentials = false
-      currentUrl2 = next
+    } catch (err) {
+      steps.push({ label: 'Request failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
+      return fail()
     }
-
-    const responseMs = Date.now() - t
-
-    const expectedStatus = config.expectedStatus ?? 200
-    if (res.status !== expectedStatus) {
-      steps.push({ label: `Response: HTTP ${res.status}`, status: 'error', detail: `Expected HTTP ${expectedStatus}`, durationMs: responseMs })
-      return { overall: 'error', steps, totalMs: Date.now() - totalStart }
-    }
-    steps.push({ label: `Response: HTTP ${res.status}`, status: 'ok', durationMs: responseMs })
-
-    // Keep the body in memory for validation, but never expose it in diagnostics.
-    const responseBody = await res.text()
-    steps.push({ label: 'Response body', status: 'info', detail: `${Buffer.byteLength(responseBody, 'utf8')} bytes (content omitted)` })
-
-    // ── Keyword check ───────────────────────────────────────────────────
-    if (config.keyword) {
-      if (responseBody.includes(config.keyword)) {
-        steps.push({ label: `Keyword "${config.keyword}" found in response`, status: 'ok' })
-      } else {
-        steps.push({ label: `Keyword "${config.keyword}" not found in response`, status: 'error' })
-        return { overall: 'error', steps, totalMs: Date.now() - totalStart }
-      }
-    }
-  } catch (err) {
-    steps.push({ label: 'Request failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
-    return { overall: 'error', steps, totalMs: Date.now() - totalStart }
   } finally {
     clearTimeout(timer)
   }
@@ -381,22 +88,66 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
   return { overall: 'ok', steps, totalMs: Date.now() - totalStart }
 }
 
+const globalFetch: HttpFetch = (url, init) => fetch(url, init)
+
+/**
+ * Follows redirects by hand so every hop shows up as a step, while sending exactly what the
+ * scheduled check sends: it relies on fetch, which keeps no cookie jar, turns 303 (and 301/302
+ * after POST) into a body-less GET, and drops Authorization and Cookie once a redirect leaves the
+ * original origin.
+ */
+async function followRedirects(
+  config: HttpsConfig,
+  authHeaders: Record<string, string>,
+  signal: AbortSignal,
+  steps: TestStep[],
+): Promise<HttpResponse> {
+  let method = (config.method ?? 'GET').toUpperCase()
+  let body: string | undefined = config.body
+  let sendCredentials = true
+  let currentUrl = config.url
+  let res!: HttpResponse
+  for (let hops = 0; hops < 10; hops++) {
+    // The previous hop was a redirect; only the final response keeps its body.
+    if (hops > 0) await discardBody(res)
+    res = await globalFetch(currentUrl, {
+      method,
+      headers: sendCredentials ? { ...(config.headers ?? {}), ...authHeaders } : withoutCredentials(config.headers),
+      ...(body !== undefined && method !== 'GET' && method !== 'HEAD' ? { body } : {}),
+      signal,
+      redirect: 'manual',
+    })
+    const newCookies = new CookieJar().collect(res)
+    const cookieNote = newCookies.length ? ` [Set-Cookie: ${newCookies.join(', ')}]` : ''
+    if (res.status < 300 || res.status >= 400) break
+    const loc = res.headers.get('location')
+    if (!loc) break
+    const next = new URL(loc, currentUrl).toString()
+
+    steps.push({ label: `→ ${res.status} ${next}${cookieNote}`, status: 'info', cookies: redactedCookies(newCookies) })
+    if ((res.status === 303 && method !== 'GET' && method !== 'HEAD') || ((res.status === 301 || res.status === 302) && method === 'POST')) {
+      method = 'GET'
+      body = undefined
+    }
+    if (new URL(next).origin !== new URL(currentUrl).origin) sendCredentials = false
+    currentUrl = next
+  }
+  return res
+}
+
 // ── SQL Server ────────────────────────────────────────────────────────────────
 
 export async function testSqlServer(config: SqlServerConfig, timeoutMs: number): Promise<TestResult> {
   const steps: TestStep[] = []
   const totalStart = Date.now()
+  const fail = (): TestResult => ({ overall: 'error', steps, totalMs: Date.now() - totalStart })
+  let pool: ConnectionPool | null = null
 
   try {
-    // mssql is CJS; in an ESM package (.default needed for proper interop)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sql = await import('mssql').then((m: any) => m.default ?? m) as typeof import('mssql')
-    let pool: import('mssql').ConnectionPool
-
     if (config.mode === 'connectionString') {
       if (!config.vault) {
         steps.push({ label: 'Connection string: no Vault secret configured', status: 'error' })
-        return { overall: 'error', steps, totalMs: Date.now() - totalStart }
+        return fail()
       }
       const t = Date.now()
       let connStr: string
@@ -407,15 +158,15 @@ export async function testSqlServer(config: SqlServerConfig, timeoutMs: number):
         steps.push({ label: 'Connection string resolved from Vault', status: 'ok', durationMs: Date.now() - t })
       } catch (err) {
         steps.push({ label: 'Vault resolution failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
-        return { overall: 'error', steps, totalMs: Date.now() - totalStart }
+        return fail()
       }
       const t2 = Date.now()
       try {
-        pool = await sql.connect(connStr)
+        pool = await openSqlServerPool(connStr)
         steps.push({ label: 'Connected via connection string', status: 'ok', durationMs: Date.now() - t2 })
       } catch (err) {
         steps.push({ label: 'Connection failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t2 })
-        return { overall: 'error', steps, totalMs: Date.now() - totalStart }
+        return fail()
       }
     } else {
       let user     = config.user
@@ -430,7 +181,7 @@ export async function testSqlServer(config: SqlServerConfig, timeoutMs: number):
           steps.push({ label: 'Credentials resolved from Vault', status: 'ok', detail: `User: ${user}`, durationMs: Date.now() - t })
         } catch (err) {
           steps.push({ label: 'Vault resolution failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
-          return { overall: 'error', steps, totalMs: Date.now() - totalStart }
+          return fail()
         }
       } else {
         steps.push({ label: 'Using direct credentials', status: 'info', detail: `User: ${user}` })
@@ -438,16 +189,11 @@ export async function testSqlServer(config: SqlServerConfig, timeoutMs: number):
 
       const t = Date.now()
       try {
-        pool = await sql.connect({
-          server: config.host, port: config.port, database: config.database,
-          user, password,
-          connectionTimeout: timeoutMs, requestTimeout: timeoutMs,
-          options: { encrypt: true, trustServerCertificate: true },
-        })
+        pool = await openSqlServerPool(sqlServerTarget(config, user, password, timeoutMs))
         steps.push({ label: `Connected to ${config.host}:${config.port} / ${config.database}`, status: 'ok', durationMs: Date.now() - t })
       } catch (err) {
         steps.push({ label: `Connection to ${config.host}:${config.port} failed`, status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
-        return { overall: 'error', steps, totalMs: Date.now() - totalStart }
+        return fail()
       }
     }
 
@@ -471,19 +217,18 @@ export async function testSqlServer(config: SqlServerConfig, timeoutMs: number):
           steps.push({ label: `Expected result matched: "${config.expectedResult}"`, status: 'ok' })
         } else {
           steps.push({ label: 'Expected result mismatch', status: 'error', detail: `Expected "${config.expectedResult}", got "${firstValue}"` })
-          await pool.close()
-          return { overall: 'error', steps, totalMs: Date.now() - totalStart }
+          return fail()
         }
       }
-      await pool.close()
     } catch (err) {
       steps.push({ label: 'Query failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
-      try { await pool.close() } catch { /* ignore */ }
-      return { overall: 'error', steps, totalMs: Date.now() - totalStart }
+      return fail()
     }
   } catch (err) {
     steps.push({ label: 'Test failed', status: 'error', detail: errMsg(err) })
-    return { overall: 'error', steps, totalMs: Date.now() - totalStart }
+    return fail()
+  } finally {
+    await closeSqlServerPool(pool)
   }
 
   return { overall: 'ok', steps, totalMs: Date.now() - totalStart }
@@ -565,6 +310,3 @@ function withoutCredentials(headers: Record<string, string> | undefined): Record
   return Object.fromEntries(Object.entries(headers ?? {}).filter(([name]) => !CROSS_ORIGIN_STRIPPED.has(name.toLowerCase())))
 }
 
-function errMsg(err: unknown): string {
-  return err instanceof Error ? err.message : String(err)
-}

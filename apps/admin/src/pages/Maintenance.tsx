@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react'
-import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { MaintenanceWindow, Monitor } from '@bsp/shared'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { NotifySubscribersCheckbox } from '../components/subscribers/NotifySubscribersCheckbox'
+import { ModalShell } from '../components/ModalShell'
 
 type Tab = 'active' | 'upcoming' | 'past'
 
@@ -410,164 +410,161 @@ function MaintenanceModal({
     )
   }
 
-  return createPortal(
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.55)', overflowY: 'auto' }}>
-      <div style={{ display: 'flex', minHeight: '100%', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-        <div className="rounded-2xl w-full max-w-lg" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined" style={{ fontSize: '22px', color: 'var(--m3-primary)' }}>construction</span>
-              <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>
-                {isEdit ? 'Edit Maintenance Window' : 'Schedule Maintenance'}
-              </h3>
-            </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none"
-              style={{ color: 'var(--m3-secondary)' }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container-high)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ''; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)' }}
-            >
-              ×
-            </button>
+  return (
+    <ModalShell>
+      <div className="rounded-2xl w-full max-w-lg" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined" style={{ fontSize: '22px', color: 'var(--m3-primary)' }}>construction</span>
+            <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>
+              {isEdit ? 'Edit Maintenance Window' : 'Schedule Maintenance'}
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none"
+            style={{ color: 'var(--m3-secondary)' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container-high)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ''; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)' }}
+          >
+            ×
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* Name */}
+          <div>
+            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
+              Name
+            </label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              className="input-sig"
+              placeholder="Scheduled database maintenance"
+            />
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-5">
-            {/* Name */}
+          {/* Description */}
+          <div>
+            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
+              Description <span style={{ color: 'var(--m3-outline)' }}>(optional)</span>
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              className="input-sig resize-none"
+              placeholder="Brief description visible on the status page…"
+            />
+          </div>
+
+          {/* Time range */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
-                Name
+                Starts At
               </label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="input-sig"
-                placeholder="Scheduled database maintenance"
+              <DateTimeInput
+                label="Starts At"
+                value={startsAt}
+                onChange={setStartsAt}
               />
             </div>
-
-            {/* Description */}
             <div>
               <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
-                Description <span style={{ color: 'var(--m3-outline)' }}>(optional)</span>
+                Ends At
               </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-                className="input-sig resize-none"
-                placeholder="Brief description visible on the status page…"
+              <DateTimeInput
+                label="Ends At"
+                value={endsAt}
+                onChange={setEndsAt}
               />
             </div>
+          </div>
 
-            {/* Time range */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
-                  Starts At
-                </label>
-                <DateTimeInput
-                  label="Starts At"
-                  value={startsAt}
-                  onChange={setStartsAt}
+          {/* Affected monitors */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
+                Affected Monitors
+              </label>
+              <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: 'var(--m3-secondary)' }}>
+                <input
+                  type="checkbox"
+                  checked={allMonitors}
+                  onChange={(e) => setAllMonitors(e.target.checked)}
+                  style={{ accentColor: 'var(--admin-control-accent)' }}
                 />
-              </div>
-              <div>
-                <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
-                  Ends At
-                </label>
-                <DateTimeInput
-                  label="Ends At"
-                  value={endsAt}
-                  onChange={setEndsAt}
-                />
-              </div>
+                All monitors
+              </label>
             </div>
-
-            {/* Affected monitors */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
-                  Affected Monitors
-                </label>
-                <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: 'var(--m3-secondary)' }}>
-                  <input
-                    type="checkbox"
-                    checked={allMonitors}
-                    onChange={(e) => setAllMonitors(e.target.checked)}
-                    style={{ accentColor: 'var(--admin-control-accent)' }}
-                  />
-                  All monitors
-                </label>
+            {!allMonitors && (
+              <div
+                className="space-y-1 max-h-40 overflow-y-auto rounded-lg p-2"
+                style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}
+              >
+                {monitors.map((m) => (
+                  <label key={m.id} className="flex items-center gap-2.5 text-sm cursor-pointer px-2 py-1.5 rounded-md"
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLLabelElement).style.background = 'var(--m3-surface-container-high)')}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLLabelElement).style.background = '')}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedMonitors.includes(m.id)}
+                      onChange={() => toggleMonitor(m.id)}
+                      style={{ accentColor: 'var(--admin-control-accent)' }}
+                    />
+                    <span style={{ color: 'var(--m3-on-surface)' }}>{m.name}</span>
+                    <span className="ml-auto font-mono text-xs" style={{ color: 'var(--m3-outline)' }}>{m.type}</span>
+                  </label>
+                ))}
+                {monitors.length === 0 && (
+                  <p className="text-xs px-2 py-2" style={{ color: 'var(--m3-secondary)' }}>No monitors available</p>
+                )}
               </div>
-              {!allMonitors && (
-                <div
-                  className="space-y-1 max-h-40 overflow-y-auto rounded-lg p-2"
-                  style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}
-                >
-                  {monitors.map((m) => (
-                    <label key={m.id} className="flex items-center gap-2.5 text-sm cursor-pointer px-2 py-1.5 rounded-md"
-                      onMouseEnter={(e) => ((e.currentTarget as HTMLLabelElement).style.background = 'var(--m3-surface-container-high)')}
-                      onMouseLeave={(e) => ((e.currentTarget as HTMLLabelElement).style.background = '')}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedMonitors.includes(m.id)}
-                        onChange={() => toggleMonitor(m.id)}
-                        style={{ accentColor: 'var(--admin-control-accent)' }}
-                      />
-                      <span style={{ color: 'var(--m3-on-surface)' }}>{m.name}</span>
-                      <span className="ml-auto font-mono text-xs" style={{ color: 'var(--m3-outline)' }}>{m.type}</span>
-                    </label>
-                  ))}
-                  {monitors.length === 0 && (
-                    <p className="text-xs px-2 py-2" style={{ color: 'var(--m3-secondary)' }}>No monitors available</p>
-                  )}
-                </div>
-              )}
-              {!allMonitors && selectedMonitors.length === 0 && (
-                <p className="text-xs mt-1.5" style={{ color: 'var(--m3-outline)' }}>
-                  No monitors selected — notifications will not be suppressed.
-                </p>
-              )}
-            </div>
-
-            {!isEdit && <NotifySubscribersCheckbox checked={notifySubscribers} onChange={setNotifySubscribers} />}
-
-            {error && (
-              <p className="text-sm" style={{ color: 'var(--m3-down)' }}>{error}</p>
             )}
+            {!allMonitors && selectedMonitors.length === 0 && (
+              <p className="text-xs mt-1.5" style={{ color: 'var(--m3-outline)' }}>
+                No monitors selected — notifications will not be suppressed.
+              </p>
+            )}
+          </div>
 
-            <div className="flex justify-end gap-3 pt-1">
-              <button
-                type="button"
-                onClick={onClose}
-                className="text-sm px-4 py-2 rounded-lg"
-                style={{ color: 'var(--m3-secondary)' }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)')}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)')}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-primary text-sm font-semibold px-4 py-2 rounded-lg transition-all"
-                style={{
-                  background: loading ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
-                  color: loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
-                  opacity: loading ? 0.7 : 1,
-                }}
-              >
-                {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Schedule'}
-              </button>
-            </div>
-          </form>
-        </div>
+          {!isEdit && <NotifySubscribersCheckbox checked={notifySubscribers} onChange={setNotifySubscribers} />}
+
+          {error && (
+            <p className="text-sm" style={{ color: 'var(--m3-down)' }}>{error}</p>
+          )}
+
+          <div className="flex justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-sm px-4 py-2 rounded-lg"
+              style={{ color: 'var(--m3-secondary)' }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)')}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)')}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary text-sm font-semibold px-4 py-2 rounded-lg transition-all"
+              style={{
+                background: loading ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
+                color: loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
+                opacity: loading ? 0.7 : 1,
+              }}
+            >
+              {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Schedule'}
+            </button>
+          </div>
+        </form>
       </div>
-    </div>,
-    document.body,
+    </ModalShell>
   )
 }

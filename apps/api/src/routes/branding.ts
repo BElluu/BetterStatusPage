@@ -4,8 +4,10 @@ import { branding } from '../db/schema.js'
 import path from 'path'
 import fs from 'fs'
 import { uploadDir } from '../config.js'
-import { diffObjects, writeAudit } from '../services/audit.js'
+import { auditActor, diffObjects, writeAudit } from '../services/audit.js'
+import { requestIdentity } from '../middleware/auth.js'
 import { DEFAULT_BRANDING_COLORS } from '@bsp/shared'
+import { isSafeColor } from '../services/emailTemplate.js'
 
 const ALLOWED_MIME_MAGIC: Array<{ mime: string; magic: number[] }> = [
   { mime: 'image/jpeg', magic: [0xFF, 0xD8, 0xFF] },
@@ -64,6 +66,8 @@ const DEFAULTS = {
 
 type BrandingBody = Partial<Omit<typeof DEFAULTS, 'faviconUrl'>>
 
+const COLOR_FIELDS = Object.keys(DEFAULT_BRANDING_COLORS) as Array<keyof typeof DEFAULT_BRANDING_COLORS>
+
 export async function brandingRoutes(app: FastifyInstance) {
   app.get('/', async () => {
     const row = (await db.select().from(branding))[0]
@@ -71,7 +75,11 @@ export async function brandingRoutes(app: FastifyInstance) {
     return row
   })
 
-  app.patch<{ Body: BrandingBody }>('/', async (req) => {
+  app.patch<{ Body: BrandingBody }>('/', async (req, reply) => {
+    const invalidColor = COLOR_FIELDS.find((field) => req.body[field] !== undefined && !isSafeColor(req.body[field]))
+    if (invalidColor) {
+      return reply.code(400).send({ error: `${invalidColor} must be a hex (#rrggbb) or rgb()/rgba() colour` })
+    }
     const now = Date.now()
     const existing = (await db.select().from(branding))[0]
     const updates: Record<string, unknown> = { updatedAt: now }
@@ -96,12 +104,12 @@ export async function brandingRoutes(app: FastifyInstance) {
         updatedAt: now,
       }).returning())[0]!
     cleanupUnusedManagedLogoFiles(row)
-    const actor = req.user as { userId: number; email: string }
+    const actor = requestIdentity(req)
     const changedFields = Object.keys(updates).filter((field) => field !== 'updatedAt')
     const before = Object.fromEntries(changedFields.map((field) => [field, existing?.[field as keyof typeof existing] ?? null]))
     const after = Object.fromEntries(changedFields.map((field) => [field, row[field as keyof typeof row]]))
     await writeAudit(
-      { userId: actor.userId, userEmail: actor.email },
+      auditActor(actor),
       existing ? 'update' : 'create',
       'branding',
       1,
@@ -135,9 +143,9 @@ export async function brandingRoutes(app: FastifyInstance) {
       ? (await db.update(branding).set({ [field]: logoUrl, updatedAt: Date.now() }).returning())[0]!
       : (await db.insert(branding).values({ id: 1, ...DEFAULTS, [field]: logoUrl, updatedAt: Date.now() }).returning())[0]!
     cleanupUnusedManagedLogoFiles(row)
-    const actor = req.user as { userId: number; email: string }
+    const actor = requestIdentity(req)
     await writeAudit(
-      { userId: actor.userId, userEmail: actor.email },
+      auditActor(actor),
       existing ? 'update' : 'create',
       'branding',
       1,

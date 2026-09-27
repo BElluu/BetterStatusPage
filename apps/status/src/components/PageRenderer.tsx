@@ -9,6 +9,7 @@ import { IncidentCard } from './IncidentCard'
 import { useLocale } from '../i18n/LocaleContext'
 import { ResponseTimeChart } from './ResponseTimeChart'
 import { applyIncidentStatus } from '../utils/incidentStatus'
+import { useMonitorUptime, type UptimeDay } from '../hooks/useMonitorUptime'
 
 interface StatusInfo {
   status: MonitorStatus
@@ -241,6 +242,113 @@ function NodeRenderer({
 /* ─────────────────────────────────────────────────────────────────────
    SERVICE MONITOR CARD  (large variant — matches design exactly)
    ───────────────────────────────────────────────────────────────────── */
+interface StatusBadgeProps {
+  label: string
+  color: string
+  background: string
+  /** Down and degraded monitors get a pulsing marker. */
+  pulse: boolean
+}
+
+function StatusPill({ label, color, background, pulse, minWidth }: StatusBadgeProps & { minWidth: string }) {
+  return (
+    <span
+      style={{
+        background, color,
+        padding: '6px 14px', borderRadius: '999px',
+        fontSize: '13px', fontWeight: 700,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+        flexShrink: 0,
+        minWidth,
+      }}
+    >
+      {pulse && (
+        <span
+          className="animate-pulse"
+          style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }}
+        />
+      )}
+      {label}
+    </span>
+  )
+}
+
+/** Right-position layout: gridW=1 → dot only; gridW=2 → compact pill; gridW≥3 → full pill. */
+function StatusBadgeRight({ gridW, ...badge }: StatusBadgeProps & { gridW: number }) {
+  if (gridW === 1) {
+    return (
+      <div style={{ flexShrink: 0, position: 'relative', width: 14, height: 14 }}>
+        {badge.pulse && (
+          <span className="monitor-dot-ring" style={{ background: badge.color, opacity: 0.4 }} />
+        )}
+        <span style={{ display: 'block', width: '100%', height: '100%', borderRadius: '50%', background: badge.color }} />
+      </div>
+    )
+  }
+  return <StatusPill {...badge} minWidth={gridW === 2 ? '96px' : '114px'} />
+}
+
+interface NameBlockProps {
+  monitor: PublicMonitor
+  showMonitorType: boolean
+  inMaintenance: boolean
+  /** Upstream monitors to name when this one is affected; empty otherwise. */
+  causingMonitors: PublicMonitor[]
+  /** Sits beside inline uptime bars, so it is width-capped instead of filling the row. */
+  beside: boolean
+}
+
+function NameBlock({ monitor, showMonitorType, inMaintenance, causingMonitors, beside }: NameBlockProps) {
+  const { t } = useLocale()
+  return (
+    <div style={{
+      minWidth: 0,
+      flex: beside ? '0 1 240px' : '1 1 auto',
+      maxWidth: beside ? '240px' : 'none',
+    }}>
+      <h3
+        className="font-headline font-bold"
+        title={monitor.name}
+        style={{ fontSize: '28px', lineHeight: 1.15, color: 'var(--bsp-text)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingBottom: '3px' }}
+      >
+        {monitor.name}
+      </h3>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+        {showMonitorType && (
+          <p
+            className="font-mono uppercase"
+            style={{ fontSize: '11px', letterSpacing: '0.09em', color: 'var(--m3-secondary)', margin: 0 }}
+          >
+            {monitor.type.toUpperCase()}
+          </p>
+        )}
+        {inMaintenance && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '3px',
+            fontSize: '10px', fontWeight: 700, letterSpacing: '0.04em',
+            padding: '2px 7px', borderRadius: '999px',
+            background: 'var(--bsp-maintenance-chip-bg)', color: 'var(--bsp-maintenance-text)',
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>construction</span>
+            MAINTENANCE
+          </span>
+        )}
+        {causingMonitors.length > 0 && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '3px',
+            fontSize: '10px', fontWeight: 600, letterSpacing: '0.03em',
+            padding: '2px 7px', borderRadius: '999px',
+            background: 'color-mix(in srgb, var(--bsp-degraded) 18%, transparent)', color: 'var(--bsp-degraded)',
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>link</span>
+            {t('status.affectedBy')}: {causingMonitors.map((m) => m.name).join(', ')}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ServiceMonitorCard({
   monitor, responseMs: _responseMs, monitorId,
   showUptimeBar, showMonitorType = false,
@@ -272,7 +380,6 @@ function ServiceMonitorCard({
   const statusLabel   = isUp ? t('status.operational') : isDown ? t('status.outage') : isDegraded ? t('status.degraded') : isAffected ? t('status.affected') : t('status.checking')
   const statusColor   = isUp ? 'var(--bsp-up)' : isDown ? 'var(--bsp-down)' : isDegraded || isAffected ? 'var(--bsp-degraded)' : 'var(--m3-secondary)'
   const statusBg      = isUp || isDown || isDegraded || isAffected ? `color-mix(in srgb, ${statusColor} 12%, transparent)` : 'var(--m3-surface-container)'
-  const dotColor      = statusColor
   const barColor      = statusColor
   const barColorLight = `color-mix(in srgb, ${statusColor} 55%, white)`
 
@@ -280,118 +387,21 @@ function ServiceMonitorCard({
     ? overallPct === null ? t('uptime.noData') : t('uptime.pct', { pct: overallPct.toFixed(1) })
     : null
 
-  // Right-position layout: gridW=1 → dot only; gridW=2 → compact pill; gridW≥3 → full pill
-  const StatusBadgeRight = () => {
-    if (gridW === 1) {
-      return (
-        <div style={{ flexShrink: 0, position: 'relative', width: 14, height: 14 }}>
-          {(isDown || isDegraded) && (
-            <span className="monitor-dot-ring" style={{ background: dotColor, opacity: 0.4 }} />
-          )}
-          <span style={{ display: 'block', width: '100%', height: '100%', borderRadius: '50%', background: dotColor }} />
-        </div>
-      )
-    }
-    return (
-      <span
-        style={{
-          background: statusBg, color: statusColor,
-          padding: '6px 14px', borderRadius: '999px',
-          fontSize: '13px', fontWeight: 700,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-          flexShrink: 0,
-          minWidth: gridW === 2 ? '96px' : '114px',
-        }}
-      >
-        {(isDown || isDegraded) && (
-          <span
-            className="animate-pulse"
-            style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, display: 'inline-block', flexShrink: 0 }}
-          />
-        )}
-        {statusLabel}
-      </span>
-    )
+  const badgeProps: StatusBadgeProps = { label: statusLabel, color: statusColor, background: statusBg, pulse: isDown || isDegraded }
+  const nameProps: NameBlockProps = {
+    monitor, showMonitorType, inMaintenance,
+    causingMonitors: isAffected ? causingMonitors : [],
+    beside: showUptimeBar && uptimeBarPosition === 'right',
   }
-
-  // Below-position / no-bars layout: always full pill
-  const StatusBadgeBelow = () => (
-    <span
-      style={{
-        background: statusBg, color: statusColor,
-        padding: '6px 14px', borderRadius: '999px',
-        fontSize: '13px', fontWeight: 700,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-        flexShrink: 0,
-        minWidth: '114px',
-      }}
-    >
-      {(isDown || isDegraded) && (
-        <span
-          className="animate-pulse"
-          style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, display: 'inline-block', flexShrink: 0 }}
-        />
-      )}
-      {statusLabel}
-    </span>
-  )
-
-  const NameBlock = () => (
-    <div style={{
-      minWidth: 0,
-      flex: showUptimeBar && uptimeBarPosition === 'right' ? '0 1 240px' : '1 1 auto',
-      maxWidth: showUptimeBar && uptimeBarPosition === 'right' ? '240px' : 'none',
-    }}>
-      <h3
-        className="font-headline font-bold"
-        title={monitor.name}
-        style={{ fontSize: '28px', lineHeight: 1.15, color: 'var(--bsp-text)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingBottom: '3px' }}
-      >
-        {monitor.name}
-      </h3>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
-        {showMonitorType && (
-          <p
-            className="font-mono uppercase"
-            style={{ fontSize: '11px', letterSpacing: '0.09em', color: 'var(--m3-secondary)', margin: 0 }}
-          >
-            {monitor.type.toUpperCase()}
-          </p>
-        )}
-        {inMaintenance && (
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: '3px',
-            fontSize: '10px', fontWeight: 700, letterSpacing: '0.04em',
-            padding: '2px 7px', borderRadius: '999px',
-            background: 'var(--bsp-maintenance-chip-bg)', color: 'var(--bsp-maintenance-text)',
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>construction</span>
-            MAINTENANCE
-          </span>
-        )}
-        {isAffected && causingMonitors.length > 0 && (
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: '3px',
-            fontSize: '10px', fontWeight: 600, letterSpacing: '0.03em',
-            padding: '2px 7px', borderRadius: '999px',
-            background: 'color-mix(in srgb, var(--bsp-degraded) 18%, transparent)', color: 'var(--bsp-degraded)',
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>link</span>
-            {t('status.affectedBy')}: {causingMonitors.map((m) => m.name).join(', ')}
-          </span>
-        )}
-      </div>
-    </div>
-  )
 
   /* ── Right: bars fill the gap between name and badge ── */
   if (showUptimeBar && uptimeBarPosition === 'right') {
     return (
       <div className="bsp-monitor-card" style={{ padding: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <NameBlock />
+          <NameBlock {...nameProps} />
           <UptimeBarsInline monitorId={monitorId} barColor={barColor} barColorLight={barColorLight} />
-          <StatusBadgeRight />
+          <StatusBadgeRight {...badgeProps} gridW={gridW} />
         </div>
       </div>
     )
@@ -401,8 +411,8 @@ function ServiceMonitorCard({
   return (
     <div className="bsp-monitor-card" style={{ padding: '28px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: showUptimeBar ? '20px' : '0', gap: '16px' }}>
-        <NameBlock />
-        <StatusBadgeBelow />
+        <NameBlock {...nameProps} />
+        <StatusPill {...badgeProps} minWidth="114px" />
       </div>
 
       {showUptimeBar && (
@@ -743,13 +753,6 @@ function IncidentsBlock({ config, activeIncidents, allIncidents, monitors }: {
 /* ─────────────────────────────────────────────────────────────────────
    UPTIME SHARED TYPES + TOOLTIP
    ───────────────────────────────────────────────────────────────────── */
-interface UptimeDay {
-  date: string
-  status: string
-  uptimePct: number
-  incidents?: Array<{ id: number; title: string; durationMs: number | null }>
-}
-
 function fmtDuration(ms: number): string {
   const h = Math.floor(ms / 3_600_000)
   const m = Math.floor((ms % 3_600_000) / 60_000)
@@ -835,18 +838,13 @@ function UptimeBars({ monitorId, barColor, barColorLight, isDown, isDegraded, on
   isDegraded: boolean
   onData?: ((pct: number | null) => void) | undefined
 }) {
-  const [data, setData] = useState<UptimeDay[] | null>(null)
+  const uptime = useMonitorUptime(monitorId, 30)
+  const data = uptime?.days ?? null
   const [hovered, setHovered] = useState<{ day: UptimeDay; rect: DOMRect } | null>(null)
 
   useEffect(() => {
-    fetch(`/api/v1/public/monitor/${monitorId}/uptime?days=30`)
-      .then((r) => r.json())
-      .then((res: { days: UptimeDay[]; overallUptimePct: number | null }) => {
-        setData(res.days)
-        onData?.(res.overallUptimePct)
-      })
-      .catch(() => {})
-  }, [monitorId, onData])
+    if (uptime) onData?.(uptime.overallUptimePct)
+  }, [uptime, onData])
 
   const barColorOf = (day: UptimeDay) =>
     day.status === 'up' ? `linear-gradient(to top, ${barColor}, ${barColorLight})`
@@ -898,17 +896,10 @@ function UptimeBarsInline({ monitorId, barColor, barColorLight }: {
   barColor: string
   barColorLight: string
 }) {
-  const [data, setData] = useState<UptimeDay[] | null>(null)
+  const data = useMonitorUptime(monitorId, 30)?.days ?? null
   const [barCount, setBarCount] = useState(30)
   const [hovered, setHovered] = useState<{ day: UptimeDay; rect: DOMRect } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    fetch(`/api/v1/public/monitor/${monitorId}/uptime?days=30`)
-      .then((r) => r.json())
-      .then((res: { days: UptimeDay[] }) => { setData(res.days) })
-      .catch(() => {})
-  }, [monitorId])
 
   useEffect(() => {
     const el = containerRef.current

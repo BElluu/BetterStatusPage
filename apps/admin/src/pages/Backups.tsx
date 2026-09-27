@@ -47,6 +47,7 @@ export default function BackupsPage() {
     } catch (e) { setMessage(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
   }
 
+  if (!state && message) return <div className="p-8" role="alert" style={{ color: 'var(--m3-error)' }}>{message}</div>
   if (!state) return <div className="p-8" style={{ color: 'var(--m3-on-surface)' }}>Loading backups…</div>
   const config = state.config
   const scheduleChanged = JSON.stringify(config) !== JSON.stringify(savedConfig)

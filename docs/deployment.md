@@ -165,7 +165,7 @@ Whether you're using Docker or bare metal, put Nginx in front — it handles SSL
 
 BetterStatusPage is a **single process** that serves everything (API + admin panel + status page) on one port. Nginx is what exposes different URLs or ports to the outside world, routing each domain transparently to that one backend. Because the frontend JavaScript uses relative URLs (`/api/v1/...`), requests always go to the same origin the user sees in their browser — Nginx handles the rest invisibly.
 
-Set `TRUST_PROXY=1` when Nginx is the only path to the application. This makes authentication and setup rate limits use the real client IP from `X-Forwarded-For`. Do not enable it while the application port is directly reachable from the internet, because clients could spoof forwarding headers.
+Set `TRUST_PROXY=1` when Nginx is the only path to the application. This makes authentication and setup rate limits and the audit log use the real client IP from `X-Forwarded-For`. `TRUST_PROXY=1` trusts a proxy connecting from loopback or a private network address (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`), which covers Nginx on the same host and a proxy container on a Docker network. To narrow it, set an explicit comma-separated list of addresses or CIDR ranges instead, for example `TRUST_PROXY=172.18.0.0/16`. Do not enable it while the application port is directly reachable from the internet, because clients could spoof forwarding headers.
 
 Production rule: do not expose the application port directly to the internet when `TRUST_PROXY` is enabled. Bind Docker to `127.0.0.1:3000:3000` or restrict the port with your firewall, then let Nginx be the only public entry point.
 
@@ -360,6 +360,12 @@ docker compose up -d
 
 The volume is untouched. Database migrations run automatically on startup.
 
+The container runs as the unprivileged `node` user (UID 1000). Volumes created by older images, which ran as root, are owned by root; if the app then fails to start with a permission error, give the volumes to UID 1000 once:
+
+```bash
+docker compose run --rm --user root app chown -R 1000:1000 /app/data /app/backups
+```
+
 ### Bare metal
 
 ```bash
@@ -403,7 +409,7 @@ Before exposing an instance publicly:
 | `UPLOAD_DIR` | No | Directory for uploaded files (logos, favicons). Default: `./data/uploads` |
 | `BACKUP_DIR` | No | Directory for generated backup archives. Default: `./data/backups` |
 | `ALLOWED_ORIGINS` | No | Comma-separated CORS origins. Leave unset if Nginx handles CORS, or in single-domain setups. |
-| `TRUST_PROXY` | No | Trusted proxy setting (`1` for one reverse proxy, or trusted addresses). Enable only when the app port is not directly exposed. |
+| `TRUST_PROXY` | No | Trusted proxy setting: `1` trusts a proxy on loopback or a private network (Docker bridge included), or give a comma-separated list of addresses/CIDR ranges. Enable only when the app port is not directly exposed. |
 | `PUBLIC_URL` | For email/webhook subscriptions | Public address of the status page, e.g. `https://status.example.com`. All links sent to subscribers are built from it; see [subscriptions](subscriptions.md#public-url). |
 | `SCHEDULER_TICK_SECONDS` | No | How often the scheduler scans for due monitors. Default: `10`. Must be 1-59 seconds. |
 | `MONITOR_CHECK_CONCURRENCY` | No | Maximum number of due monitors checked concurrently. Default: `20`. |

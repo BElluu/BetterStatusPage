@@ -1,28 +1,26 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import multipart from '@fastify/multipart'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
+import { db, sqlite } from '../src/db/client.js'
 import { auditLog, monitors, notificationDeliveries } from '../src/db/schema.js'
 import { auditRoutes } from '../src/routes/audit.js'
 import { brandingRoutes } from '../src/routes/branding.js'
 import { layoutRoutes } from '../src/routes/layout.js'
 import { notificationRoutes } from '../src/routes/notifications.js'
+import { loadEmailBrand } from '../src/services/emailTemplate.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 import { DEFAULT_BRANDING_COLORS } from '@bsp/shared'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-admin-resources-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
-process.env['UPLOAD_DIR'] = join(dataDir, 'uploads')
+const testDb = createTestDb('bsp-admin-resources-')
+process.env['UPLOAD_DIR'] = join(testDb.dir, 'uploads')
 const app = Fastify({ logger: false })
 let monitorId = 0
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
   const now = Date.now()
   monitorId = (await db.insert(monitors).values({
     name: 'API', type: 'webhook', intervalSecs: 60, timeoutMs: 1_000, retries: 1,
@@ -41,8 +39,7 @@ before(async () => {
 
 after(async () => {
   await app.close()
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 describe('branding and layout', () => {
@@ -65,6 +62,24 @@ describe('branding and layout', () => {
     assert.equal((await db.select().from(auditLog)).some((entry) => entry.entityType === 'branding'), true)
   })
 
+  it('rejects branding colours that are not hex or rgb() values and never emails unsafe ones', async () => {
+    for (const value of ['red;background:url(https://evil.test/x)', '#12345g', '"><script>', 'expression(alert(1))', 42]) {
+      const response = await app.inject({ method: 'PATCH', url: '/branding', payload: { textColor: value } })
+      assert.equal(response.statusCode, 400, String(value))
+      assert.match(response.json().error, /textColor/)
+    }
+    for (const value of ['#abc', '#A1B2C3', '#11223344', 'rgb(1, 2, 3)', 'rgba(0,0,0,0.5)']) {
+      assert.equal((await app.inject({ method: 'PATCH', url: '/branding', payload: { cardBorderColor: value } })).statusCode, 200, value)
+    }
+
+    // A value stored before validation existed falls back to the default in emails.
+    sqlite.prepare('UPDATE branding SET enabled = 1, text_color = ?, primary_color = ?').run('red" onmouseover="x', '#112233')
+    const brand = await loadEmailBrand('https://status.example.test')
+    assert.equal(brand.colors.text, DEFAULT_BRANDING_COLORS.textColor)
+    assert.equal(brand.colors.primary, '#112233')
+    await app.inject({ method: 'PATCH', url: '/branding', payload: { textColor: DEFAULT_BRANDING_COLORS.textColor, cardBorderColor: DEFAULT_BRANDING_COLORS.cardBorderColor } })
+  })
+
   it('replaces obsolete logo files and removes unreferenced uploads', async () => {
     async function upload(url: string, filename: string, contentType: string, bytes: number[]) {
       const boundary = '----bsp-test-boundary'
@@ -80,15 +95,15 @@ describe('branding and layout', () => {
 
     const png = await upload('/branding/logo/light', 'light.png', 'image/png', [0x89, 0x50, 0x4e, 0x47])
     assert.equal(png.statusCode, 200)
-    assert.equal(existsSync(join(dataDir, 'uploads', 'logo-light.png')), true)
+    assert.equal(existsSync(join(testDb.dir, 'uploads', 'logo-light.png')), true)
 
     const jpeg = await upload('/branding/logo/light', 'light.jpg', 'image/jpeg', [0xff, 0xd8, 0xff])
     assert.equal(jpeg.statusCode, 200)
-    assert.equal(existsSync(join(dataDir, 'uploads', 'logo-light.jpg')), true)
-    assert.equal(existsSync(join(dataDir, 'uploads', 'logo-light.png')), false)
+    assert.equal(existsSync(join(testDb.dir, 'uploads', 'logo-light.jpg')), true)
+    assert.equal(existsSync(join(testDb.dir, 'uploads', 'logo-light.png')), false)
 
     await app.inject({ method: 'PATCH', url: '/branding', payload: { logoLightUrl: null } })
-    assert.equal(existsSync(join(dataDir, 'uploads', 'logo-light.jpg')), false)
+    assert.equal(existsSync(join(testDb.dir, 'uploads', 'logo-light.jpg')), false)
   })
 
   it('creates and replaces the page layout', async () => {

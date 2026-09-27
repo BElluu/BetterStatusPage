@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { renderEmail, toneColor, type EmailBrand } from '../src/services/emailTemplate.js'
+import { isSafeColor, renderEmail, safeColor, toneColor, type EmailBrand } from '../src/services/emailTemplate.js'
 import { renderSubscriberEmail, type SubscriberEvent } from '../src/workers/subscriberNotifier.js'
 
 const brand: EmailBrand = {
@@ -61,5 +61,15 @@ describe('branded subscriber emails', () => {
     })
     assert.doesNotMatch(html, /<img/)
     assert.match(html, />ACME</)
+  })
+})
+
+describe('email colour sanitising', () => {
+  it('accepts hex and rgb() colours and falls back for anything else', () => {
+    for (const value of ['#fff', '#A1b2C3', '#11223344', 'rgb(0, 0, 0)', 'rgba(255,255,255,0.5)']) assert.equal(isSafeColor(value), true, value)
+    for (const value of ['red', '#12', '#1234567890', 'red;x:y', 'rgb(1,2,3);', '"><img>', 'url(x)', '', null, 12]) {
+      assert.equal(isSafeColor(value), false, String(value))
+      assert.equal(safeColor(value, '#000000'), '#000000')
+    }
   })
 })

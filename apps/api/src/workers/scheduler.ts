@@ -28,16 +28,46 @@ export async function isInMaintenance(monitorId: number, now = Date.now()): Prom
 }
 
 type MonitorRow = typeof monitors.$inferSelect
+type CheckResult = { status: MonitorStatus; responseMs: number | null; error: string | null }
 
 export function getDueMonitors(allMonitors: MonitorRow[], now = Date.now()): MonitorRow[] {
-  return allMonitors.filter((monitor) =>
-    !monitor.lastCheckedAt || monitor.lastCheckedAt + monitor.intervalSecs * 1000 <= now,
-  )
+  return allMonitors.filter((monitor) => {
+    // A heartbeat monitor that never received one gets a full interval from creation before it is
+    // declared down; every other type is checked right away.
+    const since = monitor.lastCheckedAt ?? (monitor.type === 'webhook' ? monitor.createdAt : null)
+    return !since || since + monitor.intervalSecs * 1000 <= now
+  })
 }
 
-export async function runCheck(monitor: typeof monitors.$inferSelect) {
+/**
+ * Monitors whose check is queued or running. lastCheckedAt is only written once a check finishes,
+ * so without this a check slower than the tick interval would be started again by the next tick
+ * (or by "check now") and could fire the same alert twice.
+ */
+const inFlight = new Set<number>()
+
+export function isCheckInFlight(monitorId: number): boolean {
+  return inFlight.has(monitorId)
+}
+
+/**
+ * Runs one check unless a check for the same monitor is already queued or running.
+ * Resolves to false when it was skipped for that reason.
+ */
+export async function runCheck(monitor: MonitorRow): Promise<boolean> {
+  if (inFlight.has(monitor.id)) return false
+  inFlight.add(monitor.id)
+  try {
+    await performCheck(monitor)
+    return true
+  } finally {
+    inFlight.delete(monitor.id)
+  }
+}
+
+async function performCheck(monitor: MonitorRow): Promise<void> {
   const config = JSON.parse(monitor.config) as HttpsConfig | PingConfig | DnsConfig | SqlServerConfig
-  let result: { status: MonitorStatus; responseMs: number | null; error: string | null } = {
+  let result: CheckResult = {
     status: 'down',
     responseMs: null,
     error: 'Monitor check did not run',
@@ -72,6 +102,22 @@ export async function runCheck(monitor: typeof monitors.$inferSelect) {
     if (hasDownDep) result = { ...result, status: 'affected' }
   }
 
+  await recordObservation(monitor, result)
+}
+
+/**
+ * Stores one observation of a monitor — a scheduled check or a received heartbeat — and notifies
+ * when it confirms an alert-worthy transition.
+ *
+ * During maintenance the public status still follows reality, but the alert_* state is left
+ * untouched: the first observation after the window is then judged against the status that was
+ * confirmed before it, so an outage that started inside the window alerts once the window ends.
+ */
+export async function recordObservation(
+  monitor: MonitorRow,
+  result: CheckResult,
+  options: { broadcast?: 'always' | 'on-change' } = {},
+): Promise<void> {
   const checkedAt = Date.now()
 
   await db.insert(monitorResults).values({
@@ -82,47 +128,62 @@ export async function runCheck(monitor: typeof monitors.$inferSelect) {
     errorMessage: result.error,
   })
 
+  const inMaintenance = await isInMaintenance(monitor.id, checkedAt)
   // The public status always reflects the latest observation; only alerting is debounced, via
   // the separate alert_* columns, so a flapping endpoint cannot page anyone every interval.
-  const transition = evaluateAlertTransition(monitor, result.status)
+  const transition = inMaintenance ? null : evaluateAlertTransition(monitor, result.status)
   await db.update(monitors).set({
     currentStatus: result.status,
     lastCheckedAt: checkedAt,
     updatedAt: checkedAt,
-    alertConfirmedStatus: transition.alertConfirmedStatus,
-    alertPendingStatus: transition.alertPendingStatus,
-    alertPendingCount: transition.alertPendingCount,
+    ...(transition ? {
+      alertConfirmedStatus: transition.alertConfirmedStatus,
+      alertPendingStatus: transition.alertPendingStatus,
+      alertPendingCount: transition.alertPendingCount,
+    } : {}),
   }).where(eq(monitors.id, monitor.id))
 
-  // Always broadcast so the admin UI can update lastCheckedAt and status in real-time.
-  sseService.broadcast('monitor.status', { monitorId: monitor.id, status: result.status, responseMs: result.responseMs, checkedAt })
+  // By default always broadcast so the admin UI can update lastCheckedAt and status in real-time.
+  if ((options.broadcast ?? 'always') === 'always' || monitor.currentStatus !== result.status) {
+    sseService.broadcast('monitor.status', { monitorId: monitor.id, status: result.status, responseMs: result.responseMs, checkedAt })
+  }
 
-  const fire = transition.fire
+  const fire = transition?.fire
   if (fire) {
-    isInMaintenance(monitor.id).then((inMaintenance) => {
-      if (inMaintenance) return
-      sendNotifications(monitor, fire.status, fire.previousStatus, result.error).catch((err) =>
-        console.error('[notifier] sendNotifications failed:', err),
-      )
-    }).catch((err) => console.error('[scheduler] isInMaintenance check failed:', err))
+    sendNotifications(monitor, fire.status, fire.previousStatus, result.error).catch((err) =>
+      console.error('[notifier] sendNotifications failed:', err),
+    )
   }
 }
 
 export async function runSchedulerTick(
-  run: (monitor: MonitorRow) => Promise<unknown> = runCheck,
+  run: (monitor: MonitorRow) => Promise<unknown> = performCheck,
   config: SchedulerConfig = getSchedulerConfig(),
 ) {
   const startedAt = Date.now()
   schedulerHealth.lastStartedAt = startedAt
   try {
     const allMonitors = await db.select().from(monitors)
-    const due = getDueMonitors(allMonitors, startedAt)
+    // Claim every due monitor up front: ticks do not wait for each other, and a later tick must
+    // not pick up a monitor that is still waiting for its chunk in an earlier one.
+    const due = getDueMonitors(allMonitors, startedAt).filter((monitor) => !inFlight.has(monitor.id))
+    for (const monitor of due) inFlight.add(monitor.id)
     let failedChecks = 0
 
-    for (let i = 0; i < due.length; i += config.checkConcurrency) {
-      const chunk = due.slice(i, i + config.checkConcurrency)
-      const results = await Promise.allSettled(chunk.map(run))
-      failedChecks += results.filter((result) => result.status === 'rejected').length
+    try {
+      for (let i = 0; i < due.length; i += config.checkConcurrency) {
+        const chunk = due.slice(i, i + config.checkConcurrency)
+        const results = await Promise.allSettled(chunk.map(async (monitor) => {
+          try {
+            return await run(monitor)
+          } finally {
+            inFlight.delete(monitor.id)
+          }
+        }))
+        failedChecks += results.filter((result) => result.status === 'rejected').length
+      }
+    } finally {
+      for (const monitor of due) inFlight.delete(monitor.id)
     }
 
     schedulerHealth.lastCompletedAt = Date.now()
