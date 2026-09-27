@@ -1,19 +1,15 @@
 import assert from 'node:assert/strict'
 import { createSocket } from 'node:dgram'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
+import { db } from '../src/db/client.js'
 import { vaults, vaultSecrets } from '../src/db/schema.js'
 import { encrypt } from '../src/crypto/vault.js'
 import { checkDns } from '../src/workers/dns.js'
 import { checkSqlServer } from '../src/workers/sqlserver.js'
 import { resolveVaultSecret } from '../src/workers/resolveSecret.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-worker-errors-test-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-worker-errors-test-')
 process.env['VAULT_ENCRYPTION_KEY'] = 'abcdef0123456789'.repeat(4)
 
 // ── Minimal authoritative DNS server ─────────────────────────────────────────
@@ -85,8 +81,7 @@ async function addSecret(name: string, type: string, payload: unknown, inVault =
 before(async () => {
   await new Promise<void>((resolve) => dnsServer.bind(0, '127.0.0.1', resolve))
   resolver = `127.0.0.1:${dnsServer.address().port}`
-  initDb()
-  runMigrations()
+  initTestDb()
   const [first, second] = await db.insert(vaults).values([
     { name: 'Primary', type: 'local', createdAt: Date.now(), updatedAt: Date.now() },
     { name: 'Other', type: 'local', createdAt: Date.now(), updatedAt: Date.now() },
@@ -97,8 +92,7 @@ before(async () => {
 
 after(() => {
   dnsServer.close()
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 describe('DNS monitor', () => {
@@ -202,6 +196,18 @@ describe('SQL Server monitor', () => {
     const result = await checkSqlServer({ ...base, vault: { vaultId, secretId: 424_242 } }, 200)
     assert.equal(result.status, 'down')
     assert.match(result.error ?? '', /Vault secret 424242 not found/)
+  })
+
+  it('connects every monitor to its own server, even when checks overlap', async () => {
+    // mssql's global pool would hand the second check the first check's connection attempt.
+    const [first, second] = await Promise.all([
+      checkSqlServer({ ...base, port: 1 }, 1_000),
+      checkSqlServer({ ...base, port: 2 }, 1_000),
+    ])
+    assert.equal(first.status, 'down')
+    assert.equal(second.status, 'down')
+    assert.match(first.error ?? '', /127\.0\.0\.1:1\b/)
+    assert.match(second.error ?? '', /127\.0\.0\.1:2\b/)
   })
 
   it('reaches the connection step with vault credentials and fails on a refused port', async () => {

@@ -1,11 +1,12 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { desc, inArray } from 'drizzle-orm'
 import { db } from '../db/client.js'
-import { branding, incidentMonitors, incidentUpdates, incidents, maintenanceWindowMonitors, maintenanceWindows } from '../db/schema.js'
+import { branding, incidents, maintenanceWindowMonitors, maintenanceWindows } from '../db/schema.js'
 import type { SubscriberEventType } from '@bsp/shared'
 import { PUBLIC_FEED_RATE_LIMIT } from '../config/rateLimits.js'
 import { feedMethodAvailable, getPublicComponents, getSubscriptionSettings } from '../services/subscriptions.js'
 import { resolvePublicUrl } from '../config/publicUrl.js'
+import { withIncidentDetails } from '../services/incidentDetails.js'
 
 const FEED_SIZE = 50
 
@@ -34,20 +35,15 @@ async function loadFeed(req: FastifyRequest) {
   const base = resolvePublicUrl() || `${req.protocol}://${req.host}`
   const site = (await db.select({ siteName: branding.siteName }).from(branding))[0]?.siteName || 'Status Page'
 
-  const rows = await db.select().from(incidents).orderBy(desc(incidents.updatedAt)).limit(FEED_SIZE)
-  const ids = rows.map((row) => row.id)
-  const updates = ids.length
-    ? await db.select().from(incidentUpdates).where(inArray(incidentUpdates.incidentId, ids)).orderBy(desc(incidentUpdates.postedAt))
-    : []
-  const links = ids.length ? await db.select().from(incidentMonitors).where(inArray(incidentMonitors.incidentId, ids)) : []
+  const rows = await withIncidentDetails(await db.select().from(incidents).orderBy(desc(incidents.updatedAt)).limit(FEED_SIZE))
   const componentNames = new Map((await getPublicComponents()).map((component) => [component.id, component.name]))
 
   const entries: FeedEntry[] = rows.map((incident) => {
-    const affected = links.filter((link) => link.incidentId === incident.id)
-      .map((link) => componentNames.get(link.monitorId)).filter((name): name is string => !!name)
+    const affected = incident.monitorIds
+      .map((monitorId) => componentNames.get(monitorId)).filter((name): name is string => !!name)
     const lines = [`Status: ${capitalize(incident.status)} · Impact: ${incident.impact}`]
     if (affected.length) lines.push(`Affected: ${affected.join(', ')}`)
-    for (const update of updates.filter((u) => u.incidentId === incident.id)) {
+    for (const update of incident.updates) {
       lines.push('', `${capitalize(update.status)} — ${new Date(update.postedAt).toISOString()}`, update.body)
     }
     return {
@@ -138,13 +134,10 @@ async function loadSlackFeed(req: FastifyRequest) {
   const items: SlackItem[] = []
 
   if (allowed.has('incident.created') || allowed.has('incident.updated') || allowed.has('incident.resolved')) {
-    const rows = await db.select().from(incidents).orderBy(desc(incidents.updatedAt)).limit(FEED_SIZE)
-    const ids = rows.map((row) => row.id)
-    const updates = ids.length ? await db.select().from(incidentUpdates).where(inArray(incidentUpdates.incidentId, ids)) : []
-    const links = ids.length ? await db.select().from(incidentMonitors).where(inArray(incidentMonitors.incidentId, ids)) : []
+    const rows = await withIncidentDetails(await db.select().from(incidents).orderBy(desc(incidents.updatedAt)).limit(FEED_SIZE))
     for (const incident of rows) {
-      const affected = links.filter((link) => link.incidentId === incident.id)
-        .map((link) => componentNames.get(link.monitorId)).filter((name): name is string => !!name)
+      const affected = incident.monitorIds
+        .map((monitorId) => componentNames.get(monitorId)).filter((name): name is string => !!name)
       const affectedLine = affected.length ? ` · Affected: ${affected.join(', ')}` : ''
       if (allowed.has('incident.created')) {
         items.push({
@@ -154,7 +147,7 @@ async function loadSlackFeed(req: FastifyRequest) {
           at: incident.createdAt,
         })
       }
-      for (const update of updates.filter((u) => u.incidentId === incident.id)) {
+      for (const update of incident.updates) {
         const resolved = update.status === 'resolved'
         if (!allowed.has(resolved ? 'incident.resolved' : 'incident.updated')) continue
         items.push({

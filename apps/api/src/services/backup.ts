@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { backupDir, databasePath, setupConfigPath, uploadDir } from '../config.js'
 import { resolveAppVersion } from '../version.js'
 import { createArchive, extractArchive, type ArchiveEntry } from './backupArchive.js'
+import { currentProcessOwner, isOwnerAlive, type ProcessOwner } from './processLiveness.js'
 
 export const BACKUP_FORMAT_VERSION = 1
 let operation: Promise<unknown> | null = null
@@ -55,9 +56,18 @@ export function writeBackupConfig(config: BackupConfig): void {
   fs.writeFileSync(configFile(), JSON.stringify(config, null, 2), { mode: 0o600 })
 }
 
-export function readBackupStatus(): BackupStatus {
+function readStoredBackupStatus(): BackupStatus {
   try { return { ...DEFAULT_BACKUP_STATUS, ...JSON.parse(fs.readFileSync(statusFile(), 'utf8')) as Partial<BackupStatus> } }
   catch { return { ...DEFAULT_BACKUP_STATUS } }
+}
+
+export const INTERRUPTED_BACKUP_ERROR = 'Backup was interrupted before it finished'
+
+/** A 'running' status without a live lock owner means the backup process died mid-run. */
+export function readBackupStatus(): BackupStatus {
+  const status = readStoredBackupStatus()
+  if (status.state !== 'running' || isBackupLockHeld()) return status
+  return { ...status, state: 'error', lastError: INTERRUPTED_BACKUP_ERROR }
 }
 
 function writeBackupStatus(status: BackupStatus): void {
@@ -84,24 +94,61 @@ async function exclusive<T>(work: () => Promise<T>): Promise<T> {
   try { return await current } finally { operation = null }
 }
 
+const LOCK_NAME = '.backup.lock'
+/** A lock that cannot be parsed is only trusted briefly: it is either being written or left by an older version. */
+const UNREADABLE_LOCK_GRACE_MS = 60_000
+/** Hard ceiling, even for an owner that still looks alive (e.g. a stuck worker thread in this process). */
+const MAX_LOCK_AGE_MS = 24 * 60 * 60 * 1000
+
+interface BackupLockOwner extends ProcessOwner { startedAt: number }
+
+/** One lock beside the shared status file, whatever output directory a backup writes to. */
+function lockFile(): string { return path.join(backupDir(), LOCK_NAME) }
+
+/** True while some live backup owns the lock; a crashed owner's lock reads as free. */
+export function isBackupLockHeld(): boolean {
+  const lock = lockFile()
+  let stat: fs.Stats
+  try { stat = fs.statSync(lock) } catch { return false }
+  const age = Date.now() - stat.mtimeMs
+  if (age >= MAX_LOCK_AGE_MS) return false
+  let owner: Partial<BackupLockOwner>
+  try { owner = JSON.parse(fs.readFileSync(lock, 'utf8')) as Partial<BackupLockOwner> }
+  catch { return age < UNREADABLE_LOCK_GRACE_MS }
+  return isOwnerAlive(owner)
+}
+
+function acquireBackupLock(): () => void {
+  const lock = lockFile()
+  const owner: BackupLockOwner = { ...currentProcessOwner(), startedAt: Date.now() }
+  const create = () => fs.writeFileSync(lock, JSON.stringify(owner), { flag: 'wx', mode: 0o600 })
+  try { create() }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+    if (isBackupLockHeld()) throw new Error('Another backup operation is already running', { cause: error })
+    fs.rmSync(lock, { force: true })
+    try { create() }
+    catch (retryError) {
+      if ((retryError as NodeJS.ErrnoException).code === 'EEXIST') throw new Error('Another backup operation is already running', { cause: retryError })
+      throw retryError
+    }
+  }
+  return () => fs.rmSync(lock, { force: true })
+}
+
 export async function createBackup(outputDirectory = backupDir()): Promise<BackupInfo> {
   return exclusive(async () => {
-    const startedAt = Date.now()
-    writeBackupStatus({ ...readBackupStatus(), state: 'running', lastStartedAt: startedAt, lastError: null })
     fs.mkdirSync(outputDirectory, { recursive: true })
-    const lock = path.join(outputDirectory, '.backup.lock')
-    let lockFd: number
-    try { lockFd = fs.openSync(lock, 'wx', 0o600) }
-    catch {
-      const age = Date.now() - fs.statSync(lock).mtimeMs
-      if (age < 24 * 60 * 60 * 1000) throw new Error('Another backup operation is already running')
-      fs.rmSync(lock, { force: true })
-      lockFd = fs.openSync(lock, 'wx', 0o600)
-    }
-    const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bsp-backup-'))
-    const snapshot = path.join(temp, 'database.sqlite')
+    fs.mkdirSync(backupDir(), { recursive: true })
+    // Lock first: a rejected concurrent attempt must not overwrite the running backup's status.
+    const releaseLock = acquireBackupLock()
+    const startedAt = Date.now()
+    let temp: string | null = null
     let partial: string | null = null
     try {
+      writeBackupStatus({ ...readStoredBackupStatus(), state: 'running', lastStartedAt: startedAt, lastError: null })
+      temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bsp-backup-'))
+      const snapshot = path.join(temp, 'database.sqlite')
       const sourceDb = new DatabaseSync(databasePath())
       try { sourceDb.exec(`VACUUM INTO ${quoteSql(snapshot)}`) } finally { sourceDb.close() }
       checkIntegrity(snapshot)
@@ -133,13 +180,14 @@ export async function createBackup(outputDirectory = backupDir()): Promise<Backu
       writeBackupStatus({ state: 'success', lastStartedAt: startedAt, lastCompletedAt: Date.now(), lastFilename: filename, lastError: null })
       return { filename, size: stat.size, createdAt: manifest.createdAt }
     } catch (error) {
-      writeBackupStatus({ ...readBackupStatus(), state: 'error', lastStartedAt: startedAt, lastCompletedAt: Date.now(), lastError: error instanceof Error ? error.message : String(error) })
+      try {
+        writeBackupStatus({ ...readStoredBackupStatus(), state: 'error', lastStartedAt: startedAt, lastCompletedAt: Date.now(), lastError: error instanceof Error ? error.message : String(error) })
+      } catch { /* keep the original failure */ }
       throw error
     } finally {
       if (partial) fs.rmSync(partial, { force: true })
-      fs.rmSync(temp, { recursive: true, force: true })
-      fs.closeSync(lockFd)
-      fs.rmSync(lock, { force: true })
+      if (temp) fs.rmSync(temp, { recursive: true, force: true })
+      releaseLock()
     }
   })
 }

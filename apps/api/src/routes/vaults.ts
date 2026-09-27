@@ -3,7 +3,8 @@ import { db } from '../db/client.js'
 import { vaults, vaultSecrets } from '../db/schema.js'
 import { eq, and } from 'drizzle-orm'
 import { encrypt, decrypt } from '../crypto/vault.js'
-import { writeAudit, diffObjects, snapshot } from '../services/audit.js'
+import { auditActor, writeAudit, diffObjects, snapshot } from '../services/audit.js'
+import { requestIdentity } from '../middleware/auth.js'
 
 const VALID_SECRET_TYPES = ['userpass', 'value', 'json'] as const
 type SecretType = typeof VALID_SECRET_TYPES[number]
@@ -50,13 +51,31 @@ function safeDecrypt(encryptedValue: string): unknown {
   }
 }
 
-export async function vaultRoutes(app: FastifyInstance) {
-  // ── Vaults ──────────────────────────────────────────────────────────────────
-
+/**
+ * Read-only vault catalogue: vault and secret names/types, never values. Operators get it too so
+ * they can pick a secret when configuring a monitor; creating, editing and revealing secrets stays
+ * in {@link vaultRoutes} (admin only).
+ */
+export async function vaultCatalogRoutes(app: FastifyInstance) {
   app.get('/', async () => {
     const rows = await db.select().from(vaults)
     return rows
   })
+
+  app.get<{ Params: { id: string } }>('/:id/secrets', async (req, reply) => {
+    const vaultId = Number(req.params.id)
+    const vault = (await db.select().from(vaults).where(eq(vaults.id, vaultId)))[0]
+    if (!vault) return reply.code(404).send({ error: 'Vault not found' })
+    const secrets = await db
+      .select({ id: vaultSecrets.id, vaultId: vaultSecrets.vaultId, name: vaultSecrets.name, type: vaultSecrets.type, createdAt: vaultSecrets.createdAt, updatedAt: vaultSecrets.updatedAt })
+      .from(vaultSecrets)
+      .where(eq(vaultSecrets.vaultId, vaultId))
+    return secrets
+  })
+}
+
+export async function vaultRoutes(app: FastifyInstance) {
+  // ── Vaults ──────────────────────────────────────────────────────────────────
 
   app.post<{ Body: { name: string; description?: string } }>('/', async (req, reply) => {
     if (!req.body.name?.trim()) return reply.code(400).send({ error: 'Name is required' })
@@ -68,8 +87,8 @@ export async function vaultRoutes(app: FastifyInstance) {
       createdAt: now,
       updatedAt: now,
     }).returning()
-    const actor = req.user as { userId: number; email: string }
-    writeAudit({ userId: actor.userId, userEmail: actor.email }, 'create', 'vault', row!.id, row!.name,
+    const actor = requestIdentity(req)
+    writeAudit(auditActor(actor), 'create', 'vault', row!.id, row!.name,
       snapshot({ name: row!.name }))
     return row
   })
@@ -83,11 +102,11 @@ export async function vaultRoutes(app: FastifyInstance) {
       if (req.body.name !== undefined) updates['name'] = req.body.name.trim()
       if (req.body.description !== undefined) updates['description'] = req.body.description.trim() || null
       const [row] = await db.update(vaults).set(updates).where(eq(vaults.id, id)).returning()
-      const actor = req.user as { userId: number; email: string }
+      const actor = requestIdentity(req)
       const before = { name: existing.name, description: existing.description } as Record<string, unknown>
       const after  = { name: row!.name, description: row!.description } as Record<string, unknown>
       const diff = diffObjects(before, after)
-      if (Object.keys(diff).length) writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'vault', id, existing.name, diff)
+      if (Object.keys(diff).length) writeAudit(auditActor(actor), 'update', 'vault', id, existing.name, diff)
       return row
     },
   )
@@ -97,24 +116,13 @@ export async function vaultRoutes(app: FastifyInstance) {
     const existing = (await db.select().from(vaults).where(eq(vaults.id, id)))[0]
     if (!existing) return reply.code(404).send({ error: 'Vault not found' })
     await db.delete(vaults).where(eq(vaults.id, id))
-    const actor = req.user as { userId: number; email: string }
-    writeAudit({ userId: actor.userId, userEmail: actor.email }, 'delete', 'vault', id, existing.name,
+    const actor = requestIdentity(req)
+    writeAudit(auditActor(actor), 'delete', 'vault', id, existing.name,
       snapshot({ name: existing.name }))
     return reply.code(204).send()
   })
 
   // ── Secrets ─────────────────────────────────────────────────────────────────
-
-  app.get<{ Params: { id: string } }>('/:id/secrets', async (req, reply) => {
-    const vaultId = Number(req.params.id)
-    const vault = (await db.select().from(vaults).where(eq(vaults.id, vaultId)))[0]
-    if (!vault) return reply.code(404).send({ error: 'Vault not found' })
-    const secrets = await db
-      .select({ id: vaultSecrets.id, vaultId: vaultSecrets.vaultId, name: vaultSecrets.name, type: vaultSecrets.type, createdAt: vaultSecrets.createdAt, updatedAt: vaultSecrets.updatedAt })
-      .from(vaultSecrets)
-      .where(eq(vaultSecrets.vaultId, vaultId))
-    return secrets
-  })
 
   app.post<{ Params: { id: string }; Body: { name: string; type: string } & SecretPayload }>(
     '/:id/secrets', async (req, reply) => {
@@ -142,8 +150,8 @@ export async function vaultRoutes(app: FastifyInstance) {
           createdAt: now,
           updatedAt: now,
         }).returning()
-        const actor = req.user as { userId: number; email: string }
-        writeAudit({ userId: actor.userId, userEmail: actor.email }, 'create', 'vault_secret', row!.id, `${vault.name} / ${row!.name}`,
+        const actor = requestIdentity(req)
+        writeAudit(auditActor(actor), 'create', 'vault_secret', row!.id, `${vault.name} / ${row!.name}`,
           snapshot({ name: row!.name, type: row!.type, vault: vault.name }))
         // Return without encrypted value
         const { encryptedValue: _ev, ...safe } = row!
@@ -180,12 +188,12 @@ export async function vaultRoutes(app: FastifyInstance) {
 
       try {
         const [row] = await db.update(vaultSecrets).set(updates).where(eq(vaultSecrets.id, secretId)).returning()
-        const actor = req.user as { userId: number; email: string }
+        const actor = requestIdentity(req)
         const vaultRow = (await db.select().from(vaults).where(eq(vaults.id, vaultId)))[0]
         const diff: Record<string, unknown> = {}
         if (req.body.name !== undefined && req.body.name !== secret.name) diff['name'] = { from: secret.name, to: req.body.name }
         if (hasNewValue) diff['value'] = { from: '[redacted]', to: '[redacted]' }
-        if (Object.keys(diff).length) writeAudit({ userId: actor.userId, userEmail: actor.email }, 'update', 'vault_secret', secretId, `${vaultRow?.name ?? vaultId} / ${secret.name}`, diff)
+        if (Object.keys(diff).length) writeAudit(auditActor(actor), 'update', 'vault_secret', secretId, `${vaultRow?.name ?? vaultId} / ${secret.name}`, diff)
         const { encryptedValue: _ev, ...safe } = row!
         return safe
       } catch (e: unknown) {
@@ -204,9 +212,9 @@ export async function vaultRoutes(app: FastifyInstance) {
       ))[0]
       if (!secret) return reply.code(404).send({ error: 'Secret not found' })
       await db.delete(vaultSecrets).where(eq(vaultSecrets.id, secretId))
-      const actor = req.user as { userId: number; email: string }
+      const actor = requestIdentity(req)
       const vaultRow = (await db.select().from(vaults).where(eq(vaults.id, vaultId)))[0]
-      writeAudit({ userId: actor.userId, userEmail: actor.email }, 'delete', 'vault_secret', secretId, `${vaultRow?.name ?? vaultId} / ${secret.name}`,
+      writeAudit(auditActor(actor), 'delete', 'vault_secret', secretId, `${vaultRow?.name ?? vaultId} / ${secret.name}`,
         snapshot({ name: secret.name, type: secret.type }))
       return reply.code(204).send()
     },

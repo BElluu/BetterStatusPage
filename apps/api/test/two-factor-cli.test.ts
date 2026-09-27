@@ -1,27 +1,22 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { db, closeDb, initDb } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
 import { auditLog, authSessions, users } from '../src/db/schema.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 import { eq } from 'drizzle-orm'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-2fa-cli-test-'))
-const databasePath = join(dataDir, 'test.sqlite')
-process.env['DATABASE_PATH'] = databasePath
+const testDb = createTestDb('bsp-2fa-cli-test-')
+const databasePath = testDb.dbPath
 
 after(() => {
-  closeDb()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 describe('emergency 2FA reset CLI', () => {
   it('requires exact confirmation, clears 2FA, revokes sessions, and writes an audit entry', async () => {
-    initDb()
-    runMigrations()
+    initTestDb()
     const [user] = await db.insert(users).values({
       email: 'locked-admin@example.test', passwordHash: 'unused', role: 'admin', createdAt: Date.now(),
       totpEnabled: 1, totpSecret: 'encrypted-secret', totpRecoveryCodes: '["hashed-code"]',

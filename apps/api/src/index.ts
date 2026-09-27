@@ -21,7 +21,7 @@ import { incidentRoutes } from './routes/incidents.js'
 import { layoutRoutes } from './routes/layout.js'
 import { brandingRoutes } from './routes/branding.js'
 import { userRoutes } from './routes/users.js'
-import { vaultRoutes } from './routes/vaults.js'
+import { vaultCatalogRoutes, vaultRoutes } from './routes/vaults.js'
 import { notificationRoutes } from './routes/notifications.js'
 import { maintenanceRoutes } from './routes/maintenance.js'
 import { auditRoutes } from './routes/audit.js'
@@ -36,6 +36,7 @@ import { uploadDir } from './config.js'
 import { backupRoutes } from './routes/backups.js'
 import { acquireAppLock } from './services/appLock.js'
 import { startBackgroundServices, stopBackgroundServices } from './services/backgroundServices.js'
+import { createRuntimeShutdown } from './services/shutdown.js'
 import { JWT_EXPIRES_IN, resolveJwtSecret, validateVaultEncryptionKey } from './config/secrets.js'
 import { healthRoutes } from './routes/health.js'
 import { resolveTrustProxy } from './config/proxy.js'
@@ -201,7 +202,13 @@ await app.register(async (adminApp) => {
     await sub.register(maintenanceRoutes, { prefix: '/maintenance' })
   })
 
-  // users, vaults & audit log: admin only
+  // vault catalogue (names and types only, for picking a secret in a monitor): operator+
+  await adminApp.register(async (sub) => {
+    sub.addHook('preHandler', requireRole('operator'))
+    await sub.register(vaultCatalogRoutes, { prefix: '/vaults' })
+  })
+
+  // users, vault management & audit log: admin only
   await adminApp.register(async (sub) => {
     sub.addHook('preHandler', requireRole())  // only admin passes (no allowed list)
     await sub.register(userRoutes,   { prefix: '/users' })
@@ -222,47 +229,32 @@ if (process.env['NODE_ENV'] === 'production') {
 
 const port = Number(process.env['PORT'] ?? 3000)
 const releaseAppLock = acquireAppLock()
-let runtimeCleanedUp = false
-function cleanupRuntime(): void {
-  if (runtimeCleanedUp) return
-  runtimeCleanedUp = true
-  sseService.closeAll()
-  stopBackgroundServices()
-  closeDb()
-  releaseAppLock()
-}
+const runtime = createRuntimeShutdown({
+  stopIntake: () => {
+    sseService.closeAll()
+    stopBackgroundServices()
+  },
+  closeServer: () => app.close(),
+  releaseResources: () => {
+    closeDb()
+    releaseAppLock()
+  },
+  exit: (code) => process.exit(code),
+})
+// onClose runs after the HTTP server has drained, so the DB is no longer in use.
 app.addHook('onClose', async () => {
-  cleanupRuntime()
+  runtime.cleanup()
 })
 try {
   await app.listen({ port, host: '0.0.0.0' })
 } catch (error) {
-  cleanupRuntime()
+  runtime.cleanup()
   throw error
 }
 console.log(`✓ API running on http://localhost:${port}`)
 
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
-  process.once(signal, () => {
-    const forceExit = setTimeout(() => {
-      cleanupRuntime()
-      process.exit(1)
-    }, 5_000)
-    forceExit.unref()
-
-    cleanupRuntime()
-    app.close()
-      .then(() => {
-        clearTimeout(forceExit)
-        cleanupRuntime()
-        process.exit(0)
-      })
-      .catch(() => {
-        clearTimeout(forceExit)
-        cleanupRuntime()
-        process.exit(1)
-      })
-  })
+  process.once(signal, runtime.shutdown)
 }
 
 if (isSetupComplete()) {

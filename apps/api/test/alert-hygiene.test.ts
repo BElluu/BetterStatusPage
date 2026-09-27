@@ -1,21 +1,21 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import { eq } from 'drizzle-orm'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
-import { monitorNotificationChannels, monitors, notificationChannels, notificationDeliveries, notificationDeliveryAttempts } from '../src/db/schema.js'
+import { db } from '../src/db/client.js'
+import Fastify from 'fastify'
+import {
+  maintenanceWindows, monitorNotificationChannels, monitors, notificationChannels, notificationDeliveries, notificationDeliveryAttempts,
+} from '../src/db/schema.js'
+import { webhookRoutes } from '../src/routes/webhook.js'
 import { isWithinQuietHours, normalizeAlertPolicy, quietHoursEndAt } from '../src/services/alertPolicy.js'
 import { evaluateAlertTransition, type AlertThresholdState } from '../src/services/alertThresholds.js'
 import { processDueNotificationDeliveries, sendNotifications } from '../src/workers/notifier.js'
 import { runCheck } from '../src/workers/scheduler.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 import type { ChannelAlertPolicy, MonitorStatus, QuietHoursPolicy } from '@bsp/shared'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-alert-hygiene-test-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-alert-hygiene-test-')
 
 const requests: Array<{ url: string; body: string }> = []
 const server = createServer((request, response) => {
@@ -77,8 +77,7 @@ async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 3_000): Pr
 }
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('Test server did not bind')
@@ -92,13 +91,13 @@ beforeEach(async () => {
   await db.delete(monitorNotificationChannels)
   await db.delete(notificationChannels)
   await db.delete(monitors)
+  await db.delete(maintenanceWindows)
 })
 
 after(async () => {
   server.closeAllConnections()
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 // ── Thresholds ───────────────────────────────────────────────────────────────
@@ -462,5 +461,68 @@ describe('alert thresholds in the scheduler', () => {
     const [delivery] = await db.select().from(notificationDeliveries)
     assert.equal(delivery!.targetStatus, 'down')
     assert.equal(delivery!.previousStatus, 'up')
+  })
+})
+
+// ── Maintenance windows ──────────────────────────────────────────────────────
+
+describe('alerting around maintenance windows', () => {
+  const reloadMonitor = async (id: number) => (await db.select().from(monitors).where(eq(monitors.id, id)))[0]!
+
+  async function openMaintenance(): Promise<void> {
+    const now = Date.now()
+    await db.insert(maintenanceWindows).values({ name: 'Upgrade', startsAt: now - 1_000, endsAt: now + 60_000, createdAt: now, updatedAt: now })
+  }
+
+  it('alerts once the window ends for an outage that started inside it', async () => {
+    const monitor = await insertMonitor('Heartbeat', { type: 'webhook', currentStatus: 'up', alertConfirmedStatus: 'up' })
+    const channel = await insertWebhookChannel('Ops', '/ops', policy())
+    await db.insert(monitorNotificationChannels).values({ monitorId: monitor.id, channelId: channel.id })
+
+    await openMaintenance()
+    await runCheck(await reloadMonitor(monitor.id))
+    let state = await reloadMonitor(monitor.id)
+    assert.equal(state.currentStatus, 'down', 'the public status still follows reality')
+    assert.equal(state.alertConfirmedStatus, 'up', 'the alert state must not absorb the outage')
+    assert.equal((await db.select().from(notificationDeliveries)).length, 0)
+
+    await db.delete(maintenanceWindows)
+    await runCheck(await reloadMonitor(monitor.id))
+    state = await reloadMonitor(monitor.id)
+    assert.equal(state.alertConfirmedStatus, 'down')
+    await waitFor(async () => (await db.select().from(notificationDeliveries)).some((d) => d.status === 'delivered'))
+    const [delivery] = await db.select().from(notificationDeliveries)
+    assert.equal(delivery!.targetStatus, 'down')
+    assert.equal(delivery!.previousStatus, 'up')
+  })
+
+  it('applies maintenance to heartbeats received through the webhook', async () => {
+    const token = 'ef'.repeat(24)
+    const monitor = await insertMonitor('Cron job', {
+      type: 'webhook', currentStatus: 'down', alertConfirmedStatus: 'down', webhookToken: token,
+    })
+    const channel = await insertWebhookChannel('Ops', '/ops', policy())
+    await db.insert(monitorNotificationChannels).values({ monitorId: monitor.id, channelId: channel.id })
+    const app = Fastify()
+    await app.register(webhookRoutes, { prefix: '/hook' })
+    try {
+      await openMaintenance()
+      assert.equal((await app.inject({ method: 'POST', url: `/hook/${token}` })).statusCode, 200)
+      let state = await reloadMonitor(monitor.id)
+      assert.equal(state.currentStatus, 'up')
+      assert.equal(state.alertConfirmedStatus, 'down')
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      assert.equal((await db.select().from(notificationDeliveries)).length, 0)
+
+      await db.delete(maintenanceWindows)
+      assert.equal((await app.inject({ method: 'POST', url: `/hook/${token}` })).statusCode, 200)
+      state = await reloadMonitor(monitor.id)
+      assert.equal(state.alertConfirmedStatus, 'up')
+      await waitFor(async () => (await db.select().from(notificationDeliveries)).some((d) => d.status === 'delivered'))
+      const [delivery] = await db.select().from(notificationDeliveries)
+      assert.equal(delivery!.eventType, 'recovery')
+    } finally {
+      await app.close()
+    }
   })
 })

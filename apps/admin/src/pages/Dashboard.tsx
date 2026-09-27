@@ -81,31 +81,31 @@ export default function DashboardPage() {
             <div className="mt-8">
               <div className="flex rounded-full overflow-hidden h-2.5 mb-3">
                 {up > 0 && (
-                  <div style={{ width: `${(up / monitors.length) * 100}%`, background: '#22c55e' }} />
+                  <div style={{ width: `${(up / monitors.length) * 100}%`, background: 'var(--m3-up-bar)' }} />
                 )}
                 {degraded > 0 && (
-                  <div style={{ width: `${(degraded / monitors.length) * 100}%`, background: '#eab308' }} />
+                  <div style={{ width: `${(degraded / monitors.length) * 100}%`, background: 'var(--m3-degraded-bar)' }} />
                 )}
                 {down > 0 && (
-                  <div style={{ width: `${(down / monitors.length) * 100}%`, background: '#ba1a1a' }} />
+                  <div style={{ width: `${(down / monitors.length) * 100}%`, background: 'var(--m3-down)' }} />
                 )}
               </div>
               <div className="flex gap-4 text-xs font-medium" style={{ color: 'var(--m3-on-surface-variant)' }}>
                 {up > 0 && (
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: '#22c55e' }} />
+                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: 'var(--m3-up-bar)' }} />
                     {up} operational
                   </span>
                 )}
                 {degraded > 0 && (
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: '#eab308' }} />
+                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: 'var(--m3-degraded-bar)' }} />
                     {degraded} degraded
                   </span>
                 )}
                 {down > 0 && (
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: '#ba1a1a' }} />
+                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: 'var(--m3-down)' }} />
                     {down} down
                   </span>
                 )}
@@ -147,7 +147,7 @@ export default function DashboardPage() {
             >
               {monitors.length > 0 ? `${Math.round((up / monitors.length) * 100)}%` : '—'}
             </div>
-            <div className="flex items-center gap-1 text-xs font-semibold" style={{ color: up === monitors.length && monitors.length > 0 ? '#166534' : 'var(--m3-secondary)' }}>
+            <div className="flex items-center gap-1 text-xs font-semibold" style={{ color: up === monitors.length && monitors.length > 0 ? 'var(--m3-up)' : 'var(--m3-secondary)' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
                 {up === monitors.length && monitors.length > 0 ? 'arrow_upward' : 'remove'}
               </span>
@@ -196,11 +196,11 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {monitors.map((monitor) => {
               const dotColor = monitor.currentStatus === 'up'
-                ? '#22c55e'
+                ? 'var(--m3-up-bar)'
                 : monitor.currentStatus === 'down'
-                ? '#ba1a1a'
+                ? 'var(--m3-down)'
                 : monitor.currentStatus === 'degraded'
-                ? '#eab308'
+                ? 'var(--m3-degraded-bar)'
                 : 'var(--m3-outline)'
 
               const endpoint = monitor.type === 'https'
@@ -260,7 +260,7 @@ export default function DashboardPage() {
           <div className="md:col-span-2 space-y-8">
             {recentActivity.map((incident) => {
               const isResolved = incident.status === 'resolved'
-              const dotColor = isResolved ? '#22c55e' : incident.impact === 'critical' || incident.impact === 'major' ? '#ba1a1a' : '#eab308'
+              const dotColor = isResolved ? 'var(--m3-up-bar)' : incident.impact === 'critical' || incident.impact === 'major' ? 'var(--m3-down)' : 'var(--m3-degraded-bar)'
               return (
                 <div key={incident.id} className="flex gap-8">
                   <div

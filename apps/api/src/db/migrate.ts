@@ -340,6 +340,24 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `CREATE INDEX IF NOT EXISTS idx_notification_deliveries_throttle ON notification_deliveries(channel_id, monitor_id, event_type, created_at)`, desc: 'notification_deliveries throttle index' },
 ]
 
+/**
+ * Column migrations are re-run on every start; only the "already applied" error of the
+ * statement's own kind is expected. Anything else (typo, locked DB, disk full) must surface.
+ * Returns true when the statement actually changed the schema.
+ */
+export function applyColumnMigration(sql: string): boolean {
+  const alreadyApplied = /\bADD\s+COLUMN\b/i.test(sql) ? /duplicate column name/i
+    : /\bDROP\s+COLUMN\b/i.test(sql) ? /no such column/i
+      : null
+  try {
+    sqlite.exec(sql)
+    return true
+  } catch (error) {
+    if (alreadyApplied && error instanceof Error && alreadyApplied.test(error.message)) return false
+    throw error
+  }
+}
+
 function runDataMigration(name: string, migrate: () => void): void {
   sqlite.exec('BEGIN IMMEDIATE')
   try {
@@ -410,8 +428,7 @@ export function runMigrations(): void {
   sqlite.exec(dependenciesMigration)
   sqlite.exec(subscriptionsMigration)
   for (const { sql, desc } of columnMigrations) {
-    try { sqlite.exec(sql) } catch { /* column already exists */ }
-    console.log(`✓ Column migration: ${desc}`)
+    if (applyColumnMigration(sql)) console.log(`✓ Column migration: ${desc}`)
   }
   alignBrandingDefaultsWithLightMode()
   migrateLegacyLogoVariants()

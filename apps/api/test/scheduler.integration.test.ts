@@ -1,23 +1,20 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import type { FastifyReply } from 'fastify'
 import { eq } from 'drizzle-orm'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
+import { db } from '../src/db/client.js'
 import {
   maintenanceWindowMonitors, maintenanceWindows, monitorDependencies, monitorResults, monitors,
 } from '../src/db/schema.js'
 import { sseService } from '../src/services/sse.service.js'
 import {
-  getDueMonitors, getSchedulerHealth, isInMaintenance, purgeOldResults, runCheck, runSchedulerTick,
+  getDueMonitors, getSchedulerHealth, isCheckInFlight, isInMaintenance, purgeOldResults, runCheck, runSchedulerTick,
 } from '../src/workers/scheduler.js'
+import type { SchedulerConfig } from '../src/config/scheduler.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-scheduler-test-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-scheduler-test-')
 
 let requestCount = 0
 const server = createServer((_req, response) => {
@@ -45,8 +42,7 @@ function monitorValues(name: string, overrides: Partial<typeof monitors.$inferIn
 }
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('Test server did not bind')
@@ -65,8 +61,7 @@ beforeEach(async () => {
 after(async () => {
   server.closeAllConnections()
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 describe('scheduler checks', () => {
@@ -113,7 +108,7 @@ describe('scheduler checks', () => {
 describe('scheduler orchestration', () => {
   it('selects only due monitors', () => {
     const now = Date.now()
-    const base = monitorValues('base') as typeof monitors.$inferSelect
+    const base = monitorValues('base', { type: 'https' }) as typeof monitors.$inferSelect
     const due = getDueMonitors([
       { ...base, id: 1, lastCheckedAt: null },
       { ...base, id: 2, lastCheckedAt: now - 61_000 },
@@ -122,11 +117,22 @@ describe('scheduler orchestration', () => {
     assert.deepEqual(due.map((monitor) => monitor.id), [1, 2])
   })
 
+  it('gives a new heartbeat monitor a full interval from creation before it is due', () => {
+    const now = Date.now()
+    const base = monitorValues('heartbeat', { type: 'webhook' }) as typeof monitors.$inferSelect
+    const due = getDueMonitors([
+      { ...base, id: 1, lastCheckedAt: null, createdAt: now - 10_000 },
+      { ...base, id: 2, lastCheckedAt: null, createdAt: now - 61_000 },
+      { ...base, id: 3, lastCheckedAt: now - 61_000, createdAt: now - 10_000 },
+    ], now)
+    assert.deepEqual(due.map((monitor) => monitor.id), [2, 3])
+  })
+
   it('processes checks in configurable chunks', async () => {
     const now = Date.now()
     await db.insert(monitors).values([
-      ...Array.from({ length: 25 }, (_, index) => monitorValues(`Due ${index}`)),
-      monitorValues('Not due', { lastCheckedAt: now }),
+      ...Array.from({ length: 25 }, (_, index) => monitorValues(`Due ${index}`, { type: 'https' })),
+      monitorValues('Not due', { type: 'https', lastCheckedAt: now }),
     ])
     let active = 0
     let maxActive = 0
@@ -149,6 +155,31 @@ describe('scheduler orchestration', () => {
     assert.ok(health.lastStartedAt)
     assert.ok(health.lastCompletedAt)
     assert.ok(health.lastDurationMs !== null)
+  })
+
+  it('never starts a second check for a monitor whose check is still running', async () => {
+    const [slow] = await db.insert(monitors).values(monitorValues('Slow', { type: 'https' })).returning()
+    const config: SchedulerConfig = { tickCron: '*/10 * * * * *', resultPurgeCron: '0 2 * * *', resultRetentionDays: 90, checkConcurrency: 20 }
+    let started = 0
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const run = async () => { started++; await gate }
+
+    const firstTick = runSchedulerTick(run, config)
+    while (started === 0) await new Promise((resolve) => setImmediate(resolve))
+    assert.equal(isCheckInFlight(slow!.id), true)
+
+    // The next tick fires while the first check still runs and lastCheckedAt is not written yet.
+    await runSchedulerTick(run, config)
+    assert.equal(getSchedulerHealth().lastDueMonitors, 0)
+    // "Check now" goes through the same guard.
+    assert.equal(await runCheck(slow!), false)
+    assert.equal(started, 1)
+    assert.equal((await db.select().from(monitorResults)).length, 0)
+
+    release()
+    await firstTick
+    assert.equal(isCheckInFlight(slow!.id), false)
   })
 
   it('purges results older than 90 days', async () => {

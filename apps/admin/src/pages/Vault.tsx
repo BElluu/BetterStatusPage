@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
+import { Modal, ModalShell } from '../components/ModalShell'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -336,16 +336,14 @@ function DeleteVaultModal({ vault, secretCount, onClose, onConfirm }: {
   const hasSecrets = secretCount === null || secretCount > 0
   const [confirmed, setConfirmed] = useState(false)
 
-  return createPortal(
-    <div
-      className="fixed inset-0 flex items-center justify-center"
-      style={{ zIndex: 9999, background: 'rgba(0,0,0,0.4)' }}
-      onClick={onClose}
-    >
+  return (
+    <ModalShell>
       <div
-        className="rounded-2xl p-6 w-full max-w-sm mx-4 space-y-4"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Delete vault"
+        className="rounded-2xl p-6 w-full max-w-sm space-y-4"
         style={{ background: 'var(--m3-surface-container-lowest)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3">
           <span className="material-symbols-outlined mt-0.5 shrink-0" style={{ fontSize: '22px', color: 'var(--m3-error)' }}>warning</span>
@@ -403,8 +401,7 @@ function DeleteVaultModal({ vault, secretCount, onClose, onConfirm }: {
           </button>
         </div>
       </div>
-    </div>,
-    document.body,
+    </ModalShell>
   )
 }
 
@@ -641,21 +638,6 @@ function RevealField({ label, value, mono, hidden, action }: { label: string; va
 }
 
 // ── Shared primitives ──────────────────────────────────────────────────────────
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return createPortal(
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div className="w-full max-w-md rounded-2xl" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-          <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>{title}</h3>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none" style={{ color: 'var(--m3-secondary)' }}>×</button>
-        </div>
-        <div className="p-6">{children}</div>
-      </div>
-    </div>,
-    document.body,
-  )
-}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

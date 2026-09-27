@@ -7,6 +7,19 @@ import { DEFAULT_BRANDING_COLORS } from '@bsp/shared'
  * so an editable template can later replace `renderEmail` without touching the senders.
  */
 
+const HEX_COLOR = /^#[0-9a-f]{3,8}$/i
+const RGB_COLOR = /^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*(0|1|0?\.\d+)\s*)?\)$/i
+
+/** True for the colour formats branding accepts (hex, rgb(), rgba()) — nothing that can break out of a style attribute. */
+export function isSafeColor(value: unknown): value is string {
+  return typeof value === 'string' && (HEX_COLOR.test(value) || RGB_COLOR.test(value))
+}
+
+/** Branding colours are interpolated into inline styles, so anything unexpected falls back to the default. */
+export function safeColor(value: unknown, fallback: string): string {
+  return isSafeColor(value) ? value : fallback
+}
+
 export interface EmailBrand {
   siteName: string
   pageUrl: string
@@ -81,15 +94,15 @@ export async function loadEmailBrand(publicUrl: string): Promise<EmailBrand> {
     pageUrl: `${publicUrl}/`,
     logo,
     colors: {
-      background: palette.backgroundColor,
+      background: safeColor(palette.backgroundColor, DEFAULT_BRANDING_COLORS.backgroundColor),
       card: '#ffffff',
-      border: palette.cardBorderColor,
-      text: palette.textColor,
-      muted: palette.textMutedColor,
-      primary: palette.primaryColor,
-      up: palette.statusUpColor,
-      down: palette.statusDownColor,
-      degraded: palette.statusDegradedColor,
+      border: safeColor(palette.cardBorderColor, DEFAULT_BRANDING_COLORS.cardBorderColor),
+      text: safeColor(palette.textColor, DEFAULT_BRANDING_COLORS.textColor),
+      muted: safeColor(palette.textMutedColor, DEFAULT_BRANDING_COLORS.textMutedColor),
+      primary: safeColor(palette.primaryColor, DEFAULT_BRANDING_COLORS.primaryColor),
+      up: safeColor(palette.statusUpColor, DEFAULT_BRANDING_COLORS.statusUpColor),
+      down: safeColor(palette.statusDownColor, DEFAULT_BRANDING_COLORS.statusDownColor),
+      degraded: safeColor(palette.statusDegradedColor, DEFAULT_BRANDING_COLORS.statusDegradedColor),
       maintenance: '#1d4ed8',
       actionBg: '#dbe7ff',
       actionFg: '#172033',

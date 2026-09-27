@@ -1,7 +1,4 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import cookie from '@fastify/cookie'
 import jwt from '@fastify/jwt'
@@ -10,15 +7,14 @@ import { eq } from 'drizzle-orm'
 import Fastify from 'fastify'
 import { encrypt } from '../src/crypto/vault.js'
 import { generateRecoveryCodes, generateTotpCode, generateTotpSecret, hashRecoveryCode } from '../src/crypto/totp.js'
-import { db, initDb, sqlite } from '../src/db/client.js'
+import { db } from '../src/db/client.js'
 import { auditLog, authSessions, users } from '../src/db/schema.js'
-import { runMigrations } from '../src/db/migrate.js'
 import { requireAuth, requireRole } from '../src/middleware/auth.js'
 import { authRoutes } from '../src/routes/auth.js'
 import { userRoutes } from '../src/routes/users.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-auth-security-test-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-auth-security-test-')
 process.env['VAULT_ENCRYPTION_KEY'] = 'abcdef0123456789'.repeat(4)
 
 const app = Fastify({ logger: false })
@@ -44,8 +40,7 @@ async function login(email: string, loginPassword = password) {
 }
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
   await app.register(jwt, { secret: 'integration-secret-with-sufficient-entropy' })
   await app.register(cookie)
   await app.register(authRoutes, { prefix: '/auth' })
@@ -61,11 +56,34 @@ before(async () => {
 
 after(async () => {
   await app.close()
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 describe('authentication security regressions', () => {
+  it('blocks every route except session, change-password and logout while a password change is pending', async () => {
+    const user = await createUser('forced-change@example.test', 'admin')
+    await db.update(users).set({ mustChangePassword: 1 }).where(eq(users.id, user.id))
+    const pending = sessionHeaders(await login(user.email))
+
+    const session = await app.inject({ url: '/auth/session', headers: pending })
+    assert.equal(session.statusCode, 200)
+    assert.equal(session.json().mustChangePassword, true)
+    const blocked = await app.inject({ url: '/admin/users', headers: pending })
+    assert.equal(blocked.statusCode, 403)
+    assert.deepEqual(blocked.json(), { error: 'Password change required', code: 'PASSWORD_CHANGE_REQUIRED' })
+    const setup = await app.inject({ method: 'POST', url: '/auth/2fa/setup', headers: pending, payload: { currentPassword: password } })
+    assert.equal(setup.statusCode, 403)
+    assert.equal(setup.json().code, 'PASSWORD_CHANGE_REQUIRED')
+
+    const other = sessionHeaders(await login(user.email))
+    assert.equal((await app.inject({ method: 'POST', url: '/auth/logout', headers: other })).statusCode, 204)
+
+    const changed = await app.inject({ method: 'POST', url: '/auth/change-password', headers: pending, payload: { newPassword: 'brand-new-password' } })
+    assert.equal(changed.statusCode, 200)
+    assert.equal(changed.json().mustChangePassword, false)
+    assert.equal((await app.inject({ url: '/admin/users', headers: sessionHeaders(changed) })).statusCode, 200)
+  })
+
   it('normalizes legacy roles in actual sessions and applies the cookie policy', async () => {
     await createUser('legacy-admin@example.test', '["admin","operator"]')
     const previousNodeEnv = process.env['NODE_ENV']

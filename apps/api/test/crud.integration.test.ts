@@ -1,25 +1,20 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
+import { db } from '../src/db/client.js'
 import { auditLog } from '../src/db/schema.js'
 import { adminLocaleRoutes } from '../src/routes/locales.js'
 import { incidentRoutes } from '../src/routes/incidents.js'
 import { maintenanceRoutes } from '../src/routes/maintenance.js'
 import { monitorRoutes } from '../src/routes/monitors.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-crud-test-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-crud-test-')
 
 const app = Fastify({ logger: false })
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
 
   app.addHook('preHandler', async (request) => {
     request.user = { userId: 1, email: 'admin@example.test', role: 'admin' }
@@ -33,8 +28,7 @@ before(async () => {
 
 after(async () => {
   await app.close()
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 describe('monitor CRUD', () => {

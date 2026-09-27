@@ -36,4 +36,15 @@ describe('admin API session client', () => {
       headers: expect.objectContaining({ 'X-CSRF-Token': 'test-csrf' }),
     }))
   })
+
+  it('marks the session as needing a password change when the API requires one', async () => {
+    setSession(user)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'Password change required', code: 'PASSWORD_CHANGE_REQUIRED' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    })))
+
+    await expect(api.get('/admin/monitors')).rejects.toThrow('Password change required')
+    expect(getCurrentUser()?.mustChangePassword).toBe(true)
+  })
 })
