@@ -11,42 +11,62 @@ Two paths: **Docker Compose** (recommended — zero dependencies, five commands)
 - Docker 24+ and Docker Compose v2 (`docker compose version`)
 - A domain or IP pointing to your server
 
-### 1. Clone and configure
+The published image on GHCR contains the compiled API and both built frontends, so the server does not need the source code. It needs only two files in one directory: `docker-compose.yml` and `.env`.
+
+### 1. Download the Compose file and the environment template
+
+```bash
+mkdir -p /opt/bsp && cd /opt/bsp
+curl -fsSLO https://raw.githubusercontent.com/BElluu/BetterStatusPage/v0.1.5/docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/BElluu/BetterStatusPage/v0.1.5/.env.example -o .env
+chmod 600 .env
+```
+
+### 2. Configure `.env`
+
+Generate the two production secrets:
+
+```bash
+openssl rand -hex 32   # JWT_SECRET
+openssl rand -hex 32   # VAULT_ENCRYPTION_KEY
+```
+
+Edit `.env` and set at least:
+
+```env
+BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.5
+BSP_BIND_ADDRESS=127.0.0.1
+JWT_SECRET=<first generated value>
+VAULT_ENCRYPTION_KEY=<second generated value>
+TRUST_PROXY=1                          # when Nginx is in front, see below
+PUBLIC_URL=https://status.example.com  # required for email/webhook subscriptions
+```
+
+The same `.env` serves two purposes. Docker Compose reads it automatically to fill `${BSP_IMAGE}`, `${BSP_BIND_ADDRESS}` and `${PORT}` in `docker-compose.yml`, and passes it to the container through `env_file`. Nothing needs to be exported in the shell.
+
+With Docker, `PORT` only changes the published host port; the app always listens on `3000` inside the container. `NODE_ENV`, `DATABASE_PATH`, `UPLOAD_DIR` and `BACKUP_DIR` are fixed by `docker-compose.yml` and point at the volumes, so their values in `.env` are ignored.
+
+Store `VAULT_ENCRYPTION_KEY` somewhere outside the server as well — backups never include it.
+
+### 3. Pull and start
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+### Building the image from source
+
+To build and run your own image instead of the published one, clone the repository and use the local override, so the production Compose file keeps pointing at GHCR:
 
 ```bash
 git clone https://github.com/BElluu/BetterStatusPage.git
 cd BetterStatusPage
-cp .env.example .env
-```
-
-Edit `.env` — set these two production secrets:
-
-```env
-JWT_SECRET=<random 64-char string>
-VAULT_ENCRYPTION_KEY=<random 64-char hex string>
-```
-
-Generate the secrets:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-# run twice — once for JWT_SECRET, once for VAULT_ENCRYPTION_KEY
-```
-
-### 2. Pull and start
-
-```bash
-export BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.5
-docker compose up -d
-```
-
-The container image contains the compiled API and both built frontends. For local image development, use the local override so the production Compose file continues to use GHCR:
-
-```bash
+cp .env.example .env   # set the secrets as above
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 ```
 
-### 3. Open the setup wizard
+### 4. Open the setup wizard
 
 Navigate to `http://your-server:3000/admin` — you'll be greeted by the setup wizard. Create the first administrator account there; the web setup wizard does not read administrator credentials from `.env`.
 
@@ -352,11 +372,14 @@ Certbot edits your Nginx configs automatically and sets up auto-renewal.
 
 ### Docker Compose
 
+Set the new version in `.env`, for example `BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.5`, then:
+
 ```bash
-export BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.5
 docker compose pull
 docker compose up -d
 ```
+
+If a release changes `docker-compose.yml`, download it again from the matching tag.
 
 The volume is untouched. Database migrations run automatically on startup.
 
@@ -420,11 +443,13 @@ Generate secrets:
 
 ```bash
 # JWT_SECRET
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+openssl rand -hex 32
 
 # VAULT_ENCRYPTION_KEY (must be exactly 64 hex chars)
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+openssl rand -hex 32
 ```
+
+Without OpenSSL, `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` produces the same format.
 
 ---
 

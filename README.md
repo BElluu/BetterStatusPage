@@ -258,32 +258,33 @@ Status changes propagate to both the admin dashboard and the public page instant
 
 ## Quick production start
 
-Docker Compose is the recommended deployment path:
+Docker Compose with the published GHCR image is the recommended deployment path. No clone is needed — the server only needs `docker-compose.yml` and `.env`:
 
 ```bash
-git clone https://github.com/BElluu/BetterStatusPage.git
-cd BetterStatusPage
-cp .env.example .env
+mkdir -p /opt/bsp && cd /opt/bsp
+curl -fsSLO https://raw.githubusercontent.com/BElluu/BetterStatusPage/v0.1.5/docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/BElluu/BetterStatusPage/v0.1.5/.env.example -o .env
+chmod 600 .env
 ```
 
 Edit `.env` and set at least:
 
 ```env
-NODE_ENV=production
+BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.5
 JWT_SECRET=<random 32+ char secret>
 VAULT_ENCRYPTION_KEY=<64-char hex key>
 ```
 
-Generate safe values:
+Generate safe values (run twice, one per secret):
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+openssl rand -hex 32
 ```
 
 Start the application:
 
 ```bash
-export BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.5
+docker compose pull
 docker compose up -d
 ```
 
@@ -389,7 +390,7 @@ SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
 
 > 🔑 **Generate a vault encryption key:**
 > ```bash
-> node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+> openssl rand -hex 32
 > ```
 > Keep this somewhere safe. If it changes, all stored secrets become unreadable. Yes, all of them.
 
@@ -440,15 +441,16 @@ pm2 save && pm2 startup
 
 ### With Docker Compose (recommended)
 
+Download `docker-compose.yml` and `.env.example` (saved as `.env`) as shown in [Quick production start](#quick-production-start), set `BSP_IMAGE`, `JWT_SECRET` and `VAULT_ENCRYPTION_KEY` in `.env`, then:
+
 ```bash
-cp .env.example .env   # fill in JWT_SECRET and VAULT_ENCRYPTION_KEY
-export BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.5
+docker compose pull
 docker compose up -d
 ```
 
 Data (SQLite database + uploads) is stored in a named Docker volume (`bsp_data`) and survives container rebuilds, restarts, and image upgrades. It is only deleted if you explicitly run `docker compose down -v`.
 
-For local image development, use the local override so the production Compose file continues to use GHCR:
+To build the image from source instead, clone the repository and use the local override so the production Compose file continues to use GHCR:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
