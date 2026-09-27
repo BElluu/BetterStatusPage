@@ -283,7 +283,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 Start the application:
 
 ```bash
-export BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.4
+export BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.5
 docker compose up -d
 ```
 
@@ -360,7 +360,7 @@ Copy `.env.example` to `.env`:
 ```env
 PORT=3000
 NODE_ENV=production
-BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.4
+BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.5
 BSP_BIND_ADDRESS=127.0.0.1
 
 JWT_SECRET=something-long-random-and-secret
@@ -442,7 +442,7 @@ pm2 save && pm2 startup
 
 ```bash
 cp .env.example .env   # fill in JWT_SECRET and VAULT_ENCRYPTION_KEY
-export BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.4
+export BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.5
 docker compose up -d
 ```
 
