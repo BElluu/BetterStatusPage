@@ -1,10 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { db } from '../db/client.js'
-import { monitors, monitorResults } from '../db/schema.js'
+import { monitors } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
-import { sseService } from '../services/sse.service.js'
-import { sendNotifications } from '../workers/notifier.js'
-import { evaluateAlertTransition } from '../services/alertThresholds.js'
+import { recordObservation } from '../workers/scheduler.js'
 import { WEBHOOK_RATE_LIMIT } from '../config/rateLimits.js'
 
 async function handleWebhook(req: FastifyRequest<{ Params: { token: string } }>, reply: FastifyReply) {
@@ -13,37 +11,10 @@ async function handleWebhook(req: FastifyRequest<{ Params: { token: string } }>,
   const row = (await db.select().from(monitors).where(eq(monitors.webhookToken, token)))[0]
   if (!row) return reply.code(404).send({ error: 'Not found' })
 
-  const now = Date.now()
-  await db.insert(monitorResults).values({
-    monitorId: row.id,
-    status: 'up',
-    responseMs: null,
-    checkedAt: now,
-    errorMessage: null,
-  })
-
-  const prevStatus = row.currentStatus
-  // A heartbeat counts as one successful check, so recoveryThreshold applies here too.
-  const transition = evaluateAlertTransition(row, 'up')
-  await db.update(monitors)
-    .set({
-      currentStatus: 'up',
-      lastCheckedAt: now,
-      updatedAt: now,
-      alertConfirmedStatus: transition.alertConfirmedStatus,
-      alertPendingStatus: transition.alertPendingStatus,
-      alertPendingCount: transition.alertPendingCount,
-    })
-    .where(eq(monitors.id, row.id))
-
-  if (prevStatus !== 'up') {
-    sseService.broadcast('monitor.status', { monitorId: row.id, status: 'up', responseMs: null, checkedAt: now })
-  }
-  if (transition.fire) {
-    sendNotifications(row, transition.fire.status, transition.fire.previousStatus, null).catch((err) =>
-      console.error('[webhook] sendNotifications failed:', err),
-    )
-  }
+  // A heartbeat counts as one successful check, so recoveryThreshold and maintenance windows apply
+  // here exactly as they do to scheduled checks. Heartbeats can be frequent, so only a status
+  // change is broadcast.
+  await recordObservation(row, { status: 'up', responseMs: null, error: null }, { broadcast: 'on-change' })
 
   return reply.code(200).send({ ok: true })
 }

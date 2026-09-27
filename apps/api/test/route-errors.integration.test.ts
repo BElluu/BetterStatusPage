@@ -1,30 +1,26 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import { eq } from 'drizzle-orm'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
+import { db, sqlite } from '../src/db/client.js'
 import { auditLog, monitorNotificationChannels, monitors, notificationDeliveries, smtpSettings, vaultSecrets } from '../src/db/schema.js'
-import { vaultRoutes } from '../src/routes/vaults.js'
+import { vaultCatalogRoutes, vaultRoutes } from '../src/routes/vaults.js'
 import { monitorRoutes } from '../src/routes/monitors.js'
 import { notificationRoutes } from '../src/routes/notifications.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-route-errors-test-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-route-errors-test-')
 process.env['VAULT_ENCRYPTION_KEY'] = 'abcdef0123456789'.repeat(4)
 
 const app = Fastify({ logger: false })
 const MISSING = 987_654
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
   app.addHook('preHandler', async (request) => {
     request.user = { userId: 1, email: 'admin@example.test', role: 'admin' }
   })
+  await app.register(vaultCatalogRoutes, { prefix: '/vaults' })
   await app.register(vaultRoutes, { prefix: '/vaults' })
   await app.register(monitorRoutes, { prefix: '/monitors' })
   await app.register(notificationRoutes, { prefix: '/notifications' })
@@ -33,8 +29,7 @@ before(async () => {
 
 after(async () => {
   await app.close()
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 async function createMonitor(name: string, type = 'https') {
@@ -329,10 +324,16 @@ describe('notification routes', () => {
     assert.equal(shown.password, '••••••••')
     assert.equal(shown.vault, null)
 
-    await app.inject({ method: 'PUT', url: '/notifications/smtp', payload: { ...base, port: 2525, password: '••••••••' } })
+    await app.inject({ method: 'PUT', url: '/notifications/smtp', payload: { ...base, fromName: 'Status', password: '••••••••' } })
     let row = (await db.select().from(smtpSettings))[0]!
     assert.equal(row.password, 'hunter2')
-    assert.equal(row.port, 2525)
+    assert.equal(row.fromName, 'Status')
+
+    // The stored password must not follow the settings to another server.
+    const moved = await app.inject({ method: 'PUT', url: '/notifications/smtp', payload: { ...base, port: 2525, password: '••••••••' } })
+    assert.equal(moved.statusCode, 400)
+    row = (await db.select().from(smtpSettings))[0]!
+    assert.equal(row.port, 587)
 
     // Switching to vault credentials wipes the stored ones.
     await app.inject({ method: 'PUT', url: '/notifications/smtp', payload: { ...base, password: 'ignored', vault: { vaultId: 1, secretId: 2 } } })

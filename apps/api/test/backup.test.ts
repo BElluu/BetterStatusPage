@@ -2,35 +2,38 @@ import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
 import fs from 'fs'
 import path from 'path'
-import os from 'os'
-import { closeDb, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
-import { createBackup, currentVaultKeyMatches, listBackups, validateBackup } from '../src/services/backup.js'
+import { closeDb, sqlite } from '../src/db/client.js'
+import { spawnSync } from 'child_process'
+import { createBackup, currentVaultKeyMatches, INTERRUPTED_BACKUP_ERROR, isBackupLockHeld, listBackups, readBackupStatus, validateBackup, type BackupManifest } from '../src/services/backup.js'
+import { spawnBackupWorker } from '../src/services/backupRunner.js'
+import { PROCESS_STARTED_AT } from '../src/services/processLiveness.js'
 import { restoreBackup } from '../src/services/restore.js'
 import Fastify from 'fastify'
 import multipart from '@fastify/multipart'
 import { backupRoutes } from '../src/routes/backups.js'
 import { createArchive } from '../src/services/backupArchive.js'
-import { acquireAppLock } from '../src/services/appLock.js'
+import { acquireAppLock, assertAppStopped } from '../src/services/appLock.js'
 import { resolveAppVersion } from '../src/version.js'
+import { createTestDb, initTestDb, teardownTestDb, type TestDb } from './helpers/testDb.js'
 
+let testDb: TestDb | null = null
 let temp: string | null = null
 const VAULT_KEY = 'a'.repeat(64)
 function setupPaths() {
-  temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bsp-backup-test-'))
+  testDb = createTestDb('bsp-backup-test-', 'db.sqlite')
+  temp = testDb.dir
   process.env['DATA_DIR'] = temp
-  process.env['DATABASE_PATH'] = path.join(temp, 'db.sqlite')
   process.env['UPLOAD_DIR'] = path.join(temp, 'uploads')
   process.env['SETUP_CONFIG_PATH'] = path.join(temp, 'setup.json')
   process.env['BACKUP_DIR'] = path.join(temp, 'backups')
   process.env['VAULT_ENCRYPTION_KEY'] = VAULT_KEY
-  initDb()
-  runMigrations()
+  initTestDb()
 }
 
 afterEach(() => {
-  closeDb()
-  if (temp) fs.rmSync(temp, { recursive: true, force: true })
+  if (testDb) teardownTestDb(testDb)
+  else closeDb()
+  testDb = null
   temp = null
 })
 
@@ -124,5 +127,148 @@ describe('backup and restore', () => {
       assert.equal((await app.inject({ method: 'DELETE', url: `/backups/${filename}` })).statusCode, 400)
       assert.equal((await app.inject({ method: 'DELETE', url: `/backups/${filename}?confirm=${encodeURIComponent(filename)}` })).statusCode, 204)
     } finally { await app.close() }
+  })
+})
+
+/** A pid that certainly belongs to no running process: a child that has already exited. */
+function deadPid(): number {
+  const child = spawnSync(process.execPath, ['-e', ''])
+  assert.ok(child.pid)
+  return child.pid
+}
+
+function writeLock(owner: Record<string, unknown>): string {
+  fs.mkdirSync(process.env['BACKUP_DIR']!, { recursive: true })
+  const lock = path.join(process.env['BACKUP_DIR']!, '.backup.lock')
+  fs.writeFileSync(lock, JSON.stringify(owner))
+  return lock
+}
+
+function writeStatus(status: Record<string, unknown>): void {
+  fs.mkdirSync(process.env['BACKUP_DIR']!, { recursive: true })
+  fs.writeFileSync(path.join(process.env['BACKUP_DIR']!, 'status.json'), JSON.stringify(status))
+}
+
+function multipartBody(file: Buffer): { payload: Buffer; headers: Record<string, string> } {
+  const boundary = '----bsp-test-boundary'
+  const payload = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="upload.backup"\r\nContent-Type: application/octet-stream\r\n\r\n`),
+    file,
+    Buffer.from(`\r\n--${boundary}--\r\n`),
+  ])
+  return { payload, headers: { 'content-type': `multipart/form-data; boundary=${boundary}` } }
+}
+
+describe('backup lock and status', () => {
+  it('reclaims a lock left by a crashed process', async () => {
+    setupPaths()
+    const lock = writeLock({ pid: deadPid(), processStartedAt: 0, startedAt: Date.now() })
+    assert.equal(isBackupLockHeld(), false)
+    await createBackup()
+    assert.equal(fs.existsSync(lock), false)
+    assert.equal(readBackupStatus().state, 'success')
+  })
+
+  it('reclaims a lock left by an earlier run that reused this pid', async () => {
+    setupPaths()
+    writeLock({ pid: process.pid, processStartedAt: PROCESS_STARTED_AT - 60_000, startedAt: Date.now() })
+    assert.equal(isBackupLockHeld(), false)
+    await createBackup()
+  })
+
+  it('refuses while a live process owns the lock without touching its status', async () => {
+    setupPaths()
+    const running = { state: 'running', lastStartedAt: 123, lastCompletedAt: null, lastFilename: null, lastError: null }
+    writeStatus(running)
+    const lock = writeLock({ pid: process.ppid, processStartedAt: 0, startedAt: Date.now() })
+    assert.equal(isBackupLockHeld(), true)
+    await assert.rejects(() => createBackup(), /already running/)
+    assert.deepEqual(readBackupStatus(), running)
+    assert.equal(fs.existsSync(lock), true)
+  })
+
+  it('reports a running status without a live lock as interrupted', () => {
+    setupPaths()
+    writeStatus({ state: 'running', lastStartedAt: 123, lastCompletedAt: null, lastFilename: null, lastError: null })
+    assert.deepEqual(readBackupStatus(), { state: 'error', lastStartedAt: 123, lastCompletedAt: null, lastFilename: null, lastError: INTERRUPTED_BACKUP_ERROR })
+    writeLock({ pid: deadPid(), processStartedAt: 0, startedAt: Date.now() })
+    assert.equal(readBackupStatus().state, 'error')
+  })
+
+  it('records a failed backup as an error and releases the lock', async () => {
+    setupPaths()
+    closeDb()
+    process.env['DATABASE_PATH'] = path.join(temp!, 'missing', 'nested', 'db.sqlite')
+    await assert.rejects(() => createBackup())
+    const status = readBackupStatus()
+    assert.equal(status.state, 'error')
+    assert.ok(status.lastError)
+    assert.equal(fs.existsSync(path.join(process.env['BACKUP_DIR']!, '.backup.lock')), false)
+  })
+})
+
+describe('backup validation off the event loop', () => {
+  it('validates an uploaded backup through the admin API', async () => {
+    setupPaths()
+    const created = await createBackup()
+    const archive = fs.readFileSync(path.join(process.env['BACKUP_DIR']!, created.filename))
+    const app = Fastify({ logger: false })
+    await app.register(multipart)
+    app.addHook('preHandler', async (request) => { request.user = { userId: 1, email: 'admin@example.test', role: 'admin' } })
+    await app.register(backupRoutes, { prefix: '/backups' })
+    await app.ready()
+    try {
+      const valid = await app.inject({ method: 'POST', url: '/backups/validate', ...multipartBody(archive) })
+      assert.equal(valid.statusCode, 200, valid.body)
+      assert.equal(valid.json().valid, true)
+      assert.equal(valid.json().manifest.databaseIntegrity, 'ok')
+      assert.equal(valid.json().vaultKeyMatches, true)
+      const invalid = await app.inject({ method: 'POST', url: '/backups/validate', ...multipartBody(Buffer.from('not a backup')) })
+      assert.equal(invalid.statusCode, 400)
+      assert.ok(invalid.json().error)
+    } finally { await app.close() }
+  })
+
+  it('runs validation on a real worker thread and reports its errors', async () => {
+    setupPaths()
+    const created = await createBackup()
+    const options = {
+      workerUrl: new URL('../src/workers/backupWorker.ts', import.meta.url),
+      moduleUrl: new URL('../src/services/backup.ts', import.meta.url).href,
+      execArgv: ['--import', 'tsx'],
+    }
+    const manifest = await spawnBackupWorker<BackupManifest>({ task: 'validate', input: path.join(process.env['BACKUP_DIR']!, created.filename) }, options)
+    assert.equal(manifest.databaseIntegrity, 'ok')
+    const garbage = path.join(temp!, 'garbage.backup')
+    fs.writeFileSync(garbage, 'not a backup')
+    await assert.rejects(() => spawnBackupWorker({ task: 'validate', input: garbage }, options))
+  })
+})
+
+describe('restore application check', () => {
+  function writeMarker(owner: Record<string, unknown>, ageMs: number): void {
+    const marker = path.join(process.env['DATA_DIR']!, '.bsp-running')
+    fs.writeFileSync(marker, JSON.stringify(owner))
+    const at = new Date(Date.now() - ageMs)
+    fs.utimesSync(marker, at, at)
+  }
+
+  it('treats a live app with a stalled heartbeat as running', () => {
+    setupPaths()
+    writeMarker({ pid: process.ppid, processStartedAt: 0 }, 2 * 60_000)
+    assert.throws(() => assertAppStopped(), /still running/)
+  })
+
+  it('clears the marker of an app that is gone', () => {
+    setupPaths()
+    writeMarker({ pid: deadPid(), processStartedAt: 0 }, 2 * 60_000)
+    assert.doesNotThrow(() => assertAppStopped())
+    assert.equal(fs.existsSync(path.join(process.env['DATA_DIR']!, '.bsp-running')), false)
+  })
+
+  it('does not let a long-stale marker block restore even if its pid was reused', () => {
+    setupPaths()
+    writeMarker({ pid: process.ppid, processStartedAt: 0 }, 60 * 60_000)
+    assert.doesNotThrow(() => assertAppStopped())
   })
 })

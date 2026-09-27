@@ -59,9 +59,13 @@ export default function BrandingPage() {
   const [logoPreviews, setLogoPreviews] = useState<Record<LogoSlot, string | null>>({ custom: null, light: null, dark: null })
   const [cssEditorOpen, setCssEditorOpen] = useState(false)
   const [saved, setSaved] = useState(false)
+  // Set once the user edits the form; until then (and again after a save) the loaded branding may
+  // replace it. Without this, edits made before the first load finishes are silently overwritten.
+  const edited = useRef(false)
+  const editForm: typeof setForm = (update) => { edited.current = true; setForm(update) }
 
   useEffect(() => {
-    if (!branding) return
+    if (!branding || edited.current) return
     setForm({
       enabled: !!branding.enabled,
       siteName: branding.siteName,
@@ -141,6 +145,7 @@ export default function BrandingPage() {
       }
     },
     onSuccess: async () => {
+      edited.current = false
       await qc.invalidateQueries({ queryKey: ['branding'] })
       setLogoFiles({ custom: null, light: null, dark: null })
       setLogoPreviews({ custom: null, light: null, dark: null })
@@ -156,7 +161,7 @@ export default function BrandingPage() {
       return
     }
     const field = LOGO_FIELDS[slot]
-    setForm((current) => ({ ...current, [field]: undefined }))
+    editForm((current) => ({ ...current, [field]: undefined }))
     const reader = new FileReader()
     reader.onload = () => setLogoPreviews((current) => ({ ...current, [slot]: String(reader.result) }))
     reader.readAsDataURL(file)
@@ -165,7 +170,7 @@ export default function BrandingPage() {
   function removeLogo(slot: LogoSlot) {
     selectLogo(slot, null)
     const field = LOGO_FIELDS[slot]
-    setForm((current) => ({ ...current, [field]: null }))
+    editForm((current) => ({ ...current, [field]: null }))
   }
 
   function toggleBranding() {
@@ -173,7 +178,7 @@ export default function BrandingPage() {
     const resetSlots: LogoSlot[] = enabled ? ['light', 'dark'] : ['custom']
     setLogoFiles((current) => ({ ...current, ...Object.fromEntries(resetSlots.map((slot) => [slot, null])) }))
     setLogoPreviews((current) => ({ ...current, ...Object.fromEntries(resetSlots.map((slot) => [slot, null])) }))
-    setForm((current) => ({
+    editForm((current) => ({
       ...current,
       enabled,
       ...(enabled
@@ -183,7 +188,7 @@ export default function BrandingPage() {
     setCssEditorOpen(false)
   }
 
-  const set = (key: keyof BrandingForm) => (value: string) => setForm((current) => ({ ...current, [key]: value }))
+  const set = (key: keyof BrandingForm) => (value: string) => editForm((current) => ({ ...current, [key]: value }))
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -203,7 +208,7 @@ export default function BrandingPage() {
               </Field>
               <Field label="Logo">
                 <div className="flex gap-1 p-0.5 rounded-lg mb-3" style={{ background: 'var(--m3-surface-container)' }}>
-                  {(['image', 'text'] as const).map((type) => <button key={type} type="button" onClick={() => setForm((current) => ({ ...current, logoType: type }))} className="flex-1 text-xs py-1.5 rounded-md font-semibold transition-all" style={{ background: form.logoType === type ? 'var(--m3-surface-container-lowest)' : 'transparent', color: form.logoType === type ? 'var(--m3-on-surface)' : 'var(--m3-secondary)', boxShadow: form.logoType === type ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>{type === 'image' ? 'Image' : 'Text'}</button>)}
+                  {(['image', 'text'] as const).map((type) => <button key={type} type="button" onClick={() => editForm((current) => ({ ...current, logoType: type }))} className="flex-1 text-xs py-1.5 rounded-md font-semibold transition-all" style={{ background: form.logoType === type ? 'var(--m3-surface-container-lowest)' : 'transparent', color: form.logoType === type ? 'var(--m3-on-surface)' : 'var(--m3-secondary)', boxShadow: form.logoType === type ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>{type === 'image' ? 'Image' : 'Text'}</button>)}
                 </div>
                 {form.logoType === 'image' ? (
                   form.enabled ? (
@@ -214,7 +219,7 @@ export default function BrandingPage() {
                       <LogoInput id="branding-logo-dark" label="Dark mode logo" url={currentDarkLogoUrl} file={logoFiles.dark} onSelect={(file) => selectLogo('dark', file)} onRemove={() => removeLogo('dark')} />
                     </div>
                   )
-                ) : <input value={form.logoText} onChange={(event) => setForm((current) => ({ ...current, logoText: event.target.value }))} className="input-sig" placeholder="e.g. Acme Corp" maxLength={40} />}
+                ) : <input value={form.logoText} onChange={(event) => editForm((current) => ({ ...current, logoText: event.target.value }))} className="input-sig" placeholder="e.g. Acme Corp" maxLength={40} />}
               </Field>
             </div>
           </div>
@@ -259,6 +264,7 @@ export default function BrandingPage() {
         <div className="px-5 py-4 shrink-0 flex items-center gap-3" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
           <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="btn-primary flex-1 text-sm font-semibold py-2 rounded-lg">{saveMutation.isPending ? 'Saving…' : 'Save branding'}</button>
           {saved && <span className="text-sm shrink-0" style={{ color: 'var(--m3-primary)' }}>Saved!</span>}
+          {saveMutation.isError && <span role="alert" className="text-xs" style={{ color: 'var(--m3-error)' }}>{saveMutation.error instanceof Error ? saveMutation.error.message : 'Save failed'}</span>}
         </div>
       </div>
 

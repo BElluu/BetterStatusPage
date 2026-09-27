@@ -74,3 +74,30 @@ describe('BrandingPage localization', () => {
     expect(api.upload).not.toHaveBeenCalled()
   })
 })
+
+describe('BrandingPage loading', () => {
+  it('keeps edits made before the saved branding finishes loading', async () => {
+    vi.clearAllMocks()
+    let resolveBranding: (value: unknown) => void = () => {}
+    vi.mocked(api.get).mockImplementation((path: string) => path === '/admin/branding'
+      ? new Promise((resolve) => { resolveBranding = resolve })
+      : new Promise(() => {}))
+    vi.mocked(api.patch).mockResolvedValue({})
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <BrandingPage />
+      </QueryClientProvider>,
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('My Status Page'), { target: { value: 'Acme Status' } })
+    resolveBranding({ enabled: 0, siteName: 'Stored name', logoType: 'image', logoText: '', logoUrl: null, logoLightUrl: null, logoDarkUrl: null, primaryColor: '#000000', accentColor: '#497cff' })
+    // The loaded branding arrives after the edit; it must not replace it.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Custom branding' })).toBeInTheDocument())
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(screen.getByPlaceholderText('My Status Page')).toHaveValue('Acme Status')
+    fireEvent.click(screen.getByRole('button', { name: 'Save branding' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/branding', expect.objectContaining({ siteName: 'Acme Status' })))
+  })
+})

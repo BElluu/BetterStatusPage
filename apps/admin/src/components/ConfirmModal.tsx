@@ -1,5 +1,5 @@
-import { createPortal } from 'react-dom'
 import { useState } from 'react'
+import { ModalShell } from './ModalShell'
 
 interface ConfirmModalProps {
   title: string
@@ -23,16 +23,14 @@ export function ConfirmModal({
   const [typedConfirmation, setTypedConfirmation] = useState('')
   const canConfirm = !confirmationText || typedConfirmation === confirmationText
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.4)' }}
-      onClick={onCancel}
-    >
+  return (
+    <ModalShell>
       <div
-        className="rounded-2xl p-6 w-full max-w-sm mx-4 space-y-4"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="rounded-2xl p-6 w-full max-w-sm space-y-4"
         style={{ background: 'var(--m3-surface-container-lowest)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
-        onClick={(e) => e.stopPropagation()}
       >
         <h3 className="font-headline text-lg font-bold" style={{ color: 'var(--m3-on-surface)' }}>
           {title}
@@ -76,7 +74,6 @@ export function ConfirmModal({
           </button>
         </div>
       </div>
-    </div>,
-    document.body,
+    </ModalShell>
   )
 }

@@ -55,6 +55,15 @@ const httpServer = createHttpServer(async (req, res) => {
     case '/slow':
       setTimeout(() => { if (!res.writableEnded) res.writeHead(200).end('late') }, 1_500)
       return
+    case '/hang/v1/tickets':
+      setTimeout(() => { if (!res.writableEnded) res.writeHead(201, { Location: `${baseUrl}/cas/tgt` }).end() }, 1_500)
+      return
+    case '/slow-body':
+      // Headers arrive at once; the body only after the check's deadline.
+      res.writeHead(200, { 'Content-Type': 'text/plain' })
+      res.write('partial ')
+      setTimeout(() => { if (!res.writableEnded) res.end('healthy') }, 1_500)
+      return
     case '/redirect':
       res.writeHead(302, { Location: '/healthy' }).end()
       return
@@ -430,6 +439,44 @@ describe('monitor test runner: parity with the scheduled HTTPS check', () => {
     const [scheduled, tested] = await Promise.all([checkHttps(config, 2_000), testHttps(config, 2_000)])
     assert.equal(scheduled.status, 'up')
     assert.equal(tested.overall, 'ok', labels(tested).join(' | '))
+  })
+})
+
+describe('scheduled HTTPS check: timeout', () => {
+  it('covers a hanging OAuth2 token endpoint', async () => {
+    const config: HttpsConfig = {
+      url: `${baseUrl}/protected`, method: 'GET', expectedStatus: 200,
+      auth: { type: 'oauth2', oauth2: { tokenUrl: `${baseUrl}/slow`, clientId: 'client', clientSecret: 'secret' } },
+    }
+    const started = Date.now()
+    const [scheduled, tested] = await Promise.all([checkHttps(config, 150), testHttps(config, 150)])
+    assert.ok(Date.now() - started < 1_400, 'the token request must be aborted by the check timeout')
+    assert.equal(scheduled.status, 'down')
+    assert.match(scheduled.error ?? '', /Timed out after 150 ms/)
+    assert.equal(tested.overall, 'error')
+    assert.match(lastStep(tested).label, /^OAuth2: token request to .* failed$/)
+  })
+
+  it('covers a hanging CAS ticket-granting request', async () => {
+    const started = Date.now()
+    const result = await checkHttps({
+      url: `${baseUrl}/cas-service`, method: 'GET', expectedStatus: 200,
+      auth: { type: 'cas', cas: { casServerUrl: `${baseUrl}/hang`, username: 'user', password: 'password' } },
+    }, 150)
+    assert.ok(Date.now() - started < 1_400)
+    assert.equal(result.status, 'down')
+  })
+
+  it('covers reading the body for a keyword', async () => {
+    const started = Date.now()
+    const result = await checkHttps({ url: `${baseUrl}/slow-body`, method: 'GET', expectedStatus: 200, keyword: 'healthy' }, 150)
+    assert.ok(Date.now() - started < 1_400, 'a body that never finishes must not hang the check')
+    assert.equal(result.status, 'down')
+  })
+
+  it('does not wait for a body it does not need', async () => {
+    const result = await checkHttps({ url: `${baseUrl}/slow-body`, method: 'GET', expectedStatus: 200 }, 1_000)
+    assert.equal(result.status, 'up', result.error ?? '')
   })
 })
 

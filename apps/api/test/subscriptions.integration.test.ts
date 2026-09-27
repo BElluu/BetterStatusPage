@@ -1,15 +1,11 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import Fastify, { type InjectOptions } from 'fastify'
 import rateLimit from '@fastify/rate-limit'
 import { SMTPServer } from 'smtp-server'
 import { eq } from 'drizzle-orm'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
+import { db } from '../src/db/client.js'
 import {
   incidentMonitors, incidentUpdates, incidents, layout, maintenanceWindowMonitors, maintenanceWindows, monitors, smtpSettings,
   subscriberDeliveries, subscribers, subscriptionSettings,
@@ -21,10 +17,10 @@ import { maintenanceRoutes } from '../src/routes/maintenance.js'
 import { saveSubscriptionSettings, getSubscriptionSettings, normalizeSubscriptionSettings } from '../src/services/subscriptions.js'
 import { isPublicAddress, validateWebhookUrl } from '../src/services/publicWebhook.js'
 import { processDueSubscriberDeliveries } from '../src/workers/subscriberNotifier.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 import { WEBHOOK_DISABLE_AFTER_FAILURES } from '@bsp/shared'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-subscriptions-test-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-subscriptions-test-')
 
 const emails: string[] = []
 const smtpServer = new SMTPServer({
@@ -129,8 +125,7 @@ async function exhaustDeliveries() {
 }
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
   await new Promise<void>((resolve) => smtpServer.listen(0, '127.0.0.1', resolve))
   const smtpAddress = smtpServer.server.address()
   if (!smtpAddress || typeof smtpAddress === 'string') throw new Error('SMTP server did not bind')
@@ -194,8 +189,7 @@ after(async () => {
   hookServer.closeAllConnections()
   await new Promise<void>((resolve) => hookServer.close(() => resolve()))
   await new Promise<void>((resolve) => smtpServer.close(resolve))
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 describe('status page subscriptions', () => {

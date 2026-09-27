@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { createPortal } from 'react-dom'
+import { ModalShell } from './ModalShell'
 
 interface ResetTwoFactorModalProps {
   email: string
@@ -14,15 +14,14 @@ export function ResetTwoFactorModal({ email, pending, error, onConfirm, onCancel
   const [typedEmail, setTypedEmail] = useState('')
   const canConfirm = !pending && currentPassword.length > 0 && typedEmail === email
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={onCancel}>
+  return (
+    <ModalShell>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="reset-2fa-title"
-        className="rounded-2xl p-6 w-full max-w-md mx-4 space-y-4"
+        className="rounded-2xl p-6 w-full max-w-md space-y-4"
         style={{ background: 'var(--m3-surface-container-lowest)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
-        onClick={(event) => event.stopPropagation()}
       >
         <div>
           <h3 id="reset-2fa-title" className="font-headline text-lg font-bold" style={{ color: 'var(--m3-on-surface)' }}>Reset two-factor authentication</h3>
@@ -57,7 +56,6 @@ export function ResetTwoFactorModal({ email, pending, error, onConfirm, onCancel
           </button>
         </div>
       </div>
-    </div>,
-    document.body,
+    </ModalShell>
   )
 }

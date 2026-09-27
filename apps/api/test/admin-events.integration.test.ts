@@ -1,21 +1,17 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import cookie from '@fastify/cookie'
 import jwt from '@fastify/jwt'
 import { requireAuth, requireRole } from '../src/middleware/auth.js'
 import { authSessions, users } from '../src/db/schema.js'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
+import { db } from '../src/db/client.js'
 import { monitorRoutes } from '../src/routes/monitors.js'
 import { revokeSession, revokeUserSessions } from '../src/services/authSession.js'
 import { serveEventStream, sseService } from '../src/services/sse.service.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-admin-events-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-admin-events-')
 
 const app = Fastify({ logger: false })
 const tokens: Record<string, string> = {}
@@ -24,8 +20,7 @@ let baseUrl = ''
 let allowed = true
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
   await app.register(jwt, { secret: 'test-secret-with-sufficient-entropy' })
   await app.register(cookie)
   // Same guard chain as the production admin API in src/index.ts.
@@ -54,8 +49,7 @@ before(async () => {
 after(async () => {
   sseService.closeAll()
   await app.close()
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 /** Opens a stream and returns helpers to read it until a marker or until the server ends it. */

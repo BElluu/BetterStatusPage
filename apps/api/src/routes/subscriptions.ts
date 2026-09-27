@@ -11,7 +11,9 @@ import {
 } from '../services/subscriptions.js'
 import { isSmtpConfigured } from '../workers/notifier.js'
 import { resolvePublicUrl } from '../config/publicUrl.js'
-import { diffObjects, snapshot, writeAudit } from '../services/audit.js'
+import { auditActor, diffObjects, snapshot, writeAudit } from '../services/audit.js'
+import { requestIdentity } from '../middleware/auth.js'
+import { parsePagination } from '../lib/pagination.js'
 
 function sendError(reply: FastifyReply, error: unknown) {
   if (error instanceof SubscriptionError) return reply.code(error.statusCode).send({ error: error.message })
@@ -121,18 +123,17 @@ export async function adminSubscriberRoutes(app: FastifyInstance) {
       return sendError(reply, error)
     }
     const after = await saveSubscriptionSettings(values)
-    const actor = req.user as { userId: number; email: string }
+    const actor = requestIdentity(req)
     const diff = diffObjects(auditFields(before), auditFields(after))
     if (Object.keys(diff).length) {
-      writeAudit({ userId: actor.userId, userEmail: actor.email }, before.updatedAt ? 'update' : 'create',
+      writeAudit(auditActor(actor), before.updatedAt ? 'update' : 'create',
         'subscription_settings', 1, 'Subscription settings', diff)
     }
     return adminSettings(after)
   })
 
   app.get<{ Querystring: { page?: string; limit?: string; status?: string; search?: string } }>('/', async (req): Promise<SubscriberList> => {
-    const page = Math.max(1, Number(req.query.page ?? 1) || 1)
-    const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 25) || 25))
+    const { page, limit, offset } = parsePagination(req.query, { defaultLimit: 25, maxLimit: 100 })
     const conditions = []
     if (req.query.status) conditions.push(eq(subscribers.status, req.query.status))
     if (req.query.search) {
@@ -144,7 +145,7 @@ export async function adminSubscriberRoutes(app: FastifyInstance) {
     }
     const where = conditions.length ? and(...conditions) : undefined
     const [rows, count, byStatus] = await Promise.all([
-      db.select().from(subscribers).where(where).orderBy(desc(subscribers.createdAt)).limit(limit).offset((page - 1) * limit),
+      db.select().from(subscribers).where(where).orderBy(desc(subscribers.createdAt)).limit(limit).offset(offset),
       db.select({ count: sql<number>`count(*)` }).from(subscribers).where(where),
       db.select({ status: subscribers.status, count: sql<number>`count(*)` }).from(subscribers).groupBy(subscribers.status),
     ])
@@ -171,8 +172,8 @@ export async function adminSubscriberRoutes(app: FastifyInstance) {
     const existing = (await db.select().from(subscribers).where(eq(subscribers.id, id)))[0]
     if (!existing) return reply.code(404).send({ error: 'Not found' })
     await db.delete(subscribers).where(eq(subscribers.id, id))
-    const actor = req.user as { userId: number; email: string }
-    writeAudit({ userId: actor.userId, userEmail: actor.email }, 'delete', 'subscriber', id, existing.email,
+    const actor = requestIdentity(req)
+    writeAudit(auditActor(actor), 'delete', 'subscriber', id, existing.email,
       snapshot({ type: existing.type, status: existing.status, webhookUrl: existing.webhookUrl }))
     return reply.code(204).send()
   })

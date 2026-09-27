@@ -1,23 +1,32 @@
 import { useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { Incident, Monitor } from '@bsp/shared'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { NotifySubscribersCheckbox } from '../components/subscribers/NotifySubscribersCheckbox'
+import { ModalShell } from '../components/ModalShell'
+
+// No theme token exists for the in-between orange, so it stays a literal; the rest follow light/dark mode.
+const ORANGE = '#f97316'
+const NEUTRAL = 'var(--m3-secondary)'
 
 const statusColors: Record<string, string> = {
-  investigating: '#ff4d6a',
-  identified:    '#f97316',
-  monitoring:    '#f5a623',
-  resolved:      '#00d4af',
+  investigating: 'var(--m3-down)',
+  identified:    ORANGE,
+  monitoring:    'var(--m3-degraded-bar)',
+  resolved:      'var(--m3-up-bar)',
 }
 
 const impactColors: Record<string, string> = {
-  none:     '#5a6a8a',
-  minor:    '#f5a623',
-  major:    '#f97316',
-  critical: '#ff4d6a',
+  none:     NEUTRAL,
+  minor:    'var(--m3-degraded-bar)',
+  major:    ORANGE,
+  critical: 'var(--m3-down)',
+}
+
+/** Translucent variant of a colour; works for var() tokens, unlike appending a hex alpha suffix. */
+function tint(color: string, percent: number) {
+  return `color-mix(in srgb, ${color} ${percent}%, transparent)`
 }
 
 export default function IncidentsPage() {
@@ -77,8 +86,8 @@ export default function IncidentsPage() {
 
       <div className="space-y-2">
         {incidents.map((incident) => {
-          const color = statusColors[incident.status] ?? '#5a6a8a'
-          const iColor = impactColors[incident.impact] ?? '#5a6a8a'
+          const color = statusColors[incident.status] ?? NEUTRAL
+          const iColor = impactColors[incident.impact] ?? NEUTRAL
           const isExpanded = expandedId === incident.id
 
           return (
@@ -104,13 +113,13 @@ export default function IncidentsPage() {
                   <div className="flex gap-2 mt-1.5 flex-wrap">
                     <span
                       className="text-xs px-2 py-0.5 rounded-full font-medium"
-                      style={{ background: `${color}15`, color, border: `1px solid ${color}25` }}
+                      style={{ background: tint(color, 8), color, border: `1px solid ${tint(color, 15)}` }}
                     >
                       {incident.status}
                     </span>
                     <span
                       className="text-xs px-2 py-0.5 rounded-full font-medium"
-                      style={{ background: `${iColor}12`, color: iColor, border: `1px solid ${iColor}20` }}
+                      style={{ background: tint(iColor, 7), color: iColor, border: `1px solid ${tint(iColor, 13)}` }}
                     >
                       {incident.impact}
                     </span>
@@ -173,7 +182,7 @@ export default function IncidentsPage() {
                       </p>
                       <div className="space-y-3">
                         {(incident.updates ?? []).map((update, i) => {
-                          const uc = statusColors[update.status] ?? '#5a6a8a'
+                          const uc = statusColors[update.status] ?? NEUTRAL
                           return (
                             <div key={update.id} className="flex gap-3">
                               <div className="flex flex-col items-center flex-shrink-0">
@@ -233,10 +242,12 @@ export default function IncidentsPage() {
                             if (!updateBody.trim()) return
                             postUpdateMutation.mutate({ id: incident.id, body: updateBody, status: updateStatus, notifySubscribers: updateNotify })
                           }}
+                          disabled={postUpdateMutation.isPending || !updateBody.trim()}
                           className="btn-primary text-sm font-semibold px-4 py-2 rounded-lg transition-all"
                           style={{
                             background: 'var(--m3-primary)',
                             color: 'var(--m3-on-primary)',
+                            opacity: postUpdateMutation.isPending || !updateBody.trim() ? 0.7 : 1,
                           }}
                         >
                           Post Update
@@ -311,9 +322,8 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
     }
   }
 
-  return createPortal(
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.55)', overflowY: 'auto' }}>
-      <div style={{ display: 'flex', minHeight: '100%', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+  return (
+    <ModalShell>
       <div className="rounded-2xl w-full max-w-md" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
         <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
           <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>New Incident</h3>
@@ -430,8 +440,6 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
           </div>
         </form>
       </div>
-      </div>
-    </div>,
-    document.body,
+    </ModalShell>
   )
 }

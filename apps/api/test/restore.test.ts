@@ -2,16 +2,16 @@ import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
 import crypto from 'crypto'
 import fs from 'fs'
-import os from 'os'
 import path from 'path'
 import { DatabaseSync } from 'node:sqlite'
 import { closeDb, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
 import { BACKUP_FORMAT_VERSION, createBackup, validateBackup, type BackupManifest } from '../src/services/backup.js'
 import { createArchive } from '../src/services/backupArchive.js'
 import { restoreBackup } from '../src/services/restore.js'
+import { createTestDb, initTestDb, teardownTestDb, type TestDb } from './helpers/testDb.js'
 
 const VAULT_KEY = 'c'.repeat(64)
+let testDb: TestDb
 let temp = ''
 
 function manifestFor(overrides: Partial<BackupManifest> = {}): BackupManifest {
@@ -66,22 +66,20 @@ function currentEmail(): string {
 }
 
 beforeEach(() => {
-  temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bsp-restore-test-'))
+  testDb = createTestDb('bsp-restore-test-', 'db.sqlite')
+  temp = testDb.dir
   process.env['DATA_DIR'] = temp
-  process.env['DATABASE_PATH'] = path.join(temp, 'db.sqlite')
   process.env['UPLOAD_DIR'] = path.join(temp, 'uploads')
   process.env['SETUP_CONFIG_PATH'] = path.join(temp, 'setup.json')
   process.env['BACKUP_DIR'] = path.join(temp, 'backups')
   process.env['VAULT_ENCRYPTION_KEY'] = VAULT_KEY
-  initDb()
-  runMigrations()
+  initTestDb()
   sqlite.exec("INSERT INTO users(email,password_hash,role,created_at) VALUES ('live@example.test','hash','admin',1)")
   closeDb()
 })
 
 afterEach(() => {
-  closeDb()
-  fs.rmSync(temp, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 describe('restore rejects unusable backups before touching data', () => {

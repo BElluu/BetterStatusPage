@@ -1,6 +1,6 @@
 import { db } from '../db/client.js'
 import { monitors, notificationChannels, monitorNotificationChannels, smtpSettings, notificationDeliveries, notificationDeliveryAttempts } from '../db/schema.js'
-import { and, asc, eq, gt, gte, inArray, isNotNull, like, lt, lte, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, like, lt, lte, ne, sql } from 'drizzle-orm'
 import { resolveVaultSecret } from './resolveSecret.js'
 import { isWithinQuietHours, parseAlertPolicy, quietHoursEndAt } from '../services/alertPolicy.js'
 import type { ChannelAlertPolicy, MonitorStatus, NotificationSuppressionReason, VaultRef } from '@bsp/shared'
@@ -38,40 +38,19 @@ interface DeliveryDetails {
   eventType: string
 }
 
-async function enqueueDelivery(
-  channel: ChannelRow,
-  vars: Record<string, string>,
-  details: DeliveryDetails,
-  options: { releaseAt?: number; groupKey?: string | null } = {},
-): Promise<number> {
-  const now = Date.now()
-  const [delivery] = await db.insert(notificationDeliveries).values({
-    channelId: channel.id,
-    channelName: channel.name,
-    channelType: channel.type,
-    monitorId: details.monitorId,
-    monitorName: details.monitorName,
-    eventType: details.eventType,
-    status: 'pending',
-    targetStatus: vars['status'] ?? 'unknown',
-    previousStatus: vars['previous_status'] ?? 'unknown',
-    variables: JSON.stringify(vars),
-    attemptCount: 0,
-    maxAttempts: MAX_DELIVERY_ATTEMPTS,
-    nextAttemptAt: options.releaseAt ?? now,
-    groupKey: options.groupKey ?? null,
-    createdAt: now,
-    updatedAt: now,
-  }).returning({ id: notificationDeliveries.id })
-  return delivery!.id
-}
+type DeliveryVariant =
+  | { status: 'pending'; releaseAt?: number; groupKey?: string | null }
+  | { status: 'suppressed'; reason: NotificationSuppressionReason }
 
-/** Records an event that alert hygiene dropped, so the history still shows what was not sent. */
-async function recordSuppressedDelivery(
+/**
+ * Writes one delivery row. A pending row is picked up for sending at `releaseAt`; a suppressed row
+ * records an event that alert hygiene dropped, so the history still shows what was not sent.
+ */
+async function insertDelivery(
   channel: ChannelRow,
   vars: Record<string, string>,
   details: DeliveryDetails,
-  reason: NotificationSuppressionReason,
+  variant: DeliveryVariant,
 ): Promise<number> {
   const now = Date.now()
   const [delivery] = await db.insert(notificationDeliveries).values({
@@ -81,14 +60,15 @@ async function recordSuppressedDelivery(
     monitorId: details.monitorId,
     monitorName: details.monitorName,
     eventType: details.eventType,
-    status: 'suppressed',
+    status: variant.status,
     targetStatus: vars['status'] ?? 'unknown',
     previousStatus: vars['previous_status'] ?? 'unknown',
     variables: JSON.stringify(vars),
     attemptCount: 0,
     maxAttempts: MAX_DELIVERY_ATTEMPTS,
-    nextAttemptAt: null,
-    suppressionReason: reason,
+    ...(variant.status === 'pending'
+      ? { nextAttemptAt: variant.releaseAt ?? now, groupKey: variant.groupKey ?? null }
+      : { nextAttemptAt: null, suppressionReason: variant.reason }),
     createdAt: now,
     updatedAt: now,
   }).returning({ id: notificationDeliveries.id })
@@ -314,11 +294,11 @@ async function flushDueGroups(now: number): Promise<number> {
     await db.update(notificationDeliveries).set({
       status: 'suppressed', suppressionReason: 'grouped', nextAttemptAt: null, updatedAt: now,
     }).where(inArray(notificationDeliveries.id, ids))
-    await enqueueDelivery(channel, vars, {
+    await insertDelivery(channel, vars, {
       monitorId: null,
       monitorName: vars['monitor_name']!,
       eventType: rows[0]!.eventType,
-    }, { releaseAt: now })
+    }, { status: 'pending', releaseAt: now })
     digests++
   }
   return digests
@@ -350,6 +330,19 @@ export async function purgeOldNotificationDeliveries(now = Date.now()): Promise<
   await db.delete(notificationDeliveries).where(lt(notificationDeliveries.createdAt, cutoff))
 }
 
+/** True when the latest alert-or-recovery event recorded for this monitor is an alert. */
+async function hasOpenAlert(monitorId: number): Promise<boolean> {
+  // Suppressed rows count: an alert that quiet hours or a digest swallowed was still raised.
+  const [last] = await db.select({ eventType: notificationDeliveries.eventType }).from(notificationDeliveries)
+    .where(and(
+      eq(notificationDeliveries.monitorId, monitorId),
+      inArray(notificationDeliveries.eventType, ['alert', 'recovery']),
+    ))
+    .orderBy(desc(notificationDeliveries.id))
+    .limit(1)
+  return last?.eventType === 'alert'
+}
+
 export async function sendNotifications(
   monitor: typeof monitors.$inferSelect,
   newStatus: MonitorStatus,
@@ -358,8 +351,12 @@ export async function sendNotifications(
 ) {
   const isDown = newStatus === 'down' || newStatus === 'degraded'
   // 'affected' = monitor failed but a dependency is already down — suppress alert (root cause fires its own)
-  // Recovery from 'affected' also suppressed — root cause recovery notification is enough
-  const isRecovery = newStatus === 'up' && (prevStatus === 'down' || prevStatus === 'degraded')
+  // Recovery from 'affected' is suppressed too, unless this monitor had alerted on its own before it
+  // became affected (down → affected → up): that alert is still open and owes an all-clear.
+  const isRecovery = newStatus === 'up' && (
+    prevStatus === 'down' || prevStatus === 'degraded' ||
+    (prevStatus === 'affected' && await hasOpenAlert(monitor.id))
+  )
   if (!isDown && !isRecovery) return
 
   const links = await db.select().from(monitorNotificationChannels)
@@ -396,11 +393,11 @@ export async function sendNotifications(
       const plan = await planDelivery(channel, parseAlertPolicy(channel.alertPolicy), details, now)
 
       if (plan.suppressionReason) {
-        await recordSuppressedDelivery(channel, vars, details, plan.suppressionReason)
+        await insertDelivery(channel, vars, details, { status: 'suppressed', reason: plan.suppressionReason })
         return null
       }
 
-      const deliveryId = await enqueueDelivery(channel, vars, details, { releaseAt: plan.releaseAt, groupKey: plan.groupKey })
+      const deliveryId = await insertDelivery(channel, vars, details, { status: 'pending', releaseAt: plan.releaseAt, groupKey: plan.groupKey })
       return plan.releaseAt <= now ? deliveryId : null
     })
 
@@ -469,6 +466,26 @@ export async function sendSmtpMail(message: {
   })
 }
 
+const OUTBOUND_TIMEOUT_MS = 15_000
+
+/** One outbound notification request; a non-2xx answer fails the delivery as `<failurePrefix> <status>`. */
+async function sendHttp(
+  url: string,
+  init: { method: string; headers: Record<string, string>; body?: string },
+  failurePrefix: string,
+): Promise<void> {
+  const res = await fetch(url, { ...init, signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS) })
+  if (!res.ok) throw new Error(`${failurePrefix} ${res.status}`)
+}
+
+function postWebhookJson(url: string, payload: unknown, label: string): Promise<void> {
+  return sendHttp(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }, `${label} webhook returned HTTP`)
+}
+
 async function sendWebhook(
   config: { url: string; method: string; headers?: Record<string, string>; body?: string },
   vars: Record<string, string>,
@@ -483,13 +500,7 @@ async function sendWebhook(
     }
   }
 
-  const res = await fetch(url, {
-    method: config.method ?? 'POST',
-    headers,
-    ...(body !== undefined ? { body } : {}),
-    signal: AbortSignal.timeout(15_000),
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  await sendHttp(url, { method: config.method ?? 'POST', headers, ...(body !== undefined ? { body } : {}) }, 'HTTP')
 }
 
 const DISCORD_COLORS = { down: 0xe53935, degraded: 0xfb8c00, up: 0x43a047 } as const
@@ -519,13 +530,7 @@ async function sendDiscord(
   if (config.avatarUrl) payload['avatar_url'] = substituteVars(config.avatarUrl, vars)
   if (config.content) payload['content'] = substituteVars(config.content, vars)
 
-  const res = await fetch(config.webhookUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(15_000),
-  })
-  if (!res.ok) throw new Error(`Discord webhook returned HTTP ${res.status}`)
+  await postWebhookJson(config.webhookUrl, payload, 'Discord')
 }
 
 const TEAMS_COLORS = { down: 'E53935', degraded: 'FB8C00', up: '43A047' } as const
@@ -568,13 +573,7 @@ async function sendTeams(
     }],
   }
 
-  const res = await fetch(config.webhookUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(15_000),
-  })
-  if (!res.ok) throw new Error(`Teams webhook returned HTTP ${res.status}`)
+  await postWebhookJson(config.webhookUrl, payload, 'Teams')
 }
 
 const SLACK_COLORS = { down: '#E53935', degraded: '#FB8C00', up: '#43A047' } as const
@@ -619,13 +618,7 @@ async function sendSlack(
   }
   if (config.text) payload['text'] = substituteVars(config.text, vars) + '\n' + fallbackText
 
-  const res = await fetch(config.webhookUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(15_000),
-  })
-  if (!res.ok) throw new Error(`Slack webhook returned HTTP ${res.status}`)
+  await postWebhookJson(config.webhookUrl, payload, 'Slack')
 }
 
 /** Send a test email directly to the given address using current SMTP settings. */
@@ -657,7 +650,7 @@ export async function testNotificationChannel(channelId: number): Promise<{ ok: 
     affected_count: '1',
   }
 
-  const deliveryId = await enqueueDelivery(channel, vars, { monitorId: null, monitorName: 'Test Monitor', eventType: 'test' })
+  const deliveryId = await insertDelivery(channel, vars, { monitorId: null, monitorName: 'Test Monitor', eventType: 'test' }, { status: 'pending' })
   await attemptNotificationDelivery(deliveryId)
   const delivery = (await db.select().from(notificationDeliveries).where(eq(notificationDeliveries.id, deliveryId)))[0]!
   return delivery.status === 'delivered' ? { ok: true } : { ok: false, error: delivery.lastError ?? 'Delivery failed' }

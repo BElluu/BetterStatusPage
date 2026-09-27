@@ -1,17 +1,13 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import { SMTPServer } from 'smtp-server'
-import { db, initDb, sqlite } from '../src/db/client.js'
-import { runMigrations } from '../src/db/migrate.js'
+import { db } from '../src/db/client.js'
 import { monitorNotificationChannels, monitors, notificationChannels, notificationDeliveries, notificationDeliveryAttempts, smtpSettings } from '../src/db/schema.js'
 import { processDueNotificationDeliveries, purgeOldNotificationDeliveries, retryNotificationDelivery, sendNotifications } from '../src/workers/notifier.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
-const dataDir = mkdtempSync(join(tmpdir(), 'bsp-notifier-test-'))
-process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+const testDb = createTestDb('bsp-notifier-test-')
 const requests: Array<{ url: string; body: string }> = []
 let flakyFailuresRemaining = 0
 const server = createServer((request, response) => {
@@ -40,8 +36,7 @@ const smtpServer = new SMTPServer({
 let smtpPort = 0
 
 before(async () => {
-  initDb()
-  runMigrations()
+  initTestDb()
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('Notifier server did not bind')
@@ -68,8 +63,7 @@ after(async () => {
   server.closeAllConnections()
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
   await new Promise<void>((resolve) => smtpServer.close(resolve))
-  sqlite.close()
-  rmSync(dataDir, { recursive: true, force: true })
+  teardownTestDb(testDb)
 })
 
 describe('notification delivery', () => {
@@ -123,6 +117,32 @@ describe('notification delivery', () => {
     await sendNotifications(monitor!, 'affected', 'up', null)
     assert.equal(requests.length, 0)
     assert.equal((await db.select().from(notificationDeliveries)).length, 0)
+  })
+
+  it('sends the all-clear for down → affected → up, but not for an affected spell that never alerted', async () => {
+    const now = Date.now()
+    const [alerted, quiet] = await db.insert(monitors).values([
+      { name: 'Alerted', type: 'https', intervalSecs: 60, timeoutMs: 1_000, retries: 1, config: '{}', currentStatus: 'up', tags: '[]', createdAt: now, updatedAt: now },
+      { name: 'Quiet', type: 'https', intervalSecs: 60, timeoutMs: 1_000, retries: 1, config: '{}', currentStatus: 'up', tags: '[]', createdAt: now, updatedAt: now },
+    ]).returning()
+    const [channel] = await db.insert(notificationChannels).values({
+      name: 'Ops', type: 'webhook', config: JSON.stringify({ url: `${baseUrl}/ops`, method: 'POST' }),
+      enabled: 1, notifyOnRecovery: 1, createdAt: now, updatedAt: now,
+    }).returning()
+    await db.insert(monitorNotificationChannels).values([
+      { monitorId: alerted!.id, channelId: channel!.id },
+      { monitorId: quiet!.id, channelId: channel!.id },
+    ])
+
+    await sendNotifications(alerted!, 'down', 'up', 'timeout')
+    await sendNotifications(alerted!, 'affected', 'down', null)
+    await sendNotifications(alerted!, 'up', 'affected', null)
+    await sendNotifications(quiet!, 'affected', 'up', null)
+    await sendNotifications(quiet!, 'up', 'affected', null)
+
+    const deliveries = await db.select().from(notificationDeliveries)
+    assert.deepEqual(deliveries.map((d) => [d.monitorName, d.eventType]), [['Alerted', 'alert'], ['Alerted', 'recovery']])
+    assert.equal(requests.length, 2)
   })
 
   it('retries with backoff, records every attempt, and supports manual retry', async () => {

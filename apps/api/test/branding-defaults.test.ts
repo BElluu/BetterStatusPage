@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { DEFAULT_BRANDING_COLORS } from '@bsp/shared'
-import { closeDb, db, initDb, sqlite } from '../src/db/client.js'
+import { db, sqlite } from '../src/db/client.js'
 import { runMigrations } from '../src/db/migrate.js'
 import { branding } from '../src/db/schema.js'
+import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const LIGHT_MODE_TOKENS = {
   primaryColor: '--m3-primary', accentColor: '--m3-on-primary-container',
@@ -27,12 +27,10 @@ test('default branding colors match the actual public light-mode CSS tokens', ()
 })
 
 test('legacy branding data migrates safely and only once', async () => {
-  const dataDir = mkdtempSync(join(tmpdir(), 'bsp-branding-defaults-'))
-  process.env['DATABASE_PATH'] = join(dataDir, 'test.sqlite')
+  const testDb = createTestDb('bsp-branding-defaults-')
 
   try {
-    initDb()
-    runMigrations()
+    initTestDb()
     await db.insert(branding).values({
       id: 1,
       siteName: 'Status Page',
@@ -73,7 +71,6 @@ test('legacy branding data migrates safely and only once', async () => {
     runMigrations()
     assert.equal((await db.select().from(branding))[0]!.cardBackground, '#f2f0fd')
   } finally {
-    closeDb()
-    rmSync(dataDir, { recursive: true, force: true })
+    teardownTestDb(testDb)
   }
 })

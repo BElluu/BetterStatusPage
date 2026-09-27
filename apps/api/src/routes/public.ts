@@ -1,16 +1,21 @@
 import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
 import {
-  monitors, incidents, incidentUpdates, incidentMonitors, monitorResults, layout, branding,
+  monitors, incidents, incidentMonitors, monitorResults, layout, branding,
   maintenanceWindows, maintenanceWindowMonitors, monitorDependencies,
 } from '../db/schema.js'
-import { eq, desc, gte, ne, inArray, and, lte } from 'drizzle-orm'
+import { eq, desc, gte, ne, inArray, and, lte, sql } from 'drizzle-orm'
 import { serveEventStream, sseService } from '../services/sse.service.js'
 import { getPublishedMonitorIds, publishedMonitorIdsSnapshot } from '../services/publishedMonitors.js'
 import type { LayoutTree, LayoutNode, GroupNode, MonitorNode } from '@bsp/shared'
 import { PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
+import { withIncidentDetails } from '../services/incidentDetails.js'
+import { parseStrictPagination } from '../lib/pagination.js'
 
 const STATUS_CACHE_TTL_MS = 2_000
+/** Daily uptime bars change slowly; a short cache absorbs bursts of page views per monitor. */
+const UPTIME_CACHE_TTL_MS = 30_000
+const UPTIME_CACHE_MAX_ENTRIES = 1_000
 
 function parseInteger(value: string | undefined, fallback: number, min: number, max: number): number | null {
   const parsed = Number(value ?? fallback)
@@ -19,10 +24,16 @@ function parseInteger(value: string | undefined, fallback: number, min: number, 
 
 export async function publicRoutes(app: FastifyInstance) {
   let statusCache: { expiresAt: number; value: Promise<unknown> } | null = null
+  // Keyed by `${monitorId}:${days}`.
+  const uptimeCache = new Map<string, { expiresAt: number; value: Promise<unknown> }>()
   // Clients refetch the status as soon as an incident event arrives; a cached copy from just
   // before the change would hide it from them until the next periodic refresh.
   const stopListening = sseService.onBroadcast((event) => {
-    if (event.startsWith('incident.')) statusCache = null
+    if (event.startsWith('incident.')) {
+      statusCache = null
+      // Uptime bars list the incidents of each day.
+      uptimeCache.clear()
+    }
   })
   app.addHook('onClose', async () => { stopListening() })
 
@@ -50,21 +61,18 @@ export async function publicRoutes(app: FastifyInstance) {
     }).from(monitors)
     const publishedMonitors = allMonitors.filter((monitor) => published.has(monitor.id))
     const rawActiveIncidents = await db.select().from(incidents).where(ne(incidents.status, 'resolved')).orderBy(desc(incidents.createdAt))
-    const activeIncidents = await Promise.all(rawActiveIncidents.map(async (incident) => {
-      const updates = await db.select().from(incidentUpdates).where(eq(incidentUpdates.incidentId, incident.id)).orderBy(desc(incidentUpdates.postedAt))
-      const monitorLinks = await db.select().from(incidentMonitors).where(eq(incidentMonitors.incidentId, incident.id))
-      return { ...incident, updates, monitorIds: publicIds(monitorLinks, published) }
-    }))
+    const activeIncidents = publishIncidents(await withIncidentDetails(rawActiveIncidents), published)
     const brandingRow = (await db.select().from(branding))[0] ?? null
 
     const now = Date.now()
     const activeWindowRows = await db.select().from(maintenanceWindows).where(
       and(lte(maintenanceWindows.startsAt, now), gte(maintenanceWindows.endsAt, now)),
     )
-    const windowsWithLinks = await Promise.all(activeWindowRows.map(async (win) => {
-      const links = await db.select().from(maintenanceWindowMonitors).where(eq(maintenanceWindowMonitors.windowId, win.id))
-      return { win, links }
-    }))
+    const windowLinks = activeWindowRows.length
+      ? await db.select().from(maintenanceWindowMonitors)
+        .where(inArray(maintenanceWindowMonitors.windowId, activeWindowRows.map((win) => win.id)))
+      : []
+    const windowsWithLinks = activeWindowRows.map((win) => ({ win, links: windowLinks.filter((link) => link.windowId === win.id) }))
     // An empty list means "every monitor", so a window that only covers internal monitors is left
     // out entirely rather than published with its (hidden) links stripped.
     const activeMaintenanceWindows = windowsWithLinks
@@ -93,21 +101,14 @@ export async function publicRoutes(app: FastifyInstance) {
   })
 
   app.get<{ Querystring: { page?: string; limit?: string } }>('/incidents', async (req, reply) => {
-    const page = parseInteger(req.query.page, 1, 1, 100_000)
-    const limit = parseInteger(req.query.limit, 10, 1, 100)
-    if (page === null || limit === null) {
+    const paging = parseStrictPagination(req.query, { defaultLimit: 10, maxLimit: 100 })
+    if (paging === null) {
       return reply.code(400).send({ error: 'page must be a positive integer and limit must be between 1 and 100' })
     }
-    const offset = (page - 1) * limit
 
-    const all = await db.select().from(incidents).orderBy(desc(incidents.createdAt)).limit(limit).offset(offset)
-    const published = await getPublishedMonitorIds()
-    return Promise.all(all.map(async (incident) => {
-      const updates = await db.select().from(incidentUpdates)
-        .where(eq(incidentUpdates.incidentId, incident.id)).orderBy(desc(incidentUpdates.postedAt))
-      const monitorLinks = await db.select().from(incidentMonitors).where(eq(incidentMonitors.incidentId, incident.id))
-      return { ...incident, updates, monitorIds: publicIds(monitorLinks, published) }
-    }))
+    const rows = await db.select().from(incidents).orderBy(desc(incidents.createdAt), desc(incidents.id))
+      .limit(paging.limit).offset(paging.offset)
+    return publishIncidents(await withIncidentDetails(rows), await getPublishedMonitorIds())
   })
 
   app.get<{ Params: { id: string } }>('/incidents/:id', async (req, reply) => {
@@ -115,10 +116,7 @@ export async function publicRoutes(app: FastifyInstance) {
     if (incidentId === null) return reply.code(400).send({ error: 'Invalid incident id' })
     const incident = (await db.select().from(incidents).where(eq(incidents.id, incidentId)))[0]
     if (!incident) return reply.code(404).send({ error: 'Not found' })
-    const updates = await db.select().from(incidentUpdates)
-      .where(eq(incidentUpdates.incidentId, incident.id)).orderBy(desc(incidentUpdates.postedAt))
-    const monitorLinks = await db.select().from(incidentMonitors).where(eq(incidentMonitors.incidentId, incident.id))
-    return { ...incident, updates, monitorIds: publicIds(monitorLinks, await getPublishedMonitorIds()) }
+    return publishIncidents(await withIncidentDetails([incident]), await getPublishedMonitorIds())[0]
   })
 
   app.get<{ Params: { id: string }; Querystring: { days?: string } }>('/monitor/:id/uptime', {
@@ -130,17 +128,36 @@ export async function publicRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid monitor id or days; days must be between 1 and 90' })
     }
     if (!(await getPublishedMonitorIds()).has(monitorId)) return reply.code(404).send({ error: 'Not found' })
-    const since = Date.now() - days * 24 * 60 * 60 * 1000
-    const filtered = await db.select().from(monitorResults).where(
-      and(eq(monitorResults.monitorId, monitorId), gte(monitorResults.checkedAt, since)),
-    )
 
-    const dayBuckets: Record<string, typeof filtered> = {}
-    for (const r of filtered) {
-      const date = new Date(r.checkedAt).toISOString().slice(0, 10)
-      if (!dayBuckets[date]) dayBuckets[date] = []
-      dayBuckets[date]!.push(r)
+    const key = `${monitorId}:${days}`
+    const now = Date.now()
+    const cached = uptimeCache.get(key)
+    if (cached && cached.expiresAt > now) return cached.value
+
+    if (uptimeCache.size >= UPTIME_CACHE_MAX_ENTRIES) {
+      for (const [entryKey, entry] of uptimeCache) if (entry.expiresAt <= now) uptimeCache.delete(entryKey)
+      if (uptimeCache.size >= UPTIME_CACHE_MAX_ENTRIES) uptimeCache.clear()
     }
+    const value = loadUptime(monitorId, days)
+    uptimeCache.set(key, { expiresAt: now + UPTIME_CACHE_TTL_MS, value })
+    value.catch(() => {
+      if (uptimeCache.get(key)?.value === value) uptimeCache.delete(key)
+    })
+    return value
+  })
+
+  async function loadUptime(monitorId: number, days: number) {
+    const since = Date.now() - days * 24 * 60 * 60 * 1000
+    // Counted per UTC day in SQL: the page only needs totals, not up to 90 days of raw rows.
+    const day = sql<string>`strftime('%Y-%m-%d', ${monitorResults.checkedAt} / 1000, 'unixepoch')`
+    const dayRows = await db.select({
+      date: day,
+      checksTotal: sql<number>`count(*)`,
+      checksUp: sql<number>`sum(case when ${monitorResults.status} = 'up' then 1 else 0 end)`,
+    }).from(monitorResults)
+      .where(and(eq(monitorResults.monitorId, monitorId), gte(monitorResults.checkedAt, since)))
+      .groupBy(day)
+    const dayBuckets = new Map(dayRows.map((row) => [row.date, row]))
 
     // Fetch incidents affecting this specific monitor
     const incidentLinks = await db
@@ -160,9 +177,9 @@ export async function publicRoutes(app: FastifyInstance) {
     const summaryDays = []
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-      const bucket = dayBuckets[date] ?? []
-      const checksTotal = bucket.length
-      const checksUp = bucket.filter((r) => r.status === 'up').length
+      const bucket = dayBuckets.get(date)
+      const checksTotal = Number(bucket?.checksTotal ?? 0)
+      const checksUp = Number(bucket?.checksUp ?? 0)
       const uptimePct = checksTotal > 0 ? (checksUp / checksTotal) * 100 : 100
       const status = checksTotal === 0 ? 'no-data' : checksUp === checksTotal ? 'up' : checksUp === 0 ? 'down' : 'degraded'
 
@@ -184,7 +201,7 @@ export async function publicRoutes(app: FastifyInstance) {
     const totalUp = summaryDays.reduce((a, d) => a + d.checksUp, 0)
     const overallUptimePct = totalChecks > 0 ? (totalUp / totalChecks) * 100 : null
     return { monitorId, days: summaryDays, overallUptimePct }
-  })
+  }
 
   app.get<{ Params: { id: string }; Querystring: { hours?: string; buckets?: string } }>(
     '/monitor/:id/history',
@@ -212,10 +229,15 @@ export async function publicRoutes(app: FastifyInstance) {
       const bucketSize = (now - since) / nBuckets
       const STATUS_PRIORITY: Record<string, number> = { down: 0, degraded: 1, affected: 2, up: 3, pending: 4 }
 
-      const output = Array.from({ length: nBuckets }, (_, i) => {
-        const bucketStart = since + i * bucketSize
-        const bucketEnd   = bucketStart + bucketSize
-        const bucket: ResultRow[] = results.filter((r: ResultRow) => r.checkedAt >= bucketStart && r.checkedAt < bucketEnd)
+      // One pass over the rows instead of filtering the full list once per bucket.
+      const grouped: ResultRow[][] = Array.from({ length: nBuckets }, () => [])
+      for (const r of results as ResultRow[]) {
+        const index = Math.floor((r.checkedAt - since) / bucketSize)
+        if (index >= 0 && index < nBuckets) grouped[index]!.push(r)
+      }
+
+      const output = grouped.map((bucket, i) => {
+        const bucketEnd = since + (i + 1) * bucketSize
 
         if (bucket.length === 0) {
           return { ts: Math.round(bucketEnd), avg: null, min: null, max: null, p95: null, count: 0, status: null as string | null }
@@ -251,6 +273,11 @@ export async function publicRoutes(app: FastifyInstance) {
 
 function publicIds(links: Array<{ monitorId: number }>, published: ReadonlySet<number>): number[] {
   return links.map((link) => link.monitorId).filter((id) => published.has(id))
+}
+
+/** Incidents lose their links to internal monitors before they reach visitors. */
+function publishIncidents<T extends { monitorIds: number[] }>(rows: T[], published: ReadonlySet<number>): T[] {
+  return rows.map((row) => ({ ...row, monitorIds: row.monitorIds.filter((id) => published.has(id)) }))
 }
 
 /**
