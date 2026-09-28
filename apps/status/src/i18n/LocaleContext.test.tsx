@@ -56,6 +56,7 @@ describe('LocaleProvider', () => {
     expect(screen.getByTestId('locale')).toHaveTextContent('pl')
     expect(screen.getByTestId('available')).toHaveTextContent('en,pl,de')
     expect(screen.getByTestId('monitored')).toHaveTextContent('4 monitorowanych usług.')
+    expect(document.documentElement.lang).toBe('pl')
   })
 
   it('keeps a saved language the instance still offers', async () => {

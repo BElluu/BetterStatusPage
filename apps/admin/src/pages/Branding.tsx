@@ -2,9 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS, validateUptimeThresholds, type Branding, type UptimeThresholds } from '@bsp/shared'
 import { api } from '../api/client'
+import { ModalShell } from '../components/ModalShell'
+import { Field, Switch } from '../components/ui'
 
 interface BrandingForm {
   enabled: boolean
+  showHero: boolean
+  showFooter: boolean
+  showProjectLink: boolean
   siteName: string
   logoType: 'image' | 'text'
   logoText: string
@@ -34,6 +39,9 @@ interface BrandingForm {
 
 const DEFAULTS: BrandingForm = {
   enabled: false,
+  showHero: true,
+  showFooter: true,
+  showProjectLink: true,
   siteName: 'Status Page',
   logoType: 'image',
   logoText: '',
@@ -45,6 +53,15 @@ const DEFAULTS: BrandingForm = {
   uptimeThresholdUp: String(DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdUp),
   uptimeThresholdDegraded: String(DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdDegraded),
   uptimeThresholdPartial: String(DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdPartial),
+}
+
+/** The Layout switches as the 0/1 flags the API stores. */
+function layoutSwitches(form: BrandingForm) {
+  return {
+    showHero: form.showHero ? 1 : 0,
+    showFooter: form.showFooter ? 1 : 0,
+    showProjectLink: form.showProjectLink ? 1 : 0,
+  }
 }
 
 function parseThresholds(form: BrandingForm): UptimeThresholds {
@@ -85,6 +102,9 @@ export default function BrandingPage() {
     if (!branding || edited.current) return
     setForm({
       enabled: !!branding.enabled,
+      showHero: (branding.showHero ?? 1) === 1,
+      showFooter: (branding.showFooter ?? 1) === 1,
+      showProjectLink: (branding.showProjectLink ?? 1) === 1,
       siteName: branding.siteName,
       logoType: branding.logoType === 'text' ? 'text' : 'image',
       logoText: branding.logoText ?? '',
@@ -126,6 +146,7 @@ export default function BrandingPage() {
     ...form,
     ...parseThresholds(form),
     enabled: form.enabled ? 1 : 0,
+    ...layoutSwitches(form),
     logoText: form.logoText || null,
     logoUrl: currentLogoUrl,
     logoLightUrl: currentLightLogoUrl,
@@ -155,6 +176,7 @@ export default function BrandingPage() {
         ...form,
         ...parseThresholds(form),
         enabled: form.enabled ? 1 : 0,
+        ...layoutSwitches(form),
         customCss: form.customCss || null,
         logoText: form.logoText || null,
         ...(form.logoUrl === null ? { logoUrl: null } : {}),
@@ -224,7 +246,7 @@ export default function BrandingPage() {
     <div className="flex h-full overflow-hidden">
       <div className="w-80 shrink-0 flex flex-col overflow-hidden" style={{ background: 'var(--m3-surface-container-low)', borderRight: '1px solid var(--m3-outline-variant)' }}>
         <div className="px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-          <h2 className="font-headline font-bold text-base" style={{ color: 'var(--m3-on-surface)' }}>Branding</h2>
+          <h1 className="font-headline font-bold text-base" style={{ color: 'var(--m3-on-surface)' }}>Branding</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>Public status page appearance</p>
         </div>
 
@@ -232,13 +254,13 @@ export default function BrandingPage() {
           <div>
             <p className="font-mono text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--m3-secondary)' }}>Identity</p>
             <div className="space-y-3">
-              <Field label="Site name">
+              <Field label="Site name" variant="plain" hint="Used in the browser tab title and page footer. It does not replace the logo.">
                 <input value={form.siteName} onChange={(event) => set('siteName')(event.target.value)} className="input-sig" placeholder="My Status Page" />
-                <p className="text-[10px] mt-1.5 leading-relaxed" style={{ color: 'var(--m3-secondary)' }}>Used in the browser tab title and page footer. It does not replace the logo.</p>
               </Field>
-              <Field label="Logo">
+              <div role="group" aria-labelledby="branding-logo-label">
+                <p id="branding-logo-label" className="block text-xs mb-1.5" style={{ color: 'var(--m3-secondary)' }}>Logo</p>
                 <div className="flex gap-1 p-0.5 rounded-lg mb-3" style={{ background: 'var(--m3-surface-container)' }}>
-                  {(['image', 'text'] as const).map((type) => <button key={type} type="button" onClick={() => editForm((current) => ({ ...current, logoType: type }))} className="flex-1 text-xs py-1.5 rounded-md font-semibold transition-all" style={{ background: form.logoType === type ? 'var(--m3-surface-container-lowest)' : 'transparent', color: form.logoType === type ? 'var(--m3-on-surface)' : 'var(--m3-secondary)', boxShadow: form.logoType === type ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>{type === 'image' ? 'Image' : 'Text'}</button>)}
+                  {(['image', 'text'] as const).map((type) => <button key={type} type="button" aria-pressed={form.logoType === type} onClick={() => editForm((current) => ({ ...current, logoType: type }))} className="flex-1 text-xs py-1.5 rounded-md font-semibold transition-all focus-ring" style={{ background: form.logoType === type ? 'var(--m3-surface-container-lowest)' : 'transparent', color: form.logoType === type ? 'var(--m3-on-surface)' : 'var(--m3-secondary)', boxShadow: form.logoType === type ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>{type === 'image' ? 'Image' : 'Text'}</button>)}
                 </div>
                 {form.logoType === 'image' ? (
                   form.enabled ? (
@@ -249,10 +271,33 @@ export default function BrandingPage() {
                       <LogoInput id="branding-logo-dark" label="Dark mode logo" url={currentDarkLogoUrl} file={logoFiles.dark} onSelect={(file) => selectLogo('dark', file)} onRemove={() => removeLogo('dark')} />
                     </div>
                   )
-                ) : <input value={form.logoText} onChange={(event) => editForm((current) => ({ ...current, logoText: event.target.value }))} className="input-sig" placeholder="e.g. Acme Corp" maxLength={40} />}
-              </Field>
+                ) : <input value={form.logoText} onChange={(event) => editForm((current) => ({ ...current, logoText: event.target.value }))} aria-label="Logo text" className="input-sig" placeholder="e.g. Acme Corp" maxLength={40} />}
+              </div>
             </div>
           </div>
+
+          <Section title="Layout">
+            <Switch
+              checked={form.showHero}
+              onChange={(showHero) => editForm((current) => ({ ...current, showHero }))}
+              label="Page header"
+              description="The overall status headline and monitor count above the page. Turn it off to give monitors more room."
+            />
+            <Switch
+              checked={form.showFooter}
+              onChange={(showFooter) => editForm((current) => ({ ...current, showFooter }))}
+              label="Footer"
+              description="The logo and site name at the bottom of the page."
+            />
+            <Switch
+              checked={form.showProjectLink}
+              onChange={(showProjectLink) => editForm((current) => ({ ...current, showProjectLink }))}
+              label="BetterStatusPage link"
+              description={form.showProjectLink
+                ? 'A small link to the project in the bottom-right corner. Thank you for keeping it! ❤'
+                : 'Hidden. No hard feelings. Well, maybe a few.'}
+            />
+          </Section>
 
           <Section title="Uptime bar">
             <p className="text-[10px] leading-relaxed" style={{ color: 'var(--m3-secondary)' }}>Minimum daily uptime for each colour of the uptime bar. Applies to every monitor, with or without custom branding. Failures below a monitor's failure threshold are not counted.</p>
@@ -266,10 +311,13 @@ export default function BrandingPage() {
             {thresholdError && <p role="alert" className="text-xs" style={{ color: 'var(--m3-error)' }}>{thresholdError}</p>}
           </Section>
 
-          <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: form.enabled ? 'rgba(34,197,94,0.08)' : 'var(--m3-surface-container)', border: `1px solid ${form.enabled ? 'rgba(34,197,94,0.3)' : 'var(--m3-outline-variant)'}` }}>
-            <div><p className="text-sm font-semibold">Custom branding</p><p className="text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>{form.enabled ? 'Custom colors are active' : 'Default project colors are in use'}</p></div>
-            <button type="button" aria-label="Custom branding" aria-pressed={form.enabled} onClick={toggleBranding} className="relative flex-shrink-0 w-12 h-6 rounded-full transition-colors" style={{ background: form.enabled ? '#22c55e' : 'var(--m3-outline-variant)' }}><span className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform" style={{ transform: form.enabled ? 'translateX(22px)' : 'translateX(0)' }} /></button>
-          </div>
+          <Switch
+            checked={form.enabled}
+            onChange={toggleBranding}
+            label="Custom branding"
+            description={form.enabled ? 'Custom colors are active' : 'Default project colors are in use'}
+            className="items-center px-4 py-3 rounded-xl bg-surface-container border border-outline-variant"
+          />
 
           <fieldset disabled={!form.enabled} className="min-w-0 border-0 p-0 m-0 space-y-6 transition-opacity" style={{ opacity: form.enabled ? 1 : 0.45 }}>
           <Section title="Backgrounds">
@@ -298,22 +346,22 @@ export default function BrandingPage() {
           </Section>
           <Section title="Custom CSS">
             <p className="text-[10px] mb-2 leading-relaxed" style={{ color: 'var(--m3-secondary)' }}>{form.enabled ? 'Open the full editor to customize the public page using documented classes and CSS variables.' : 'Enable custom branding to edit and apply custom CSS.'}</p>
-            <button type="button" disabled={!form.enabled} onClick={() => setCssEditorOpen(true)} className="btn-primary w-full px-3 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 disabled:cursor-not-allowed"><span aria-hidden="true" className="material-symbols-outlined" style={{ fontSize: 17 }}>code</span>Open CSS editor</button>
+            <button type="button" disabled={!form.enabled} onClick={() => setCssEditorOpen(true)} className="btn btn-primary btn-sm w-full py-2.5"><span aria-hidden="true" className="material-symbols-outlined">code</span>Open CSS editor</button>
             <p className="text-[10px]" style={{ color: 'var(--m3-secondary)' }}>{form.customCss ? `${form.customCss.split('\n').length} lines · ${form.customCss.length} characters` : 'No custom CSS yet'}</p>
           </Section>
           </fieldset>
         </div>
 
         <div className="px-5 py-4 shrink-0 flex items-center gap-3" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
-          <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || thresholdError !== null} className="btn-primary flex-1 text-sm font-semibold py-2 rounded-lg">{saveMutation.isPending ? 'Saving…' : 'Save branding'}</button>
-          {saved && <span className="text-sm shrink-0" style={{ color: 'var(--m3-primary)' }}>Saved!</span>}
-          {saveMutation.isError && <span role="alert" className="text-xs" style={{ color: 'var(--m3-error)' }}>{saveMutation.error instanceof Error ? saveMutation.error.message : 'Save failed'}</span>}
+          <button type="button" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || thresholdError !== null} className="btn btn-primary flex-1">{saveMutation.isPending ? 'Saving…' : 'Save branding'}</button>
+          {saved && <span className="flex items-center gap-1 text-sm shrink-0" style={{ color: 'var(--m3-up)' }}><span aria-hidden="true" className="material-symbols-outlined" style={{ fontSize: 16 }}>check_circle</span>Saved!</span>}
+          {saveMutation.isError && <span role="alert" className="text-xs" style={{ color: 'var(--m3-down)' }}>{saveMutation.error instanceof Error ? saveMutation.error.message : 'Save failed'}</span>}
         </div>
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="px-4 py-2 shrink-0 flex items-center gap-2" style={{ background: 'var(--m3-surface-container-low)', borderBottom: '1px solid var(--m3-outline-variant)' }}>
-          <span className="w-2 h-2 rounded-full" style={{ background: 'var(--m3-primary)', animation: 'orbGlow 2s ease-in-out infinite' }} />
+          <span aria-hidden="true" className="w-2 h-2 rounded-full" style={{ background: 'var(--m3-primary)', animation: 'orbGlow 2s ease-in-out infinite' }} />
           <span className="font-mono text-xs font-medium">Live preview</span>
           <span className="text-xs ml-1" style={{ color: 'var(--m3-secondary)' }}>— saved Page Builder layout with unsaved branding changes</span>
         </div>
@@ -334,9 +382,9 @@ function LogoInput({ id, label, url, file, onSelect, onRemove }: {
 }) {
   return <div>
     <p className="text-[10px] font-semibold mb-1.5" style={{ color: 'var(--m3-secondary)' }}>{label}</p>
-    {url && <div className="flex items-center gap-2 mb-2"><div className="h-12 min-w-24 max-w-48 flex items-center rounded-lg px-3" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}><img src={url} alt="Logo" className="max-h-9 max-w-full object-contain" /></div><button type="button" onClick={onRemove} className="px-2 py-1 rounded-lg text-xs" style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }} aria-label="Remove logo">×</button></div>}
+    {url && <div className="flex items-center gap-2 mb-2"><div className="h-12 min-w-24 max-w-48 flex items-center rounded-lg px-3" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}><img src={url} alt="Logo" className="max-h-9 max-w-full object-contain" /></div><button type="button" onClick={onRemove} className="btn-icon text-base" aria-label={`Remove ${label.toLowerCase()}`} title="Remove logo">×</button></div>}
     <input id={id} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={(event) => onSelect(event.target.files?.[0] ?? null)} className="sr-only" />
-    <div className="flex items-center gap-2 min-w-0"><label htmlFor={id} className="btn-primary shrink-0 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer">Choose image</label><span className="text-xs truncate" style={{ color: 'var(--m3-secondary)' }} title={file?.name}>{file?.name ?? 'No file selected'}</span></div>
+    <div className="flex items-center gap-2 min-w-0"><label htmlFor={id} className="btn btn-primary btn-sm shrink-0 cursor-pointer">Choose image</label><span className="text-xs truncate" style={{ color: 'var(--m3-secondary)' }} title={file?.name}>{file?.name ?? 'No file selected'}</span></div>
   </div>
 }
 
@@ -344,9 +392,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return <div className="space-y-3"><p className="font-mono text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--m3-secondary)' }}>{title}</p><div className="space-y-2">{children}</div></div>
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div><label className="block text-xs mb-1.5" style={{ color: 'var(--m3-secondary)' }}>{label}</label>{children}</div>
-}
 
 /** One colour of the uptime bar; without `onChange` the value is derived and shown read-only. */
 function ThresholdRow({ color, label, operator, value, onChange, first = false }: {
@@ -368,7 +413,7 @@ function ThresholdRow({ color, label, operator, value, onChange, first = false }
 }
 
 function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <Field label={label}><div className="flex items-center gap-2"><input type="color" value={value.startsWith('rgba') ? '#000000' : value} onChange={(event) => onChange(event.target.value)} className="w-8 h-8 rounded-md cursor-pointer shrink-0 p-0.5" style={{ border: '1px solid var(--m3-outline-variant)', background: 'var(--m3-surface-container-lowest)' }} /><input value={value} onChange={(event) => onChange(event.target.value)} maxLength={25} className="input-sig font-mono text-xs" /></div></Field>
+  return <Field label={label} variant="plain">{(control) => <div className="flex items-center gap-2"><input type="color" aria-label={`${label} picker`} value={value.startsWith('rgba') ? '#000000' : value} onChange={(event) => onChange(event.target.value)} className="w-8 h-8 rounded-md cursor-pointer shrink-0 p-0.5" style={{ border: '1px solid var(--m3-outline-variant)', background: 'var(--m3-surface-container-lowest)' }} /><input {...control} value={value} onChange={(event) => onChange(event.target.value)} maxLength={25} className="input-sig font-mono text-xs" /></div>}</Field>
 }
 
 const CSS_CLASSES = [
@@ -390,6 +435,7 @@ const CSS_CLASSES = [
   ['.bsp-incidents-section', 'System events section'],
   ['.bsp-incident-card', 'Incident card or history row'],
   ['.bsp-footer', 'Page footer'],
+  ['.bsp-project-link', 'BetterStatusPage link'],
 ] as const
 
 const CSS_VARIABLES = [
@@ -403,12 +449,8 @@ function CssEditorModal({ value, onChange, onClose }: { value: string; onChange:
   const gutter = useRef<HTMLDivElement>(null)
   const lineCount = Math.max(1, value.split('\n').length)
 
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    window.addEventListener('keydown', closeOnEscape)
-    textarea.current?.focus()
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [onClose])
+  // Escape, focus trapping and the backdrop come from ModalShell; start typing straight away.
+  useEffect(() => { textarea.current?.focus() }, [])
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== 'Tab') return
@@ -423,12 +465,12 @@ function CssEditorModal({ value, onChange, onClose }: { value: string; onChange:
   }
 
   return (
-    <div className="fixed inset-0 z-[120] p-4 md:p-8 flex" role="dialog" aria-modal="true" aria-label="Custom CSS editor" style={{ background: 'rgba(0,0,0,0.65)' }}>
-      <div className="flex-1 min-w-0 rounded-2xl overflow-hidden flex flex-col" style={{ background: 'var(--m3-surface-container-lowest)', border: '1px solid var(--m3-outline-variant)', boxShadow: '0 24px 80px rgba(0,0,0,0.35)' }}>
+    <ModalShell onClose={onClose} label="Custom CSS editor">
+      <div className="w-full min-w-0 min-h-[calc(100vh-32px)] md:m-4 md:min-h-[calc(100vh-64px)] rounded-2xl overflow-hidden flex flex-col" style={{ background: 'var(--m3-surface-container-lowest)', border: '1px solid var(--m3-outline-variant)', boxShadow: '0 24px 80px rgba(0,0,0,0.35)' }}>
         <header className="px-5 py-4 flex items-center gap-4" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
           <span aria-hidden="true" className="material-symbols-outlined rounded-xl p-2" style={{ background: 'var(--admin-icon-container)', color: 'var(--admin-icon-color)' }}>code</span>
           <div><h2 className="font-headline text-lg font-semibold">Custom CSS editor</h2><p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>Changes are applied to the live preview immediately. Save branding when you are finished.</p></div>
-          <button type="button" onClick={onClose} className="btn-primary ml-auto px-5 py-2 rounded-lg text-sm font-semibold">Done</button>
+          <button type="button" onClick={onClose} className="btn btn-primary ml-auto px-5">Done</button>
         </header>
 
         <div className="flex-1 min-h-0 grid lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -468,6 +510,6 @@ function CssEditorModal({ value, onChange, onClose }: { value: string; onChange:
           </aside>
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }

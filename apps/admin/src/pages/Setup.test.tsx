@@ -65,7 +65,12 @@ describe('SetupPage first-run wizard', () => {
     renderSetup()
 
     expect(await screen.findByRole('heading', { name: 'Choose a database' })).toBeInTheDocument()
+    // The eyebrow counts the same three steps as the progress list.
+    expect(screen.getByText('Step 1 of 3')).toBeInTheDocument()
     await goToAccountStep(user)
+    expect(screen.getByText('Step 2 of 3')).toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toHaveAttribute('autocomplete', 'username')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('autocomplete', 'new-password')
     await fillAccount(user, 'correct-horse')
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/setup/complete', { email: admin.email, password: 'correct-horse' }))

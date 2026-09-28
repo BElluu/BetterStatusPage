@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import MaintenancePage, { DateTimeInput } from './Maintenance'
+import { ToastProvider } from '../components/ui'
 
 vi.mock('../api/client', () => ({
   api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -53,7 +54,7 @@ function mockGets(list: unknown[] = windows()) {
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><MaintenancePage /></QueryClientProvider>)
+  return render(<QueryClientProvider client={queryClient}><ToastProvider><MaintenancePage /></ToastProvider></QueryClientProvider>)
 }
 
 describe('MaintenancePage', () => {
@@ -92,11 +93,36 @@ describe('MaintenancePage', () => {
     mockGets([])
     renderPage()
 
-    expect(await screen.findByText('No active maintenance windows. All systems running normally.')).toBeInTheDocument()
+    expect(await screen.findByText('No active maintenance windows')).toBeInTheDocument()
+    expect(screen.queryByText(/All systems running normally/)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'upcoming' }))
-    expect(screen.getByText('No upcoming maintenance scheduled.')).toBeInTheDocument()
+    expect(screen.getByText('No upcoming maintenance scheduled')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'past' }))
-    expect(screen.getByText('No past maintenance windows.')).toBeInTheDocument()
+    expect(screen.getByText('No past maintenance windows')).toBeInTheDocument()
+  })
+
+  it('shows loading and error states instead of empty copy', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('boom'))
+    renderPage()
+
+    expect(screen.getByText('Loading maintenance windows…')).toBeInTheDocument()
+    expect(await screen.findByText("Couldn't load maintenance windows.")).toBeInTheDocument()
+    expect(screen.queryByText('No active maintenance windows')).not.toBeInTheDocument()
+  })
+
+  it('moves a window from upcoming to active as time passes', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const now = Date.now()
+      mockGets([{ id: 5, name: 'Soon', description: null, startsAt: now + 20_000, endsAt: now + HOUR, monitorIds: [] }])
+      renderPage()
+
+      expect(await screen.findByText('0 active · 1 upcoming · 0 past')).toBeInTheDocument()
+      await act(async () => { await vi.advanceTimersByTimeAsync(31_000) })
+      expect(screen.getByText('1 active · 0 upcoming · 0 past')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('schedules a window for selected monitors without notifying subscribers', async () => {
@@ -146,7 +172,7 @@ describe('MaintenancePage', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click((await screen.findAllByRole('button', { name: 'Edit' }))[0]!)
+    await user.click(await screen.findByRole('button', { name: 'Edit DB upgrade' }))
     expect(screen.getByRole('heading', { name: 'Edit Maintenance Window' })).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: 'Notify subscribers' })).not.toBeInTheDocument()
     const name = screen.getByDisplayValue('DB upgrade')
@@ -167,10 +193,25 @@ describe('MaintenancePage', () => {
     const endDialog = screen.getByRole('dialog', { name: 'End maintenance early' })
     await user.click(within(endDialog).getByRole('button', { name: 'End now' }))
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/maintenance/1', { endsAt: expect.any(Number) }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'End maintenance early' })).not.toBeInTheDocument())
+    expect(screen.getByText('Ended "DB upgrade"')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: 'Delete DB upgrade' }))
     expect(screen.getByText('Delete "DB upgrade"? This cannot be undone.')).toBeInTheDocument()
     await user.click(within(screen.getByRole('dialog', { name: 'Delete maintenance window' })).getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/admin/maintenance/1'))
+  })
+
+  it('keeps the end-early dialog open and reports a failure', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.patch).mockRejectedValueOnce(new Error('Window already ended'))
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'End now' }))
+    const endDialog = screen.getByRole('dialog', { name: 'End maintenance early' })
+    await user.click(within(endDialog).getByRole('button', { name: 'End now' }))
+
+    expect(await screen.findByText("Couldn't end maintenance: Window already ended")).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'End maintenance early' })).toBeInTheDocument()
   })
 })

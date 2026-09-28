@@ -4,23 +4,23 @@
 
 /* ── M3 Color Tokens — Light (exact from mockup) ─────────────────── */
 :root {
-  --m3-surface:                  #faf8ff;
-  --m3-surface-dim:              #d2d9f4;
-  --m3-surface-bright:           #faf8ff;
-  --m3-surface-container-lowest: #ffffff;
-  --m3-surface-container-low:    #f2f3ff;
-  --m3-surface-container:        #eaedff;
-  --m3-surface-container-high:   #e2e7ff;
-  --m3-surface-container-highest:#dae2fd;
-  --m3-on-surface:               #131b2e;
+  --m3-surface:                  #f5f6f9;
+  --m3-surface-dim:              #d7dce5;
+  --m3-surface-bright:           #f5f6f9;
+  --m3-surface-container-lowest: #fafbfc;
+  --m3-surface-container-low:    #eef0f5;
+  --m3-surface-container:        #e7eaf0;
+  --m3-surface-container-high:   #dfe3ea;
+  --m3-surface-container-highest:#d7dce5;
+  --m3-on-surface:               #1c2333;
   --m3-on-surface-variant:       #45464d;
-  --m3-secondary:                #505f76;
-  --m3-outline:                  #76777d;
-  --m3-outline-variant:          #c6c6cd;
+  --m3-secondary:                #566174;
+  --m3-outline:                  #7c828e;
+  --m3-outline-variant:          #d3d7df;
   --m3-primary:                  #000000;
   --m3-on-primary:               #ffffff;
   --m3-on-primary-container:     #497cff;
-  --m3-primary-fixed:            #dbe1ff;
+  --m3-primary-fixed:            #dbe7ff;
   --m3-primary-fixed-dim:        #b4c5ff;
   --m3-primary-container:        #00174b;
   --m3-surface-tint:             #0053db;
@@ -41,6 +41,9 @@
   --m3-degraded:  #854d0e;
   --m3-degraded-bg: rgba(234, 179, 8, 0.12);
   --m3-degraded-bar: #eab308;
+  --m3-partial:   #9a3412;
+  --m3-partial-bg: rgba(249, 115, 22, 0.12);
+  --m3-partial-bar: #f97316;
 
   /* BSP branding aliases */
   --bsp-bg:          var(--m3-surface);
@@ -63,11 +66,12 @@
   --admin-on-action-primary:    #172033;
   --admin-action-focus:         rgba(73, 124, 255, 0.28);
   --admin-selection:            var(--m3-primary-fixed);
-  --admin-selection-hover:      #cdd8fa;
+  --admin-selection-hover:      #c9d9ff;
   --admin-on-selection:         var(--m3-primary);
-  --admin-selection-border:     #aab8dc;
-  --admin-control-accent:       #000000;
-  --admin-icon-container:       #e7e9ee;
+  --admin-selection-border:     #a9bfe6;
+  --admin-control-accent:       #4b5563;
+  --admin-control-on:           #ffffff;
+  --admin-icon-container:       #e4e7ec;
   --admin-icon-color:           #4b5563;
   --audit-create-bg:            #d1fae5;
   --audit-create-text:          #065f46;
@@ -79,19 +83,19 @@
 
 /* ── M3 Color Tokens — Dark ───────────────────────────────────────── */
 html.dark {
-  --m3-surface:                  #0f1117;
-  --m3-surface-dim:              #0f1117;
-  --m3-surface-bright:           #36343b;
-  --m3-surface-container-lowest: #0a0a10;
-  --m3-surface-container-low:    #191921;
-  --m3-surface-container:        #1d1d26;
-  --m3-surface-container-high:   #282730;
-  --m3-surface-container-highest:#33313b;
-  --m3-on-surface:               #e5e0ec;
-  --m3-on-surface-variant:       #c9c4d0;
-  --m3-secondary:                #cac4d0;
-  --m3-outline:                  #948f9a;
-  --m3-outline-variant:          #48454e;
+  --m3-surface:                  #20232a;
+  --m3-surface-dim:              #1a1c22;
+  --m3-surface-bright:           #383c46;
+  --m3-surface-container-lowest: #252830;
+  --m3-surface-container-low:    #1a1c22;
+  --m3-surface-container:        #282b33;
+  --m3-surface-container-high:   #30343d;
+  --m3-surface-container-highest:#383c46;
+  --m3-on-surface:               #e3e5ea;
+  --m3-on-surface-variant:       #c5cad3;
+  --m3-secondary:                #aab0bb;
+  --m3-outline:                  #80868f;
+  --m3-outline-variant:          #3a3e48;
   --m3-primary:                  #b4c5ff;
   --m3-on-primary:               #111318;
   --m3-on-primary-container:     #aac7ff;
@@ -115,8 +119,9 @@ html.dark {
   --admin-selection-hover:      #454953;
   --admin-on-selection:         #f0f1f3;
   --admin-selection-border:     #777e8b;
-  --admin-control-accent:       #cbd5e1;
-  --admin-icon-container:       #30333b;
+  --admin-control-accent:       #c3c8d1;
+  --admin-control-on:           #1a1c22;
+  --admin-icon-container:       #30343d;
   --admin-icon-color:           #d6d9df;
   --audit-create-bg:            #164e3b;
   --audit-create-text:          #a7f3d0;
@@ -133,6 +138,9 @@ html.dark {
   --m3-degraded:  #ffb950;
   --m3-degraded-bg: rgba(234, 179, 8, 0.15);
   --m3-degraded-bar: #fbbf24;
+  --m3-partial:   #fb923c;
+  --m3-partial-bg: rgba(249, 115, 22, 0.15);
+  --m3-partial-bar: #f97316;
 }
 
 /* ── Base ─────────────────────────────────────────────────────────── */
@@ -143,6 +151,123 @@ body {
   font-family: 'Inter', system-ui, sans-serif;
   background: var(--m3-surface);
   color: var(--m3-on-surface);
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--admin-control-accent);
+}
+
+/*
+ * Button system. Compose a shape with a variant: `btn btn-primary`, `btn btn-secondary`,
+ * `btn btn-ghost`, `btn btn-outline`, `btn btn-danger` (filled, for confirmations) or
+ * `btn btn-danger-outline`; add `btn-sm` for compact rows.
+ * `btn-icon` is a standalone square icon button. These live in the components layer so page-level
+ * utilities (e.g. `px-5`, `rounded-full`, `w-full`) still win.
+ */
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 0.75rem;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease,
+      box-shadow 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
+  }
+  .btn:active:not(:disabled) { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn .material-symbols-outlined { font-size: 18px; }
+
+  .btn-sm {
+    gap: 0.375rem;
+    border-radius: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+  .btn-sm .material-symbols-outlined { font-size: 16px; }
+
+  /* Outlined in light mode so the filled primary button is the only filled action. */
+  .btn-secondary {
+    background: transparent;
+    border-color: var(--m3-outline-variant);
+    color: var(--m3-on-surface);
+  }
+  .btn-secondary:hover:not(:disabled) { background: var(--m3-surface-container); }
+  html.dark .btn-secondary {
+    background: var(--m3-surface-container-high);
+    border-color: transparent;
+  }
+  html.dark .btn-secondary:hover:not(:disabled) { background: var(--m3-surface-container-highest); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--m3-secondary);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--m3-surface-container);
+    color: var(--m3-on-surface);
+  }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--m3-secondary);
+    border-color: var(--m3-outline-variant);
+  }
+  .btn-outline:hover:not(:disabled) {
+    background: var(--m3-surface-container);
+    color: var(--m3-on-surface);
+  }
+
+  .btn-danger {
+    background: var(--m3-error-container);
+    color: var(--m3-on-error-container);
+    border-color: color-mix(in srgb, var(--m3-error) 45%, transparent);
+  }
+  .btn-danger:hover:not(:disabled) {
+    border-color: var(--m3-error);
+  }
+  .btn-danger:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--m3-down) 25%, transparent);
+  }
+
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    color: var(--m3-secondary);
+    background: transparent;
+    cursor: pointer;
+    transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+  }
+  .btn-icon:hover:not(:disabled) {
+    background: var(--m3-surface-container);
+    color: var(--m3-on-surface);
+  }
+  .btn-icon:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-icon .material-symbols-outlined { font-size: 20px; }
+
+  .focus-ring:focus-visible,
+  .btn-secondary:focus-visible,
+  .btn-ghost:focus-visible,
+  .btn-outline:focus-visible,
+  .btn-icon:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--admin-action-focus);
+  }
 }
 
 /* Primary admin action: one contrast-safe appearance in every feature. */
@@ -202,6 +327,15 @@ body {
   border-color: color-mix(in srgb, var(--m3-up) 35%, var(--m3-outline-variant));
   color: var(--m3-up);
 }
+.copy-feedback-button[data-failed] {
+  background: var(--m3-down-bg);
+  border-color: color-mix(in srgb, var(--m3-down) 35%, var(--m3-outline-variant));
+  color: var(--m3-down);
+}
+.copy-feedback-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--admin-action-focus);
+}
 .copy-feedback-button:active {
   transform: scale(0.98);
 }
@@ -228,6 +362,64 @@ html.dark .monitor-side-tab-badge-active {
 html:not(.dark) .maintenance-active-count {
   background: var(--admin-selection) !important;
   color: var(--admin-on-selection) !important;
+}
+
+/* ── Navigation (sidebar + mobile drawer) ─────────────────────────── */
+.admin-nav-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--m3-secondary);
+  text-align: left;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+.admin-nav-item:hover { transform: translateX(0.25rem); }
+.admin-nav-item:not([aria-current='page']):hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--m3-on-surface);
+}
+html.dark .admin-nav-item:not([aria-current='page']):hover { background: rgba(255, 255, 255, 0.08); }
+.admin-nav-item[aria-current='page'] {
+  background: var(--m3-surface-container-lowest);
+  color: var(--m3-on-surface);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(19, 27, 46, 0.08);
+}
+.admin-nav-item.admin-nav-danger:hover,
+html.dark .admin-nav-item.admin-nav-danger:hover {
+  background: var(--m3-error-container);
+  color: var(--m3-on-error-container);
+}
+.admin-nav-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--admin-action-focus);
+}
+
+@keyframes drawer-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.admin-drawer-panel { animation: drawer-in 0.22s ease-out; }
+.admin-drawer-overlay { animation: overlay-in 0.22s ease-out; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.admin-toast { animation: toast-in 0.2s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-drawer-panel, .admin-drawer-overlay, .admin-toast { animation: none; }
+  .admin-nav-item:hover { transform: none; }
 }
 
 /* ── Input style ──────────────────────────────────────────────────── */

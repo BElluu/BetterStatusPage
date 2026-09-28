@@ -52,6 +52,8 @@ describe('ChangePasswordPage', () => {
     vi.mocked(api.post).mockResolvedValue(session)
     renderPage()
 
+    expect(screen.getByLabelText('New Password')).toHaveAttribute('autocomplete', 'new-password')
+    expect(screen.getByLabelText('Confirm Password')).toHaveAttribute('autocomplete', 'new-password')
     await fill(user, 'correct-horse')
     await user.click(screen.getByRole('button', { name: 'Set Password & Continue' }))
 

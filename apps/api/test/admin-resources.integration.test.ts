@@ -73,6 +73,21 @@ describe('branding and layout', () => {
     assert.deepEqual([persisted.uptimeThresholdUp, persisted.uptimeThresholdDegraded, persisted.uptimeThresholdPartial], [99.5, 97, 90])
   })
 
+  it('shows the header, footer and project link by default and stores each switch as 0 or 1', async () => {
+    const patch = (payload: Record<string, unknown>) => app.inject({ method: 'PATCH', url: '/branding', payload })
+    for (const field of ['showHero', 'showFooter', 'showProjectLink']) {
+      assert.equal((await app.inject({ url: '/branding' })).json()[field], 1, field)
+      assert.equal((await patch({ [field]: 0 })).statusCode, 200, field)
+      assert.equal((await app.inject({ url: '/branding' })).json()[field], 0, field)
+      for (const value of [2, true, 'no']) {
+        const response = await patch({ [field]: value })
+        assert.equal(response.statusCode, 400, `${field}=${String(value)}`)
+        assert.match(response.json().error, new RegExp(field))
+      }
+      assert.equal((await patch({ [field]: 1 })).statusCode, 200, field)
+    }
+  })
+
   it('rejects branding colours that are not hex or rgb() values and never emails unsafe ones', async () => {
     for (const value of ['red;background:url(https://evil.test/x)', '#12345g', '"><script>', 'expression(alert(1))', 42]) {
       const response = await app.inject({ method: 'PATCH', url: '/branding', payload: { textColor: value } })

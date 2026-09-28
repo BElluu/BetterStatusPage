@@ -16,7 +16,6 @@ export function NotifySubscribersCheckbox({ checked, onChange }: { checked: bool
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        style={{ accentColor: 'var(--admin-control-accent)' }}
       />
       Notify subscribers
     </label>

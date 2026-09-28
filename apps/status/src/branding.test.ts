@@ -30,6 +30,14 @@ describe('custom branding resolution', () => {
     })
   })
 
+  it('derives readable status text colours from the brand status and text colours', () => {
+    expect(resolveBrandingCssVariables(branding)).toMatchObject({
+      '--bsp-up-text': 'color-mix(in srgb, #009900 55%, #777777)',
+      '--bsp-down-text': 'color-mix(in srgb, #990000 55%, #777777)',
+      '--bsp-degraded-text': 'color-mix(in srgb, #999900 55%, #777777)',
+    })
+  })
+
   it('applies custom CSS only while custom branding is enabled', () => {
     expect(resolveBrandingCustomCss({ ...branding, enabled: 0, customCss: '.bsp-page {}' })).toBeNull()
     expect(resolveBrandingCustomCss({ ...branding, enabled: 1, customCss: '.bsp-page {}' })).toBe('.bsp-page {}')

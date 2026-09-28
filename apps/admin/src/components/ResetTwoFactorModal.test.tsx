@@ -24,3 +24,16 @@ describe('ResetTwoFactorModal', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
   })
 })
+
+describe('ResetTwoFactorModal keyboard', () => {
+  it('closes on Escape unless a reset is pending', async () => {
+    const user = userEvent.setup()
+    const onCancel = vi.fn()
+    const { rerender } = render(<ResetTwoFactorModal email="operator@example.test" pending onConfirm={vi.fn()} onCancel={onCancel} />)
+    await user.keyboard('{Escape}')
+    expect(onCancel).not.toHaveBeenCalled()
+    rerender(<ResetTwoFactorModal email="operator@example.test" pending={false} onConfirm={vi.fn()} onCancel={onCancel} />)
+    await user.keyboard('{Escape}')
+    expect(onCancel).toHaveBeenCalledOnce()
+  })
+})

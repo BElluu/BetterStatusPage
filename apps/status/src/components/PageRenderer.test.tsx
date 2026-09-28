@@ -1,10 +1,18 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { LayoutTree, PublicMonitor } from '@bsp/shared'
 import { PageRenderer } from './PageRenderer'
 
 vi.mock('../i18n/LocaleContext', () => ({
   useLocale: () => ({ locale: 'en', t: (key: string) => key }),
+}))
+
+const uptimeState = vi.hoisted(() => ({
+  value: { uptime: null, failed: false } as { uptime: unknown; failed: boolean },
+}))
+
+vi.mock('../hooks/useMonitorUptime', () => ({
+  useMonitorUptime: () => uptimeState.value,
 }))
 
 vi.mock('./ResponseTimeChart', () => ({
@@ -54,7 +62,7 @@ describe('PageRenderer', () => {
       />,
     )
 
-    expect(screen.getByText('MAINTENANCE')).toBeInTheDocument()
+    expect(screen.getByText('page.maintenance')).toBeInTheDocument()
     expect(screen.getByText(/status.affectedBy/)).toHaveTextContent('Database')
   })
 
@@ -88,6 +96,48 @@ describe('PageRenderer', () => {
     />)
 
     expect(screen.getByRole('heading', { name: longName })).toHaveAttribute('title', longName)
+  })
+
+  describe('uptime bars', () => {
+    const tree: LayoutTree = {
+      id: 'root', type: 'page', children: [
+        { id: 'monitor', type: 'monitor', monitorId: 2, showUptimeBar: true, uptimeBarPosition: 'below' },
+      ],
+    }
+
+    it('shows neutral placeholders while loading, without made-up days', () => {
+      uptimeState.value = { uptime: null, failed: false }
+      const { container } = render(<PageRenderer tree={tree} monitors={monitors} statusMap={{}} />)
+      expect(container.querySelectorAll('.bsp-uptime-bar')).toHaveLength(0)
+      expect(screen.queryByText('uptime.noData')).not.toBeInTheDocument()
+    })
+
+    it('says there is no data when the history request failed', () => {
+      uptimeState.value = { uptime: null, failed: true }
+      render(<PageRenderer tree={tree} monitors={monitors} statusMap={{}} />)
+      expect(screen.getByText('uptime.noData')).toBeInTheDocument()
+    })
+
+    it('renders one focusable bar per day, labelled for keyboard and screen reader users', async () => {
+      uptimeState.value = {
+        uptime: {
+          overallUptimePct: 90,
+          days: [
+            { date: '2026-09-01', status: 'up', uptimePct: 100 },
+            { date: '2026-09-02', status: 'down', uptimePct: 80 },
+          ],
+        },
+        failed: false,
+      }
+      const { container } = render(<PageRenderer tree={tree} monitors={monitors} statusMap={{}} />)
+      const bars = container.querySelectorAll<HTMLButtonElement>('button.bsp-uptime-bar')
+      expect(bars).toHaveLength(2)
+      expect(bars[0]).toHaveAttribute('aria-label', 'uptime.barLabel')
+
+      fireEvent.focus(bars[1]!)
+      // The tooltip opens on focus, not only on hover.
+      expect(await screen.findByText('uptime.noIncidents')).toBeInTheDocument()
+    })
   })
 
   it('shows an incident-affected monitor as degraded instead of operational', () => {

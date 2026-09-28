@@ -152,6 +152,33 @@ describe('status App', () => {
     expect(screen.getByText(/1 active incidents\./)).toBeInTheDocument()
   })
 
+  it('says it is checking, not operational, while the status is still loading', async () => {
+    data.layout = 'pending'
+    renderApp()
+
+    expect(await screen.findByRole('heading', { name: 'Checking…' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'All systems operational.' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/services monitored/)).not.toBeInTheDocument()
+  })
+
+  it('reports a failed status request instead of all systems operational', async () => {
+    vi.mocked(getJSON).mockImplementation(async (path: string) => {
+      if (path === '/api/v1/public/status') throw new Error('offline')
+      if (path === '/api/v1/public/layout') return data.layout
+      return []
+    })
+    renderApp()
+
+    expect(await screen.findByRole('heading', { name: 'Unable to load status — retrying…' })).toBeInTheDocument()
+  })
+
+  it('does not call a page without services operational', async () => {
+    data.layout = { tree: { id: 'root', type: 'page', children: [{ id: 't', type: 'text', markdown: 'Hi' }] }, branding: null }
+    renderApp()
+
+    expect(await screen.findByRole('heading', { name: 'No services to show yet.' })).toBeInTheDocument()
+  })
+
   it('prompts to configure an empty layout', async () => {
     data.layout = { tree: { id: 'root', type: 'page', children: [] }, branding: null }
     renderApp()
@@ -189,7 +216,43 @@ describe('status App', () => {
     expect(screen.queryByRole('button', { name: 'Toggle dark mode' })).not.toBeInTheDocument()
   })
 
-  it('toggles dark mode, offers subscriptions and links the RSS feed', async () => {
+  it('hides the page header when branding turns it off, even without custom branding', async () => {
+    data.layout = { tree: layout, branding: { enabled: 0, showHero: 0 } }
+    renderApp()
+
+    expect(await screen.findByRole('list', { name: 'Rendered layout' })).toBeInTheDocument()
+    expect(screen.queryByText('Real-time Network Status')).not.toBeInTheDocument()
+    expect(screen.queryByText('2 services monitored in real time.')).not.toBeInTheDocument()
+    // The overall status is still announced as the page heading.
+    expect(await screen.findByRole('heading', { level: 1, name: 'All systems operational.' })).toHaveClass('sr-only')
+  })
+
+  it('shows the footer and a small link to the project by default', async () => {
+    renderApp()
+
+    expect(await screen.findByRole('contentinfo')).toBeInTheDocument()
+    const projectLink = screen.getByRole('link', { name: 'BetterStatusPage' })
+    expect(projectLink).toHaveAttribute('href', 'https://github.com/BElluu/BetterStatusPage')
+    expect(projectLink).toHaveAttribute('target', '_blank')
+    expect(projectLink).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+
+  it('hides the footer and the project link independently when branding turns them off', async () => {
+    data.layout = { tree: layout, branding: { enabled: 0, showFooter: 0 } }
+    const { unmount } = renderApp()
+    expect(await screen.findByRole('list', { name: 'Rendered layout' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'BetterStatusPage' })).toBeInTheDocument()
+    expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument()
+    unmount()
+
+    data.layout = { tree: layout, branding: { enabled: 0, showProjectLink: 0 } }
+    renderApp()
+    expect(await screen.findByRole('list', { name: 'Rendered layout' })).toBeInTheDocument()
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'BetterStatusPage' })).not.toBeInTheDocument()
+  })
+
+  it('toggles dark mode, offers subscriptions and advertises the RSS feed to feed readers', async () => {
     const user = userEvent.setup()
     dark.value = true
     subscriptionOptions.value = { methods: ['email', 'rss'] }
@@ -200,7 +263,8 @@ describe('status App', () => {
     await user.click(screen.getByRole('button', { name: 'Toggle dark mode' }))
     expect(toggleDark).toHaveBeenCalled()
 
-    expect(screen.getByRole('link', { name: /RSS feed/ })).toHaveAttribute('href', '/api/v1/public/incidents.rss')
+    // The feed is reachable from the Subscribe dialog; the page no longer repeats it in the footer.
+    expect(screen.queryByRole('link', { name: /RSS feed/ })).not.toBeInTheDocument()
     expect(document.head.querySelector('link[type="application/rss+xml"]')).not.toBeNull()
     await user.click(screen.getByRole('button', { name: /Subscribe/ }))
     await user.click(screen.getByRole('button', { name: 'Close subscribe' }))

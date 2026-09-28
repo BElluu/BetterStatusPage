@@ -1,106 +1,111 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useId, useState, type ReactElement } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { NotificationChannel, NotificationDelivery, NotificationDeliveryAttempt, SmtpSettings, VaultRef } from '@bsp/shared'
 import ChannelFormModal from '../components/notifications/ChannelFormModal'
+import { CHANNEL_TYPES, CHANNEL_TYPE_ORDER, type ChannelType } from '../components/notifications/channelTypes'
 import { DiscordIcon, SlackIcon, TeamsIcon } from '../components/notifications/icons'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { Link } from 'react-router-dom'
-import { ModalShell } from '../components/ModalShell'
+import { ModalHeader, ModalShell } from '../components/ModalShell'
+import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, Field, LoadingState, PageContainer, PageHeader, Pagination, QuickStartPanel, Switch, useToast, type FieldControlProps, type QuickStartOption } from '../components/ui'
+
+const CHANNEL_QUICK_START: QuickStartOption<ChannelType>[] = CHANNEL_TYPE_ORDER.map((key) => ({
+  key,
+  label: CHANNEL_TYPES[key].label,
+  hint: CHANNEL_TYPES[key].hint,
+  icon: CHANNEL_TYPES[key].icon(18),
+}))
 
 export default function NotificationsPage() {
   const qc = useQueryClient()
+  const toast = useToast()
   const [editingChannel, setEditingChannel] = useState<NotificationChannel | null>(null)
   const [showCreate, setShowCreate]         = useState(false)
+  const [createType, setCreateType]         = useState<ChannelType | undefined>(undefined)
   const [confirmDelete, setConfirmDelete]   = useState<NotificationChannel | null>(null)
   const [showSmtp, setShowSmtp]             = useState(false)
 
-  const { data: channels = [], isLoading } = useQuery<NotificationChannel[]>({
+  const { data: channels = [], isLoading, isError, refetch } = useQuery<NotificationChannel[]>({
     queryKey: ['notification-channels'],
     queryFn: () => api.get('/admin/notifications/channels'),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/admin/notifications/channels/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['notification-channels'] }),
+    onSuccess: () => {
+      toast.success('Channel deleted.')
+      setConfirmDelete(null)
+      qc.invalidateQueries({ queryKey: ['notification-channels'] })
+    },
+    onError: (err) => {
+      setConfirmDelete(null)
+      toast.error(err instanceof Error && err.message ? err.message : 'Failed to delete channel')
+    },
   })
 
+  function openCreate(type?: ChannelType) {
+    setCreateType(type)
+    setShowCreate(true)
+  }
+
   function handleSaved() {
+    toast.success(editingChannel ? 'Channel saved.' : 'Channel created.')
     qc.invalidateQueries({ queryKey: ['notification-channels'] })
     setEditingChannel(null)
     setShowCreate(false)
   }
 
   return (
-    <div className="p-8 space-y-6 fade-up">
-      {/* Page header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-headline font-bold text-2xl" style={{ color: 'var(--m3-on-surface)' }}>Notifications</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
-            Alert channels fired when a monitor changes status
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            to="/admin/notifications/history"
-            className="text-sm font-semibold px-4 py-2.5 rounded-lg transition-all flex items-center gap-1.5"
-            style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface)', border: '1px solid var(--m3-outline-variant)' }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>history</span>
+    <PageContainer>
+      <PageHeader
+        title="Notifications"
+        subtitle="Alert channels fired when a monitor changes status"
+        actions={<>
+          <Link to="/admin/notifications/history" className="btn btn-secondary">
+            <span className="material-symbols-outlined" aria-hidden="true">history</span>
             Delivery history
           </Link>
-          <button
-            onClick={() => setShowSmtp(true)}
-            className="text-sm font-semibold px-4 py-2.5 rounded-lg transition-all flex items-center gap-1.5"
-            style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface)', border: '1px solid var(--m3-outline-variant)' }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>mail_settings</span>
+          <button type="button" onClick={() => setShowSmtp(true)} className="btn btn-secondary">
+            <span className="material-symbols-outlined" aria-hidden="true">forward_to_inbox</span>
             SMTP Settings
           </button>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="btn-primary text-sm font-semibold px-4 py-2.5 rounded-lg transition-all"
-            style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }}
-          >
-            + Add Channel
+          <button type="button" onClick={() => openCreate()} className="btn btn-primary">
+            <span className="material-symbols-outlined" aria-hidden="true">add</span>
+            Add Channel
           </button>
-        </div>
-      </div>
+        </>}
+      />
 
-      {/* Info banner */}
-      <div
-        className="flex items-start gap-3 rounded-xl px-4 py-3"
-        style={{ background: 'rgba(57,128,244,0.08)', border: '1px solid rgba(57,128,244,0.20)' }}
-      >
-        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--m3-on-primary-container)', flexShrink: 0, marginTop: '1px' }}>info</span>
-        <p className="text-sm" style={{ color: 'var(--m3-on-surface-variant)' }}>
-          Create notification channels here, then assign them to individual monitors via the monitor's edit form.
-          Use <code className="text-xs px-1 rounded" style={{ background: 'var(--m3-surface-container-high)', fontFamily: 'monospace' }}>{'{{monitor_name}}'}</code>,{' '}
-          <code className="text-xs px-1 rounded" style={{ background: 'var(--m3-surface-container-high)', fontFamily: 'monospace' }}>{'{{status}}'}</code>,{' '}
-          <code className="text-xs px-1 rounded" style={{ background: 'var(--m3-surface-container-high)', fontFamily: 'monospace' }}>{'{{error_message}}'}</code> and more in message templates.
-        </p>
-      </div>
+      <Alert tone="info">
+        Create notification channels here, then assign them to individual monitors via the monitor&apos;s edit form.
+        Use <code className="text-xs px-1 rounded" style={{ background: 'var(--m3-surface-container-highest)', fontFamily: 'monospace' }}>{'{{monitor_name}}'}</code>,{' '}
+        <code className="text-xs px-1 rounded" style={{ background: 'var(--m3-surface-container-highest)', fontFamily: 'monospace' }}>{'{{status}}'}</code>,{' '}
+        <code className="text-xs px-1 rounded" style={{ background: 'var(--m3-surface-container-highest)', fontFamily: 'monospace' }}>{'{{error_message}}'}</code> and more in message templates.
+      </Alert>
 
       {/* Channel list */}
       {isLoading ? (
-        <div className="text-sm" style={{ color: 'var(--m3-secondary)' }}>Loading…</div>
+        <LoadingState label="Loading channels…" />
+      ) : isError ? (
+        <ErrorState message="Could not load notification channels." onRetry={() => void refetch()} />
       ) : channels.length === 0 ? (
-        <div className="rounded-2xl p-12 text-center" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '48px', color: 'var(--m3-outline-variant)' }}>notifications_off</span>
-          <p className="mt-3 text-sm font-medium" style={{ color: 'var(--m3-secondary)' }}>No notification channels yet</p>
-          <p className="text-xs mt-1" style={{ color: 'var(--m3-secondary)' }}>Add a channel to start receiving alerts.</p>
-        </div>
+        <QuickStartPanel
+          title="Where should alerts go?"
+          description="Pick a channel type. You can assign it to monitors afterwards."
+          options={CHANNEL_QUICK_START}
+          onPick={openCreate}
+        />
       ) : (
-        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-          <table className="w-full text-sm">
+        <div className="rounded-2xl overflow-x-auto" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
+          <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
                 {['Name', 'Type', 'Recipient / URL', 'Recovery', 'Status', ''].map((h) => (
                   <th key={h}
                     className={`px-4 py-3 font-mono text-xs uppercase tracking-wider ${h === '' ? 'text-right' : 'text-left'}`}
                     style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
-                  >{h}</th>
+                  >{h === '' ? <span className="sr-only">Actions</span> : h}</th>
                 ))}
               </tr>
             </thead>
@@ -122,23 +127,12 @@ export default function NotificationsPage() {
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--m3-on-surface)' }}>{ch.name}</td>
                     <td className="px-4 py-3">
                       <span className="flex items-center gap-1.5 w-fit px-2 py-0.5 rounded-full text-xs font-medium"
-                        style={{
-                          background: ch.type === 'email'   ? 'rgba(99,102,241,0.12)'
-                            : ch.type === 'discord' ? 'rgba(88,101,242,0.12)'
-                            : ch.type === 'teams'   ? 'rgba(98,100,167,0.12)'
-                            : ch.type === 'slack'   ? 'rgba(74,21,75,0.10)'
-                            : 'rgba(16,185,129,0.12)',
-                          color: ch.type === 'email'   ? '#6366f1'
-                            : ch.type === 'discord' ? '#5865f2'
-                            : ch.type === 'teams'   ? '#6264a7'
-                            : ch.type === 'slack'   ? '#4a154b'
-                            : '#10b981',
-                        }}
+                        style={{ background: 'var(--admin-icon-container)', color: 'var(--admin-icon-color)' }}
                       >
                         {ch.type === 'discord' ? <DiscordIcon size={12} />
                           : ch.type === 'teams' ? <TeamsIcon size={12} />
                           : ch.type === 'slack' ? <SlackIcon size={12} />
-                          : <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>{ch.type === 'email' ? 'mail' : 'webhook'}</span>
+                          : <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '12px' }}>{ch.type === 'email' ? 'mail' : 'webhook'}</span>
                         }
                         {ch.type}
                       </span>
@@ -146,14 +140,14 @@ export default function NotificationsPage() {
                     <td className="px-4 py-3 font-mono text-xs max-w-xs truncate" style={{ color: 'var(--m3-secondary)' }}>{recipient}</td>
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--m3-secondary)' }}>
                       {ch.notifyOnRecovery ? (
-                        <span className="flex items-center gap-1" style={{ color: 'var(--m3-up-bar)' }}>
-                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check_circle</span> Yes
+                        <span className="flex items-center gap-1" style={{ color: 'var(--m3-up)' }}>
+                          <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '14px' }}>check_circle</span> Yes
                         </span>
                       ) : '—'}
                     </td>
                     <td className="px-4 py-3">
                       <span className="flex items-center gap-1 text-xs font-medium w-fit"
-                        style={{ color: ch.enabled ? 'var(--m3-up-bar)' : 'var(--m3-secondary)' }}
+                        style={{ color: ch.enabled ? 'var(--m3-up)' : 'var(--m3-secondary)' }}
                       >
                         <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: ch.enabled ? 'var(--m3-up-bar)' : 'var(--m3-outline-variant)' }} />
                         {ch.enabled ? 'Active' : 'Disabled'}
@@ -161,8 +155,8 @@ export default function NotificationsPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <ActionBtn icon="edit" title="Edit" onClick={() => setEditingChannel(ch)} />
-                        <ActionBtn icon="delete" title="Delete" onClick={() => setConfirmDelete(ch)} danger />
+                        <ActionBtn icon="edit" title="Edit" label={`Edit ${ch.name}`} onClick={() => setEditingChannel(ch)} />
+                        <ActionBtn icon="delete" title="Delete" label={`Delete ${ch.name}`} onClick={() => setConfirmDelete(ch)} danger />
                       </div>
                     </td>
                   </tr>
@@ -177,6 +171,7 @@ export default function NotificationsPage() {
       {(showCreate || editingChannel) && (
         <ChannelFormModal
           channel={editingChannel}
+          initialType={createType}
           onClose={() => { setShowCreate(false); setEditingChannel(null) }}
           onSaved={handleSaved}
         />
@@ -187,13 +182,15 @@ export default function NotificationsPage() {
           title="Delete channel"
           message={`Delete "${confirmDelete.name}"? This will also remove it from all monitors.`}
           confirmLabel="Delete"
-          onConfirm={() => { deleteMutation.mutate(confirmDelete.id); setConfirmDelete(null) }}
+          pending={deleteMutation.isPending}
+          pendingLabel="Deleting…"
+          onConfirm={() => deleteMutation.mutate(confirmDelete.id)}
           onCancel={() => setConfirmDelete(null)}
         />
       )}
 
       {showSmtp && <SmtpModal onClose={() => setShowSmtp(false)} />}
-    </div>
+    </PageContainer>
   )
 }
 
@@ -206,6 +203,7 @@ interface DeliveryListResponse {
 
 export function DeliveryHistory({ channels }: { channels: NotificationChannel[] }) {
   const qc = useQueryClient()
+  const toast = useToast()
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState('')
   const [channelId, setChannelId] = useState('')
@@ -216,7 +214,7 @@ export function DeliveryHistory({ channels }: { channels: NotificationChannel[] 
   if (channelId) params.set('channelId', channelId)
   if (eventType) params.set('eventType', eventType)
 
-  const { data, isLoading } = useQuery<DeliveryListResponse>({
+  const { data, isLoading, isError, refetch } = useQuery<DeliveryListResponse>({
     queryKey: ['notification-deliveries', page, status, channelId, eventType],
     queryFn: () => api.get(`/admin/notifications/deliveries?${params}`),
     refetchInterval: 30_000,
@@ -229,9 +227,11 @@ export function DeliveryHistory({ channels }: { channels: NotificationChannel[] 
   const retry = useMutation({
     mutationFn: (id: number) => api.post(`/admin/notifications/deliveries/${id}/retry`, {}),
     onSuccess: () => {
+      toast.success('Retry queued.')
       qc.invalidateQueries({ queryKey: ['notification-deliveries'] })
       qc.invalidateQueries({ queryKey: ['notification-delivery'] })
     },
+    onError: (err) => toast.error(err instanceof Error && err.message ? err.message : 'Retry failed'),
   })
 
   function changeFilter(setter: (value: string) => void, value: string) {
@@ -239,6 +239,16 @@ export function DeliveryHistory({ channels }: { channels: NotificationChannel[] 
     setPage(1)
     setExpanded(null)
   }
+
+  function clearFilters() {
+    setStatus('')
+    setChannelId('')
+    setEventType('')
+    setPage(1)
+    setExpanded(null)
+  }
+
+  const filtered = !!(status || channelId || eventType)
 
   return <section className="space-y-4 pt-2">
     <div className="overflow-x-auto pb-1">
@@ -256,14 +266,19 @@ export function DeliveryHistory({ channels }: { channels: NotificationChannel[] 
     </div>
 
     <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-      {isLoading ? <p className="p-6 text-sm" style={{ color: 'var(--m3-secondary)' }}>Loading deliveries…</p>
-        : !data?.deliveries.length ? <div className="p-10 text-center"><span className="material-symbols-outlined" style={{ fontSize: '36px', color: 'var(--m3-outline)' }}>outbox</span><p className="text-sm mt-2" style={{ color: 'var(--m3-secondary)' }}>No deliveries match these filters.</p></div>
+      {isLoading ? <LoadingState label="Loading deliveries…" />
+        : isError ? <ErrorState message="Could not load deliveries." onRetry={() => void refetch()} className="rounded-none" />
           : <div className="overflow-x-auto"><table className="w-full text-sm min-w-[850px]">
-            <thead><tr style={{ background: 'var(--m3-surface-container)', borderBottom: '1px solid var(--m3-outline-variant)' }}>{['Time', 'Monitor', 'Channel', 'Event', 'Attempts', 'Status', ''].map((label) => <th key={label} className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>{label}</th>)}</tr></thead>
-            <tbody>{data.deliveries.map((delivery) => <DeliveryRow key={delivery.id} delivery={delivery} expanded={expanded === delivery.id} {...(expanded === delivery.id && detail.data ? { detail: detail.data } : {})} onToggle={() => setExpanded(expanded === delivery.id ? null : delivery.id)} onRetry={() => retry.mutate(delivery.id)} retrying={retry.isPending} />)}</tbody>
+            <thead><tr style={{ background: 'var(--m3-surface-container)', borderBottom: '1px solid var(--m3-outline-variant)' }}>{['Time', 'Monitor', 'Channel', 'Event', 'Attempts', 'Status', ''].map((label) => <th key={label} className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>{label === '' ? <span className="sr-only">Details</span> : label}</th>)}</tr></thead>
+            <tbody>
+              {data?.deliveries.map((delivery) => <DeliveryRow key={delivery.id} delivery={delivery} expanded={expanded === delivery.id} {...(expanded === delivery.id && detail.data ? { detail: detail.data } : {})} onToggle={() => setExpanded(expanded === delivery.id ? null : delivery.id)} onRetry={() => retry.mutate(delivery.id)} retrying={retry.isPending && retry.variables === delivery.id} />)}
+              {!data?.deliveries.length && (filtered
+                ? <EmptyTableRow colSpan={7} icon="outbox" title="No deliveries match these filters." description={<><EmptyStateLink onClick={clearFilters}>Clear the filters</EmptyStateLink> to see every delivery.</>} />
+                : <EmptyTableRow colSpan={7} icon="outbox" title="No deliveries yet" description="Alerts, recoveries and test messages sent to your channels will be listed here." />)}
+            </tbody>
           </table></div>}
     </div>
-    {data && data.pages > 1 && <div className="flex items-center justify-between text-sm"><span style={{ color: 'var(--m3-secondary)' }}>{data.total} deliveries</span><div className="flex items-center gap-2"><button className="px-3 py-1.5 rounded-lg" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Previous</button><span>Page {page} of {data.pages}</span><button className="px-3 py-1.5 rounded-lg" disabled={page >= data.pages} onClick={() => setPage((value) => value + 1)}>Next</button></div></div>}
+    {data && <Pagination page={page} pageCount={data.pages} onPageChange={(next) => { setPage(next); setExpanded(null) }} summary={`Page ${page} of ${data.pages} · ${data.total} deliveries`} />}
   </section>
 }
 
@@ -298,6 +313,7 @@ const EVENT_LABELS: Record<NotificationDelivery['eventType'], string> = {
 
 function DeliveryRow({ delivery, expanded, detail, onToggle, onRetry, retrying }: { delivery: NotificationDelivery; expanded: boolean; detail?: NotificationDelivery & { attempts: NotificationDeliveryAttempt[] }; onToggle: () => void; onRetry: () => void; retrying: boolean }) {
   const statusName = (status: string) => STATUS_NAMES[status] ?? status
+  const detailsId = `delivery-details-${delivery.id}`
   const statusColor = delivery.status === 'delivered' ? 'var(--m3-up-bar)' : delivery.status === 'failed' ? 'var(--m3-error)' : delivery.status === 'suppressed' ? 'var(--m3-outline)' : 'var(--m3-degraded-bar)'
   const statusLabel = delivery.status === 'delivered' ? 'Delivered' : delivery.status === 'failed' ? 'Failed' : delivery.status === 'suppressed' ? 'Suppressed' : 'Pending'
   const eventLabel = EVENT_LABELS[delivery.eventType] ?? delivery.eventType
@@ -313,29 +329,42 @@ function DeliveryRow({ delivery, expanded, detail, onToggle, onRetry, retrying }
       <td className="px-4 py-3">{eventLabel}</td>
       <td className="px-4 py-3">{delivery.attemptCount}</td>
       <td className="px-4 py-3">
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold"><span className="w-2 h-2 rounded-full" style={{ background: statusColor }} />{statusLabel}</span>
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold"><span className="w-2 h-2 rounded-full" aria-hidden="true" style={{ background: statusColor }} />{statusLabel}</span>
         {suppression && <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>{suppression}</p>}
         {heldUntil && <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>Held until {heldUntil}</p>}
       </td>
-      <td className="px-4 py-3 text-right"><span className="material-symbols-outlined" style={{ color: 'var(--m3-secondary)', fontSize: '18px' }}>{expanded ? 'expand_less' : 'expand_more'}</span></td>
+      <td className="px-4 py-3 text-right">
+        <button
+          type="button"
+          onClick={(event) => { event.stopPropagation(); onToggle() }}
+          aria-expanded={expanded}
+          aria-controls={expanded ? detailsId : undefined}
+          aria-label={`${expanded ? 'Hide' : 'Show'} details for ${delivery.monitorName} via ${delivery.channelName}`}
+          className="btn-icon"
+        >
+          <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '18px' }}>{expanded ? 'expand_less' : 'expand_more'}</span>
+        </button>
+      </td>
     </tr>
-    {expanded && <tr><td colSpan={7} className="px-4 py-4" style={{ background: 'var(--m3-surface-container)' }}>
-      {delivery.lastError && <div className="rounded-xl px-3 py-2 mb-3 text-sm" style={{ background: 'var(--m3-error-container)', color: 'var(--m3-on-error-container)' }}>{delivery.lastError}</div>}
+    {expanded && <tr id={detailsId}><td colSpan={7} className="px-4 py-4" style={{ background: 'var(--m3-surface-container)' }}>
+      {delivery.lastError && <Alert tone="error" className="mb-3">{delivery.lastError}</Alert>}
       {suppression && <div className="rounded-xl px-3 py-2 mb-3 text-sm" style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface-variant)' }}>{SUPPRESSION_DETAILS[delivery.suppressionReason ?? '']}</div>}
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2 flex-1"><p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Attempts</p>{!detail ? <p className="text-sm">Loading…</p> : detail.attempts.length === 0 ? <p className="text-sm" style={{ color: 'var(--m3-secondary)' }}>Never attempted.</p> : detail.attempts.map((attempt) => <div key={attempt.id} className="flex flex-wrap gap-x-4 gap-y-1 text-xs"><span className="font-semibold">#{attempt.attemptNumber}</span><span style={{ color: attempt.status === 'delivered' ? 'var(--m3-up-bar)' : 'var(--m3-error)' }}>{attempt.status === 'delivered' ? 'Delivered' : 'Failed'}</span><span style={{ color: 'var(--m3-secondary)' }}>{new Date(attempt.completedAt).toLocaleString()}</span>{attempt.error && <span style={{ color: 'var(--m3-secondary)' }}>{attempt.error}</span>}</div>)}</div>
-        {delivery.status === 'failed' && <button type="button" disabled={retrying} onClick={(event) => { event.stopPropagation(); onRetry() }} className="btn-primary px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap" style={{ opacity: retrying ? 0.6 : 1 }}>{retrying ? 'Retrying…' : 'Retry now'}</button>}
+        <div className="space-y-2 flex-1"><p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Attempts</p>{!detail ? <p className="text-sm">Loading…</p> : detail.attempts.length === 0 ? <p className="text-sm" style={{ color: 'var(--m3-secondary)' }}>Never attempted.</p> : detail.attempts.map((attempt) => <div key={attempt.id} className="flex flex-wrap gap-x-4 gap-y-1 text-xs"><span className="font-semibold">#{attempt.attemptNumber}</span><span style={{ color: attempt.status === 'delivered' ? 'var(--m3-up)' : 'var(--m3-down)' }}>{attempt.status === 'delivered' ? 'Delivered' : 'Failed'}</span><span style={{ color: 'var(--m3-secondary)' }}>{new Date(attempt.completedAt).toLocaleString()}</span>{attempt.error && <span style={{ color: 'var(--m3-secondary)' }}>{attempt.error}</span>}</div>)}</div>
+        {delivery.status === 'failed' && <button type="button" disabled={retrying} onClick={(event) => { event.stopPropagation(); onRetry() }} className="btn btn-primary whitespace-nowrap">{retrying ? 'Retrying…' : 'Retry now'}</button>}
       </div>
     </td></tr>}
   </>
 }
 
-function ActionBtn({ icon, title, onClick, danger }: { icon: string; title: string; onClick: () => void; danger?: boolean }) {
+function ActionBtn({ icon, title, label, onClick, danger }: { icon: string; title: string; label: string; onClick: () => void; danger?: boolean }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       title={title}
-      className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
+      aria-label={label}
+      className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors focus-ring"
       style={{ color: danger ? 'var(--m3-secondary)' : 'var(--m3-secondary)' }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLButtonElement).style.background = danger ? 'var(--m3-error-container)' : 'var(--m3-surface-container-high)'
@@ -346,7 +375,7 @@ function ActionBtn({ icon, title, onClick, danger }: { icon: string; title: stri
         ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)'
       }}
     >
-      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{icon}</span>
+      <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '18px' }}>{icon}</span>
     </button>
   )
 }
@@ -358,6 +387,8 @@ interface SecretSummary { id: number; name: string; type: 'userpass' | 'value' |
 
 function SmtpModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
+  const toast = useToast()
+  const titleId = useId()
   const { data: smtp } = useQuery<SmtpSettings>({
     queryKey: ['smtp-settings'],
     queryFn: () => api.get('/admin/notifications/smtp'),
@@ -431,6 +462,7 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
         vault: credSource === 'vault' ? vault : null,
       })
       qc.invalidateQueries({ queryKey: ['smtp-settings'] })
+      toast.success('SMTP settings saved.')
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
@@ -458,28 +490,18 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
     : undefined
 
   return (
-    <ModalShell align="top">
+    <ModalShell align="top" onClose={saving ? undefined : onClose} labelledBy={titleId}>
       <div className="rounded-2xl w-full max-w-lg my-8"
         style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-        <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-          <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>SMTP Settings</h3>
-          <button onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none"
-            style={{ color: 'var(--m3-secondary)' }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container-high)' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '' }}
-          >×</button>
-        </div>
+        <ModalHeader icon="forward_to_inbox" titleId={titleId} title="SMTP Settings" onClose={onClose} />
 
-        <form onSubmit={handleSave} className="p-6 space-y-4">
-          {error && (
-            <div className="rounded-lg px-4 py-3 text-sm" style={{ background: 'rgba(255,77,106,0.08)', border: '1px solid rgba(255,77,106,0.2)', color: 'var(--m3-down)' }}>{error}</div>
-          )}
+        <form onSubmit={handleSave} className="p-4 sm:p-6 space-y-4">
+          {error && <Alert tone="error">{error}</Alert>}
           <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>Used by all email notification channels.</p>
 
           {/* Host + Port */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
               <SmtpField label="Host">
                 <input value={host} onChange={(e) => setHost(e.target.value)} className="input-sig" placeholder="smtp.example.com" />
               </SmtpField>
@@ -490,22 +512,13 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
           </div>
 
           {/* TLS toggle */}
-          <label className="flex items-center gap-3 cursor-pointer select-none">
-            <div className="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
-              style={{ background: secure ? 'var(--m3-primary)' : 'var(--m3-outline-variant)' }}
-              onClick={() => setSecure((v) => !v)}
-            >
-              <div className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
-                style={{ background: secure ? 'var(--m3-on-primary)' : 'var(--m3-secondary)', left: secure ? '22px' : '2px' }} />
-            </div>
-            <span className="text-sm" style={{ color: 'var(--m3-on-surface-variant)' }}>Use TLS/SSL (port 465)</span>
-          </label>
+          <Switch label="Use TLS/SSL (port 465)" checked={secure} onChange={setSecure} />
 
           <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
 
           {/* Credentials source toggle */}
-          <div>
-            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Credentials</label>
+          <div role="group" aria-labelledby={`${titleId}-credentials`}>
+            <p id={`${titleId}-credentials`} className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Credentials</p>
             <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--m3-outline-variant)', width: 'fit-content' }}>
               {(['direct', 'vault'] as const).map((src) => (
                 <button key={src} type="button"
@@ -516,11 +529,9 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
                       if (!vault) setVault({ vaultId: vaults[0].id, secretId: 0 })
                     }
                   }}
-                  className={`px-4 py-1.5 text-xs font-medium transition-all ${credSource === src ? 'selection-active' : ''}`}
-                  style={{
-                    background: credSource === src ? 'var(--m3-primary-fixed)' : 'transparent',
-                    color:      credSource === src ? 'var(--m3-primary)' : 'var(--m3-secondary)',
-                  }}
+                  aria-pressed={credSource === src}
+                  className={`px-4 py-1.5 text-xs font-medium transition-all focus-ring ${credSource === src ? 'selection-active' : ''}`}
+                  style={{ background: 'transparent', color: 'var(--m3-secondary)' }}
                 >
                   {src === 'direct' ? 'Direct input' : 'From Vault'}
                 </button>
@@ -531,14 +542,10 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
           {/* Direct credentials */}
           {credSource === 'direct' && (
             <>
-              <div className="flex items-start gap-2 rounded-lg px-3 py-2"
-                style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.20)' }}>
-                <span style={{ color: 'var(--m3-degraded-bar)', lineHeight: '20px' }}>⚠</span>
-                <p className="text-xs" style={{ color: 'var(--m3-on-surface-variant)' }}>
-                  For security, store credentials in Vault rather than entering them directly here.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+              <Alert tone="warning">
+                For security, store credentials in Vault rather than entering them directly here.
+              </Alert>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <SmtpField label="Username">
                   <input value={user} onChange={(e) => setUser(e.target.value)} className="input-sig" placeholder="user@example.com" autoComplete="off" />
                 </SmtpField>
@@ -552,7 +559,7 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
           {/* Vault credentials */}
           {credSource === 'vault' && (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <SmtpField label="Vault">
                   <select className="input-sig" value={vault?.vaultId || ''}
                     onChange={(e) => {
@@ -590,7 +597,7 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
                   {(['username', 'password'] as const).map((field) => (
                     <div key={field} className="grid items-center gap-3" style={{ gridTemplateColumns: '90px 1fr' }}>
                       <span className="text-xs font-medium" style={{ color: 'var(--m3-on-surface-variant)' }}>{field}</span>
-                      <input className="input-sig text-xs" placeholder={`JSON key (e.g. "${field}")`}
+                      <input className="input-sig text-xs" placeholder={`JSON key (e.g. "${field}")`} aria-label={`JSON key for ${field}`}
                         value={vault?.fieldMapping?.[field] ?? ''}
                         onChange={(e) => setVault((v) => ({
                           ...v!,
@@ -611,7 +618,7 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
           <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
 
           {/* From */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <SmtpField label="From Address">
               <input value={fromAddress} onChange={(e) => setFromAddress(e.target.value)} className="input-sig" placeholder="alerts@example.com" />
             </SmtpField>
@@ -624,9 +631,10 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
 
           {/* Test email */}
           <div className="space-y-2">
-            <label className="block font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Send Test Email</label>
+            <label htmlFor={`${titleId}-test`} className="block font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Send Test Email</label>
             <div className="flex gap-2">
               <input
+                id={`${titleId}-test`}
                 type="email"
                 value={testTo}
                 onChange={(e) => setTestTo(e.target.value)}
@@ -637,37 +645,20 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
                 type="button"
                 onClick={handleTest}
                 disabled={testing || !testTo}
-                className="px-3 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5 flex-shrink-0"
-                style={{
-                  background: 'var(--m3-surface-container-high)',
-                  color: testing || !testTo ? 'var(--m3-secondary)' : 'var(--m3-on-surface)',
-                  border: '1px solid var(--m3-outline-variant)',
-                  opacity: !testTo ? 0.5 : 1,
-                }}
+                className="btn btn-secondary flex-shrink-0"
               >
                 {testing
-                  ? <><span className="material-symbols-outlined animate-spin" style={{ fontSize: '15px' }}>progress_activity</span> Sending…</>
-                  : <><span className="material-symbols-outlined" style={{ fontSize: '15px' }}>send</span> Send</>
+                  ? <><span className="material-symbols-outlined animate-spin" aria-hidden="true">progress_activity</span> Sending…</>
+                  : <><span className="material-symbols-outlined" aria-hidden="true">send</span> Send</>
                 }
               </button>
             </div>
-            {testMsg && (
-              <div className="rounded-lg px-3 py-2 text-xs"
-                style={{
-                  background: testMsg.ok ? 'rgba(34,197,94,0.08)' : 'rgba(255,77,106,0.08)',
-                  border: `1px solid ${testMsg.ok ? 'rgba(34,197,94,0.25)' : 'rgba(255,77,106,0.2)'}`,
-                  color: testMsg.ok ? 'var(--m3-up-bar)' : 'var(--m3-down)',
-                }}
-              >{testMsg.text}</div>
-            )}
+            {testMsg && <Alert tone={testMsg.ok ? 'success' : 'error'}>{testMsg.text}</Alert>}
           </div>
 
-          <div className="flex justify-end gap-3 pt-1">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-lg" style={{ color: 'var(--m3-secondary)' }}>Cancel</button>
-            <button type="submit" disabled={saving}
-              className="btn-primary px-4 py-2 text-sm font-semibold rounded-lg transition-all"
-              style={{ background: saving ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)', color: saving ? 'var(--m3-secondary)' : 'var(--m3-on-primary)', opacity: saving ? 0.7 : 1 }}
-            >
+          <div className="flex flex-wrap justify-end gap-3 pt-1">
+            <button type="button" onClick={onClose} className="btn btn-ghost">Cancel</button>
+            <button type="submit" disabled={saving} className="btn btn-primary">
               {saving ? 'Saving…' : 'Save Settings'}
             </button>
           </div>
@@ -677,14 +668,6 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-
-
-
-function SmtpField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>{label}</label>
-      {children}
-    </div>
-  )
+function SmtpField({ label, children }: { label: string; children: ReactElement<Partial<FieldControlProps>> }) {
+  return <Field label={label}>{children}</Field>
 }

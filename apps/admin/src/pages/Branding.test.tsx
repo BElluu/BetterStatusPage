@@ -43,7 +43,7 @@ describe('BrandingPage localization', () => {
     expect(cssEditorButton).toBeDisabled()
     expect(Array.from(container.querySelectorAll<HTMLInputElement>('input[type="color"]')).every((input) => input.matches(':disabled'))).toBe(true)
     expect(screen.getByText('Enable custom branding to edit and apply custom CSS.')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Custom branding' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Custom branding' }))
     expect(cssEditorButton).toBeEnabled()
     expect(Array.from(container.querySelectorAll<HTMLInputElement>('input[type="color"]')).every((input) => input.matches(':enabled'))).toBe(true)
     expect(screen.getByText('Universal logo')).toBeInTheDocument()
@@ -51,6 +51,9 @@ describe('BrandingPage localization', () => {
     expect(screen.getByRole('dialog', { name: 'Custom CSS editor' })).toBeInTheDocument()
     expect(screen.getByText('.bsp-chart-card')).toBeInTheDocument()
     expect(screen.getByText('--bsp-chart-bg')).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Custom CSS editor' })).not.toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Custom branding' })).toHaveAttribute('aria-checked', 'true')
 
     expect(screen.queryByText('Tożsamość')).not.toBeInTheDocument()
     expect(screen.queryByText('Zapisz branding')).not.toBeInTheDocument()
@@ -67,7 +70,7 @@ describe('BrandingPage localization', () => {
     )
     const lightLogoInput = container.querySelector<HTMLInputElement>('#branding-logo-light')!
     fireEvent.change(lightLogoInput, { target: { files: [new File(['logo'], 'light.png', { type: 'image/png' })] } })
-    fireEvent.click(screen.getByRole('button', { name: 'Custom branding' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Custom branding' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save branding' }))
 
     await waitFor(() => expect(api.patch).toHaveBeenCalled())
@@ -93,12 +96,37 @@ describe('BrandingPage loading', () => {
     fireEvent.change(screen.getByPlaceholderText('My Status Page'), { target: { value: 'Acme Status' } })
     resolveBranding({ enabled: 0, siteName: 'Stored name', logoType: 'image', logoText: '', logoUrl: null, logoLightUrl: null, logoDarkUrl: null, primaryColor: '#000000', accentColor: '#497cff' })
     // The loaded branding arrives after the edit; it must not replace it.
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Custom branding' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Custom branding' })).toBeInTheDocument())
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     expect(screen.getByPlaceholderText('My Status Page')).toHaveValue('Acme Status')
     fireEvent.click(screen.getByRole('button', { name: 'Save branding' }))
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/branding', expect.objectContaining({ siteName: 'Acme Status' })))
+  })
+})
+
+describe('BrandingPage page header', () => {
+  it('turns the page header, footer and project link off in the saved branding', async () => {
+    vi.clearAllMocks()
+    vi.mocked(api.get).mockImplementation((path: string) => path === '/admin/branding'
+      ? Promise.resolve({ enabled: 0, showHero: 1, showFooter: 1, showProjectLink: 1, siteName: 'Status', logoType: 'image', logoText: '', logoUrl: null, logoLightUrl: null, logoDarkUrl: null, primaryColor: '#000000', accentColor: '#497cff' })
+      : new Promise(() => {}))
+    vi.mocked(api.patch).mockResolvedValue({})
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={queryClient}><BrandingPage /></QueryClientProvider>)
+
+    const headerSwitch = await screen.findByRole('switch', { name: 'Page header' })
+    await waitFor(() => expect(headerSwitch).toHaveAttribute('aria-checked', 'true'))
+    // Works without custom branding, like the uptime thresholds.
+    expect(headerSwitch).toBeEnabled()
+    fireEvent.click(headerSwitch)
+    expect(headerSwitch).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(screen.getByRole('switch', { name: 'Footer' }))
+    expect(screen.getByText(/Thank you for keeping it!/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('switch', { name: 'BetterStatusPage link' }))
+    expect(screen.getByText('Hidden. No hard feelings. Well, maybe a few.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save branding' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/branding', expect.objectContaining({ showHero: 0, showFooter: 0, showProjectLink: 0 })))
   })
 })
 

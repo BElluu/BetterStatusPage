@@ -156,7 +156,71 @@ describe('SubscribeDialog', () => {
   })
 })
 
+describe('dialog focus', () => {
+  it('focuses the dialog body, keeps Tab inside, closes on Escape and returns focus to the opener', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const opener = document.createElement('button')
+    document.body.appendChild(opener)
+    opener.focus()
+
+    const view = render(<SubscribeDialog options={{ ...options, methods: ['email', 'slack'] }} onClose={onClose} />)
+    const close = screen.getByRole('button', { name: 'Close' })
+    const email = screen.getByRole('button', { name: /^Email/ })
+    const slack = screen.getByRole('button', { name: /^Slack/ })
+
+    // The first control in the body, not the close button in the header.
+    expect(email).toHaveFocus()
+    await user.tab()
+    expect(slack).toHaveFocus()
+    await user.tab()
+    expect(close).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(slack).toHaveFocus()
+
+    // Re-rendering with a new inline onClose must not move focus back.
+    view.rerender(<SubscribeDialog options={{ ...options, methods: ['email', 'slack'] }} onClose={() => onClose()} />)
+    expect(slack).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalledTimes(1)
+    view.unmount()
+    expect(opener).toHaveFocus()
+    opener.remove()
+  })
+})
+
 describe('subscription links', () => {
+  it('asks for confirmation before unsubscribing from the manage page', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      type: 'email', email: 're••••@example.com', status: 'active', events: ['incident.created'], monitorIds: [], tags: [],
+      webhookHeaderNames: [], notifyOnFailure: false,
+    })))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<SubscriptionLinkDialog link={{ mode: 'manage', token: 'manage-token' }} options={options} onClose={() => {}} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Unsubscribe' }))
+    expect(screen.getByText('Are you sure?')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Unsubscribe' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, unsubscribe' }))
+
+    expect(await screen.findByText(/You have been unsubscribed/)).toBeInTheDocument()
+    expect((fetchMock.mock.calls[1] as unknown as [string])[0]).toBe('/api/v1/public/subscriptions/unsubscribe')
+  })
+
+  it('shows progress while the manage page loads and explains when the options fail', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+    const { rerender } = render(<SubscriptionLinkDialog link={{ mode: 'manage', token: 't' }} options={undefined} onClose={() => {}} />)
+    expect(screen.getByText('Loading…')).toBeInTheDocument()
+
+    rerender(<SubscriptionLinkDialog link={{ mode: 'manage', token: 't' }} options={undefined} optionsFailed onClose={() => {}} />)
+    expect(screen.getByText(/Could not load subscription options/)).toBeInTheDocument()
+  })
+
   it('reads confirm, manage and unsubscribe links from the URL fragment only', () => {
     window.location.hash = '#subscription=manage&token=abc_123'
     expect(readSubscriptionLink()).toEqual({ mode: 'manage', token: 'abc_123' })

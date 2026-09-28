@@ -101,12 +101,41 @@ describe('AuditLogPage', () => {
     renderPage()
 
     expect(await screen.findByText('Page 1 of 3 · 12 entries')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '← Prev' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: 'Next →' }))
+    expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
     expect(await screen.findByText('Page 2 of 3 · 12 entries')).toBeInTheDocument()
     await waitFor(() => expect(lastQuery().get('page')).toBe('2'))
-    await user.click(screen.getByRole('button', { name: '← Prev' }))
+    await user.click(screen.getByRole('button', { name: 'Previous page' }))
     expect(await screen.findByText('Page 1 of 3 · 12 entries')).toBeInTheDocument()
+  })
+
+  it('exposes the expand control as a button with aria-expanded', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const toggle = await screen.findByRole('button', { name: /2 fields changed/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await user.click(toggle)
+    expect(screen.getByRole('button', { name: /Hide details/ })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('debounces the email search', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('4 entries')
+    const callsBefore = vi.mocked(api.get).mock.calls.length
+    await user.type(screen.getByLabelText('User'), 'abc')
+    expect(vi.mocked(api.get).mock.calls.length).toBe(callsBefore)
+    await waitFor(() => expect(lastQuery().get('userEmail')).toBe('abc'))
+    expect(vi.mocked(api.get).mock.calls.filter(([url]) => String(url).includes('userEmail'))).toHaveLength(1)
+  })
+
+  it('shows an error state with retry', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.get).mockRejectedValueOnce(new Error('boom'))
+    renderPage()
+    expect(await screen.findByText('Could not load the audit log.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Try again/ }))
+    expect(await screen.findByText('4 entries')).toBeInTheDocument()
   })
 
   it('shows an empty state', async () => {
@@ -114,5 +143,7 @@ describe('AuditLogPage', () => {
     renderPage()
 
     expect(await screen.findByText('No audit entries found.')).toBeInTheDocument()
+    expect(screen.getByText('Timestamp')).toBeInTheDocument()
+    expect(screen.getByText('Changes made in the admin panel are recorded here.')).toBeInTheDocument()
   })
 })

@@ -87,6 +87,32 @@ describe('BackupsPage', () => {
     expect(screen.getByText('Enable scheduling to configure recurring backups.')).toBeInTheDocument()
   })
 
+  it('shows an empty row that turns automatic backups on and focuses the switch', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.get).mockResolvedValue(state({ backups: [], config: { ...baseConfig, enabled: false } }))
+    renderPage()
+
+    expect(await screen.findByText('No backups yet')).toBeInTheDocument()
+    expect(screen.getByText('Automatic backups are off. The database is not protected until the first backup exists.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Enable automatic backups' }))
+
+    const toggle = screen.getByRole('switch', { name: 'Automatic backups' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    expect(toggle).toHaveFocus()
+    expect(screen.queryByRole('button', { name: 'Enable automatic backups' })).not.toBeInTheDocument()
+    // Nothing is stored until the schedule is saved.
+    expect(api.put).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Save schedule' })).toBeEnabled()
+  })
+
+  it('explains the empty list when automatic backups are already on', async () => {
+    vi.mocked(api.get).mockResolvedValue(state({ backups: [] }))
+    renderPage()
+
+    expect(await screen.findByText('Automatic backups are on; the first one will appear here after it runs.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Enable automatic backups' })).not.toBeInTheDocument()
+  })
+
   it('validates a restore file and warns about a mismatched vault key', async () => {
     vi.mocked(api.upload).mockResolvedValue({ manifest: { createdAt: Date.UTC(2026, 8, 1) }, vaultKeyMatches: false })
     renderPage()
@@ -103,10 +129,10 @@ describe('BackupsPage', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(await screen.findByRole('button', { name: 'Download' }))
+    await user.click(await screen.findByRole('button', { name: 'Download bsp-2026-09-01.backup' }))
     expect(api.download).toHaveBeenCalledWith('/admin/backups/bsp-2026-09-01.backup/download', 'bsp-2026-09-01.backup')
 
-    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: 'Delete bsp-2026-09-01.backup' }))
     const dialog = screen.getByRole('dialog', { name: 'Delete backup' })
     const confirm = within(dialog).getByRole('button', { name: 'Delete backup' })
     expect(confirm).toBeDisabled()
@@ -115,6 +141,21 @@ describe('BackupsPage', () => {
 
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/admin/backups/bsp-2026-09-01.backup?confirm=bsp-2026-09-01.backup'))
     expect(await screen.findByText('Backup deleted.')).toBeInTheDocument()
+  })
+
+  it('labels only the running action and tones the message', async () => {
+    const user = userEvent.setup()
+    let resolveCreate: (value: unknown) => void = () => {}
+    vi.mocked(api.post).mockImplementationOnce(() => new Promise((resolve) => { resolveCreate = resolve }))
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Create backup' }))
+    expect(screen.getByRole('button', { name: 'Creating backup…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Saved' })).toBeDisabled()
+    expect(screen.queryByText('Saving…')).not.toBeInTheDocument()
+    resolveCreate({})
+    expect(await screen.findByText('Backup created successfully.')).toBeInTheDocument()
+    expect(screen.getByText('Backup created successfully.').closest('[data-tone]')).toHaveAttribute('data-tone', 'success')
   })
 })
 

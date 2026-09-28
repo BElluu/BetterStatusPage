@@ -9,8 +9,16 @@ export function resolveBrandingCustomCss(branding: Branding | null | undefined):
   return branding?.enabled ? branding.customCss : null
 }
 
+/** Brand status colours are tuned for dots and bars; text pulls them towards the text colour so it stays readable. */
+function statusTextColor(statusColor: string, textColor: string): string {
+  return `color-mix(in srgb, ${statusColor} 55%, ${textColor})`
+}
+
 export function resolveBrandingCssVariables(branding: Branding): Record<`--${string}`, string> {
   return {
+    '--bsp-up-text': statusTextColor(branding.statusUpColor, branding.textColor),
+    '--bsp-down-text': statusTextColor(branding.statusDownColor, branding.textColor),
+    '--bsp-degraded-text': statusTextColor(branding.statusDegradedColor, branding.textColor),
     '--bsp-bg': branding.backgroundColor,
     '--bsp-card-bg': branding.cardBackground,
     '--bsp-elevated-bg': branding.elevatedBackground,

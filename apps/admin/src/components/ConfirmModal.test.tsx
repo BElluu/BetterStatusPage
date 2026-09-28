@@ -62,4 +62,32 @@ describe('ConfirmModal', () => {
     await user.click(confirm)
     expect(onConfirm).toHaveBeenCalledOnce()
   })
+
+  it('stays open and disabled while an async confirmation is pending', () => {
+    const onCancel = vi.fn()
+    render(<ConfirmModal title="Delete monitor" message="Gone for good" pending onConfirm={vi.fn()} onCancel={onCancel} />)
+
+    expect(screen.getByRole('button', { name: 'Working…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    expect(screen.getByRole('dialog', { name: 'Delete monitor' })).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('cancels on Escape unless pending', async () => {
+    const user = userEvent.setup()
+    const onCancel = vi.fn()
+    const { rerender } = render(<ConfirmModal title="Confirm" message="Continue?" pending onConfirm={vi.fn()} onCancel={onCancel} />)
+    await user.keyboard('{Escape}')
+    expect(onCancel).not.toHaveBeenCalled()
+
+    rerender(<ConfirmModal title="Confirm" message="Continue?" onConfirm={vi.fn()} onCancel={onCancel} />)
+    await user.keyboard('{Escape}')
+    expect(onCancel).toHaveBeenCalledOnce()
+  })
+
+  it('uses the shared input and danger button styles', () => {
+    render(<ConfirmModal title="Delete backup" message="Permanent action" confirmationText="x" onConfirm={vi.fn()} onCancel={vi.fn()} />)
+    expect(screen.getByRole('textbox')).toHaveClass('input-m3')
+    expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('btn', 'btn-danger')
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveClass('btn', 'btn-secondary')
+  })
 })

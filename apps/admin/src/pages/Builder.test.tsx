@@ -2,10 +2,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { LayoutTree } from '@bsp/shared'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import { useBuilderStore } from '../components/builder/useBuilderStore'
 import BuilderPage from './Builder'
+import { ToastProvider } from '../components/ui'
 
 vi.mock('../api/client', () => ({
   api: { get: vi.fn(), put: vi.fn() },
@@ -45,7 +46,7 @@ class NoopResizeObserver {
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><BuilderPage /></QueryClientProvider>)
+  return render(<QueryClientProvider client={queryClient}><ToastProvider><BuilderPage /></ToastProvider></QueryClientProvider>)
 }
 
 function mockApi(tree: LayoutTree = layout, monitorList: unknown[] = monitors) {
@@ -61,26 +62,27 @@ function dataTransfer(data: Record<string, string>) {
 }
 
 describe('BuilderPage', () => {
+  // Stubbed for the whole suite: the grid can still observe its container after a test's last assertion.
+  beforeAll(() => { vi.stubGlobal('ResizeObserver', NoopResizeObserver) })
+  afterAll(() => vi.unstubAllGlobals())
+
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.stubGlobal('ResizeObserver', NoopResizeObserver)
     useBuilderStore.setState({ tree: { id: 'root', type: 'page', children: [] }, selectedId: null, isDirty: false })
     mockApi()
     vi.mocked(api.put).mockResolvedValue({})
   })
-
-  afterEach(() => vi.unstubAllGlobals())
 
   it('loads the layout, renders every node type and prunes deleted monitors', async () => {
     renderPage()
 
     expect(await screen.findByText('Core services')).toBeInTheDocument()
     expect(screen.getByText('Welcome to our status page')).toBeInTheDocument()
-    expect(screen.getByText('Incydenty · active')).toBeInTheDocument()
+    expect(screen.getByText('Incidents · active')).toBeInTheDocument()
     expect(screen.getByText('2d')).toBeInTheDocument()
     expect(screen.getByText('Group note')).toBeInTheDocument()
     // The group child pointing at a deleted monitor is dropped and the page is marked unsaved.
-    expect(screen.getByText('Unsaved')).toBeInTheDocument()
+    expect(await screen.findByText('Unsaved')).toBeInTheDocument()
     expect(findGroupChildren()).toEqual(['gm1', 'gt1'])
     // Only monitors that report response times are offered as charts.
     expect(screen.getByText('Charts').parentElement).not.toHaveTextContent('Deploy hook')
@@ -97,6 +99,60 @@ describe('BuilderPage', () => {
     expect(await screen.findByText('Saved!')).toBeInTheDocument()
     expect(screen.queryByText('Unsaved')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
+  it('reports a failed save and keeps the changes unsaved', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.put).mockRejectedValueOnce(new Error('Layout too large'))
+    renderPage()
+    await screen.findByText('Core services')
+    await screen.findByText('Unsaved')
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText("Couldn't save the layout: Layout too large")).toBeInTheDocument()
+    expect(screen.getByText('Not saved')).toBeInTheDocument()
+    expect(screen.queryByText('Saved!')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+  })
+
+  it('selects cards from the keyboard and adds toolbox blocks without dragging', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Core services')
+
+    const card = screen.getByRole('button', { name: 'Incidents', pressed: false })
+    card.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByText('Properties')).toBeInTheDocument()
+    expect(card).toHaveAttribute('aria-pressed', 'true')
+
+    const before = useBuilderStore.getState().tree.children.length
+    await user.click(screen.getByRole('button', { name: 'Add Divider to the page' }))
+    const children = useBuilderStore.getState().tree.children
+    expect(children).toHaveLength(before + 1)
+    const added = children.at(-1)!
+    expect(added.type).toBe('divider')
+    // Appended below every existing block.
+    expect(added.grid!.y).toBeGreaterThanOrEqual(Math.max(...children.slice(0, -1).map((n) => n.grid!.y)))
+
+    await user.click(screen.getByRole('button', { name: 'Add monitor Deploy hook to the page' }))
+    expect(useBuilderStore.getState().tree.children.at(-1)).toMatchObject({ type: 'monitor', monitorId: 2 })
+  })
+
+  it('asks before deleting a group that still has items', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Core services')
+
+    await user.click(screen.getByRole('button', { name: 'Delete Group Core services' }))
+    expect(screen.getByRole('dialog', { name: 'Delete group' })).toHaveTextContent('Delete "Core services" and the 2 items inside it?')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(findGroupChildren()).toHaveLength(2)
+
+    await user.click(screen.getByRole('button', { name: 'Delete Group Core services' }))
+    await user.click(within(screen.getByRole('dialog', { name: 'Delete group' })).getByRole('button', { name: 'Delete' }))
+    expect(useBuilderStore.getState().tree.children.find((n) => n.id === 'g1')).toBeUndefined()
   })
 
   it('edits a monitor card through the properties panel', async () => {
@@ -134,9 +190,9 @@ describe('BuilderPage', () => {
     await user.type(markdown, '{Enter}Line two')
     expect(useBuilderStore.getState().tree.children.find((n) => n.id === 't1')).toMatchObject({ markdown: 'Welcome to our status page\nLine two' })
 
-    await user.click(screen.getByText('Incydenty · active'))
-    await user.selectOptions(screen.getByDisplayValue('Active only'), 'resolved')
-    expect(await screen.findByText('Incydenty · resolved')).toBeInTheDocument()
+    await user.click(screen.getByText('Incidents · active'))
+    await user.selectOptions(screen.getByLabelText('Filter'), 'resolved')
+    expect(await screen.findByText('Incidents · resolved')).toBeInTheDocument()
 
     await user.click(screen.getByText('Core services'))
     const properties = screen.getByText('Properties').closest('div')!.parentElement!
@@ -170,9 +226,37 @@ describe('BuilderPage', () => {
     renderPage()
 
     expect(await screen.findByText('No monitors')).toBeInTheDocument()
-    expect(screen.getByText('Drag elements from the toolbox')).toBeInTheDocument()
-    // The layout is only loaded once monitors exist to prune against.
-    expect(api.get).not.toHaveBeenCalledWith('/admin/layout')
+    expect(await screen.findByText('Drag elements from the toolbox or add them with +')).toBeInTheDocument()
+    expect(api.get).toHaveBeenCalledWith('/admin/layout')
+  })
+
+  it('loads a saved layout even when there are no monitors', async () => {
+    mockApi({
+      id: 'root', type: 'page',
+      children: [{ id: 't1', type: 'text', name: 'Intro', markdown: 'Hello there', grid: { x: 0, y: 0, w: 3, h: 2 } }],
+    } as unknown as LayoutTree, [])
+    renderPage()
+
+    expect(await screen.findByText('Hello there')).toBeInTheDocument()
+  })
+
+  it('shows an error with retry when the layout cannot be loaded', async () => {
+    const user = userEvent.setup()
+    let fail = true
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/admin/monitors') return monitors
+      if (path === '/admin/layout') {
+        if (fail) throw new Error('boom')
+        return layout
+      }
+      throw new Error(`Unexpected GET ${path}`)
+    })
+    renderPage()
+
+    expect(await screen.findByText("Couldn't load the page layout.")).toBeInTheDocument()
+    fail = false
+    await user.click(screen.getByRole('button', { name: /Try again/ }))
+    expect(await screen.findByText('Core services')).toBeInTheDocument()
   })
 })
 

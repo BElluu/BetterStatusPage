@@ -61,11 +61,16 @@ const DEFAULTS = {
   ...DEFAULT_UPTIME_THRESHOLDS,
   customCss: null as string | null,
   enabled: 0 as number,
+  showHero: 1 as number,
+  showFooter: 1 as number,
+  showProjectLink: 1 as number,
   logoType: 'image' as string,
   logoText: null as string | null,
 }
 
 type BrandingBody = Partial<Omit<typeof DEFAULTS, 'faviconUrl' | keyof typeof DEFAULT_UPTIME_THRESHOLDS>> & Partial<UptimeThresholds>
+
+const LAYOUT_SWITCHES = ['showHero', 'showFooter', 'showProjectLink'] as const
 
 const COLOR_FIELDS = Object.keys(DEFAULT_BRANDING_COLORS) as Array<keyof typeof DEFAULT_BRANDING_COLORS>
 
@@ -81,6 +86,8 @@ export async function brandingRoutes(app: FastifyInstance) {
     if (invalidColor) {
       return reply.code(400).send({ error: `${invalidColor} must be a hex (#rrggbb) or rgb()/rgba() colour` })
     }
+    const invalidSwitch = LAYOUT_SWITCHES.find((field) => req.body[field] !== undefined && req.body[field] !== 0 && req.body[field] !== 1)
+    if (invalidSwitch) return reply.code(400).send({ error: `${invalidSwitch} must be 0 or 1` })
     const now = Date.now()
     const existing = (await db.select().from(branding))[0]
     // Validated as a set: a partial update must still leave the stored thresholds descending.
@@ -97,7 +104,7 @@ export async function brandingRoutes(app: FastifyInstance) {
     const fields = [
       'siteName', 'primaryColor', 'accentColor', 'backgroundColor',
       'cardBackground', 'cardBorderColor', 'textColor', 'textMutedColor',
-      'statusUpColor', 'statusDownColor', 'statusDegradedColor', 'statusPartialColor', 'customCss', 'enabled',
+      'statusUpColor', 'statusDownColor', 'statusDegradedColor', 'statusPartialColor', 'customCss', 'enabled', 'showHero', 'showFooter', 'showProjectLink',
       'elevatedBackground', 'chartBackground', 'chartGridColor',
       'logoType', 'logoText', 'logoUrl', 'logoLightUrl', 'logoDarkUrl',
       'uptimeThresholdUp', 'uptimeThresholdDegraded', 'uptimeThresholdPartial',

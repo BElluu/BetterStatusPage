@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { EN_DEFAULTS } from '@bsp/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import LocalizationPage from './Localization'
@@ -72,7 +73,11 @@ describe('LocalizationPage', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/locales/pl/set-default', {}))
 
     await user.click(screen.getByRole('button', { name: 'Delete' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete language' })
+    expect(api.delete).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button', { name: 'Delete language' }))
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/admin/locales/pl'))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
   it('creates a language and shows server errors', async () => {
@@ -92,6 +97,49 @@ describe('LocalizationPage', () => {
     await user.type(screen.getByPlaceholderText('Name (e.g. Polski, Deutsch)'), '{Enter}')
     await waitFor(() => expect(api.post).toHaveBeenLastCalledWith('/admin/locales', { code: 'de', name: 'Deutsch' }))
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Create Language' })).not.toBeInTheDocument())
+  })
+
+  it('offers every translation key with an associated label', async () => {
+    renderPage()
+    await screen.findByRole('heading', { name: 'English' })
+
+    const editor = screen.getByRole('heading', { name: 'English' }).closest('div.flex-col') as HTMLElement
+    expect(within(editor).getAllByRole('textbox')).toHaveLength(Object.keys(EN_DEFAULTS).length)
+    expect(screen.getByLabelText('chart.noData')).toBeInTheDocument()
+    expect(screen.getByLabelText('overall.noServices')).toBeInTheDocument()
+    expect(screen.getByLabelText('incident.impact.major')).toBeInTheDocument()
+  })
+
+  it('asks before discarding unsaved edits when switching language', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.type(await screen.findByPlaceholderText('All systems operational.'), 'Everything fine')
+    await user.click(screen.getByRole('button', { name: /Polski/ }))
+    const dialog = screen.getByRole('dialog', { name: 'Discard unsaved changes?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('heading', { name: 'English' })).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Everything fine')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Polski/ }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Discard changes' }))
+    expect(screen.getByRole('heading', { name: 'Polski' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /English/ }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'English' })).toBeInTheDocument()
+  })
+
+  it('switches freely after saving', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.type(await screen.findByPlaceholderText('All systems operational.'), 'Fine')
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await screen.findByRole('button', { name: 'Saved!' })
+    await user.click(screen.getByRole('button', { name: /Polski/ }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Polski' })).toBeInTheDocument()
   })
 
   it('prompts to pick a language when none exist', async () => {

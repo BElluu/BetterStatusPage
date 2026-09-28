@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, isAuthenticated, setSession, type AuthUser } from '../api/client'
 import { useDarkMode } from '../hooks/useDarkMode'
+import { Alert } from '../components/ui'
 
 const STEPS = [
   { n: 1, label: 'Database' },
   { n: 2, label: 'Admin Account' },
   { n: 3, label: 'Done' },
 ]
+
+const LABEL_CLASS = 'block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider'
 
 export default function SetupPage() {
   const navigate = useNavigate()
@@ -93,14 +96,14 @@ export default function SetupPage() {
         </div>
 
         {/* Progress steps */}
-        <div className="relative flex flex-col gap-0">
+        <ol className="relative flex flex-col gap-0" aria-label="Setup progress">
           {STEPS.map((s, i) => {
             const isDone   = step > s.n
             const isActive = step === s.n
             const isPending = step < s.n
 
             return (
-              <div key={s.n}>
+              <li key={s.n} aria-current={isActive ? 'step' : undefined}>
                 <div className="flex items-center gap-4">
                   {/* Circle */}
                   <div
@@ -120,7 +123,7 @@ export default function SetupPage() {
                     }}
                   >
                     {isDone ? (
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                         <path d="M2.5 7L5.5 10L11.5 4" stroke="var(--m3-on-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     ) : s.n}
@@ -144,27 +147,25 @@ export default function SetupPage() {
 
                 {/* Connector */}
                 {i < STEPS.length - 1 && (
-                  <div className="ml-4 w-px h-6 my-1"
+                  <div className="ml-4 w-px h-6 my-1" aria-hidden="true"
                     style={{ background: step > s.n ? 'var(--m3-primary)' : 'var(--m3-outline-variant)' }} />
                 )}
-              </div>
+              </li>
             )
           })}
-        </div>
+        </ol>
       </div>
 
       {/* ── Right panel ── */}
       <div className="flex-1 relative flex items-center justify-center px-6 py-12">
         {/* Dark mode toggle */}
         <button
+          type="button"
           onClick={toggleDark}
-          className="absolute top-5 right-5 p-2 rounded-full transition-all"
-          style={{ color: 'var(--m3-secondary)' }}
-          onMouseEnter={(e) => { (e.currentTarget).style.background = 'var(--m3-surface-container)' }}
-          onMouseLeave={(e) => { (e.currentTarget).style.background = '' }}
+          className="btn-icon absolute top-5 right-5 w-9 h-9 rounded-full"
           aria-label="Toggle dark mode"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+          <span className="material-symbols-outlined" aria-hidden="true">
             {isDark ? 'light_mode' : 'dark_mode'}
           </span>
         </button>
@@ -184,7 +185,7 @@ export default function SetupPage() {
           {step === 1 && (
             <div>
               <div className="mb-8">
-                <p className="font-label text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--m3-secondary)' }}>Step 1 of 2</p>
+                <p className="font-label text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--m3-secondary)' }}>Step 1 of 3</p>
                 <h1 className="font-headline font-bold text-2xl" style={{ color: 'var(--m3-on-surface)' }}>
                   Choose a database
                 </h1>
@@ -193,7 +194,7 @@ export default function SetupPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
                 {/* SQLite card — always selected */}
                 <div
                   className="relative rounded-2xl p-5 cursor-pointer transition-all duration-200"
@@ -285,11 +286,7 @@ export default function SetupPage() {
                 </div>
               </div>
 
-              <button
-                onClick={() => setStep(2)}
-                className="btn-primary w-full font-sans font-semibold rounded-xl py-3 text-sm transition-all"
-                style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)', cursor: 'pointer' }}
-              >
+              <button type="button" onClick={() => setStep(2)} className="btn btn-primary w-full py-3">
                 Continue
               </button>
             </div>
@@ -300,16 +297,16 @@ export default function SetupPage() {
             <div>
               <div className="mb-8">
                 <button
+                  type="button"
                   onClick={() => { setError(''); setStep(1) }}
-                  className="flex items-center gap-1.5 text-xs font-sans font-semibold mb-4 transition-opacity hover:opacity-70"
-                  style={{ color: 'var(--m3-secondary)' }}
+                  className="btn btn-ghost btn-sm -ml-3 mb-4"
                 >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                     <path d="M9 2L4 7l5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   Back
                 </button>
-                <p className="font-label text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--m3-secondary)' }}>Step 2 of 2</p>
+                <p className="font-label text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--m3-secondary)' }}>Step 2 of 3</p>
                 <h1 className="font-headline font-bold text-2xl" style={{ color: 'var(--m3-on-surface)' }}>
                   Create admin account
                 </h1>
@@ -319,25 +316,16 @@ export default function SetupPage() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                {error && (
-                  <div
-                    className="rounded-xl px-4 py-3 text-sm font-sans"
-                    style={{
-                      background: 'var(--m3-error-container)',
-                      border: '1px solid color-mix(in srgb, var(--m3-error) 30%, transparent)',
-                      color: 'var(--m3-on-error-container)',
-                    }}
-                  >
-                    {error}
-                  </div>
-                )}
+                {error && <Alert tone="error">{error}</Alert>}
 
                 <div>
-                  <label className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
+                  <label htmlFor="setup-email" className={LABEL_CLASS} style={{ color: 'var(--m3-secondary)' }}>
                     Email
                   </label>
                   <input
+                    id="setup-email"
                     type="email"
+                    autoComplete="username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -348,11 +336,13 @@ export default function SetupPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
+                  <label htmlFor="setup-password" className={LABEL_CLASS} style={{ color: 'var(--m3-secondary)' }}>
                     Password
                   </label>
                   <input
+                    id="setup-password"
                     type="password"
+                    autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -362,11 +352,13 @@ export default function SetupPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
+                  <label htmlFor="setup-confirm-password" className={LABEL_CLASS} style={{ color: 'var(--m3-secondary)' }}>
                     Confirm Password
                   </label>
                   <input
+                    id="setup-confirm-password"
                     type="password"
+                    autoComplete="new-password"
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
                     required
@@ -375,17 +367,7 @@ export default function SetupPage() {
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="btn-primary w-full font-sans font-semibold rounded-xl py-3 text-sm transition-all mt-2"
-                  style={{
-                    background: loading ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
-                    color: loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    opacity: loading ? 0.7 : 1,
-                  }}
-                >
+                <button type="submit" disabled={loading} className="btn btn-primary w-full py-3 mt-2">
                   {loading ? 'Creating account…' : 'Create Account'}
                 </button>
               </form>
@@ -404,12 +386,13 @@ export default function SetupPage() {
                     border: '2px solid color-mix(in srgb, var(--m3-primary) 40%, transparent)',
                   }}
                 >
-                  <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                  <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
                     <path d="M8 18L15 25L28 11" stroke="var(--m3-primary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </div>
               </div>
 
+              <p className="font-label text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--m3-secondary)' }}>Step 3 of 3</p>
               <h1 className="font-headline font-bold text-2xl mb-3" style={{ color: 'var(--m3-on-surface)' }}>
                 You're all set.
               </h1>
@@ -441,11 +424,7 @@ export default function SetupPage() {
                 ))}
               </div>
 
-              <button
-                onClick={() => navigate('/admin/')}
-                className="btn-primary w-full font-sans font-semibold rounded-xl py-3 text-sm transition-all"
-                style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)', cursor: 'pointer' }}
-              >
+              <button type="button" onClick={() => navigate('/admin/')} className="btn btn-primary w-full py-3">
                 Go to Dashboard
               </button>
             </div>
