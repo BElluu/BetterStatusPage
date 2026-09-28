@@ -9,7 +9,7 @@ const branding = {
   primaryColor: '#111111', accentColor: '#222222', backgroundColor: '#333333',
   cardBackground: '#444444', elevatedBackground: '#555555', cardBorderColor: '#666666',
   textColor: '#777777', textMutedColor: '#888888', statusUpColor: '#009900',
-  statusDownColor: '#990000', statusDegradedColor: '#999900', chartBackground: '#121212',
+  statusDownColor: '#990000', statusDegradedColor: '#999900', statusPartialColor: '#aa5500', chartBackground: '#121212',
   chartGridColor: '#343434',
 } as Branding
 
@@ -25,7 +25,7 @@ describe('custom branding resolution', () => {
     expect(resolveBrandingCssVariables(branding)).toMatchObject({
       '--bsp-bg': '#333333', '--bsp-card-bg': '#444444', '--bsp-elevated-bg': '#555555',
       '--bsp-chart-bg': '#121212', '--bsp-chart-grid': '#343434',
-      '--bsp-up': '#009900', '--bsp-down': '#990000', '--bsp-degraded': '#999900',
+      '--bsp-up': '#009900', '--bsp-down': '#990000', '--bsp-degraded': '#999900', '--bsp-partial': '#aa5500',
       '--m3-on-surface': '#777777', '--m3-secondary': '#888888',
     })
   })

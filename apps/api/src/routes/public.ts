@@ -7,7 +7,8 @@ import {
 import { eq, desc, gte, ne, inArray, and, lte, sql } from 'drizzle-orm'
 import { serveEventStream, sseService } from '../services/sse.service.js'
 import { getPublishedMonitorIds, publishedMonitorIdsSnapshot } from '../services/publishedMonitors.js'
-import type { LayoutTree, LayoutNode, GroupNode, MonitorNode } from '@bsp/shared'
+import type { LayoutTree, LayoutNode, GroupNode, MonitorNode, UptimeThresholds } from '@bsp/shared'
+import { classifyUptimeDay, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 import { PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
 import { withIncidentDetails } from '../services/incidentDetails.js'
 import { parseStrictPagination } from '../lib/pagination.js'
@@ -148,12 +149,14 @@ export async function publicRoutes(app: FastifyInstance) {
 
   async function loadUptime(monitorId: number, days: number) {
     const since = Date.now() - days * 24 * 60 * 60 * 1000
+    const brandingRow = (await db.select().from(branding))[0]
+    const thresholds: UptimeThresholds = brandingRow ?? DEFAULT_UPTIME_THRESHOLDS
     // Counted per UTC day in SQL: the page only needs totals, not up to 90 days of raw rows.
     const day = sql<string>`strftime('%Y-%m-%d', ${monitorResults.checkedAt} / 1000, 'unixepoch')`
     const dayRows = await db.select({
       date: day,
       checksTotal: sql<number>`count(*)`,
-      checksUp: sql<number>`sum(case when ${monitorResults.status} = 'up' then 1 else 0 end)`,
+      checksUp: sql<number>`sum(case when ${monitorResults.status} = 'up' or ${monitorResults.unconfirmed} = 1 then 1 else 0 end)`,
     }).from(monitorResults)
       .where(and(eq(monitorResults.monitorId, monitorId), gte(monitorResults.checkedAt, since)))
       .groupBy(day)
@@ -181,7 +184,7 @@ export async function publicRoutes(app: FastifyInstance) {
       const checksTotal = Number(bucket?.checksTotal ?? 0)
       const checksUp = Number(bucket?.checksUp ?? 0)
       const uptimePct = checksTotal > 0 ? (checksUp / checksTotal) * 100 : 100
-      const status = checksTotal === 0 ? 'no-data' : checksUp === checksTotal ? 'up' : checksUp === 0 ? 'down' : 'degraded'
+      const status = classifyUptimeDay(checksTotal > 0 ? uptimePct : null, thresholds)
 
       // Incidents active on this day (started before end of day, not resolved before start of day)
       const dayStart = new Date(date + 'T00:00:00.000Z').getTime()

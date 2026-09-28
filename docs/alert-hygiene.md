@@ -44,6 +44,13 @@ Two things worth knowing:
 - **Severity changes stay immediate.** A monitor that is already confirmed `degraded` and turns
   `down` alerts on the next check regardless of the threshold — you have already been paged, so
   the escalation is not news you need debounced.
+- **Uptime follows confirmed failures.** A failure that has not (yet) reached `failureThreshold`
+  does not lower the uptime shown on the public page. Once the streak is confirmed, the whole
+  streak counts from its first failure; a streak broken by a successful check never counts.
+
+The colour of each day of the uptime bar comes from global thresholds under
+*Admin → Branding → **Uptime bar***: operational from 99.9 %, degraded from 99 %, partial outage
+from 95 %, down below that (defaults). They apply to every monitor.
 
 Do not confuse thresholds with **Attempts** (`retries`). Attempts are retries *inside one check*,
 seconds apart, to ride out a single dropped packet. Thresholds span *whole check intervals*. They

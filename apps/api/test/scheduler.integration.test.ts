@@ -9,7 +9,7 @@ import {
 } from '../src/db/schema.js'
 import { sseService } from '../src/services/sse.service.js'
 import {
-  getDueMonitors, getSchedulerHealth, isCheckInFlight, isInMaintenance, purgeOldResults, runCheck, runSchedulerTick,
+  getDueMonitors, getSchedulerHealth, isCheckInFlight, isInMaintenance, purgeOldResults, recordObservation, runCheck, runSchedulerTick,
 } from '../src/workers/scheduler.js'
 import type { SchedulerConfig } from '../src/config/scheduler.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
@@ -102,6 +102,28 @@ describe('scheduler checks', () => {
     const stored = (await db.select().from(monitors).where(eq(monitors.id, dependent!.id)))[0]!
     assert.equal(stored.currentStatus, 'affected')
     assert.equal((await db.select().from(monitorResults))[0]!.status, 'affected')
+  })
+
+  it('keeps failures below the failure threshold out of uptime until the threshold confirms them', async () => {
+    const [created] = await db.insert(monitors).values(monitorValues('Flapping', {
+      failureThreshold: 3, currentStatus: 'up', alertConfirmedStatus: 'up',
+    })).returning()
+    const observe = async (status: 'up' | 'down') => {
+      const monitor = (await db.select().from(monitors).where(eq(monitors.id, created!.id)))[0]!
+      await recordObservation(monitor, { status, responseMs: null, error: status === 'down' ? 'boom' : null })
+    }
+
+    await observe('down') // a blip: never confirmed
+    await observe('up')
+    await observe('down')
+    await observe('down')
+    const pending = await db.select().from(monitorResults).orderBy(monitorResults.id)
+    assert.deepEqual(pending.map((row) => row.unconfirmed), [1, 0, 1, 1])
+
+    await observe('down') // third in a row confirms the outage from its first failure on
+    const rows = await db.select().from(monitorResults).orderBy(monitorResults.id)
+    assert.deepEqual(rows.map((row) => row.unconfirmed), [1, 0, 0, 0, 0])
+    assert.equal((await db.select().from(monitors).where(eq(monitors.id, created!.id)))[0]!.alertConfirmedStatus, 'down')
   })
 })
 

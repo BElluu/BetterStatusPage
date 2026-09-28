@@ -101,3 +101,30 @@ describe('BrandingPage loading', () => {
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/branding', expect.objectContaining({ siteName: 'Acme Status' })))
   })
 })
+
+describe('BrandingPage uptime thresholds', () => {
+  it('derives the Down limit from Partial outage and blocks saving limits out of order', async () => {
+    vi.clearAllMocks()
+    vi.mocked(api.get).mockImplementation(() => new Promise(() => {}))
+    vi.mocked(api.patch).mockResolvedValue({})
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <BrandingPage />
+      </QueryClientProvider>,
+    )
+
+    fireEvent.change(screen.getByLabelText('Partial outage from (%)'), { target: { value: '80' } })
+    expect(screen.getByLabelText('Down below (%)')).toHaveTextContent('80')
+
+    fireEvent.change(screen.getByLabelText('Degraded from (%)'), { target: { value: '99.95' } })
+    expect(screen.getByRole('alert')).toHaveTextContent(/descending/)
+    expect(screen.getByRole('button', { name: 'Save branding' })).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText('Degraded from (%)'), { target: { value: '95' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save branding' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/branding', expect.objectContaining({
+      uptimeThresholdUp: 99.9, uptimeThresholdDegraded: 95, uptimeThresholdPartial: 80,
+    })))
+  })
+})
