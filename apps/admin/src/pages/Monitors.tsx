@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { Monitor, MonitorStatus } from '@bsp/shared'
+import { DEFAULT_CERT_WARN_DAYS } from '@bsp/shared'
+import type { HttpsConfig, Monitor, MonitorStatus } from '@bsp/shared'
 import { StatusBadge } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
 import { ConfirmModal } from '../components/ConfirmModal'
@@ -193,6 +194,7 @@ export default function MonitorsPage() {
                 >
                   <td className="px-4 py-3">
                     <div className="font-medium" style={{ color: 'var(--m3-on-surface)' }}>{monitor.name}</div>
+                    {monitor.type === 'https' && typeof monitor.certExpiresAt === 'number' && <CertExpiryChip monitor={monitor} />}
                     {(monitor.tags ?? []).length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
                         {(monitor.tags ?? []).map((t, j) => {
@@ -275,6 +277,20 @@ export default function MonitorsPage() {
           onCancel={() => setConfirmDelete(null)}
         />
       )}
+    </div>
+  )
+}
+
+/** Days until the endpoint's certificate expires, tinted once it is inside the warning window. */
+function CertExpiryChip({ monitor }: { monitor: Monitor }) {
+  const expiresAt = monitor.certExpiresAt!
+  const days = Math.floor((expiresAt - Date.now()) / 86_400_000)
+  const certExpiry = (monitor.config as HttpsConfig).certExpiry
+  const warnDays = certExpiry?.enabled ? certExpiry.warnDays : DEFAULT_CERT_WARN_DAYS
+  const color = days < 0 ? 'var(--m3-down)' : days <= warnDays ? 'var(--m3-degraded-bar)' : 'var(--m3-secondary)'
+  return (
+    <div className="font-mono text-xs mt-0.5" style={{ color }} title={`TLS certificate expires ${new Date(expiresAt).toLocaleString()}`}>
+      {days < 0 ? 'TLS certificate expired' : `TLS certificate: ${days} ${days === 1 ? 'day' : 'days'} left`}
     </div>
   )
 }

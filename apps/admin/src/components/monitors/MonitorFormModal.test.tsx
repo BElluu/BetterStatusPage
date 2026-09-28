@@ -66,6 +66,8 @@ function existingMonitor(patch: Partial<Monitor> = {}): Monitor {
     lastCheckedAt: null,
     webhookToken: null,
     tags: [{ label: 'prod', color: '#6366f1' }],
+    certExpiresAt: null,
+    certCheckedAt: null,
     createdAt: 1,
     updatedAt: 1,
     ...patch,
@@ -115,6 +117,30 @@ describe('MonitorFormModal', () => {
     })
     expect(api.put).toHaveBeenCalledWith('/admin/notifications/monitor/42/channels', { channelIds: [3] })
     expect(api.put).toHaveBeenCalledWith('/admin/monitors/42/dependencies', { dependsOnIds: [1] })
+  })
+
+  it('saves TLS certificate expiry warnings, offered only for HTTPS URLs', async () => {
+    const user = userEvent.setup()
+    const { onSaved } = renderModal()
+
+    await user.type(field('Name'), 'Shop')
+    await user.clear(field('URL'))
+    await user.type(field('URL'), 'http://shop.example.test')
+    expect(screen.queryByRole('checkbox', { name: /TLS certificate expires/ })).not.toBeInTheDocument()
+
+    await user.clear(field('URL'))
+    await user.type(field('URL'), 'https://shop.example.test')
+    await user.click(screen.getByRole('checkbox', { name: /TLS certificate expires/ }))
+    expect(screen.getByText(/with reminders 7, 3, 1 days before expiry/)).toBeInTheDocument()
+    await user.clear(field('Warn days before expiry'))
+    await user.type(field('Warn days before expiry'), '30')
+
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+    expect(createdBody()['config']).toEqual({
+      url: 'https://shop.example.test', method: 'GET', expectedStatus: 200, certExpiry: { enabled: true, warnDays: 30 },
+    })
   })
 
   it('blocks submission while a required field is empty', async () => {

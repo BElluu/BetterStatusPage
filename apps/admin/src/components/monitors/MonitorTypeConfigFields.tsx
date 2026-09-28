@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { MonitorType, VaultRef } from '@bsp/shared'
+import { CERT_REMINDER_DAYS, DEFAULT_CERT_WARN_DAYS, MAX_CERT_WARN_DAYS } from '@bsp/shared'
+import type { CertExpiryConfig, MonitorType, VaultRef } from '@bsp/shared'
 import { ConnectionStringSection, CredentialSection } from './CredentialSection'
 import { Field, JSON_MAPPING_FIELDS, Note, SectionDivider, type VaultPickerProps } from './monitorFormParts'
 
@@ -49,7 +50,36 @@ function HttpsFields({ config, updateConfig }: ConfigProps) {
       <Field label="Keyword (optional)">
         <input value={(config['keyword'] as string) ?? ''} onChange={(e) => updateConfig('keyword', e.target.value)} className="input-sig" placeholder="must contain…" />
       </Field>
+      {/^https:\/\//i.test((config['url'] as string) ?? '') && <CertExpiryFields config={config} updateConfig={updateConfig} />}
     </>
+  )
+}
+
+function CertExpiryFields({ config, updateConfig }: ConfigProps) {
+  const certExpiry = config['certExpiry'] as CertExpiryConfig | undefined
+  const enabled = certExpiry?.enabled ?? false
+  const warnDays = certExpiry?.warnDays ?? DEFAULT_CERT_WARN_DAYS
+  const reminders = CERT_REMINDER_DAYS.filter((days) => days < warnDays)
+  return (
+    <div className="space-y-2">
+      <label className="flex items-center gap-2 text-sm cursor-pointer select-none" style={{ color: 'var(--m3-on-surface-variant)' }}>
+        <input type="checkbox" checked={enabled} className="accent-indigo-500"
+          onChange={(e) => updateConfig('certExpiry', { enabled: e.target.checked, warnDays })} />
+        Warn before the TLS certificate expires
+      </label>
+      {enabled && (
+        <>
+          <Field label="Warn days before expiry">
+            <input type="number" value={warnDays} min={1} max={MAX_CERT_WARN_DAYS} className="input-sig"
+              onChange={(e) => updateConfig('certExpiry', { enabled, warnDays: Math.min(MAX_CERT_WARN_DAYS, Number(e.target.value)) })} />
+          </Field>
+          <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
+            Sent to this monitor's channels{reminders.length > 0 ? `, with reminders ${reminders.join(', ')} ${reminders.length === 1 && reminders[0] === 1 ? 'day' : 'days'} before expiry` : ''}.
+            The status page is not affected. An expired certificate already fails the check and alerts as down.
+          </p>
+        </>
+      )}
+    </div>
   )
 }
 
