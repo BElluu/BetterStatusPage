@@ -14,9 +14,10 @@ vi.mock('../api/client', () => ({
 
 // The channel form has its own tests; here it only needs to prove the page opens it with the right channel.
 vi.mock('../components/notifications/ChannelFormModal', () => ({
-  default: ({ channel, onClose, onSaved }: { channel: NotificationChannel | null; onClose: () => void; onSaved: () => void }) => (
+  default: ({ channel, initialType, onClose, onSaved }: { channel: NotificationChannel | null; initialType?: string; onClose: () => void; onSaved: () => void }) => (
     <div role="dialog" aria-label="Channel form">
       <p>{channel ? `Editing ${channel.name}` : 'New channel'}</p>
+      {initialType && <p>{`Preselected ${initialType}`}</p>}
       <button onClick={onSaved}>Save channel</button>
       <button onClick={onClose}>Close form</button>
     </div>
@@ -113,11 +114,25 @@ describe('NotificationsPage', () => {
     expect(screen.getByRole('link', { name: /Delivery history/ })).toHaveAttribute('href', '/admin/notifications/history')
   })
 
-  it('shows an empty state without channels', async () => {
+  it('offers channel type tiles without channels and opens the form with that type', async () => {
+    const user = userEvent.setup()
     vi.mocked(api.get).mockResolvedValueOnce([])
     renderWithProviders(<NotificationsPage />)
 
-    expect(await screen.findByText('No notification channels yet')).toBeInTheDocument()
+    const panel = await screen.findByRole('region', { name: 'Where should alerts go?' })
+    expect(within(panel).getAllByRole('button').map((tile) => tile.textContent)).toEqual([
+      expect.stringContaining('Email'), expect.stringContaining('Webhook'), expect.stringContaining('Discord'),
+      expect.stringContaining('Teams'), expect.stringContaining('Slack'),
+    ])
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+
+    await user.click(within(panel).getByRole('button', { name: /Slack/ }))
+    expect(screen.getByText('New channel')).toBeInTheDocument()
+    expect(screen.getByText('Preselected slack')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Close form' }))
+
+    await user.click(screen.getByRole('button', { name: 'Add Channel' }))
+    expect(screen.queryByText(/Preselected/)).not.toBeInTheDocument()
   })
 
   it('opens the channel form for create and edit', async () => {
@@ -318,13 +333,21 @@ describe('NotificationHistoryPage delivery log', () => {
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(expect.stringContaining('page=2')))
   })
 
-  it('shows an empty state when no deliveries match', async () => {
+  it('keeps the table headers when there are no deliveries and can clear filters', async () => {
+    const user = userEvent.setup()
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/admin/notifications/channels') return []
       return { deliveries: [], total: 0, page: 1, pages: 1 }
     })
     renderWithProviders(<NotificationHistoryPage />)
 
+    expect(await screen.findByText('No deliveries yet')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Monitor' })).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'failed')
     expect(await screen.findByText('No deliveries match these filters.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Clear the filters' }))
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('')
+    expect(await screen.findByText('No deliveries yet')).toBeInTheDocument()
   })
 })

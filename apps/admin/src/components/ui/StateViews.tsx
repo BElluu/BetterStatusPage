@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 
 interface LoadingStateProps {
   label?: string | undefined
@@ -43,35 +43,93 @@ export function ErrorState({ message = 'Something went wrong while loading this 
   )
 }
 
+type EmptyStateVariant = 'card' | 'inset' | 'row'
+
 interface EmptyStateProps {
   title: ReactNode
   description?: ReactNode | undefined
   /** Material Symbols icon name, e.g. "radio_button_checked". */
   icon?: string | undefined
-  /** Primary call to action, typically `<button className="btn btn-primary">…</button>`. */
+  /**
+   * Optional follow-up action. Leave it out when the page header already offers the same action and
+   * put an `EmptyStateLink` in the description instead.
+   */
   action?: ReactNode | undefined
+  /**
+   * - `card` (default): a standalone compact strip, for pages without a table or list container.
+   * - `inset`: a row inside a card or list, separated from what is above it by a divider.
+   * - `row`: bare content for a table cell; use `EmptyTableRow` rather than this directly.
+   */
+  variant?: EmptyStateVariant | undefined
   className?: string | undefined
 }
 
-/** Placeholder for an empty list, with an icon, short explanation and a call to action. */
-export function EmptyState({ title, description, icon = 'inbox', action, className }: EmptyStateProps) {
+const EMPTY_VARIANT_CLASS: Record<EmptyStateVariant, string> = {
+  card: 'rounded-2xl px-5 py-4',
+  inset: 'px-6 py-5',
+  row: '',
+}
+
+const EMPTY_VARIANT_STYLE: Record<EmptyStateVariant, CSSProperties | undefined> = {
+  card: { background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' },
+  inset: { borderTop: '1px solid var(--m3-outline-variant)' },
+  row: undefined,
+}
+
+/** Compact placeholder for an empty list: an icon, a short explanation and an optional action in one row. */
+export function EmptyState({ title, description, icon = 'inbox', action, variant = 'card', className }: EmptyStateProps) {
   return (
     <div
-      className={clsx('flex flex-col items-center justify-center gap-3 rounded-2xl px-6 py-12 text-center', className)}
-      style={{ background: 'var(--m3-surface-container-lowest)', border: '1px dashed var(--m3-outline-variant)' }}
+      className={clsx('flex flex-wrap items-center gap-x-3.5 gap-y-3 text-left', EMPTY_VARIANT_CLASS[variant], className)}
+      style={EMPTY_VARIANT_STYLE[variant]}
     >
       <span
-        className="material-symbols-outlined rounded-xl p-2.5"
+        className="grid place-items-center w-10 h-10 rounded-xl flex-none"
         aria-hidden="true"
-        style={{ fontSize: '24px', background: 'var(--admin-icon-container)', color: 'var(--admin-icon-color)' }}
+        style={{ background: 'var(--admin-icon-container)', color: 'var(--admin-icon-color)' }}
       >
-        {icon}
+        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>{icon}</span>
       </span>
-      <div className="space-y-1">
-        <p className="font-headline font-semibold text-base" style={{ color: 'var(--m3-on-surface)' }}>{title}</p>
-        {description && <p className="text-sm max-w-md" style={{ color: 'var(--m3-secondary)' }}>{description}</p>}
+      <div className="min-w-0 flex-[1_1_15rem] space-y-0.5">
+        <p className="font-headline font-semibold text-sm" style={{ color: 'var(--m3-on-surface)' }}>{title}</p>
+        {description && <p className="text-[13px]" style={{ color: 'var(--m3-secondary)' }}>{description}</p>}
       </div>
-      {action && <div className="pt-1">{action}</div>}
+      {action && <div className="flex-none sm:ml-auto">{action}</div>}
     </div>
+  )
+}
+
+interface EmptyTableRowProps extends Omit<EmptyStateProps, 'variant' | 'className'> {
+  /** Number of columns in the table, so the message spans the whole row. */
+  colSpan: number
+}
+
+/** The only `<tbody>` row while a table has no data, so the table and its headers keep their place. */
+export function EmptyTableRow({ colSpan, ...props }: EmptyTableRowProps) {
+  return (
+    <tr>
+      <td colSpan={colSpan} className="px-4 py-7">
+        <EmptyState variant="row" {...props} />
+      </td>
+    </tr>
+  )
+}
+
+interface EmptyStateLinkProps {
+  onClick: () => void
+  children: ReactNode
+}
+
+/** Inline text action inside an empty-state description, e.g. "Alerts stay silent until you [add a channel]." */
+export function EmptyStateLink({ onClick, children }: EmptyStateLinkProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="font-semibold underline underline-offset-[3px] rounded focus-ring"
+      style={{ color: 'var(--m3-on-surface)' }}
+    >
+      {children}
+    </button>
   )
 }

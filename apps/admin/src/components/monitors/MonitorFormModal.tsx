@@ -7,12 +7,15 @@ import { SidePanelFrame, SideTabStrip, type SideTab } from '../SidePanel'
 import { ChannelsSection, DependenciesSection, PANEL_META, RequestSection, type SidePanelKey } from './MonitorSidePanel'
 import { MonitorTypeConfigFields } from './MonitorTypeConfigFields'
 import { Field, type SecretSummary, type VaultSummary } from './monitorFormParts'
+import { MONITOR_TYPES } from './monitorTypes'
 import { TagsSection } from './TagsSection'
 import { TestResultPanel, type TestResult } from './TestResultPanel'
 import { Alert } from '../ui'
 
 interface Props {
   monitor: Monitor | null
+  /** Type preselected when creating a monitor; ignored when editing. */
+  initialType?: MonitorType | undefined
   allTags?: MonitorTag[]
   onClose: () => void
   onSaved: () => void
@@ -26,22 +29,14 @@ const defaultConfigs: Record<MonitorType, Record<string, unknown>> = {
   webhook:   {},
 }
 
-const MONITOR_TYPES: { value: MonitorType; label: string }[] = [
-  { value: 'https',     label: 'HTTPS' },
-  { value: 'ping',      label: 'Ping / TCP' },
-  { value: 'dns',       label: 'DNS' },
-  { value: 'sqlserver', label: 'SQL Server' },
-  { value: 'webhook',   label: 'Webhook' },
-]
-
-export default function MonitorFormModal({ monitor, allTags = [], onClose, onSaved }: Props) {
+export default function MonitorFormModal({ monitor, initialType = 'https', allTags = [], onClose, onSaved }: Props) {
   const isEdit = !!monitor
   const [name, setName]               = useState(monitor?.name ?? '')
-  const [type, setType]               = useState<MonitorType>(monitor?.type as MonitorType ?? 'https')
+  const [type, setType]               = useState<MonitorType>(monitor?.type as MonitorType ?? initialType)
   const [intervalSecs, setIntervalSecs] = useState(monitor?.intervalSecs ?? 60)
   const [timeoutMs, setTimeoutMs]     = useState(monitor?.timeoutMs ?? 10000)
   const [config, setConfig]           = useState<Record<string, unknown>>(
-    monitor ? (monitor.config as unknown as Record<string, unknown>) : (defaultConfigs.https as Record<string, unknown>),
+    monitor ? (monitor.config as unknown as Record<string, unknown>) : (defaultConfigs[initialType] as Record<string, unknown>),
   )
   const [retries, setRetries]           = useState(monitor?.retries ?? 1)
   const [failureThreshold, setFailureThreshold]   = useState(monitor?.failureThreshold ?? 1)

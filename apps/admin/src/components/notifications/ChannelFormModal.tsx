@@ -9,6 +9,8 @@ import { Alert, Switch } from '../ui'
 
 interface Props {
   channel: NotificationChannel | null
+  /** Type preselected when creating a channel; ignored when editing. */
+  initialType?: ChannelType | undefined
   onClose: () => void
   onSaved: () => void
 }
@@ -49,10 +51,10 @@ function readAlertPolicy(channel: NotificationChannel | null): ChannelAlertPolic
   }
 }
 
-export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
+export default function ChannelFormModal({ channel, initialType, onClose, onSaved }: Props) {
   const isEdit = !!channel
   const [name, setName]   = useState(channel?.name ?? '')
-  const [type, setType]   = useState<ChannelType>(isChannelType(channel?.type) ? channel.type : 'email')
+  const [type, setType]   = useState<ChannelType>(isChannelType(channel?.type) ? channel.type : (initialType ?? 'email'))
   const [enabled, setEnabled]               = useState((channel?.enabled ?? 1) === 1)
   const [notifyOnRecovery, setNotifyOnRecovery] = useState((channel?.notifyOnRecovery ?? 0) === 1)
 

@@ -83,6 +83,17 @@ describe('MonitorFormModal', () => {
     vi.mocked(api.patch).mockResolvedValue({})
   })
 
+  it('starts a new monitor on the preselected type with its default config', async () => {
+    const user = userEvent.setup()
+    render(<MonitorFormModal monitor={null} initialType="dns" onClose={vi.fn()} onSaved={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'DNS' })).toHaveAttribute('aria-pressed', 'true')
+
+    await user.type(field('Name'), 'Resolver')
+    await user.type(field('Hostname'), 'example.test')
+    await user.click(screen.getByRole('button', { name: /Create Monitor/ }))
+    await waitFor(() => expect(createdBody()).toMatchObject({ type: 'dns', config: { hostname: 'example.test', recordType: 'A' } }))
+  })
+
   it('creates an HTTPS monitor and saves its channels and dependencies', async () => {
     const user = userEvent.setup()
     const { onSaved } = renderModal()

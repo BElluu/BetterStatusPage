@@ -51,6 +51,20 @@ describe('SubscribersPage methods', () => {
     ) as never)
   })
 
+  it('keeps the table headers when empty and resets a filter from the empty row', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    expect(await screen.findByText('No subscribers yet')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Destination' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /^Pending/ }))
+    expect(await screen.findByText('No subscribers match this filter')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'show all subscribers' }))
+    expect(screen.getByRole('button', { name: /^All/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(await screen.findByText('No subscribers yet')).toBeInTheDocument()
+  })
+
   it('explains why email and webhook are hidden while Slack is offered', async () => {
     renderPage()
     const email = await screen.findByTestId('method-email')

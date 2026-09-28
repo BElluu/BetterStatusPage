@@ -48,6 +48,8 @@ export interface ChannelFieldsProps<D> {
  */
 export interface ChannelTypeDescriptor<D> {
   label: string
+  /** Short line for the quick-start tiles shown while no channel exists yet. */
+  hint: string
   icon: (size: number) => ReactNode
   defaultDraft: () => D
   parse: (config: Record<string, unknown>) => D
@@ -228,6 +230,7 @@ function WebhookFields({ draft, onChange }: ChannelFieldsProps<WebhookDraft>) {
 export const CHANNEL_TYPES: { [K in ChannelType]: ChannelTypeDescriptor<ChannelDrafts[K]> } = {
   email: {
     label: 'Email',
+    hint: 'Uses the SMTP settings',
     icon: materialIcon('mail'),
     defaultDraft: () => ({ to: '', subject: DEFAULT_EMAIL_SUBJECT, body: DEFAULT_EMAIL_BODY }),
     parse: (c) => ({ to: str(c['to']), subject: str(c['subject'], DEFAULT_EMAIL_SUBJECT), body: str(c['body'], DEFAULT_EMAIL_BODY) }),
@@ -236,6 +239,7 @@ export const CHANNEL_TYPES: { [K in ChannelType]: ChannelTypeDescriptor<ChannelD
   },
   webhook: {
     label: 'Webhook',
+    hint: 'Any HTTP endpoint',
     icon: materialIcon('webhook'),
     defaultDraft: () => ({ url: '', method: 'POST', headers: [], body: DEFAULT_WEBHOOK_BODY }),
     parse: (c) => ({
@@ -258,6 +262,7 @@ export const CHANNEL_TYPES: { [K in ChannelType]: ChannelTypeDescriptor<ChannelD
   },
   discord: {
     label: 'Discord',
+    hint: 'Channel webhook',
     icon: (size) => <DiscordIcon size={size} />,
     defaultDraft: () => ({ webhookUrl: '', username: '', content: '' }),
     parse: (c) => ({ webhookUrl: str(c['webhookUrl']), username: str(c['username']), content: str(c['content']) }),
@@ -270,6 +275,7 @@ export const CHANNEL_TYPES: { [K in ChannelType]: ChannelTypeDescriptor<ChannelD
   },
   teams: {
     label: 'Teams',
+    hint: 'Workflow webhook',
     icon: (size) => <TeamsIcon size={size} />,
     defaultDraft: () => ({ webhookUrl: '', summary: '' }),
     parse: (c) => ({ webhookUrl: str(c['webhookUrl']), summary: str(c['summary']) }),
@@ -278,6 +284,7 @@ export const CHANNEL_TYPES: { [K in ChannelType]: ChannelTypeDescriptor<ChannelD
   },
   slack: {
     label: 'Slack',
+    hint: 'Incoming webhook',
     icon: (size) => <SlackIcon size={size} />,
     defaultDraft: () => ({ webhookUrl: '', text: '' }),
     parse: (c) => ({ webhookUrl: str(c['webhookUrl']), text: str(c['text']) }),

@@ -63,6 +63,17 @@ describe('ChannelFormModal', () => {
     vi.mocked(api.patch).mockResolvedValue({})
   })
 
+  it('starts a new channel on the preselected type', () => {
+    render(<ChannelFormModal channel={null} initialType="slack" onClose={vi.fn()} onSaved={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Slack' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByPlaceholderText('https://hooks.slack.com/services/…')).toBeInTheDocument()
+  })
+
+  it('ignores the preselected type when editing', () => {
+    render(<ChannelFormModal channel={channel({})} initialType="slack" onClose={vi.fn()} onSaved={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Email' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('creates an email channel with the default template and policy', async () => {
     const user = userEvent.setup()
     const { onSaved } = renderModal()

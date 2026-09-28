@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
-import { Alert, EmptyState, ErrorState, LoadingState, PageContainer, PageHeader, Switch } from '../components/ui'
+import { Alert, EmptyState, EmptyStateLink, ErrorState, LoadingState, PageContainer, PageHeader, Switch } from '../components/ui'
 
 interface BackupInfo { filename: string; size: number; createdAt: number }
 interface BackupConfig { enabled: boolean; frequency: 'daily' | 'weekly'; hour: number; minute: number; weekday: number; retention: number }
@@ -21,6 +21,7 @@ export default function BackupsPage() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [savedConfig, setSavedConfig] = useState<BackupConfig | null>(null)
   const file = useRef<HTMLInputElement>(null)
+  const scheduleSwitchId = useId()
   const load = useCallback(() => api.get<State>('/admin/backups')
     .then((data) => { setState(data); setSavedConfig(data.config); setLoadError('') })
     .catch((e: unknown) => setLoadError(errorText(e))), [])
@@ -65,6 +66,11 @@ export default function BackupsPage() {
     ? `${config.frequency === 'daily' ? 'Every day' : `Every ${WEEKDAYS[config.weekday]}`} at ${String(config.hour).padStart(2, '0')}:${String(config.minute).padStart(2, '0')} · keep ${config.retention} ${config.retention === 1 ? 'backup' : 'backups'}`
     : 'Automatic backups are disabled'
   const updateConfig = (updates: Partial<BackupConfig>) => setState({ ...state, config: { ...config, ...updates } })
+  // Turns the switch on and moves focus to it; the schedule is still saved with "Save schedule".
+  const enableAutomaticBackups = () => {
+    updateConfig({ enabled: true })
+    document.getElementById(scheduleSwitchId)?.focus()
+  }
   return <PageContainer>
     {header}
     {message && <Alert tone={message.tone} onDismiss={() => setMessage(null)}>{message.text}</Alert>}
@@ -86,7 +92,7 @@ export default function BackupsPage() {
             <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>Create backups on a recurring schedule using the server&apos;s local time.</p>
           </div>
         </div>
-        <Switch checked={config.enabled} onChange={(enabled) => updateConfig({ enabled })} aria-label="Automatic backups" />
+        <Switch id={scheduleSwitchId} checked={config.enabled} onChange={(enabled) => updateConfig({ enabled })} aria-label="Automatic backups" />
       </div>
 
       <div className="px-5 pb-5 md:px-6 md:pb-6">
@@ -141,7 +147,15 @@ export default function BackupsPage() {
     <section className="rounded-2xl overflow-hidden" style={{ background: 'var(--m3-surface-container-lowest)', color: 'var(--m3-on-surface)' }}>
       <h2 className="font-headline text-xl font-semibold p-6 pb-3">Available backups</h2>
       {state.backups.length === 0
-        ? <div className="p-6 pt-0"><EmptyState icon="backup" title="No backups yet." description="Create a backup now or enable automatic backups." /></div>
+        ? <EmptyState
+            variant="inset"
+            icon="cloud_off"
+            title="No backups yet"
+            description={savedConfig?.enabled
+              ? 'Automatic backups are on; the first one will appear here after it runs.'
+              : 'Automatic backups are off. The database is not protected until the first backup exists.'}
+            action={config.enabled ? undefined : <EmptyStateLink onClick={enableAutomaticBackups}>Enable automatic backups</EmptyStateLink>}
+          />
         : state.backups.map((item) => <div key={item.filename} className="p-4 px-6 flex flex-wrap items-center justify-between gap-3" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
           <div className="min-w-0"><div className="font-mono text-sm break-all">{item.filename}</div><div className="text-xs" style={{ color: 'var(--m3-secondary)' }}>{new Date(item.createdAt).toLocaleString()} · {(item.size / 1024 / 1024).toFixed(2)} MB</div></div>
           <div className="flex gap-2">
