@@ -346,6 +346,9 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE monitors ADD COLUMN cert_expires_at INTEGER`, desc: 'monitors.cert_expires_at' },
   { sql: `ALTER TABLE monitors ADD COLUMN cert_checked_at INTEGER`, desc: 'monitors.cert_checked_at' },
   { sql: `ALTER TABLE monitors ADD COLUMN cert_warned_days INTEGER`, desc: 'monitors.cert_warned_days' },
+  { sql: `ALTER TABLE branding ADD COLUMN show_hero INTEGER NOT NULL DEFAULT 1`, desc: 'branding.show_hero' },
+  { sql: `ALTER TABLE branding ADD COLUMN show_footer INTEGER NOT NULL DEFAULT 1`, desc: 'branding.show_footer' },
+  { sql: `ALTER TABLE branding ADD COLUMN show_project_link INTEGER NOT NULL DEFAULT 1`, desc: 'branding.show_project_link' },
 ]
 
 /**

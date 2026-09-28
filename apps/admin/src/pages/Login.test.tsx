@@ -43,6 +43,9 @@ describe('LoginPage two-factor flow', () => {
       .mockResolvedValueOnce(authenticatedUser)
     renderLogin()
 
+    expect(screen.getByLabelText('Email')).toHaveAttribute('autocomplete', 'username')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('autocomplete', 'current-password')
+    expect(screen.queryByText('99.9%')).not.toBeInTheDocument()
     await user.type(screen.getByLabelText('Email'), 'admin@example.test')
     await user.type(screen.getByLabelText('Password'), 'password')
     const signIn = screen.getByRole('button', { name: 'Sign in' })

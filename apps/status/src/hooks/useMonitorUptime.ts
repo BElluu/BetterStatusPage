@@ -14,21 +14,29 @@ export interface MonitorUptime {
   overallUptimePct: number | null
 }
 
+export interface MonitorUptimeState {
+  /** Null until it has loaded, and when the request failed. */
+  uptime: MonitorUptime | null
+  failed: boolean
+}
+
 /**
- * Daily uptime of one monitor over the last `days` days, or null until it has loaded (or when it failed).
+ * Daily uptime of one monitor over the last `days` days.
  * A response for an earlier monitor/range is ignored, so a slow request can never overwrite newer data.
  */
-export function useMonitorUptime(monitorId: number, days: number): MonitorUptime | null {
+export function useMonitorUptime(monitorId: number, days: number): MonitorUptimeState {
   const key = `${monitorId}:${days}`
-  const [result, setResult] = useState<{ key: string; uptime: MonitorUptime } | null>(null)
+  const [result, setResult] = useState<{ key: string; uptime: MonitorUptime | null } | null>(null)
 
   useEffect(() => {
     let cancelled = false
+    const requestKey = `${monitorId}:${days}`
     getJSON<MonitorUptime>(`/api/v1/public/monitor/${monitorId}/uptime?days=${days}`)
-      .then((uptime) => { if (!cancelled) setResult({ key: `${monitorId}:${days}`, uptime }) })
-      .catch(() => { /* keep the placeholder bars */ })
+      .then((uptime) => { if (!cancelled) setResult({ key: requestKey, uptime }) })
+      .catch(() => { if (!cancelled) setResult({ key: requestKey, uptime: null }) })
     return () => { cancelled = true }
   }, [monitorId, days])
 
-  return result?.key === key ? result.uptime : null
+  const current = result?.key === key ? result : null
+  return { uptime: current?.uptime ?? null, failed: !!current && current.uptime === null }
 }

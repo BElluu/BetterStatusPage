@@ -44,15 +44,14 @@ async function send<T>(method: string, path: string, body: unknown): Promise<T> 
 
 // ── Shared building blocks ───────────────────────────────────────────────────
 
+/** Border and the focus ring come from the .bsp-input class. */
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 12px',
   borderRadius: '10px',
-  border: '1px solid var(--bsp-card-border)',
   background: 'var(--bsp-bg)',
   color: 'var(--bsp-text)',
   fontSize: '14px',
-  outline: 'none',
 }
 
 function PrimaryButton({ children, disabled, onClick, type = 'button' }: {
@@ -63,7 +62,7 @@ function PrimaryButton({ children, disabled, onClick, type = 'button' }: {
       type={type}
       disabled={disabled}
       onClick={onClick}
-      className="bsp-subscribe-primary bsp-action px-5 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-[0.98]"
+      className="bsp-subscribe-primary bsp-action px-4 py-2 rounded-xl text-sm font-bold transition-all active:scale-[0.98]"
       style={{ background: 'var(--bsp-action-bg)', color: 'var(--bsp-action-fg)', opacity: disabled ? 0.6 : 1 }}
     >
       {children}
@@ -71,30 +70,70 @@ function PrimaryButton({ children, disabled, onClick, type = 'button' }: {
   )
 }
 
-function SecondaryButton({ children, onClick, danger }: { children: ReactNode; onClick: () => void; danger?: boolean }) {
+function SecondaryButton({ children, onClick, danger, disabled }: { children: ReactNode; onClick: () => void; danger?: boolean; disabled?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-      style={{ color: danger ? 'var(--bsp-down)' : 'var(--bsp-text-muted)', background: 'transparent' }}
+      disabled={disabled}
+      className="bsp-ghost px-4 py-2 rounded-xl text-sm font-semibold"
+      style={{ color: danger ? 'var(--bsp-down-text)' : 'var(--bsp-text-muted)' }}
     >
       {children}
     </button>
   )
 }
 
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([tabindex="-1"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+function focusableIn(root: HTMLElement | null): HTMLElement[] {
+  if (!root) return []
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => !el.closest('[aria-hidden="true"]'))
+}
+
 function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const { t } = useLocale()
   const titleId = useId()
   const panel = useRef<HTMLDivElement>(null)
+  const body = useRef<HTMLDivElement>(null)
+  // Callers often pass an inline onClose; a ref keeps the effect below from re-running
+  // (and stealing focus back) on every parent re-render.
+  const onCloseRef = useRef(onClose)
+  useEffect(() => { onCloseRef.current = onClose }, [onClose])
 
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    ;(focusableIn(body.current)[0] ?? focusableIn(panel.current)[0])?.focus()
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCloseRef.current()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const items = focusableIn(panel.current)
+      if (items.length === 0) return
+      const first = items[0]!
+      const last = items[items.length - 1]!
+      const active = document.activeElement
+      if (!panel.current?.contains(active)) {
+        event.preventDefault()
+        first.focus()
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
     window.addEventListener('keydown', onKey)
-    panel.current?.querySelector<HTMLElement>('input, button')?.focus()
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      if (opener?.isConnected) opener.focus()
+    }
+  }, [])
 
   return (
     <div
@@ -117,13 +156,13 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
               type="button"
               onClick={onClose}
               aria-label={t('subscribe.close')}
-              className="w-8 h-8 flex items-center justify-center rounded-lg"
+              className="bsp-ghost w-8 h-8 flex items-center justify-center rounded-lg"
               style={{ color: 'var(--bsp-text-muted)' }}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+              <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '20px' }}>close</span>
             </button>
           </div>
-          <div className="px-6 pb-6">{children}</div>
+          <div ref={body} className="px-6 pb-6">{children}</div>
         </div>
       </div>
     </div>
@@ -136,7 +175,7 @@ function Notice({ tone, children }: { tone: 'ok' | 'error'; children: ReactNode 
       role={tone === 'error' ? 'alert' : 'status'}
       className="text-sm rounded-xl px-3 py-2.5"
       style={{
-        color: tone === 'ok' ? 'var(--bsp-text)' : 'var(--bsp-down)',
+        color: tone === 'ok' ? 'var(--bsp-text)' : 'var(--bsp-down-text)',
         background: tone === 'ok'
           ? 'color-mix(in srgb, var(--bsp-up) 14%, transparent)'
           : 'color-mix(in srgb, var(--bsp-down) 12%, transparent)',
@@ -305,7 +344,7 @@ function WebhookOptions({ config, onChange, savedHeaderNames = [] }: {
           type="button"
           aria-expanded={open}
           onClick={() => setOpen(!open)}
-          className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-semibold"
+          className="bsp-ghost w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold"
         >
           {t('subscribe.customize')}
           <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '18px' }}>{open ? 'expand_less' : 'expand_more'}</span>
@@ -318,7 +357,7 @@ function WebhookOptions({ config, onChange, savedHeaderNames = [] }: {
                 id={methodId}
                 value={config.method}
                 onChange={(e) => onChange({ ...config, method: e.target.value as WebhookMethod })}
-                style={inputStyle}
+                className="bsp-input" style={inputStyle}
               >
                 {WEBHOOK_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}
               </select>
@@ -334,23 +373,23 @@ function WebhookOptions({ config, onChange, savedHeaderNames = [] }: {
                       placeholder={t('subscribe.headerName')}
                       value={header.name}
                       onChange={(e) => setHeader(index, { name: e.target.value })}
-                      style={{ ...inputStyle, flex: '0 0 40%' }}
+                      className="bsp-input" style={{ ...inputStyle, flex: '0 0 40%' }}
                     />
                     <input
                       aria-label={t('subscribe.headerValue')}
                       placeholder={isSaved(header.name) ? t('subscribe.headerUnchanged') : t('subscribe.headerValue')}
                       value={header.value}
                       onChange={(e) => setHeader(index, { value: e.target.value })}
-                      style={{ ...inputStyle, minWidth: 0 }}
+                      className="bsp-input" style={{ ...inputStyle, minWidth: 0 }}
                     />
                     <button
                       type="button"
                       aria-label={t('subscribe.removeHeader')}
                       onClick={() => onChange({ ...config, headers: config.headers.filter((_, i) => i !== index) })}
-                      className="px-2 rounded-lg flex-shrink-0"
+                      className="bsp-ghost px-2 rounded-lg flex-shrink-0"
                       style={{ color: 'var(--bsp-text-muted)' }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+                      <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '18px' }}>close</span>
                     </button>
                   </div>
                 ))}
@@ -358,7 +397,7 @@ function WebhookOptions({ config, onChange, savedHeaderNames = [] }: {
                   <button
                     type="button"
                     onClick={() => onChange({ ...config, headers: [...config.headers, { name: '', value: '' }] })}
-                    className="inline-flex items-center gap-1 text-sm font-semibold"
+                    className="bsp-ghost inline-flex items-center gap-1 -ml-2 px-2 py-1 rounded-lg text-sm font-semibold"
                     style={{ color: 'var(--bsp-text-muted)' }}
                   >
                     <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '18px' }}>add</span>
@@ -413,7 +452,7 @@ function MethodChooser({ methods, onChoose }: { methods: SubscriptionMethod[]; o
             <button
               type="button"
               onClick={() => onChoose(method)}
-              className="bsp-subscribe-method w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors"
+              className="bsp-subscribe-method bsp-ghost w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left"
               style={{ border: '1px solid var(--bsp-card-border)' }}
             >
               <span className="material-symbols-outlined flex-shrink-0" aria-hidden="true" style={{ fontSize: '22px', color: 'var(--bsp-text-muted)' }}>
@@ -446,7 +485,7 @@ export function SubscribeDialog({ options, onClose }: { options: PublicSubscript
           <button
             type="button"
             onClick={() => setMethod(null)}
-            className="inline-flex items-center gap-1 text-sm font-semibold -mt-1"
+            className="bsp-ghost inline-flex items-center gap-1 -ml-2 -mt-1 px-2 py-1 rounded-lg text-sm font-semibold"
             style={{ color: 'var(--bsp-text-muted)' }}
           >
             <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '18px' }}>arrow_back</span>
@@ -507,14 +546,14 @@ function SignupForm({ type, options, onClose }: { type: SubscriberType; options:
       {type === 'webhook' && (
         <div>
           <FieldLabel htmlFor={urlId}>{t('subscribe.webhookUrl')}</FieldLabel>
-          <input id={urlId} type="url" required placeholder="https://" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} style={inputStyle} />
+          <input id={urlId} type="url" required placeholder="https://" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} className="bsp-input" style={inputStyle} />
           <p className="text-xs mt-1.5" style={{ color: 'var(--bsp-text-muted)' }}>{t('subscribe.webhookHint')}</p>
         </div>
       )}
 
       <div>
         <FieldLabel htmlFor={emailId}>{t('subscribe.email')}</FieldLabel>
-        <input id={emailId} type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
+        <input id={emailId} type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="bsp-input" style={inputStyle} />
         {type === 'webhook' && <p className="text-xs mt-1.5" style={{ color: 'var(--bsp-text-muted)' }}>{t('subscribe.webhookEmailHint')}</p>}
       </div>
 
@@ -625,7 +664,7 @@ function CopyField({ value }: { value: string }) {
       <button
         type="button"
         onClick={() => void copy()}
-        className="bsp-action px-3 rounded-xl text-sm font-bold flex-shrink-0"
+        className="bsp-action px-4 py-2 rounded-xl text-sm font-bold flex-shrink-0"
         style={{ background: 'var(--bsp-action-bg)', color: 'var(--bsp-action-fg)' }}
       >
         {copied ? t('subscribe.copied') : t('subscribe.copy')}
@@ -662,14 +701,16 @@ function webhookConfigFrom(prefs: SubscriptionPreferences): WebhookConfig | null
   }
 }
 
-export function SubscriptionLinkDialog({ link, options, onClose }: {
+export function SubscriptionLinkDialog({ link, options, optionsFailed = false, onClose }: {
   link: { mode: LinkMode; token: string }
   options: PublicSubscriptionOptions | undefined
+  /** The options request failed, so the preferences form can never appear. */
+  optionsFailed?: boolean
   onClose: () => void
 }) {
   return link.mode === 'confirm'
     ? <ConfirmLinkDialog token={link.token} onClose={onClose} />
-    : <ManageLinkDialog link={{ mode: link.mode, token: link.token }} options={options} onClose={onClose} />
+    : <ManageLinkDialog link={{ mode: link.mode, token: link.token }} options={options} optionsFailed={optionsFailed} onClose={onClose} />
 }
 
 /**
@@ -707,15 +748,17 @@ function ConfirmLinkDialog({ token, onClose }: { token: string; onClose: () => v
   )
 }
 
-function ManageLinkDialog({ link, options, onClose }: {
+function ManageLinkDialog({ link, options, optionsFailed, onClose }: {
   link: { mode: Exclude<LinkMode, 'confirm'>; token: string }
   options: PublicSubscriptionOptions | undefined
+  optionsFailed: boolean
   onClose: () => void
 }) {
   const { t } = useLocale()
   const [mode, setMode] = useState<Exclude<LinkMode, 'confirm'>>(link.mode)
   const token = link.token
   const [busy, setBusy] = useState(false)
+  const [confirmingUnsubscribe, setConfirmingUnsubscribe] = useState(false)
   const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
   const [prefs, setPrefs] = useState<SubscriptionPreferences | null>(null)
   const [scope, setScope] = useState<Scope | null>(null)
@@ -753,6 +796,7 @@ function ManageLinkDialog({ link, options, onClose }: {
     await send('POST', '/unsubscribe', { token })
     setNotice({ tone: 'ok', text: t('subscribe.unsubscribed') })
     setPrefs((current) => (current ? { ...current, status: 'unsubscribed' } : current))
+    setConfirmingUnsubscribe(false)
     setMode('manage')
   })
 
@@ -776,7 +820,7 @@ function ManageLinkDialog({ link, options, onClose }: {
           <Notice tone="error">{t('subscribe.invalidLink')}</Notice>
         ) : mode === 'unsubscribe' ? (
           <div className="flex justify-end gap-2">
-            <SecondaryButton onClick={() => setMode('manage')}>{t('subscribe.manage')}</SecondaryButton>
+            <SecondaryButton disabled={busy} onClick={() => setMode('manage')}>{t('subscribe.manage')}</SecondaryButton>
             <PrimaryButton disabled={busy} onClick={doUnsubscribe}>{t('subscribe.unsubscribe')}</PrimaryButton>
           </div>
         ) : prefs && scope && options ? (
@@ -796,14 +840,26 @@ function ManageLinkDialog({ link, options, onClose }: {
                   {t(prefs.status === 'disabled' ? 'subscribe.resume' : 'subscribe.resubscribe')}
                 </PrimaryButton>
               </div>
+            ) : confirmingUnsubscribe ? (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <p className="text-sm font-semibold mr-auto">{t('subscribe.unsubscribeConfirm')}</p>
+                <SecondaryButton disabled={busy} onClick={() => setConfirmingUnsubscribe(false)}>{t('subscribe.cancel')}</SecondaryButton>
+                <SecondaryButton danger disabled={busy} onClick={doUnsubscribe}>{t('subscribe.unsubscribeYes')}</SecondaryButton>
+              </div>
             ) : (
               <div className="flex justify-between gap-2">
-                <SecondaryButton danger onClick={doUnsubscribe}>{t('subscribe.unsubscribe')}</SecondaryButton>
+                <SecondaryButton danger disabled={busy} onClick={() => setConfirmingUnsubscribe(true)}>{t('subscribe.unsubscribe')}</SecondaryButton>
                 <PrimaryButton disabled={busy || !scopeIsValid(scope)} onClick={() => save()}>{t('subscribe.save')}</PrimaryButton>
               </div>
             )}
           </>
-        ) : null}
+        ) : notice ? (
+          <Notice tone={notice.tone}>{notice.text}</Notice>
+        ) : optionsFailed ? (
+          <Notice tone="error">{t('subscribe.optionsError')}</Notice>
+        ) : (
+          <p role="status" className="text-sm" style={{ color: 'var(--bsp-text-muted)' }}>{t('subscribe.loading')}</p>
+        )}
         {notice && mode !== 'manage' && <Notice tone={notice.tone}>{notice.text}</Notice>}
       </div>
     </Dialog>

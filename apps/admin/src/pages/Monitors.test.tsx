@@ -5,6 +5,7 @@ import type { Monitor } from '@bsp/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import MonitorsPage from './Monitors'
+import { ToastProvider } from '../components/ui'
 
 vi.mock('../api/client', () => ({
   api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
@@ -12,9 +13,10 @@ vi.mock('../api/client', () => ({
 
 // The monitor form is covered by its own tests.
 vi.mock('../components/monitors/MonitorFormModal', () => ({
-  default: ({ monitor, onClose, onSaved }: { monitor: Monitor | null; onClose: () => void; onSaved: () => void }) => (
+  default: ({ monitor, initialType, onClose, onSaved }: { monitor: Monitor | null; initialType?: string; onClose: () => void; onSaved: () => void }) => (
     <div role="dialog" aria-label="Monitor form">
       <p>{monitor ? `Editing ${monitor.name}` : 'New monitor'}</p>
+      {initialType && <p>{`Preselected ${initialType}`}</p>}
       <button onClick={onSaved}>Save monitor</button>
       <button onClick={onClose}>Close form</button>
     </div>
@@ -48,7 +50,7 @@ const monitors = [
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><MonitorsPage /></QueryClientProvider>)
+  return render(<QueryClientProvider client={queryClient}><ToastProvider><MonitorsPage /></ToastProvider></QueryClientProvider>)
 }
 
 function names() {
@@ -79,15 +81,18 @@ describe('MonitorsPage', () => {
     renderPage()
 
     expect(await screen.findByText('Checkout API')).toBeInTheDocument()
-    expect(screen.getByText('3 monitors · 15s refresh')).toBeInTheDocument()
+    expect(screen.getByText('3 monitors · Live')).toBeInTheDocument()
     expect(names()).toEqual(['billing db', 'Checkout API', 'Deploy hook'])
     // Webhook monitors are push-based and cannot be checked on demand.
     expect(screen.getAllByTitle('Check now')).toHaveLength(2)
 
-    await user.click(screen.getByRole('columnheader', { name: /^Name/ }))
+    expect(screen.getByRole('columnheader', { name: /^Name/ })).toHaveAttribute('aria-sort', 'ascending')
+    await user.click(screen.getByRole('button', { name: /^Name/ }))
     expect(names()).toEqual(['Deploy hook', 'Checkout API', 'billing db'])
-    await user.click(screen.getByRole('columnheader', { name: 'Interval' }))
+    expect(screen.getByRole('columnheader', { name: /^Name/ })).toHaveAttribute('aria-sort', 'descending')
+    await user.click(screen.getByRole('button', { name: 'Interval' }))
     expect(names()).toEqual(['billing db', 'Checkout API', 'Deploy hook'])
+    expect(screen.getByRole('columnheader', { name: /^Name/ })).not.toHaveAttribute('aria-sort')
   })
 
   it('filters by tag and clears the filter', async () => {
@@ -129,10 +134,11 @@ describe('MonitorsPage', () => {
     renderPage()
     await screen.findByText('Checkout API')
 
-    await user.click(screen.getAllByTitle('Check now')[0]!)
+    await user.click(screen.getByRole('button', { name: 'Check billing db now' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/monitors/2/check-now', {}))
+    expect(await screen.findByText('Checked "billing db"')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: '+ Add Monitor' }))
+    await user.click(screen.getByRole('button', { name: 'Add Monitor' }))
     expect(screen.getByText('New monitor')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Close form' }))
     await user.click(screen.getAllByTitle('Edit')[1]!)
@@ -144,13 +150,76 @@ describe('MonitorsPage', () => {
     expect(screen.getByText('Delete "Deploy hook"? This cannot be undone.')).toBeInTheDocument()
     await user.click(within(screen.getByRole('dialog', { name: 'Delete Monitor' })).getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/admin/monitors/3'))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete Monitor' })).not.toBeInTheDocument())
+    expect(screen.getByText('Deleted "Deploy hook"')).toBeInTheDocument()
   })
 
-  it('shows an empty state without monitors', async () => {
+  it('keeps the delete dialog open while pending and reports failures', async () => {
+    const user = userEvent.setup()
+    let rejectDelete: (err: Error) => void = () => {}
+    vi.mocked(api.delete).mockImplementation(() => new Promise((_resolve, reject) => { rejectDelete = reject }))
+    vi.mocked(api.post).mockRejectedValue(new Error('timeout'))
+    renderPage()
+    await screen.findByText('Checkout API')
+
+    await user.click(screen.getByRole('button', { name: 'Check Checkout API now' }))
+    expect(await screen.findByText("Couldn't check \"Checkout API\": timeout")).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Delete Checkout API' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete Monitor' })
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    expect(within(dialog).getByRole('button', { name: 'Deleting…' })).toBeDisabled()
+
+    act(() => rejectDelete(new Error('in use')))
+    expect(await screen.findByText("Couldn't delete monitor: in use")).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Delete Monitor' })).toBeInTheDocument()
+  })
+
+  it('shows an error state when monitors fail to load', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('boom'))
+    renderPage()
+
+    expect(await screen.findByText("Couldn't load monitors.")).toBeInTheDocument()
+  })
+
+  it('offers monitor type tiles without monitors and opens the form with that type', async () => {
+    const user = userEvent.setup()
     vi.mocked(api.get).mockResolvedValue([])
     renderPage()
 
-    expect(await screen.findByText('No monitors yet. Click "+ Add Monitor" to create one.')).toBeInTheDocument()
+    const panel = await screen.findByRole('region', { name: 'What should we check first?' })
+    expect(within(panel).getAllByRole('button').map((tile) => tile.textContent)).toEqual([
+      expect.stringContaining('HTTPS'), expect.stringContaining('Ping / TCP'), expect.stringContaining('DNS'),
+      expect.stringContaining('SQL Server'), expect.stringContaining('Webhook'),
+    ])
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+
+    await user.click(within(panel).getByRole('button', { name: /DNS/ }))
+    expect(screen.getByText('Preselected dns')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Close form' }))
+
+    await user.click(screen.getByRole('button', { name: 'Add Monitor' }))
+    expect(screen.queryByText(/Preselected/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the table when no monitor matches the tag filter and can clear it', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.get).mockResolvedValue([
+      { ...monitors[0], tags: [{ label: 'eu', color: '#ff0000' }] },
+      { ...monitors[1], tags: [{ label: 'us', color: '#00ff00' }] },
+    ])
+    renderPage()
+    await screen.findByText('Checkout API')
+
+    const filterBar = screen.getByText('Filter:').parentElement!
+    await user.click(within(filterBar).getByRole('button', { name: 'eu' }))
+    await user.click(within(filterBar).getByRole('button', { name: 'us' }))
+    expect(screen.getByRole('columnheader', { name: 'Name' })).toBeInTheDocument()
+    expect(screen.getByText('No monitors match the selected tags.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Clear the filter' }))
+    expect(screen.getByText('Checkout API')).toBeInTheDocument()
+    expect(screen.queryByText('No monitors match the selected tags.')).not.toBeInTheDocument()
   })
 
   it('shows how long the TLS certificate of an HTTPS monitor is still valid', async () => {

@@ -79,6 +79,22 @@ describe('IncidentCard', () => {
     expect(screen.getByText(/Resolved in 1h 0m/)).toBeInTheDocument()
   })
 
+  it('announces the expanded state and is not a button when there is nothing to expand', async () => {
+    const user = userEvent.setup()
+    const resolved = { status: 'resolved' as const, resolvedAt: Date.UTC(2026, 0, 1, 11) }
+    const { unmount } = render(<IncidentCard incident={incident(resolved)} monitors={[monitor]} />)
+
+    const toggle = screen.getByRole('button', { name: /API outage/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    unmount()
+
+    render(<IncidentCard incident={incident({ ...resolved, updates: [] })} monitors={[monitor]} />)
+    expect(screen.getByText('API outage')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
   it('can transition from an active incident to a resolved incident', async () => {
     const user = userEvent.setup()
     const view = render(<IncidentCard incident={incident()} monitors={[monitor]} />)

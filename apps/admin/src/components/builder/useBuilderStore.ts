@@ -116,6 +116,7 @@ export const useBuilderStore = create<BuilderState>((set) => ({
   applyGridLayout: (items) => {
     const posMap = new Map(items.map((i) => [i.i, { x: i.x, y: i.y, w: i.w, h: i.h }]))
     set((s) => {
+      let changed = false
       const children = s.tree.children.map((node) => {
         const pos = posMap.get(node.id)
         if (!pos) return node
@@ -123,8 +124,10 @@ export const useBuilderStore = create<BuilderState>((set) => ({
         if (current?.x === pos.x && current.y === pos.y && current.w === pos.w && current.h === pos.h) {
           return node
         }
+        changed = true
         return { ...node, grid: pos } as LayoutNode
       })
+      if (!changed) return s
       return { tree: { ...s.tree, children }, isDirty: true }
     })
   },

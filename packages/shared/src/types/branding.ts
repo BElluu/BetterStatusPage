@@ -76,6 +76,12 @@ export interface Branding {
   chartGridColor: string
   customCss: string | null
   enabled: number
+  /** 1 shows the status headline above the page content; 0 hides it to leave more room for monitors. */
+  showHero: number
+  /** 1 shows the footer with the logo and site name. */
+  showFooter: number
+  /** 1 shows the small BetterStatusPage link in the bottom-right corner. */
+  showProjectLink: number
   logoType: string
   logoText: string | null
   updatedAt: number

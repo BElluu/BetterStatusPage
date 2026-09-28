@@ -14,9 +14,10 @@ vi.mock('../api/client', () => ({
 
 // The channel form has its own tests; here it only needs to prove the page opens it with the right channel.
 vi.mock('../components/notifications/ChannelFormModal', () => ({
-  default: ({ channel, onClose, onSaved }: { channel: NotificationChannel | null; onClose: () => void; onSaved: () => void }) => (
+  default: ({ channel, initialType, onClose, onSaved }: { channel: NotificationChannel | null; initialType?: string; onClose: () => void; onSaved: () => void }) => (
     <div role="dialog" aria-label="Channel form">
       <p>{channel ? `Editing ${channel.name}` : 'New channel'}</p>
+      {initialType && <p>{`Preselected ${initialType}`}</p>}
       <button onClick={onSaved}>Save channel</button>
       <button onClick={onClose}>Close form</button>
     </div>
@@ -113,18 +114,32 @@ describe('NotificationsPage', () => {
     expect(screen.getByRole('link', { name: /Delivery history/ })).toHaveAttribute('href', '/admin/notifications/history')
   })
 
-  it('shows an empty state without channels', async () => {
+  it('offers channel type tiles without channels and opens the form with that type', async () => {
+    const user = userEvent.setup()
     vi.mocked(api.get).mockResolvedValueOnce([])
     renderWithProviders(<NotificationsPage />)
 
-    expect(await screen.findByText('No notification channels yet')).toBeInTheDocument()
+    const panel = await screen.findByRole('region', { name: 'Where should alerts go?' })
+    expect(within(panel).getAllByRole('button').map((tile) => tile.textContent)).toEqual([
+      expect.stringContaining('Email'), expect.stringContaining('Webhook'), expect.stringContaining('Discord'),
+      expect.stringContaining('Teams'), expect.stringContaining('Slack'),
+    ])
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+
+    await user.click(within(panel).getByRole('button', { name: /Slack/ }))
+    expect(screen.getByText('New channel')).toBeInTheDocument()
+    expect(screen.getByText('Preselected slack')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Close form' }))
+
+    await user.click(screen.getByRole('button', { name: 'Add Channel' }))
+    expect(screen.queryByText(/Preselected/)).not.toBeInTheDocument()
   })
 
   it('opens the channel form for create and edit', async () => {
     const user = userEvent.setup()
     renderWithProviders(<NotificationsPage />)
 
-    await user.click(screen.getByRole('button', { name: '+ Add Channel' }))
+    await user.click(screen.getByRole('button', { name: 'Add Channel' }))
     expect(screen.getByText('New channel')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Close form' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -159,7 +174,7 @@ describe('NotificationsPage', () => {
     const host = screen.getByPlaceholderText('smtp.example.com')
     await user.clear(host)
     await user.type(host, 'mail.example.test')
-    await user.click(screen.getByText('Use TLS/SSL (port 465)').previousElementSibling as HTMLElement)
+    await user.click(screen.getByRole('switch', { name: 'Use TLS/SSL (port 465)' }))
     await user.click(screen.getByRole('button', { name: 'Save Settings' }))
 
     await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/notifications/smtp', {
@@ -275,6 +290,18 @@ describe('NotificationHistoryPage delivery log', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/notifications/deliveries/2/retry', {}))
   })
 
+  it('expands a delivery from its details button with aria-expanded', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<NotificationHistoryPage />)
+
+    const toggles = await screen.findAllByRole('button', { name: /^Show details for/ })
+    expect(toggles[1]).toHaveAttribute('aria-expanded', 'false')
+    toggles[1]!.focus()
+    await user.keyboard('{Enter}')
+    expect(await screen.findByText('SMTP 550 mailbox unavailable')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Hide details for/ })).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('explains a suppressed delivery that was never attempted', async () => {
     const user = userEvent.setup()
     renderWithProviders(<NotificationHistoryPage />)
@@ -292,7 +319,7 @@ describe('NotificationHistoryPage delivery log', () => {
     deliveryPages = 2
     renderWithProviders(<NotificationHistoryPage />)
 
-    await screen.findByText('8 deliveries')
+    await screen.findByText('Page 1 of 2 · 8 deliveries')
     await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'failed')
     await user.selectOptions(await screen.findByRole('combobox', { name: 'Channel' }), '2')
     await user.selectOptions(screen.getByRole('combobox', { name: 'Event' }), 'alert')
@@ -300,19 +327,27 @@ describe('NotificationHistoryPage delivery log', () => {
       '/admin/notifications/deliveries?page=1&limit=20&status=failed&channelId=2&eventType=alert',
     ))
 
-    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: 'Next' }))
-    expect(await screen.findByText('Page 2 of 2')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
+    expect(await screen.findByText('Page 2 of 2 · 8 deliveries')).toBeInTheDocument()
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(expect.stringContaining('page=2')))
   })
 
-  it('shows an empty state when no deliveries match', async () => {
+  it('keeps the table headers when there are no deliveries and can clear filters', async () => {
+    const user = userEvent.setup()
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/admin/notifications/channels') return []
       return { deliveries: [], total: 0, page: 1, pages: 1 }
     })
     renderWithProviders(<NotificationHistoryPage />)
 
+    expect(await screen.findByText('No deliveries yet')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Monitor' })).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'failed')
     expect(await screen.findByText('No deliveries match these filters.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Clear the filters' }))
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('')
+    expect(await screen.findByText('No deliveries yet')).toBeInTheDocument()
   })
 })

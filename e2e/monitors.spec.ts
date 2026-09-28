@@ -7,7 +7,7 @@ const CLOSED_URL = 'http://127.0.0.1:9/'
 test('operator creates an HTTP monitor, tests it and sees it go up', async ({ adminPage: page, adminApi }) => {
   const name = unique('Health endpoint')
   await page.goto(`${ADMIN_URL}/monitors`)
-  await page.getByRole('button', { name: '+ Add Monitor' }).click()
+  await page.getByRole('button', { name: 'Add Monitor' }).click()
 
   await page.getByPlaceholder('My Service').fill(name)
   await page.getByPlaceholder('https://example.com').fill(HEALTHY_URL)
@@ -32,7 +32,7 @@ test('operator creates an HTTP monitor, tests it and sees it go up', async ({ ad
 test('the Test button reports a failing endpoint without saving it', async ({ adminPage: page, adminApi }) => {
   const name = unique('Broken endpoint')
   await page.goto(`${ADMIN_URL}/monitors`)
-  await page.getByRole('button', { name: '+ Add Monitor' }).click()
+  await page.getByRole('button', { name: 'Add Monitor' }).click()
   await page.getByPlaceholder('My Service').fill(name)
   await page.getByPlaceholder('https://example.com').fill(CLOSED_URL)
 
@@ -65,7 +65,7 @@ test('the public page shows an outage and recovers live when the monitor comes b
 test('a webhook monitor goes up when its generated URL is called', async ({ adminPage: page, request }) => {
   const name = unique('Nightly job')
   await page.goto(`${ADMIN_URL}/monitors`)
-  await page.getByRole('button', { name: '+ Add Monitor' }).click()
+  await page.getByRole('button', { name: 'Add Monitor' }).click()
   await page.getByPlaceholder('My Service').fill(name)
   await page.getByRole('button', { name: 'Webhook' }).click()
   await page.getByRole('button', { name: 'Create Monitor' }).click()
