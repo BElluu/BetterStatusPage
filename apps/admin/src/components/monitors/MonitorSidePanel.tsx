@@ -1,66 +1,16 @@
 import type { ReactNode } from 'react'
 import type { NotificationChannel } from '@bsp/shared'
+import type { SidePanelMeta } from '../SidePanel'
 import { Note, toggleInSet } from './monitorFormParts'
 
 export type SidePanelKey = 'request' | 'auth' | 'tags' | 'channels' | 'dependencies'
 
-const PANEL_META: Record<SidePanelKey, { icon: string; label: string }> = {
+export const PANEL_META: Record<SidePanelKey, SidePanelMeta> = {
   auth:         { icon: 'lock',          label: 'Auth' },
   request:      { icon: 'tune',          label: 'Request' },
   tags:         { icon: 'label',         label: 'Tags' },
   channels:     { icon: 'notifications', label: 'Alerts' },
   dependencies: { icon: 'account_tree',  label: 'Depends on' },
-}
-
-/** The expandable column to the right of the monitor form: a title bar and the open section. */
-export function SidePanelFrame({ panel, children }: { panel: SidePanelKey; children: ReactNode }) {
-  const current = PANEL_META[panel]
-  return (
-    <div style={{ flex: 1, minWidth: '360px', borderLeft: '1px solid var(--m3-outline-variant)', display: 'flex', flexDirection: 'column' }}>
-      {/* Panel header — just the section title */}
-      <div className="flex items-center gap-2 px-5 py-4" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-        <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--m3-primary)' }}>{current.icon}</span>
-        <span className="font-mono text-xs uppercase tracking-wider font-medium" style={{ color: 'var(--m3-on-surface)', flex: 1 }}>{current.label}</span>
-      </div>
-
-      {/* Tab content */}
-      <div className="p-5 space-y-4 overflow-y-auto" style={{ flex: 1 }}>
-        {children}
-      </div>
-    </div>
-  )
-}
-
-export interface SideTab { key: SidePanelKey; badge: string | null }
-
-/** The vertical icon strip that opens and closes side-panel sections. */
-export function SideTabStrip({ tabs, active, onToggle }: { tabs: SideTab[]; active: SidePanelKey | null; onToggle: (key: SidePanelKey | null) => void }) {
-  return (
-    <div style={{ flex: '0 0 44px', borderLeft: '1px solid var(--m3-outline-variant)', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-      {tabs.map((tab) => {
-        const isActive = active === tab.key
-        const meta = PANEL_META[tab.key]
-        return (
-          <button key={tab.key} type="button"
-            title={meta.label}
-            onClick={() => onToggle(isActive ? null : tab.key)}
-            className={`relative flex flex-col items-center justify-center py-4 transition-all ${isActive ? 'monitor-side-tab-active' : ''}`}
-            style={{ color: isActive ? 'var(--m3-primary)' : 'var(--m3-secondary)', background: isActive ? 'var(--m3-primary-fixed)' : 'transparent', borderBottom: '1px solid var(--m3-outline-variant)' }}
-            onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container)' }}
-            onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = '' }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{meta.icon}</span>
-            {tab.badge && (
-              <span className={`absolute top-1.5 right-1 flex items-center justify-center rounded-full font-bold leading-none ${isActive ? 'monitor-side-tab-badge-active' : ''}`}
-                style={{ background: isActive ? 'var(--m3-primary)' : 'var(--m3-on-surface-variant)', color: isActive ? 'var(--m3-on-primary)' : 'var(--m3-surface)', minWidth: '14px', height: '14px', fontSize: '9px', padding: '0 2px' }}>
-                {tab.badge}
-              </span>
-            )}
-          </button>
-        )
-      })}
-    </div>
-  )
 }
 
 // ── Request (headers & body) ──────────────────────────────────────────────────

@@ -167,7 +167,7 @@ Strona dziennika audytu (tylko dla adminów) pozwala filtrować po **użytkownik
 
 ### 🌍 i18n, branding i cała reszta
 
-- **Obsługa wielu języków** — dodaj własną lokalizację, przetłumacz każdy tekst, ustaw domyślny
+- **Obsługa wielu języków** — dodaj własną lokalizację, przetłumacz każdy tekst, ustaw domyślny; angielski i polski (`pl`) mają kompletne wbudowane tłumaczenia
 - **Pełny branding** — nazwa strony, logo, favicon, 13 kolorów motywu i pole na własny CSS, gdy naprawdę chcesz poszaleć
 - **Tryb ciemny** — bo dziś to obowiązek, a nie opcja
 

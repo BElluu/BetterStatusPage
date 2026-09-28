@@ -102,13 +102,24 @@ describe('LocaleProvider', () => {
     expect(screen.getByTestId('hero')).toHaveTextContent('Real-time Network Status')
   })
 
-  it('keeps English when the locale endpoints fail', async () => {
+  it('fills keys a Polish locale leaves empty with the built-in Polish copy', async () => {
+    mockApi({
+      '/api/v1/public/locales': locales,
+      '/api/v1/public/locales/pl': { translations: { 'page.hero': '', 'page.monitoredLine': 'Usługi: {n}' } },
+    })
+    render(<LocaleProvider><Probe /></LocaleProvider>)
+
+    await waitFor(() => expect(screen.getByTestId('monitored')).toHaveTextContent('Usługi: 4'))
+    expect(screen.getByTestId('hero')).toHaveTextContent('Status usług w czasie rzeczywistym')
+  })
+
+  it('uses built-in Polish copy when the locale endpoints fail', async () => {
     storage.setItem('bsp-locale', 'pl')
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'))
     render(<LocaleProvider><Probe /></LocaleProvider>)
 
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(2))
-    expect(screen.getByTestId('hero')).toHaveTextContent('Real-time Network Status')
+    expect(screen.getByTestId('hero')).toHaveTextContent('Status usług w czasie rzeczywistym')
     expect(screen.getByTestId('available')).toHaveTextContent('')
   })
 })
