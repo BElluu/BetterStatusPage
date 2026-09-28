@@ -8,6 +8,8 @@ import { Field, Switch } from '../components/ui'
 interface BrandingForm {
   enabled: boolean
   showHero: boolean
+  showFooter: boolean
+  showProjectLink: boolean
   siteName: string
   logoType: 'image' | 'text'
   logoText: string
@@ -38,6 +40,8 @@ interface BrandingForm {
 const DEFAULTS: BrandingForm = {
   enabled: false,
   showHero: true,
+  showFooter: true,
+  showProjectLink: true,
   siteName: 'Status Page',
   logoType: 'image',
   logoText: '',
@@ -49,6 +53,15 @@ const DEFAULTS: BrandingForm = {
   uptimeThresholdUp: String(DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdUp),
   uptimeThresholdDegraded: String(DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdDegraded),
   uptimeThresholdPartial: String(DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdPartial),
+}
+
+/** The Layout switches as the 0/1 flags the API stores. */
+function layoutSwitches(form: BrandingForm) {
+  return {
+    showHero: form.showHero ? 1 : 0,
+    showFooter: form.showFooter ? 1 : 0,
+    showProjectLink: form.showProjectLink ? 1 : 0,
+  }
 }
 
 function parseThresholds(form: BrandingForm): UptimeThresholds {
@@ -90,6 +103,8 @@ export default function BrandingPage() {
     setForm({
       enabled: !!branding.enabled,
       showHero: (branding.showHero ?? 1) === 1,
+      showFooter: (branding.showFooter ?? 1) === 1,
+      showProjectLink: (branding.showProjectLink ?? 1) === 1,
       siteName: branding.siteName,
       logoType: branding.logoType === 'text' ? 'text' : 'image',
       logoText: branding.logoText ?? '',
@@ -131,7 +146,7 @@ export default function BrandingPage() {
     ...form,
     ...parseThresholds(form),
     enabled: form.enabled ? 1 : 0,
-    showHero: form.showHero ? 1 : 0,
+    ...layoutSwitches(form),
     logoText: form.logoText || null,
     logoUrl: currentLogoUrl,
     logoLightUrl: currentLightLogoUrl,
@@ -161,7 +176,7 @@ export default function BrandingPage() {
         ...form,
         ...parseThresholds(form),
         enabled: form.enabled ? 1 : 0,
-        showHero: form.showHero ? 1 : 0,
+        ...layoutSwitches(form),
         customCss: form.customCss || null,
         logoText: form.logoText || null,
         ...(form.logoUrl === null ? { logoUrl: null } : {}),
@@ -267,6 +282,20 @@ export default function BrandingPage() {
               onChange={(showHero) => editForm((current) => ({ ...current, showHero }))}
               label="Page header"
               description="The overall status headline and monitor count above the page. Turn it off to give monitors more room."
+            />
+            <Switch
+              checked={form.showFooter}
+              onChange={(showFooter) => editForm((current) => ({ ...current, showFooter }))}
+              label="Footer"
+              description="The logo and site name at the bottom of the page."
+            />
+            <Switch
+              checked={form.showProjectLink}
+              onChange={(showProjectLink) => editForm((current) => ({ ...current, showProjectLink }))}
+              label="BetterStatusPage link"
+              description={form.showProjectLink
+                ? 'A small link to the project in the bottom-right corner. Thank you for keeping it! ❤'
+                : 'Hidden. No hard feelings. Well, maybe a few.'}
             />
           </Section>
 
@@ -406,6 +435,7 @@ const CSS_CLASSES = [
   ['.bsp-incidents-section', 'System events section'],
   ['.bsp-incident-card', 'Incident card or history row'],
   ['.bsp-footer', 'Page footer'],
+  ['.bsp-project-link', 'BetterStatusPage link'],
 ] as const
 
 const CSS_VARIABLES = [

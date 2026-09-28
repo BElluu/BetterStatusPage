@@ -153,6 +153,9 @@ body {
 .bsp-site-name     { color: var(--bsp-text); }
 .bsp-text-block    { color: var(--bsp-text-muted); }
 .bsp-footer        { color: var(--bsp-text-muted); border-top-color: var(--bsp-card-border); }
+.bsp-project-link    { color: var(--bsp-text-muted); opacity: 0.7; text-decoration: none; transition: opacity 0.15s; }
+.bsp-project-link:hover { opacity: 1; }
+.bsp-project-link:focus-visible { opacity: 1; outline: none; box-shadow: 0 0 0 3px var(--bsp-action-focus); }
 .bsp-divider       { border-top-color: var(--bsp-card-border); }
 
 /* ── Page wrapper ─────────────────────────────────────────────────── */

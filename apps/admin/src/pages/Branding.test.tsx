@@ -106,10 +106,10 @@ describe('BrandingPage loading', () => {
 })
 
 describe('BrandingPage page header', () => {
-  it('turns the page header off in the preview and the saved branding', async () => {
+  it('turns the page header, footer and project link off in the saved branding', async () => {
     vi.clearAllMocks()
     vi.mocked(api.get).mockImplementation((path: string) => path === '/admin/branding'
-      ? Promise.resolve({ enabled: 0, showHero: 1, siteName: 'Status', logoType: 'image', logoText: '', logoUrl: null, logoLightUrl: null, logoDarkUrl: null, primaryColor: '#000000', accentColor: '#497cff' })
+      ? Promise.resolve({ enabled: 0, showHero: 1, showFooter: 1, showProjectLink: 1, siteName: 'Status', logoType: 'image', logoText: '', logoUrl: null, logoLightUrl: null, logoDarkUrl: null, primaryColor: '#000000', accentColor: '#497cff' })
       : new Promise(() => {}))
     vi.mocked(api.patch).mockResolvedValue({})
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -121,8 +121,12 @@ describe('BrandingPage page header', () => {
     expect(headerSwitch).toBeEnabled()
     fireEvent.click(headerSwitch)
     expect(headerSwitch).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(screen.getByRole('switch', { name: 'Footer' }))
+    expect(screen.getByText(/Thank you for keeping it!/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('switch', { name: 'BetterStatusPage link' }))
+    expect(screen.getByText('Hidden. No hard feelings. Well, maybe a few.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Save branding' }))
-    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/branding', expect.objectContaining({ showHero: 0 })))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/branding', expect.objectContaining({ showHero: 0, showFooter: 0, showProjectLink: 0 })))
   })
 })
 
