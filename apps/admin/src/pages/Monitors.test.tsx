@@ -152,4 +152,16 @@ describe('MonitorsPage', () => {
 
     expect(await screen.findByText('No monitors yet. Click "+ Add Monitor" to create one.')).toBeInTheDocument()
   })
+
+  it('shows how long the TLS certificate of an HTTPS monitor is still valid', async () => {
+    const day = 86_400_000
+    vi.mocked(api.get).mockResolvedValueOnce([
+      { ...monitors[0], config: { url: 'https://a.test', certExpiry: { enabled: true, warnDays: 14 } }, certExpiresAt: Date.now() + 5.5 * day },
+      { ...monitors[0], id: 4, name: 'Old cert', config: { url: 'https://b.test' }, certExpiresAt: Date.now() - day },
+    ])
+    renderPage()
+
+    expect(await screen.findByText('TLS certificate: 5 days left')).toBeInTheDocument()
+    expect(screen.getByText('TLS certificate expired')).toBeInTheDocument()
+  })
 })

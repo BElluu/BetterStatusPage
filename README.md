@@ -62,7 +62,7 @@ Before exposing a production instance, read:
 
 | Type | What it checks |
 |------|---------------|
-| **HTTPS** | URLs, status codes, response times, keywords in the body, and full auth flows (Basic, OAuth2, CAS) |
+| **HTTPS** | URLs, status codes, response times, keywords in the body, full auth flows (Basic, OAuth2, CAS), and optional TLS certificate expiry warnings |
 | **Ping / TCP** | Whether a host is alive — via ICMP or TCP port check |
 | **DNS** | Whether your records resolve correctly — A, AAAA, MX, CNAME, TXT, with custom resolver support |
 | **SQL Server** | Runs a test query against MSSQL and validates the result |
@@ -83,6 +83,8 @@ When something breaks (or recovers), BetterStatusPage can shout at you via:
 All channels support template variables like `{{monitor_name}}`, `{{status}}`, `{{error_message}}` etc., so your alerts can say *"API Gateway is down: connection timeout"* instead of *"status changed"*.
 
 Recovery notifications are optional per channel — because sometimes you want to know when things come back up, and sometimes you just want to sleep.
+
+**TLS certificate expiry warnings** — switch them on per HTTPS monitor and pick the lead time (14 days by default). The monitor's channels get one warning when the certificate enters that window, then reminders 7, 3 and 1 days before it expires, and an all-clear once it has been renewed (if the channel sends recoveries). The certificate is read every 6 hours; the public status page is not affected, and a certificate that has already expired fails the check and alerts as down. The admin monitor list shows how many days each certificate has left, and the test runner shows the expiry date. Certificate notifications add the template variables `{{event_type}}` (`certificate`), `{{cert_expires_in}}`, `{{cert_expires_at}}`, `{{cert_days_left}}` and `{{cert_host}}`; `{{status}}` is `cert-expiring` or `cert-renewed`.
 
 Every delivery is persisted with its individual attempts. Failed sends retry automatically after 1 and 5 minutes, then remain visible in the admin delivery history for manual retry. Delivery history is retained for 180 days.
 

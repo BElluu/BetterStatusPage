@@ -49,7 +49,20 @@ export interface HttpsConfig {
   headers?: Record<string, string>
   body?: string
   auth?: HttpsAuth
+  /** Warns through the monitor's channels before the endpoint's TLS certificate expires. */
+  certExpiry?: CertExpiryConfig
 }
+
+export interface CertExpiryConfig {
+  enabled: boolean
+  /** The first warning is sent once the certificate expires within this many days. */
+  warnDays: number
+}
+
+export const DEFAULT_CERT_WARN_DAYS = 14
+export const MAX_CERT_WARN_DAYS = 365
+/** Follow-up reminders (days before expiry) sent after the first warning, those below warnDays. */
+export const CERT_REMINDER_DAYS: readonly number[] = [7, 3, 1]
 
 export interface PingConfig {
   host: string
@@ -104,6 +117,9 @@ export interface Monitor {
   lastCheckedAt: number | null
   webhookToken: string | null
   tags: MonitorTag[]
+  /** Expiry of the TLS certificate last seen on an HTTPS monitor's endpoint; null when unknown. */
+  certExpiresAt: number | null
+  certCheckedAt: number | null
   createdAt: number
   updatedAt: number
 }

@@ -102,7 +102,7 @@ export interface SmtpSettings {
 }
 
 export type NotificationDeliveryStatus = 'pending' | 'delivered' | 'failed' | 'suppressed'
-export type NotificationEventType = 'alert' | 'recovery' | 'test'
+export type NotificationEventType = 'alert' | 'recovery' | 'certificate' | 'test'
 
 export interface NotificationDelivery {
   id: number
