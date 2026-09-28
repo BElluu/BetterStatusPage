@@ -239,6 +239,7 @@ function digestVars(rows: DeliveryRow[], now: number): Record<string, string> {
     previous_status: previous.size === 1 ? [...previous][0]! : 'various',
     error_message: lines.join('\n'),
     checked_at: new Date(now).toISOString(),
+    event_type: rows[0]?.eventType ?? 'alert',
     monitor_list: names.join(', '),
     affected_count: String(rows.length),
   }
@@ -359,14 +360,10 @@ export async function sendNotifications(
   )
   if (!isDown && !isRecovery) return
 
-  const links = await db.select().from(monitorNotificationChannels)
-    .where(eq(monitorNotificationChannels.monitorId, monitor.id))
-  if (links.length === 0) return
+  const channels = await linkedChannels(monitor.id)
+  if (channels.length === 0) return
 
-  const channelIds = links.map((l) => l.channelId)
-  const channels = await db.select().from(notificationChannels)
-    .where(inArray(notificationChannels.id, channelIds))
-
+  const eventType = isRecovery ? 'recovery' : 'alert'
   const vars: Record<string, string> = {
     monitor_name: monitor.name,
     monitor_type: monitor.type,
@@ -374,6 +371,7 @@ export async function sendNotifications(
     previous_status: prevStatus,
     error_message: errorMessage ?? '',
     checked_at: new Date().toISOString(),
+    event_type: eventType,
     // Digest-only variables, filled in for single events so templates never render a raw {{tag}}.
     monitor_list: monitor.name,
     affected_count: '1',
@@ -382,27 +380,84 @@ export async function sendNotifications(
   for (const channel of channels) {
     if (channel.enabled !== 1) continue
     if (isRecovery && channel.notifyOnRecovery !== 1) continue
-
-    const details: DeliveryDetails = {
-      monitorId: monitor.id,
-      monitorName: monitor.name,
-      eventType: isRecovery ? 'recovery' : 'alert',
-    }
-    const sendNow = await withChannelLock(channel.id, async () => {
-      const now = Date.now()
-      const plan = await planDelivery(channel, parseAlertPolicy(channel.alertPolicy), details, now)
-
-      if (plan.suppressionReason) {
-        await insertDelivery(channel, vars, details, { status: 'suppressed', reason: plan.suppressionReason })
-        return null
-      }
-
-      const deliveryId = await insertDelivery(channel, vars, details, { status: 'pending', releaseAt: plan.releaseAt, groupKey: plan.groupKey })
-      return plan.releaseAt <= now ? deliveryId : null
-    })
-
-    if (sendNow !== null) await attemptNotificationDelivery(sendNow)
+    await dispatchToChannel(channel, vars, { monitorId: monitor.id, monitorName: monitor.name, eventType })
   }
+}
+
+export interface CertificateEvent {
+  kind: 'expiring' | 'renewed'
+  host: string
+  expiresAt: number
+  daysLeft: number
+}
+
+/** "in 5 days" / "in less than a day" — whole days, rounded down, so a warning never overstates the time left. */
+export function expiresInPhrase(daysLeft: number): string {
+  const days = Math.floor(daysLeft)
+  if (days < 1) return 'in less than a day'
+  return `in ${days} day${days === 1 ? '' : 's'}`
+}
+
+/**
+ * Warns the monitor's channels that its TLS certificate is about to expire, or that the certificate
+ * they were warned about has been renewed. The renewal is an all-clear, so it follows the channel's
+ * "notify on recovery" switch; both go through the channel's alert hygiene like any other event.
+ */
+export async function sendCertificateNotifications(monitor: typeof monitors.$inferSelect, event: CertificateEvent) {
+  const channels = await linkedChannels(monitor.id)
+  if (channels.length === 0) return
+
+  const expiresAt = new Date(event.expiresAt).toISOString()
+  const expiresIn = expiresInPhrase(event.daysLeft)
+  const vars: Record<string, string> = {
+    monitor_name: monitor.name,
+    monitor_type: monitor.type,
+    status: event.kind === 'expiring' ? 'cert-expiring' : 'cert-renewed',
+    previous_status: monitor.currentStatus,
+    error_message: event.kind === 'expiring'
+      ? `TLS certificate for ${event.host} expires ${expiresIn} (${expiresAt})`
+      : `TLS certificate for ${event.host} was renewed and now expires ${expiresAt}`,
+    checked_at: new Date().toISOString(),
+    event_type: 'certificate',
+    cert_host: event.host,
+    cert_expires_at: expiresAt,
+    cert_expires_in: expiresIn,
+    cert_days_left: String(Math.max(0, Math.floor(event.daysLeft))),
+    monitor_list: monitor.name,
+    affected_count: '1',
+  }
+
+  for (const channel of channels) {
+    if (channel.enabled !== 1) continue
+    if (event.kind === 'renewed' && channel.notifyOnRecovery !== 1) continue
+    await dispatchToChannel(channel, vars, { monitorId: monitor.id, monitorName: monitor.name, eventType: 'certificate' })
+  }
+}
+
+async function linkedChannels(monitorId: number): Promise<ChannelRow[]> {
+  const links = await db.select().from(monitorNotificationChannels)
+    .where(eq(monitorNotificationChannels.monitorId, monitorId))
+  if (links.length === 0) return []
+  return db.select().from(notificationChannels)
+    .where(inArray(notificationChannels.id, links.map((l) => l.channelId)))
+}
+
+/** Plans one event for one channel under its lock, records it, and sends it right away when nothing holds it back. */
+async function dispatchToChannel(channel: ChannelRow, vars: Record<string, string>, details: DeliveryDetails): Promise<void> {
+  const sendNow = await withChannelLock(channel.id, async () => {
+    const now = Date.now()
+    const plan = await planDelivery(channel, parseAlertPolicy(channel.alertPolicy), details, now)
+
+    if (plan.suppressionReason) {
+      await insertDelivery(channel, vars, details, { status: 'suppressed', reason: plan.suppressionReason })
+      return null
+    }
+
+    const deliveryId = await insertDelivery(channel, vars, details, { status: 'pending', releaseAt: plan.releaseAt, groupKey: plan.groupKey })
+    return plan.releaseAt <= now ? deliveryId : null
+  })
+
+  if (sendNow !== null) await attemptNotificationDelivery(sendNow)
 }
 
 async function sendEmail(
@@ -503,23 +558,48 @@ async function sendWebhook(
   await sendHttp(url, { method: config.method ?? 'POST', headers, ...(body !== undefined ? { body } : {}) }, 'HTTP')
 }
 
+type Severity = 'down' | 'degraded' | 'up'
+
+/** The colour family the rich channels paint an event in. */
+function severityOf(status: string | undefined): Severity {
+  if (status === 'up' || status === 'cert-renewed') return 'up'
+  if (status === 'degraded' || status === 'cert-expiring') return 'degraded'
+  return 'down'
+}
+
+const SEVERITY_EMOJI: Record<Severity, string> = { down: '🔴', degraded: '🟡', up: '🟢' }
+
+/** A certificate event carries details, not an error. */
+function detailLabel(vars: Record<string, string>): string {
+  return vars['event_type'] === 'certificate' ? 'Details' : 'Error'
+}
+
+/** Headline of a certificate event; null for status events, which each channel words itself. */
+function certificateHeadline(vars: Record<string, string>, strong: (text: string) => string): string | null {
+  if (vars['event_type'] !== 'certificate') return null
+  const name = strong(vars['monitor_name'] ?? 'Unknown monitor')
+  if (vars['status'] === 'cert-renewed') return `TLS certificate of ${name} was renewed`
+  // A digest has no single expiry to quote.
+  return vars['cert_expires_in'] ? `TLS certificate of ${name} expires ${vars['cert_expires_in']}` : `TLS certificates expiring: ${name}`
+}
+
 const DISCORD_COLORS = { down: 0xe53935, degraded: 0xfb8c00, up: 0x43a047 } as const
 
 async function sendDiscord(
   config: { webhookUrl: string; username?: string; avatarUrl?: string; content?: string },
   vars: Record<string, string>,
 ) {
-  const status = vars['status'] as keyof typeof DISCORD_COLORS
-  const color = DISCORD_COLORS[status] ?? DISCORD_COLORS.down
+  const status = vars['status'] ?? 'unknown'
+  const color = DISCORD_COLORS[severityOf(status)]
 
   const embed = {
-    title: `Monitor \`${vars['monitor_name']}\` is **${status.toUpperCase()}**`,
+    title: certificateHeadline(vars, (text) => `\`${text}\``) ?? `Monitor \`${vars['monitor_name']}\` is **${status.toUpperCase()}**`,
     color,
     fields: [
       { name: 'Status', value: vars['status'], inline: true },
       { name: 'Previous', value: vars['previous_status'], inline: true },
       { name: 'Type', value: vars['monitor_type'], inline: true },
-      ...(vars['error_message'] ? [{ name: 'Error', value: vars['error_message'], inline: false }] : []),
+      ...(vars['error_message'] ? [{ name: detailLabel(vars), value: vars['error_message'], inline: false }] : []),
     ],
     footer: { text: `Checked at ${vars['checked_at']}` },
     timestamp: new Date().toISOString(),
@@ -539,24 +619,24 @@ async function sendTeams(
   config: { webhookUrl: string; summary?: string },
   vars: Record<string, string>,
 ) {
-  const status = vars['status'] as keyof typeof TEAMS_COLORS
   const statusText = vars['status'] ?? 'unknown'
   const monitorName = vars['monitor_name'] ?? 'Unknown monitor'
   const previousStatus = vars['previous_status'] ?? 'unknown'
   const monitorType = vars['monitor_type'] ?? 'unknown'
   const checkedAt = vars['checked_at'] ?? 'unknown'
-  const themeColor = TEAMS_COLORS[status] ?? TEAMS_COLORS.down
-  const statusEmoji = status === 'down' ? '🔴' : status === 'degraded' ? '🟡' : '🟢'
+  const severity = severityOf(statusText)
+  const themeColor = TEAMS_COLORS[severity]
+  const statusEmoji = SEVERITY_EMOJI[severity]
 
   const summary = config.summary
     ? substituteVars(config.summary, vars)
-    : `Monitor ${monitorName} is ${statusText.toUpperCase()}`
+    : certificateHeadline(vars, (text) => text) ?? `Monitor ${monitorName} is ${statusText.toUpperCase()}`
 
   const facts: { name: string; value: string }[] = [
     { name: 'Status', value: statusText },
     { name: 'Previous status', value: previousStatus },
     { name: 'Monitor type', value: monitorType },
-    ...(vars['error_message'] ? [{ name: 'Error', value: vars['error_message'] }] : []),
+    ...(vars['error_message'] ? [{ name: detailLabel(vars), value: vars['error_message'] }] : []),
     { name: 'Checked at', value: checkedAt },
   ]
 
@@ -566,7 +646,7 @@ async function sendTeams(
     themeColor,
     summary,
     sections: [{
-      activityTitle: `${statusEmoji} **${monitorName}** is **${statusText.toUpperCase()}**`,
+      activityTitle: `${statusEmoji} ${certificateHeadline(vars, (text) => `**${text}**`) ?? `**${monitorName}** is **${statusText.toUpperCase()}**`}`,
       activitySubtitle: `Previously: **${previousStatus}**`,
       facts,
       markdown: true,
@@ -582,19 +662,20 @@ async function sendSlack(
   config: { webhookUrl: string; text?: string },
   vars: Record<string, string>,
 ) {
-  const status = vars['status'] as keyof typeof SLACK_COLORS
   const statusText = vars['status'] ?? 'unknown'
   const monitorName = vars['monitor_name'] ?? 'Unknown monitor'
-  const color = SLACK_COLORS[status] ?? SLACK_COLORS.down
-  const statusEmoji = status === 'down' ? '🔴' : status === 'degraded' ? '🟡' : '🟢'
+  const severity = severityOf(statusText)
+  const color = SLACK_COLORS[severity]
+  const statusEmoji = SEVERITY_EMOJI[severity]
 
-  const fallbackText = `${statusEmoji} Monitor *${monitorName}* is *${statusText.toUpperCase()}*`
+  const headline = certificateHeadline(vars, (text) => `*${text}*`) ?? `Monitor *${monitorName}* is *${statusText.toUpperCase()}*`
+  const fallbackText = `${statusEmoji} ${headline}`
 
   const fields = [
     { type: 'mrkdwn', text: `*Status:*\n${vars['status']}` },
     { type: 'mrkdwn', text: `*Previous:*\n${vars['previous_status']}` },
     { type: 'mrkdwn', text: `*Type:*\n${vars['monitor_type']}` },
-    ...(vars['error_message'] ? [{ type: 'mrkdwn', text: `*Error:*\n${vars['error_message']}` }] : []),
+    ...(vars['error_message'] ? [{ type: 'mrkdwn', text: `*${detailLabel(vars)}:*\n${vars['error_message']}` }] : []),
   ]
 
   const blocks = [
@@ -646,6 +727,7 @@ export async function testNotificationChannel(channelId: number): Promise<{ ok: 
     previous_status: 'up',
     error_message: 'This is a test notification',
     checked_at: new Date().toISOString(),
+    event_type: 'test',
     monitor_list: 'Test Monitor',
     affected_count: '1',
   }

@@ -3,7 +3,7 @@ import { DiscordIcon, SlackIcon, TeamsIcon } from './icons'
 
 export type ChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack'
 
-const VARS = ['{{monitor_name}}', '{{monitor_type}}', '{{status}}', '{{previous_status}}', '{{error_message}}', '{{checked_at}}', '{{monitor_list}}', '{{affected_count}}']
+const VARS = ['{{monitor_name}}', '{{monitor_type}}', '{{status}}', '{{previous_status}}', '{{error_message}}', '{{checked_at}}', '{{monitor_list}}', '{{affected_count}}', '{{event_type}}', '{{cert_expires_in}}', '{{cert_expires_at}}']
 
 const DEFAULT_EMAIL_SUBJECT = 'Monitor {{monitor_name}} is {{status}}'
 const DEFAULT_EMAIL_BODY = `Monitor: {{monitor_name}}

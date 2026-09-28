@@ -279,11 +279,28 @@ const SUPPRESSION_DETAILS: Record<string, string> = {
   'grouped': 'Several monitors changed state at once, so this event was sent as part of a single digest notification instead.',
 }
 
+const STATUS_NAMES: Record<string, string> = {
+  up: 'Operational',
+  down: 'Down',
+  degraded: 'Degraded',
+  pending: 'Pending',
+  affected: 'Affected',
+  'cert-expiring': 'Certificate expiring',
+  'cert-renewed': 'Certificate renewed',
+}
+
+const EVENT_LABELS: Record<NotificationDelivery['eventType'], string> = {
+  alert: 'Alert',
+  recovery: 'Recovery',
+  certificate: 'Certificate',
+  test: 'Test',
+}
+
 function DeliveryRow({ delivery, expanded, detail, onToggle, onRetry, retrying }: { delivery: NotificationDelivery; expanded: boolean; detail?: NotificationDelivery & { attempts: NotificationDeliveryAttempt[] }; onToggle: () => void; onRetry: () => void; retrying: boolean }) {
-  const statusName = (status: string) => status === 'up' ? 'Operational' : status === 'down' ? 'Down' : status === 'degraded' ? 'Degraded' : status === 'pending' ? 'Pending' : status === 'affected' ? 'Affected' : status
+  const statusName = (status: string) => STATUS_NAMES[status] ?? status
   const statusColor = delivery.status === 'delivered' ? 'var(--m3-up-bar)' : delivery.status === 'failed' ? 'var(--m3-error)' : delivery.status === 'suppressed' ? 'var(--m3-outline)' : 'var(--m3-degraded-bar)'
   const statusLabel = delivery.status === 'delivered' ? 'Delivered' : delivery.status === 'failed' ? 'Failed' : delivery.status === 'suppressed' ? 'Suppressed' : 'Pending'
-  const eventLabel = delivery.eventType === 'alert' ? 'Alert' : delivery.eventType === 'recovery' ? 'Recovery' : 'Test'
+  const eventLabel = EVENT_LABELS[delivery.eventType] ?? delivery.eventType
   const suppression = SUPPRESSION_LABELS[delivery.suppressionReason ?? '']
   const heldUntil = delivery.status === 'pending' && delivery.attemptCount === 0 && delivery.nextAttemptAt && delivery.nextAttemptAt > Date.now()
     ? new Date(delivery.nextAttemptAt).toLocaleString()

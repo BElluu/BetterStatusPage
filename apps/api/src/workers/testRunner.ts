@@ -2,6 +2,8 @@ import type { HttpsConfig, SqlServerConfig, PingConfig, DnsConfig } from '@bsp/s
 import { resolveVaultSecret } from './resolveSecret.js'
 import { CookieJar, discardBody, errMsg, redactedCookies, requestWithCas, resolveHttpAuth, type HttpFetch, type HttpResponse, type ResolvedHttpAuth } from './httpAuth.js'
 import { closeSqlServerPool, openSqlServerPool, sqlServerTarget } from './sqlserver.js'
+import { certificateTarget, certMilestone, normalizeCertExpiry, readCertificate } from './certificate.js'
+import { expiresInPhrase } from './notifier.js'
 import type { ConnectionPool } from 'mssql'
 import net from 'net'
 import { Resolver } from 'dns/promises'
@@ -85,7 +87,30 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
     clearTimeout(timer)
   }
 
+  if (certificateTarget(config.url)) steps.push(await certificateStep(config, timeoutMs))
+
   return { overall: 'ok', steps, totalMs: Date.now() - totalStart }
+}
+
+/** Shows when the endpoint's certificate expires. Informational: the certificate was already accepted above. */
+export async function certificateStep(config: HttpsConfig, timeoutMs: number): Promise<TestStep> {
+  const t = Date.now()
+  try {
+    const cert = await readCertificate(config.url, timeoutMs)
+    const daysLeft = (cert.expiresAt - Date.now()) / 86_400_000
+    const policy = normalizeCertExpiry(config.certExpiry)
+    const warning = policy && certMilestone(daysLeft, policy.warnDays) !== null
+      ? ` — inside the ${policy.warnDays}-day warning window`
+      : ''
+    return {
+      label: `TLS certificate expires ${expiresInPhrase(daysLeft)}`,
+      status: warning ? 'info' : 'ok',
+      detail: `${new Date(cert.expiresAt).toISOString()}${cert.issuer ? `, issued by ${cert.issuer}` : ''}${warning}`,
+      durationMs: Date.now() - t,
+    }
+  } catch (err) {
+    return { label: 'TLS certificate could not be read', status: 'info', detail: errMsg(err), durationMs: Date.now() - t }
+  }
 }
 
 const globalFetch: HttpFetch = (url, init) => fetch(url, init)
