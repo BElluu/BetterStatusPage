@@ -233,7 +233,7 @@ export default function App() {
   document.title = siteName
 
   return (
-    <div className="bsp-page" style={{ ...cssVars, background: 'var(--bsp-bg)', minHeight: '100vh' }}>
+    <div className="bsp-page flex flex-col" style={{ ...cssVars, background: 'var(--bsp-bg)', minHeight: '100vh' }}>
       {customCss && <style>{customCss}</style>}
 
       {/* ── Top Navigation ── */}
@@ -311,7 +311,8 @@ export default function App() {
         </div>
       )}
 
-      <main className="bsp-content max-w-[1440px] mx-auto px-4 md:px-8" id="status">
+      {/* Grows to fill the viewport so the footer sits at the bottom even on a short page. */}
+      <main className="bsp-content flex-1 flex flex-col w-full max-w-[1440px] mx-auto px-4 md:px-8" id="status">
 
         {/* ── Hero ── (Branding can hide it to leave more room for monitors; the heading stays for screen readers) */}
         {!showHero && <h1 className="sr-only">{overallStatus}</h1>}
@@ -450,7 +451,7 @@ export default function App() {
 
         {/* ── Footer ── */}
         <footer
-          className="bsp-footer text-center py-12 mt-4"
+          className="bsp-footer text-center py-12 mt-auto"
           style={{
             color: 'var(--m3-secondary)',
             borderTop: '0',
@@ -462,12 +463,6 @@ export default function App() {
             <img src={imageLogoUrl ?? (isDark ? '/logo_dark.png' : '/logo_light.png')} alt={siteName} style={{ height: '80px', maxWidth: '260px', objectFit: 'contain', margin: '0 auto 16px', opacity: 0.75 }} />
           )}
           <p className="text-xs uppercase tracking-widest">{siteName}</p>
-          {rssEnabled && (
-            <a href={FEED_URL} className="bsp-feed-link inline-flex items-center gap-1 text-xs mt-3" style={{ color: 'var(--m3-secondary)' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>rss_feed</span>
-              {t('subscribe.rss')}
-            </a>
-          )}
         </footer>
       </main>
 

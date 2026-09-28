@@ -227,7 +227,7 @@ describe('status App', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'All systems operational.' })).toHaveClass('sr-only')
   })
 
-  it('toggles dark mode, offers subscriptions and links the RSS feed', async () => {
+  it('toggles dark mode, offers subscriptions and advertises the RSS feed to feed readers', async () => {
     const user = userEvent.setup()
     dark.value = true
     subscriptionOptions.value = { methods: ['email', 'rss'] }
@@ -238,7 +238,8 @@ describe('status App', () => {
     await user.click(screen.getByRole('button', { name: 'Toggle dark mode' }))
     expect(toggleDark).toHaveBeenCalled()
 
-    expect(screen.getByRole('link', { name: /RSS feed/ })).toHaveAttribute('href', '/api/v1/public/incidents.rss')
+    // The feed is reachable from the Subscribe dialog; the page no longer repeats it in the footer.
+    expect(screen.queryByRole('link', { name: /RSS feed/ })).not.toBeInTheDocument()
     expect(document.head.querySelector('link[type="application/rss+xml"]')).not.toBeNull()
     await user.click(screen.getByRole('button', { name: /Subscribe/ }))
     await user.click(screen.getByRole('button', { name: 'Close subscribe' }))
