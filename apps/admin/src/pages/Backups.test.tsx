@@ -87,6 +87,32 @@ describe('BackupsPage', () => {
     expect(screen.getByText('Enable scheduling to configure recurring backups.')).toBeInTheDocument()
   })
 
+  it('shows an empty row that turns automatic backups on and focuses the switch', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.get).mockResolvedValue(state({ backups: [], config: { ...baseConfig, enabled: false } }))
+    renderPage()
+
+    expect(await screen.findByText('No backups yet')).toBeInTheDocument()
+    expect(screen.getByText('Automatic backups are off. The database is not protected until the first backup exists.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Enable automatic backups' }))
+
+    const toggle = screen.getByRole('switch', { name: 'Automatic backups' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    expect(toggle).toHaveFocus()
+    expect(screen.queryByRole('button', { name: 'Enable automatic backups' })).not.toBeInTheDocument()
+    // Nothing is stored until the schedule is saved.
+    expect(api.put).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Save schedule' })).toBeEnabled()
+  })
+
+  it('explains the empty list when automatic backups are already on', async () => {
+    vi.mocked(api.get).mockResolvedValue(state({ backups: [] }))
+    renderPage()
+
+    expect(await screen.findByText('Automatic backups are on; the first one will appear here after it runs.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Enable automatic backups' })).not.toBeInTheDocument()
+  })
+
   it('validates a restore file and warns about a mismatched vault key', async () => {
     vi.mocked(api.upload).mockResolvedValue({ manifest: { createdAt: Date.UTC(2026, 8, 1) }, vaultKeyMatches: false })
     renderPage()

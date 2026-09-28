@@ -4,7 +4,7 @@ import { api, getCurrentUser } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { CopyButton } from '../components/CopyButton'
 import { ResetTwoFactorModal } from '../components/ResetTwoFactorModal'
-import { Alert, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
+import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
 
 interface User {
   id: number
@@ -352,9 +352,12 @@ export default function UsersPage() {
                 </tr>
               ))}
               {users.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-sm" style={{ color: 'var(--m3-secondary)' }}>No users yet.</td>
-                </tr>
+                <EmptyTableRow
+                  colSpan={5}
+                  icon="group"
+                  title="No users yet."
+                  description={<><EmptyStateLink onClick={() => { setShowCreate(true); setError('') }}>Add a user</EmptyStateLink> to share access to the admin panel.</>}
+                />
               )}
             </tbody>
           </table>

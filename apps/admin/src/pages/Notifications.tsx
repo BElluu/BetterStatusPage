@@ -3,17 +3,26 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { NotificationChannel, NotificationDelivery, NotificationDeliveryAttempt, SmtpSettings, VaultRef } from '@bsp/shared'
 import ChannelFormModal from '../components/notifications/ChannelFormModal'
+import { CHANNEL_TYPES, CHANNEL_TYPE_ORDER, type ChannelType } from '../components/notifications/channelTypes'
 import { DiscordIcon, SlackIcon, TeamsIcon } from '../components/notifications/icons'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { Link } from 'react-router-dom'
 import { ModalHeader, ModalShell } from '../components/ModalShell'
-import { Alert, EmptyState, ErrorState, Field, LoadingState, PageContainer, PageHeader, Pagination, Switch, useToast, type FieldControlProps } from '../components/ui'
+import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, Field, LoadingState, PageContainer, PageHeader, Pagination, QuickStartPanel, Switch, useToast, type FieldControlProps, type QuickStartOption } from '../components/ui'
+
+const CHANNEL_QUICK_START: QuickStartOption<ChannelType>[] = CHANNEL_TYPE_ORDER.map((key) => ({
+  key,
+  label: CHANNEL_TYPES[key].label,
+  hint: CHANNEL_TYPES[key].hint,
+  icon: CHANNEL_TYPES[key].icon(18),
+}))
 
 export default function NotificationsPage() {
   const qc = useQueryClient()
   const toast = useToast()
   const [editingChannel, setEditingChannel] = useState<NotificationChannel | null>(null)
   const [showCreate, setShowCreate]         = useState(false)
+  const [createType, setCreateType]         = useState<ChannelType | undefined>(undefined)
   const [confirmDelete, setConfirmDelete]   = useState<NotificationChannel | null>(null)
   const [showSmtp, setShowSmtp]             = useState(false)
 
@@ -35,6 +44,11 @@ export default function NotificationsPage() {
     },
   })
 
+  function openCreate(type?: ChannelType) {
+    setCreateType(type)
+    setShowCreate(true)
+  }
+
   function handleSaved() {
     toast.success(editingChannel ? 'Channel saved.' : 'Channel created.')
     qc.invalidateQueries({ queryKey: ['notification-channels'] })
@@ -53,10 +67,10 @@ export default function NotificationsPage() {
             Delivery history
           </Link>
           <button type="button" onClick={() => setShowSmtp(true)} className="btn btn-secondary">
-            <span className="material-symbols-outlined" aria-hidden="true">mail_settings</span>
+            <span className="material-symbols-outlined" aria-hidden="true">forward_to_inbox</span>
             SMTP Settings
           </button>
-          <button type="button" onClick={() => setShowCreate(true)} className="btn btn-primary">
+          <button type="button" onClick={() => openCreate()} className="btn btn-primary">
             <span className="material-symbols-outlined" aria-hidden="true">add</span>
             Add Channel
           </button>
@@ -76,11 +90,11 @@ export default function NotificationsPage() {
       ) : isError ? (
         <ErrorState message="Could not load notification channels." onRetry={() => void refetch()} />
       ) : channels.length === 0 ? (
-        <EmptyState
-          icon="notifications_off"
-          title="No notification channels yet"
-          description="Add a channel to start receiving alerts."
-          action={<button type="button" onClick={() => setShowCreate(true)} className="btn btn-primary">Add Channel</button>}
+        <QuickStartPanel
+          title="Where should alerts go?"
+          description="Pick a channel type. You can assign it to monitors afterwards."
+          options={CHANNEL_QUICK_START}
+          onPick={openCreate}
         />
       ) : (
         <div className="rounded-2xl overflow-x-auto" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
@@ -157,6 +171,7 @@ export default function NotificationsPage() {
       {(showCreate || editingChannel) && (
         <ChannelFormModal
           channel={editingChannel}
+          initialType={createType}
           onClose={() => { setShowCreate(false); setEditingChannel(null) }}
           onSaved={handleSaved}
         />
@@ -225,6 +240,16 @@ export function DeliveryHistory({ channels }: { channels: NotificationChannel[] 
     setExpanded(null)
   }
 
+  function clearFilters() {
+    setStatus('')
+    setChannelId('')
+    setEventType('')
+    setPage(1)
+    setExpanded(null)
+  }
+
+  const filtered = !!(status || channelId || eventType)
+
   return <section className="space-y-4 pt-2">
     <div className="overflow-x-auto pb-1">
       <div className="grid grid-cols-3 gap-2 min-w-[560px]">
@@ -243,10 +268,14 @@ export function DeliveryHistory({ channels }: { channels: NotificationChannel[] 
     <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
       {isLoading ? <LoadingState label="Loading deliveries…" />
         : isError ? <ErrorState message="Could not load deliveries." onRetry={() => void refetch()} className="rounded-none" />
-        : !data?.deliveries.length ? <EmptyState icon="outbox" title="No deliveries match these filters." className="rounded-none border-0" />
           : <div className="overflow-x-auto"><table className="w-full text-sm min-w-[850px]">
             <thead><tr style={{ background: 'var(--m3-surface-container)', borderBottom: '1px solid var(--m3-outline-variant)' }}>{['Time', 'Monitor', 'Channel', 'Event', 'Attempts', 'Status', ''].map((label) => <th key={label} className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>{label === '' ? <span className="sr-only">Details</span> : label}</th>)}</tr></thead>
-            <tbody>{data.deliveries.map((delivery) => <DeliveryRow key={delivery.id} delivery={delivery} expanded={expanded === delivery.id} {...(expanded === delivery.id && detail.data ? { detail: detail.data } : {})} onToggle={() => setExpanded(expanded === delivery.id ? null : delivery.id)} onRetry={() => retry.mutate(delivery.id)} retrying={retry.isPending && retry.variables === delivery.id} />)}</tbody>
+            <tbody>
+              {data?.deliveries.map((delivery) => <DeliveryRow key={delivery.id} delivery={delivery} expanded={expanded === delivery.id} {...(expanded === delivery.id && detail.data ? { detail: detail.data } : {})} onToggle={() => setExpanded(expanded === delivery.id ? null : delivery.id)} onRetry={() => retry.mutate(delivery.id)} retrying={retry.isPending && retry.variables === delivery.id} />)}
+              {!data?.deliveries.length && (filtered
+                ? <EmptyTableRow colSpan={7} icon="outbox" title="No deliveries match these filters." description={<><EmptyStateLink onClick={clearFilters}>Clear the filters</EmptyStateLink> to see every delivery.</>} />
+                : <EmptyTableRow colSpan={7} icon="outbox" title="No deliveries yet" description="Alerts, recoveries and test messages sent to your channels will be listed here." />)}
+            </tbody>
           </table></div>}
     </div>
     {data && <Pagination page={page} pageCount={data.pages} onPageChange={(next) => { setPage(next); setExpanded(null) }} summary={`Page ${page} of ${data.pages} · ${data.total} deliveries`} />}
@@ -464,7 +493,7 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
     <ModalShell align="top" onClose={saving ? undefined : onClose} labelledBy={titleId}>
       <div className="rounded-2xl w-full max-w-lg my-8"
         style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-        <ModalHeader icon="mail_settings" titleId={titleId} title="SMTP Settings" onClose={onClose} />
+        <ModalHeader icon="forward_to_inbox" titleId={titleId} title="SMTP Settings" onClose={onClose} />
 
         <form onSubmit={handleSave} className="p-4 sm:p-6 space-y-4">
           {error && <Alert tone="error">{error}</Alert>}

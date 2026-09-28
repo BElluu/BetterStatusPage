@@ -8,7 +8,7 @@ import type {
 } from '@bsp/shared'
 import { api } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
-import { EmptyState, ErrorState, LoadingState, PageContainer, PageHeader, Pagination, Switch, useToast } from '../components/ui'
+import { EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, Pagination, Switch, useToast } from '../components/ui'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 
 export const SUBSCRIBER_EVENT_LABELS: Record<SubscriberEventType, { label: string; hint: string }> = {
@@ -336,12 +336,6 @@ function SubscriberTable() {
         <LoadingState label="Loading subscribers…" />
       ) : isError || !data ? (
         <ErrorState message="Could not load subscribers." onRetry={() => void refetch()} />
-      ) : data.subscribers.length === 0 ? (
-        <EmptyState
-          icon="group_off"
-          title={`No subscribers${filter !== 'all' || search ? ' match this filter' : ' yet'}`}
-          description={filter !== 'all' || search ? 'Try another status or search term.' : 'People who subscribe on the status page will appear here.'}
-        />
       ) : (
         <div className="rounded-2xl overflow-x-auto" style={cardStyle}>
           <table className="w-full min-w-[860px] text-sm">
@@ -403,6 +397,14 @@ function SubscriberTable() {
                   </tr>
                 )
               })}
+              {data.subscribers.length === 0 && (filter !== 'all' || search
+                ? <EmptyTableRow
+                    colSpan={6}
+                    icon="group_off"
+                    title="No subscribers match this filter"
+                    description={<>Try another status or search term, or <EmptyStateLink onClick={() => { setFilter('all'); setSearchInput(''); setPage(1) }}>show all subscribers</EmptyStateLink>.</>}
+                  />
+                : <EmptyTableRow colSpan={6} icon="group_off" title="No subscribers yet" description="People who subscribe on the status page will appear here." />)}
             </tbody>
           </table>
         </div>

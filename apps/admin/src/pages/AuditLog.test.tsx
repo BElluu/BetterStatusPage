@@ -143,5 +143,7 @@ describe('AuditLogPage', () => {
     renderPage()
 
     expect(await screen.findByText('No audit entries found.')).toBeInTheDocument()
+    expect(screen.getByText('Timestamp')).toBeInTheDocument()
+    expect(screen.getByText('Changes made in the admin panel are recorded here.')).toBeInTheDocument()
   })
 })

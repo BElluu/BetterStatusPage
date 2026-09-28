@@ -102,7 +102,7 @@ describe('VaultPage', () => {
     await openVault(user, 'Staging')
 
     expect(await screen.findByText('No secrets in this vault')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Add first secret' }))
+    await user.click(screen.getByRole('button', { name: 'Add a secret' }))
     expect(screen.getByRole('dialog', { name: 'New Secret' })).toBeInTheDocument()
   })
 

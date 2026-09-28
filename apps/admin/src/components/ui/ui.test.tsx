@@ -1,8 +1,8 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Alert, EmptyState, ErrorState, Field, LoadingState, PageContainer, PageHeader, Pagination, Switch, ToastProvider, useToast } from '.'
+import { Alert, EmptyState, EmptyStateLink, EmptyTableRow, ErrorState, Field, LoadingState, PageContainer, PageHeader, Pagination, QuickStartPanel, Switch, ToastProvider, useToast } from '.'
 
 describe('PageHeader', () => {
   it('renders the title, subtitle, actions and extra content inside a padded container', () => {
@@ -130,6 +130,58 @@ describe('State views', () => {
     expect(onRetry).toHaveBeenCalledOnce()
     expect(screen.getByText('No monitors yet')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add monitor' })).toBeInTheDocument()
+  })
+
+  it('renders the standalone empty state as a compact card by default', () => {
+    const { container } = render(<EmptyState icon="warning" title="No incidents yet" />)
+    const root = container.firstElementChild as HTMLElement
+    expect(root).toHaveClass('rounded-2xl')
+    expect(root.style.border).toBe('1px solid var(--m3-outline-variant)')
+    expect(root.style.background).toBe('var(--m3-surface-container-low)')
+    expect(screen.getByText('warning')).toHaveAttribute('class', 'material-symbols-outlined')
+  })
+
+  it('renders the inset variant as a divided row without its own card', () => {
+    const { container } = render(<EmptyState variant="inset" title="No backups yet" action={<button type="button">Enable</button>} />)
+    const root = container.firstElementChild as HTMLElement
+    expect(root).not.toHaveClass('rounded-2xl')
+    expect(root.style.borderTop).toBe('1px solid var(--m3-outline-variant)')
+    expect(root.style.background).toBe('')
+    expect(screen.getByRole('button', { name: 'Enable' })).toBeInTheDocument()
+  })
+
+  it('renders an empty table row spanning every column with an inline link', async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    render(
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Status</th></tr></thead>
+        <tbody>
+          <EmptyTableRow colSpan={3} icon="notifications_off" title="No channels yet" description={<>Alerts stay silent until you <EmptyStateLink onClick={onAdd}>add a channel</EmptyStateLink>.</>} />
+        </tbody>
+      </table>,
+    )
+    const cell = screen.getByRole('cell')
+    expect(cell).toHaveAttribute('colspan', '3')
+    expect(within(cell).getByText('No channels yet')).toBeInTheDocument()
+    expect((cell.firstElementChild as HTMLElement).style.border).toBe('')
+    await user.click(screen.getByRole('button', { name: 'add a channel' }))
+    expect(onAdd).toHaveBeenCalledOnce()
+  })
+
+  it('renders quick-start tiles that report the picked option', async () => {
+    const user = userEvent.setup()
+    const onPick = vi.fn()
+    render(
+      <QuickStartPanel
+        title="Where should alerts go?"
+        options={[{ key: 'email', label: 'Email', hint: 'Uses SMTP', icon: 'M' }, { key: 'slack', label: 'Slack', hint: 'Incoming webhook', icon: 'S' }]}
+        onPick={onPick}
+      />,
+    )
+    const panel = screen.getByRole('region', { name: 'Where should alerts go?' })
+    await user.click(within(panel).getByRole('button', { name: /Slack/ }))
+    expect(onPick).toHaveBeenCalledWith('slack')
   })
 
   it('has sensible defaults', () => {

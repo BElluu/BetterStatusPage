@@ -1,7 +1,7 @@
 import { useId, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
-import { EmptyState, ErrorState, LoadingState, PageContainer, PageHeader, Pagination } from '../components/ui'
+import { EmptyState, EmptyStateLink, ErrorState, LoadingState, PageContainer, PageHeader, Pagination } from '../components/ui'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import type { AuditLogEntry, AuditAction, AuditEntityType } from '@bsp/shared'
 
@@ -148,6 +148,7 @@ export default function AuditLogPage() {
   }
 
   const entries = data?.entries ?? []
+  const filtered = !!(emailInput || entityType || action || fromDate || toDate)
   const totalPages = data?.pages ?? 1
 
   return (
@@ -240,8 +241,6 @@ export default function AuditLogPage() {
         <LoadingState label="Loading audit log…" />
       ) : isError ? (
         <ErrorState message="Could not load the audit log." onRetry={() => void refetch()} />
-      ) : entries.length === 0 ? (
-        <EmptyState icon="history" title="No audit entries found." description="Try widening the filters or the date range." />
       ) : (
         <div
           className="rounded-2xl overflow-x-auto"
@@ -359,6 +358,18 @@ export default function AuditLogPage() {
                 </div>
               )
             })}
+
+            {entries.length === 0 && (
+              <EmptyState
+                variant="row"
+                className="px-5 py-7"
+                icon="history"
+                title="No audit entries found."
+                description={filtered
+                  ? <>Try widening the date range, or <EmptyStateLink onClick={clearFilters}>clear all filters</EmptyStateLink>.</>
+                  : 'Changes made in the admin panel are recorded here.'}
+              />
+            )}
           </div>
         </div>
       )}

@@ -107,7 +107,6 @@ export default function IncidentsPage() {
           icon="warning"
           title="No incidents yet"
           description="Incidents you open will appear here with their update timeline."
-          action={newIncidentButton}
         />
       ) : (
       <div className="space-y-2">

@@ -13,9 +13,10 @@ vi.mock('../api/client', () => ({
 
 // The monitor form is covered by its own tests.
 vi.mock('../components/monitors/MonitorFormModal', () => ({
-  default: ({ monitor, onClose, onSaved }: { monitor: Monitor | null; onClose: () => void; onSaved: () => void }) => (
+  default: ({ monitor, initialType, onClose, onSaved }: { monitor: Monitor | null; initialType?: string; onClose: () => void; onSaved: () => void }) => (
     <div role="dialog" aria-label="Monitor form">
       <p>{monitor ? `Editing ${monitor.name}` : 'New monitor'}</p>
+      {initialType && <p>{`Preselected ${initialType}`}</p>}
       <button onClick={onSaved}>Save monitor</button>
       <button onClick={onClose}>Close form</button>
     </div>
@@ -181,12 +182,44 @@ describe('MonitorsPage', () => {
     expect(await screen.findByText("Couldn't load monitors.")).toBeInTheDocument()
   })
 
-  it('shows an empty state without monitors', async () => {
+  it('offers monitor type tiles without monitors and opens the form with that type', async () => {
+    const user = userEvent.setup()
     vi.mocked(api.get).mockResolvedValue([])
     renderPage()
 
-    expect(await screen.findByText('No monitors yet')).toBeInTheDocument()
-    expect(screen.getByText('Add a monitor to start tracking uptime.')).toBeInTheDocument()
+    const panel = await screen.findByRole('region', { name: 'What should we check first?' })
+    expect(within(panel).getAllByRole('button').map((tile) => tile.textContent)).toEqual([
+      expect.stringContaining('HTTPS'), expect.stringContaining('Ping / TCP'), expect.stringContaining('DNS'),
+      expect.stringContaining('SQL Server'), expect.stringContaining('Webhook'),
+    ])
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+
+    await user.click(within(panel).getByRole('button', { name: /DNS/ }))
+    expect(screen.getByText('Preselected dns')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Close form' }))
+
+    await user.click(screen.getByRole('button', { name: 'Add Monitor' }))
+    expect(screen.queryByText(/Preselected/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the table when no monitor matches the tag filter and can clear it', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.get).mockResolvedValue([
+      { ...monitors[0], tags: [{ label: 'eu', color: '#ff0000' }] },
+      { ...monitors[1], tags: [{ label: 'us', color: '#00ff00' }] },
+    ])
+    renderPage()
+    await screen.findByText('Checkout API')
+
+    const filterBar = screen.getByText('Filter:').parentElement!
+    await user.click(within(filterBar).getByRole('button', { name: 'eu' }))
+    await user.click(within(filterBar).getByRole('button', { name: 'us' }))
+    expect(screen.getByRole('columnheader', { name: 'Name' })).toBeInTheDocument()
+    expect(screen.getByText('No monitors match the selected tags.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Clear the filter' }))
+    expect(screen.getByText('Checkout API')).toBeInTheDocument()
+    expect(screen.queryByText('No monitors match the selected tags.')).not.toBeInTheDocument()
   })
 
   it('shows how long the TLS certificate of an HTTPS monitor is still valid', async () => {

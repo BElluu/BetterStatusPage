@@ -2,11 +2,12 @@ import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { DEFAULT_CERT_WARN_DAYS } from '@bsp/shared'
-import type { HttpsConfig, Monitor, MonitorStatus } from '@bsp/shared'
+import type { HttpsConfig, Monitor, MonitorStatus, MonitorType } from '@bsp/shared'
 import { StatusBadge } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
+import { MONITOR_TYPES } from '../components/monitors/monitorTypes'
 import { ConfirmModal } from '../components/ConfirmModal'
-import { EmptyState, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
+import { EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, QuickStartPanel, useToast, type QuickStartOption } from '../components/ui'
 
 type SortCol = 'name' | 'type' | 'intervalSecs' | 'currentStatus' | 'lastCheckedAt'
 
@@ -19,11 +20,19 @@ const COLS: Array<{ label: string; key: SortCol | null }> = [
   { label: '', key: null },
 ]
 
+const MONITOR_QUICK_START: QuickStartOption<MonitorType>[] = MONITOR_TYPES.map((t) => ({
+  key: t.value,
+  label: t.label,
+  hint: t.hint,
+  icon: <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{t.icon}</span>,
+}))
+
 export default function MonitorsPage() {
   const qc = useQueryClient()
   const toast = useToast()
   const [editingMonitor, setEditingMonitor] = useState<Monitor | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [createType, setCreateType] = useState<MonitorType | undefined>(undefined)
   const [confirmDelete, setConfirmDelete] = useState<Monitor | null>(null)
   const [sortCol, setSortCol] = useState<SortCol>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
@@ -88,6 +97,11 @@ export default function MonitorsPage() {
 
   const checkingId = checkNowMutation.isPending ? (checkNowMutation.variables?.id ?? null) : null
 
+  function openCreate(type?: MonitorType) {
+    setCreateType(type)
+    setShowCreate(true)
+  }
+
   function toggleSort(col: SortCol) {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
     else { setSortCol(col); setSortDir('asc') }
@@ -126,7 +140,7 @@ export default function MonitorsPage() {
         title="Monitors"
         subtitle={isPending || isError ? undefined : `${monitors.length} monitor${monitors.length !== 1 ? 's' : ''} · Live`}
         actions={
-          <button type="button" onClick={() => setShowCreate(true)} className="btn btn-primary">
+          <button type="button" onClick={() => openCreate()} className="btn btn-primary">
             <span className="material-symbols-outlined" aria-hidden="true">add_circle</span>
             Add Monitor
           </button>
@@ -163,16 +177,11 @@ export default function MonitorsPage() {
       ) : isError ? (
         <ErrorState message="Couldn't load monitors." onRetry={() => void refetch()} />
       ) : monitors.length === 0 ? (
-        <EmptyState
-          icon="radio_button_checked"
-          title="No monitors yet"
-          description="Add a monitor to start tracking uptime."
-          action={
-            <button type="button" onClick={() => setShowCreate(true)} className="btn btn-primary">
-              <span className="material-symbols-outlined" aria-hidden="true">add_circle</span>
-              Add Monitor
-            </button>
-          }
+        <QuickStartPanel
+          title="What should we check first?"
+          description="Pick a monitor type. You can add tags, alerts and dependencies in the same form."
+          options={MONITOR_QUICK_START}
+          onPick={openCreate}
         />
       ) : (
         <div className="rounded-2xl overflow-x-auto" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
@@ -280,11 +289,12 @@ export default function MonitorsPage() {
                 </tr>
               ))}
               {displayed.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-sm" style={{ color: 'var(--m3-secondary)' }}>
-                    No monitors match the selected tags.
-                  </td>
-                </tr>
+                <EmptyTableRow
+                  colSpan={6}
+                  icon="filter_alt_off"
+                  title="No monitors match the selected tags."
+                  description={<>Every selected tag must be on a monitor. <EmptyStateLink onClick={() => setActiveTags([])}>Clear the filter</EmptyStateLink> to see all monitors.</>}
+                />
               )}
             </tbody>
           </table>
@@ -294,6 +304,7 @@ export default function MonitorsPage() {
       {(showCreate || editingMonitor) && (
         <MonitorFormModal
           monitor={editingMonitor}
+          initialType={createType}
           allTags={allTags}
           onClose={() => { setShowCreate(false); setEditingMonitor(null) }}
           onSaved={() => {

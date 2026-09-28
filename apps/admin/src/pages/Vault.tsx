@@ -4,7 +4,7 @@ import { api } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { CopyButton } from '../components/CopyButton'
 import { Modal, ModalShell } from '../components/ModalShell'
-import { Alert, EmptyState, ErrorState, Field, LoadingState, useToast } from '../components/ui'
+import { Alert, EmptyState, EmptyStateLink, ErrorState, Field, LoadingState, useToast } from '../components/ui'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -203,12 +203,7 @@ export default function VaultPage() {
                 <EmptyState
                   icon="key_off"
                   title="No secrets in this vault"
-                  description="Store credentials, tokens or JSON configuration that monitors can reference."
-                  action={
-                    <button type="button" onClick={() => setShowCreateSecret(true)} className="btn btn-secondary">
-                      Add first secret
-                    </button>
-                  }
+                  description={<><EmptyStateLink onClick={() => setShowCreateSecret(true)}>Add a secret</EmptyStateLink> to store credentials, tokens or JSON configuration that monitors can reference.</>}
                 />
               ) : (
                 <div className="space-y-2">
