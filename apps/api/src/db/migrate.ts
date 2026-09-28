@@ -343,6 +343,9 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE branding ADD COLUMN uptime_threshold_up REAL NOT NULL DEFAULT ${DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdUp}`, desc: 'branding.uptime_threshold_up' },
   { sql: `ALTER TABLE branding ADD COLUMN uptime_threshold_degraded REAL NOT NULL DEFAULT ${DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdDegraded}`, desc: 'branding.uptime_threshold_degraded' },
   { sql: `ALTER TABLE branding ADD COLUMN uptime_threshold_partial REAL NOT NULL DEFAULT ${DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdPartial}`, desc: 'branding.uptime_threshold_partial' },
+  { sql: `ALTER TABLE monitors ADD COLUMN cert_expires_at INTEGER`, desc: 'monitors.cert_expires_at' },
+  { sql: `ALTER TABLE monitors ADD COLUMN cert_checked_at INTEGER`, desc: 'monitors.cert_checked_at' },
+  { sql: `ALTER TABLE monitors ADD COLUMN cert_warned_days INTEGER`, desc: 'monitors.cert_warned_days' },
 ]
 
 /**

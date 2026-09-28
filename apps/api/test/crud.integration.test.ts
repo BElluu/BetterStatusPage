@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import { db } from '../src/db/client.js'
-import { auditLog } from '../src/db/schema.js'
+import { eq } from 'drizzle-orm'
+import { auditLog, monitors } from '../src/db/schema.js'
 import { adminLocaleRoutes } from '../src/routes/locales.js'
 import { incidentRoutes } from '../src/routes/incidents.js'
 import { maintenanceRoutes } from '../src/routes/maintenance.js'
@@ -32,6 +33,24 @@ after(async () => {
 })
 
 describe('monitor CRUD', () => {
+  it('re-reads the TLS certificate after a config change and forgets it when the URL changes', async () => {
+    const config = { url: 'https://a.example.test', method: 'GET', expectedStatus: 200 }
+    const created = await app.inject({ method: 'POST', url: '/monitors', payload: { name: 'Cert', type: 'https', config } })
+    const id = created.json<{ id: number }>().id
+    const expiresAt = Date.now() + 86_400_000
+    await db.update(monitors).set({ certExpiresAt: expiresAt, certCheckedAt: Date.now(), certWarnedDays: 7 }).where(eq(monitors.id, id))
+
+    const settingChanged = await app.inject({ method: 'PATCH', url: `/monitors/${id}`, payload: { config: { ...config, certExpiry: { enabled: true, warnDays: 30 } } } })
+    assert.equal(settingChanged.json<{ certCheckedAt: number | null }>().certCheckedAt, null)
+    assert.equal(settingChanged.json<{ certExpiresAt: number | null }>().certExpiresAt, expiresAt)
+
+    const moved = await app.inject({ method: 'PATCH', url: `/monitors/${id}`, payload: { config: { ...config, url: 'https://b.example.test' } } })
+    const body = moved.json<{ certExpiresAt: number | null; certWarnedDays: number | null }>()
+    assert.equal(body.certExpiresAt, null)
+    assert.equal(body.certWarnedDays, null)
+    await app.inject({ method: 'DELETE', url: `/monitors/${id}` })
+  })
+
   it('creates, reads, updates, links, and deletes monitors', async () => {
     const created = await app.inject({
       method: 'POST',

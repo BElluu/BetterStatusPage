@@ -17,6 +17,10 @@ const MONITOR_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserve
 const MIN_TEST_TIMEOUT_MS = 500
 const MAX_TEST_TIMEOUT_MS = 60_000
 
+function configUrl(config: unknown): unknown {
+  return config && typeof config === 'object' ? (config as { url?: unknown }).url : undefined
+}
+
 function generateWebhookToken(): string {
   return randomBytes(24).toString('hex')
 }
@@ -143,7 +147,16 @@ export async function monitorRoutes(app: FastifyInstance) {
     if (req.body.retries !== undefined) updates.retries = req.body.retries
     if (req.body.failureThreshold !== undefined) updates.failureThreshold = clampThreshold(req.body.failureThreshold, existing.failureThreshold)
     if (req.body.recoveryThreshold !== undefined) updates.recoveryThreshold = clampThreshold(req.body.recoveryThreshold, existing.recoveryThreshold)
-    if (req.body.config !== undefined) updates.config = JSON.stringify(req.body.config)
+    if (req.body.config !== undefined) {
+      updates.config = JSON.stringify(req.body.config)
+      // Read the certificate again on the next check, so a changed warning setting takes effect
+      // right away; a different endpoint also forgets what was known about the old certificate.
+      updates.certCheckedAt = null
+      if (configUrl(req.body.config) !== configUrl(JSON.parse(existing.config))) {
+        updates.certExpiresAt = null
+        updates.certWarnedDays = null
+      }
+    }
     if (req.body.tags !== undefined) updates.tags = JSON.stringify(req.body.tags)
 
     const results = await db.update(monitors).set(updates).where(eq(monitors.id, id)).returning()

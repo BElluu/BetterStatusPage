@@ -8,6 +8,7 @@ import { checkPing } from './ping.js'
 import { checkDns } from './dns.js'
 import { checkSqlServer } from './sqlserver.js'
 import { sendNotifications } from './notifier.js'
+import { checkCertificateExpiry } from './certificate.js'
 import { evaluateAlertTransition, isFailureStatus } from '../services/alertThresholds.js'
 import { lt, gt, eq, and, lte, gte, inArray, sql } from 'drizzle-orm'
 import type { HttpsConfig, PingConfig, DnsConfig, SqlServerConfig, MonitorStatus } from '@bsp/shared'
@@ -103,6 +104,12 @@ async function performCheck(monitor: MonitorRow): Promise<void> {
   }
 
   await recordObservation(monitor, result)
+
+  if (monitor.type === 'https') {
+    await checkCertificateExpiry(monitor, config as HttpsConfig).catch((err) =>
+      console.error('[certificate] expiry check failed:', err),
+    )
+  }
 }
 
 /**

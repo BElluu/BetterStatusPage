@@ -45,6 +45,11 @@ export const monitors = sqliteTable('monitors', {
   /** Candidate status currently accumulating consecutive observations. */
   alertPendingStatus: text('alert_pending_status'),
   alertPendingCount: integer('alert_pending_count').notNull().default(0),
+  /** Expiry of the TLS certificate last read from an HTTPS monitor's endpoint. */
+  certExpiresAt: integer('cert_expires_at'),
+  certCheckedAt: integer('cert_checked_at'),
+  /** Smallest days-before-expiry milestone already warned about for the current certificate. */
+  certWarnedDays: integer('cert_warned_days'),
 })
 
 export const monitorResults = sqliteTable('monitor_results', {
