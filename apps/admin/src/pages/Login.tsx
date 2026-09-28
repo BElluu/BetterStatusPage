@@ -2,6 +2,13 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, setSession, type AuthUser } from '../api/client'
 import { useDarkMode } from '../hooks/useDarkMode'
+import { Alert } from '../components/ui'
+
+const FEATURES = [
+  { icon: 'bolt', label: 'Live status updates' },
+  { icon: 'campaign', label: 'Incidents and maintenance notices' },
+  { icon: 'notifications', label: 'Alerts through your notification channels' },
+]
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -79,33 +86,33 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Stats */}
-        <div className="relative flex gap-8">
-          {[
-            { value: '99.9%', label: 'Avg Uptime' },
-            { value: '<1s', label: 'Check Interval' },
-            { value: 'Live', label: 'SSE Updates' },
-          ].map((stat) => (
-            <div key={stat.label}>
-              <div className="font-mono font-semibold text-xl" style={{ color: 'var(--m3-primary)' }}>{stat.value}</div>
-              <div className="text-xs font-sans mt-0.5" style={{ color: 'var(--m3-secondary)' }}>{stat.label}</div>
-            </div>
+        {/* Features */}
+        <ul className="relative space-y-3">
+          {FEATURES.map((feature) => (
+            <li key={feature.label} className="flex items-center gap-3 text-sm font-sans" style={{ color: 'var(--m3-on-surface-variant)' }}>
+              <span
+                className="material-symbols-outlined rounded-lg p-1.5"
+                aria-hidden="true"
+                style={{ fontSize: '18px', background: 'var(--admin-icon-container)', color: 'var(--admin-icon-color)' }}
+              >
+                {feature.icon}
+              </span>
+              {feature.label}
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
 
       {/* Right form panel */}
       <div className="flex-1 relative flex items-center justify-center px-6 py-12">
         {/* Dark mode toggle */}
         <button
+          type="button"
           onClick={toggleDark}
-          className="absolute top-5 right-5 p-2 rounded-full transition-all"
-          style={{ color: 'var(--m3-secondary)' }}
-          onMouseEnter={(e) => { (e.currentTarget).style.background = 'var(--m3-surface-container)' }}
-          onMouseLeave={(e) => { (e.currentTarget).style.background = '' }}
+          className="btn-icon absolute top-5 right-5 w-9 h-9 rounded-full"
           aria-label="Toggle dark mode"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+          <span className="material-symbols-outlined" aria-hidden="true">
             {isDark ? 'light_mode' : 'dark_mode'}
           </span>
         </button>
@@ -130,18 +137,7 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div
-                className="rounded-xl px-4 py-3 text-sm font-sans"
-                style={{
-                  background: 'var(--m3-down-bg)',
-                  border: '1px solid color-mix(in srgb, var(--m3-down) 30%, transparent)',
-                  color: 'var(--m3-down)',
-                }}
-              >
-                {error}
-              </div>
-            )}
+            {error && <Alert tone="error">{error}</Alert>}
 
             {!challengeToken && <div>
               <label htmlFor="login-email" className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
@@ -150,6 +146,7 @@ export default function LoginPage() {
               <input
                 id="login-email"
                 type="email"
+                autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -165,6 +162,7 @@ export default function LoginPage() {
               <input
                 id="login-password"
                 type="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -191,7 +189,7 @@ export default function LoginPage() {
                 />
                 <button
                   type="button"
-                  className="text-xs mt-2"
+                  className="text-xs mt-2 rounded focus-ring hover:underline"
                   style={{ color: 'var(--m3-secondary)' }}
                   onClick={() => { setChallengeToken(''); setCode('') }}
                 >
@@ -203,7 +201,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full py-3 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98] mt-2"
+              className="btn btn-primary w-full py-3 mt-2 font-headline font-bold"
             >
               {loading ? 'Signing in…' : challengeToken ? 'Verify & sign in' : 'Sign in'}
             </button>

@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from 'react'
+import { Field } from '../ui'
 import { DiscordIcon, SlackIcon, TeamsIcon } from './icons'
 
 export type ChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack'
@@ -59,7 +60,7 @@ function str(value: unknown, fallback = ''): string {
 }
 
 function materialIcon(name: string) {
-  return (size: number) => <span className="material-symbols-outlined" style={{ fontSize: `${size}px` }}>{name}</span>
+  return (size: number) => <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: `${size}px` }}>{name}</span>
 }
 
 function webhookHasBody(method: string) {
@@ -68,14 +69,8 @@ function webhookHasBody(method: string) {
 
 // ── Shared field primitives ───────────────────────────────────────────────────
 
-export function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>{label}</label>
-      {children}
-    </div>
-  )
-}
+/** The shared labelled field, re-exported so channel forms keep importing it from here. */
+export { Field }
 
 function VarsHint() {
   return (
@@ -179,8 +174,8 @@ function WebhookFields({ draft, onChange }: ChannelFieldsProps<WebhookDraft>) {
 
   return (
     <>
-      <div className="grid grid-cols-3 gap-3">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="sm:col-span-2">
           <Field label="URL">
             <input value={draft.url} onChange={(e) => onChange({ ...draft, url: e.target.value })} required className="input-sig" placeholder="https://example.com/alert" />
           </Field>
@@ -195,21 +190,23 @@ function WebhookFields({ draft, onChange }: ChannelFieldsProps<WebhookDraft>) {
       {/* Headers */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Headers</label>
+          <p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Headers</p>
           <button type="button" onClick={() => setHeaders([...draft.headers, ['', '']])}
-            className="text-xs px-2 py-0.5 rounded"
-            style={{ color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 30%, transparent)' }}
+            aria-label="Add header"
+            className="btn btn-outline btn-sm py-0.5 px-2 text-xs"
           >+ Add</button>
         </div>
         <div className="space-y-1.5">
           {draft.headers.map(([k, v], i) => (
             <div key={i} className="flex gap-1.5 items-center">
-              <input className="input-sig text-xs flex-1" placeholder="Header" value={k} onChange={(e) => updateHeader(i, 0, e.target.value)} />
-              <input className="input-sig text-xs flex-1" placeholder="Value" value={v} onChange={(e) => updateHeader(i, 1, e.target.value)} />
+              <input className="input-sig text-xs flex-1 min-w-0" placeholder="Header" aria-label={`Header ${i + 1} name`} value={k} onChange={(e) => updateHeader(i, 0, e.target.value)} />
+              <input className="input-sig text-xs flex-1 min-w-0" placeholder="Value" aria-label={`Header ${i + 1} value`} value={v} onChange={(e) => updateHeader(i, 1, e.target.value)} />
               <button type="button" onClick={() => setHeaders(draft.headers.filter((_, idx) => idx !== i))}
-                className="w-6 h-6 flex items-center justify-center rounded text-sm flex-shrink-0"
-                style={{ color: 'var(--m3-secondary)' }}
-              >×</button>
+                aria-label={`Remove header ${k || i + 1}`}
+                className="btn-icon w-7 h-7"
+              >
+                <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px' }}>close</span>
+              </button>
             </div>
           ))}
           {draft.headers.length === 0 && <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>No custom headers.</p>}

@@ -43,7 +43,7 @@ describe('BrandingPage localization', () => {
     expect(cssEditorButton).toBeDisabled()
     expect(Array.from(container.querySelectorAll<HTMLInputElement>('input[type="color"]')).every((input) => input.matches(':disabled'))).toBe(true)
     expect(screen.getByText('Enable custom branding to edit and apply custom CSS.')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Custom branding' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Custom branding' }))
     expect(cssEditorButton).toBeEnabled()
     expect(Array.from(container.querySelectorAll<HTMLInputElement>('input[type="color"]')).every((input) => input.matches(':enabled'))).toBe(true)
     expect(screen.getByText('Universal logo')).toBeInTheDocument()
@@ -51,6 +51,9 @@ describe('BrandingPage localization', () => {
     expect(screen.getByRole('dialog', { name: 'Custom CSS editor' })).toBeInTheDocument()
     expect(screen.getByText('.bsp-chart-card')).toBeInTheDocument()
     expect(screen.getByText('--bsp-chart-bg')).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Custom CSS editor' })).not.toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Custom branding' })).toHaveAttribute('aria-checked', 'true')
 
     expect(screen.queryByText('Tożsamość')).not.toBeInTheDocument()
     expect(screen.queryByText('Zapisz branding')).not.toBeInTheDocument()
@@ -67,7 +70,7 @@ describe('BrandingPage localization', () => {
     )
     const lightLogoInput = container.querySelector<HTMLInputElement>('#branding-logo-light')!
     fireEvent.change(lightLogoInput, { target: { files: [new File(['logo'], 'light.png', { type: 'image/png' })] } })
-    fireEvent.click(screen.getByRole('button', { name: 'Custom branding' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Custom branding' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save branding' }))
 
     await waitFor(() => expect(api.patch).toHaveBeenCalled())
@@ -93,7 +96,7 @@ describe('BrandingPage loading', () => {
     fireEvent.change(screen.getByPlaceholderText('My Status Page'), { target: { value: 'Acme Status' } })
     resolveBranding({ enabled: 0, siteName: 'Stored name', logoType: 'image', logoText: '', logoUrl: null, logoLightUrl: null, logoDarkUrl: null, primaryColor: '#000000', accentColor: '#497cff' })
     // The loaded branding arrives after the edit; it must not replace it.
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Custom branding' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Custom branding' })).toBeInTheDocument())
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     expect(screen.getByPlaceholderText('My Status Page')).toHaveValue('Acme Status')

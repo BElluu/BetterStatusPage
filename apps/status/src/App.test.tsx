@@ -152,6 +152,33 @@ describe('status App', () => {
     expect(screen.getByText(/1 active incidents\./)).toBeInTheDocument()
   })
 
+  it('says it is checking, not operational, while the status is still loading', async () => {
+    data.layout = 'pending'
+    renderApp()
+
+    expect(await screen.findByRole('heading', { name: 'Checking…' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'All systems operational.' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/services monitored/)).not.toBeInTheDocument()
+  })
+
+  it('reports a failed status request instead of all systems operational', async () => {
+    vi.mocked(getJSON).mockImplementation(async (path: string) => {
+      if (path === '/api/v1/public/status') throw new Error('offline')
+      if (path === '/api/v1/public/layout') return data.layout
+      return []
+    })
+    renderApp()
+
+    expect(await screen.findByRole('heading', { name: 'Unable to load status — retrying…' })).toBeInTheDocument()
+  })
+
+  it('does not call a page without services operational', async () => {
+    data.layout = { tree: { id: 'root', type: 'page', children: [{ id: 't', type: 'text', markdown: 'Hi' }] }, branding: null }
+    renderApp()
+
+    expect(await screen.findByRole('heading', { name: 'No services to show yet.' })).toBeInTheDocument()
+  })
+
   it('prompts to configure an empty layout', async () => {
     data.layout = { tree: { id: 'root', type: 'page', children: [] }, branding: null }
     renderApp()

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { Alert, ErrorState, LoadingState, PageContainer, PageHeader } from '../components/ui'
 
 type ComponentStatus = 'ok' | 'attention' | 'error' | 'disabled'
 
@@ -100,18 +101,28 @@ export default function SystemHealthPage() {
     return () => window.clearInterval(interval)
   }, [load])
 
-  if (!report && !error) return <div className="p-8" style={{ color: 'var(--m3-on-surface)' }}>Loading system health…</div>
-
-  return (
-    <div className="p-6 md:p-10 max-w-6xl mx-auto space-y-6" style={{ color: 'var(--m3-on-surface)' }}>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div><h1 className="text-3xl font-bold">System Health</h1><p style={{ color: 'var(--m3-secondary)' }}>Internal health of this BetterStatusPage instance.</p></div>
-        <button type="button" disabled={refreshing} onClick={() => { void load(true) }} className="btn-primary px-5 py-2.5 rounded-xl">
+  const header = (
+    <PageHeader
+      title="System Health"
+      subtitle="Internal health of this BetterStatusPage instance."
+      actions={
+        <button type="button" disabled={refreshing} onClick={() => { void load(true) }} className="btn btn-primary">
+          <span className="material-symbols-outlined" aria-hidden="true">refresh</span>
           {refreshing ? 'Refreshing…' : 'Refresh'}
         </button>
-      </div>
+      }
+    />
+  )
 
-      {error && <div className="rounded-xl p-4" style={{ background: 'var(--m3-error-container)', color: 'var(--m3-on-error-container)' }}>{error}</div>}
+  if (!report && !error) return <PageContainer>{header}<LoadingState label="Loading system health…" /></PageContainer>
+
+  return (
+    <PageContainer className="text-[color:var(--m3-on-surface)]">
+      {header}
+
+      {error && (report
+        ? <Alert tone="error">{error}</Alert>
+        : <ErrorState message={error} onRetry={() => { void load(true) }} />)}
 
       {report && <>
         <div className="rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4" style={{ background: report.status === 'healthy' ? 'var(--m3-up-bg)' : 'var(--m3-error-container)' }}>
@@ -156,6 +167,6 @@ export default function SystemHealthPage() {
           </HealthCard>
         </div>
       </>}
-    </div>
+    </PageContainer>
   )
 }

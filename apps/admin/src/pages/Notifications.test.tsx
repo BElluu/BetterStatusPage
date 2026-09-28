@@ -124,7 +124,7 @@ describe('NotificationsPage', () => {
     const user = userEvent.setup()
     renderWithProviders(<NotificationsPage />)
 
-    await user.click(screen.getByRole('button', { name: '+ Add Channel' }))
+    await user.click(screen.getByRole('button', { name: 'Add Channel' }))
     expect(screen.getByText('New channel')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Close form' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -159,7 +159,7 @@ describe('NotificationsPage', () => {
     const host = screen.getByPlaceholderText('smtp.example.com')
     await user.clear(host)
     await user.type(host, 'mail.example.test')
-    await user.click(screen.getByText('Use TLS/SSL (port 465)').previousElementSibling as HTMLElement)
+    await user.click(screen.getByRole('switch', { name: 'Use TLS/SSL (port 465)' }))
     await user.click(screen.getByRole('button', { name: 'Save Settings' }))
 
     await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/notifications/smtp', {
@@ -275,6 +275,18 @@ describe('NotificationHistoryPage delivery log', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/notifications/deliveries/2/retry', {}))
   })
 
+  it('expands a delivery from its details button with aria-expanded', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<NotificationHistoryPage />)
+
+    const toggles = await screen.findAllByRole('button', { name: /^Show details for/ })
+    expect(toggles[1]).toHaveAttribute('aria-expanded', 'false')
+    toggles[1]!.focus()
+    await user.keyboard('{Enter}')
+    expect(await screen.findByText('SMTP 550 mailbox unavailable')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Hide details for/ })).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('explains a suppressed delivery that was never attempted', async () => {
     const user = userEvent.setup()
     renderWithProviders(<NotificationHistoryPage />)
@@ -292,7 +304,7 @@ describe('NotificationHistoryPage delivery log', () => {
     deliveryPages = 2
     renderWithProviders(<NotificationHistoryPage />)
 
-    await screen.findByText('8 deliveries')
+    await screen.findByText('Page 1 of 2 · 8 deliveries')
     await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'failed')
     await user.selectOptions(await screen.findByRole('combobox', { name: 'Channel' }), '2')
     await user.selectOptions(screen.getByRole('combobox', { name: 'Event' }), 'alert')
@@ -300,9 +312,9 @@ describe('NotificationHistoryPage delivery log', () => {
       '/admin/notifications/deliveries?page=1&limit=20&status=failed&channelId=2&eventType=alert',
     ))
 
-    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: 'Next' }))
-    expect(await screen.findByText('Page 2 of 2')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
+    expect(await screen.findByText('Page 2 of 2 · 8 deliveries')).toBeInTheDocument()
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(expect.stringContaining('page=2')))
   })
 

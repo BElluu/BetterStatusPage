@@ -4,33 +4,45 @@ import { api } from '../api/client'
 import type { Incident, Monitor } from '@bsp/shared'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { NotifySubscribersCheckbox } from '../components/subscribers/NotifySubscribersCheckbox'
-import { ModalShell } from '../components/ModalShell'
+import { Modal } from '../components/ModalShell'
+import { Alert, EmptyState, ErrorState, Field, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
 
-// No theme token exists for the in-between orange, so it stays a literal; the rest follow light/dark mode.
-const ORANGE = '#f97316'
-const NEUTRAL = 'var(--m3-secondary)'
+interface Tone { text: string; bar: string; bg: string }
 
-const statusColors: Record<string, string> = {
-  investigating: 'var(--m3-down)',
-  identified:    ORANGE,
-  monitoring:    'var(--m3-degraded-bar)',
-  resolved:      'var(--m3-up-bar)',
+const NEUTRAL: Tone = { text: 'var(--m3-secondary)', bar: 'var(--m3-outline)', bg: 'var(--m3-surface-container)' }
+const DOWN: Tone = { text: 'var(--m3-down)', bar: 'var(--m3-down)', bg: 'var(--m3-down-bg)' }
+const PARTIAL: Tone = { text: 'var(--m3-partial)', bar: 'var(--m3-partial-bar)', bg: 'var(--m3-partial-bg)' }
+const DEGRADED: Tone = { text: 'var(--m3-degraded)', bar: 'var(--m3-degraded-bar)', bg: 'var(--m3-degraded-bg)' }
+const UP: Tone = { text: 'var(--m3-up)', bar: 'var(--m3-up-bar)', bg: 'var(--m3-up-bg)' }
+
+const statusTones: Record<string, Tone> = {
+  investigating: DOWN,
+  identified:    PARTIAL,
+  monitoring:    DEGRADED,
+  resolved:      UP,
 }
 
-const impactColors: Record<string, string> = {
+const impactTones: Record<string, Tone> = {
   none:     NEUTRAL,
-  minor:    'var(--m3-degraded-bar)',
-  major:    ORANGE,
-  critical: 'var(--m3-down)',
+  minor:    DEGRADED,
+  major:    PARTIAL,
+  critical: DOWN,
 }
 
-/** Translucent variant of a colour; works for var() tokens, unlike appending a hex alpha suffix. */
-function tint(color: string, percent: number) {
-  return `color-mix(in srgb, ${color} ${percent}%, transparent)`
+function Chip({ tone, children }: { tone: Tone; children: React.ReactNode }) {
+  return (
+    <span
+      className="text-xs px-2 py-0.5 rounded-full font-medium"
+      style={{ background: tone.bg, color: tone.text, border: `1px solid color-mix(in srgb, ${tone.bar} 30%, transparent)` }}
+    >
+      {children}
+    </span>
+  )
 }
 
 export default function IncidentsPage() {
   const qc = useQueryClient()
+  const toast = useToast()
   const [showCreate, setShowCreate] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Incident | null>(null)
@@ -38,7 +50,7 @@ export default function IncidentsPage() {
   const [updateStatus, setUpdateStatus] = useState('monitoring')
   const [updateNotify, setUpdateNotify] = useState(true)
 
-  const { data: incidents = [] } = useQuery<Incident[]>({
+  const { data: incidents = [], isPending, isError, refetch } = useQuery<Incident[]>({
     queryKey: ['incidents'],
     queryFn: () => api.get('/admin/incidents'),
   })
@@ -55,96 +67,102 @@ export default function IncidentsPage() {
       qc.invalidateQueries({ queryKey: ['incidents'] })
       setUpdateBody('')
       setUpdateNotify(true)
+      toast.success('Update posted')
     },
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.delete(`/admin/incidents/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['incidents'] }),
+    mutationFn: (incident: Incident) => api.delete(`/admin/incidents/${incident.id}`),
+    onSuccess: (_data, incident) => {
+      qc.invalidateQueries({ queryKey: ['incidents'] })
+      setConfirmDelete(null)
+      toast.success(`Deleted "${incident.title}"`)
+    },
+    onError: (err) => toast.error(`Couldn't delete incident: ${(err as Error).message}`),
   })
 
   const activeCount = incidents.filter((i) => i.status !== 'resolved').length
 
-  return (
-    <div className="p-8 space-y-6 fade-up">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-headline font-bold text-2xl" style={{ color: 'var(--m3-on-surface)' }}>Incidents</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
-            {activeCount} active · {incidents.length} total
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="btn-primary flex items-center gap-2 py-3 px-4 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98]"
-          style={{ background: 'var(--m3-on-surface)', color: 'var(--m3-surface)' }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_circle</span>
-          New Incident
-        </button>
-      </div>
+  const newIncidentButton = (
+    <button type="button" onClick={() => setShowCreate(true)} className="btn btn-primary">
+      <span className="material-symbols-outlined" aria-hidden="true">add_circle</span>
+      New Incident
+    </button>
+  )
 
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Incidents"
+        subtitle={isPending || isError ? undefined : `${activeCount} active · ${incidents.length} total`}
+        actions={newIncidentButton}
+      />
+
+      {isPending ? (
+        <LoadingState label="Loading incidents…" />
+      ) : isError ? (
+        <ErrorState message="Couldn't load incidents." onRetry={() => void refetch()} />
+      ) : incidents.length === 0 ? (
+        <EmptyState
+          icon="warning"
+          title="No incidents yet"
+          description="Incidents you open will appear here with their update timeline."
+          action={newIncidentButton}
+        />
+      ) : (
       <div className="space-y-2">
         {incidents.map((incident) => {
-          const color = statusColors[incident.status] ?? NEUTRAL
-          const iColor = impactColors[incident.impact] ?? NEUTRAL
+          const tone = statusTones[incident.status] ?? NEUTRAL
+          const impactTone = impactTones[incident.impact] ?? NEUTRAL
           const isExpanded = expandedId === incident.id
+          const panelId = `incident-${incident.id}-details`
 
           return (
             <div
               key={incident.id}
               className="rounded-2xl overflow-hidden"
-              style={{ borderLeft: `3px solid ${color}` }}
+              style={{ borderLeft: `3px solid ${tone.bar}` }}
             >
               {/* Header row */}
-              <div
-                className="px-5 py-4 flex items-center gap-3 cursor-pointer transition-colors"
-                onClick={() => { setExpandedId(isExpanded ? null : incident.id); postUpdateMutation.reset() }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = 'var(--m3-surface-container)')}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.background = '')}
-              >
-                <span className="font-mono text-xs flex-shrink-0" style={{ color: 'var(--m3-secondary)' }}>
-                  {isExpanded ? '▾' : '▸'}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <span className="font-medium text-sm" style={{ color: 'var(--m3-on-surface)' }}>
-                    {incident.title}
-                  </span>
-                  <div className="flex gap-2 mt-1.5 flex-wrap">
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full font-medium"
-                      style={{ background: tint(color, 8), color, border: `1px solid ${tint(color, 15)}` }}
-                    >
-                      {incident.status}
-                    </span>
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full font-medium"
-                      style={{ background: tint(iColor, 7), color: iColor, border: `1px solid ${tint(iColor, 13)}` }}
-                    >
-                      {incident.impact}
-                    </span>
-                  </div>
-                </div>
-                <span className="font-mono text-xs flex-shrink-0" style={{ color: 'var(--m3-secondary)' }}>
-                  {new Date(incident.startedAt).toLocaleDateString()}
-                </span>
+              <div className="flex items-center gap-2 pr-3 transition-colors hover:bg-surface-container">
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setConfirmDelete(incident)
-                  }}
-                  className="text-xs px-2 py-1 rounded transition-colors flex-shrink-0"
-                  style={{ color: 'var(--m3-down)' }}
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-down-bg)')}
-                  onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = '')}
+                  type="button"
+                  aria-expanded={isExpanded}
+                  aria-controls={panelId}
+                  onClick={() => { setExpandedId(isExpanded ? null : incident.id); postUpdateMutation.reset() }}
+                  className="flex-1 min-w-0 pl-5 py-4 flex items-center gap-3 text-left rounded-r-xl focus-ring"
                 >
-                  Delete
+                  <span className="font-mono text-xs flex-shrink-0" aria-hidden="true" style={{ color: 'var(--m3-secondary)' }}>
+                    {isExpanded ? '▾' : '▸'}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-medium text-sm" style={{ color: 'var(--m3-on-surface)' }}>
+                      {incident.title}
+                    </span>
+                    <span className="flex gap-2 mt-1.5 flex-wrap">
+                      <Chip tone={tone}>{incident.status}</Chip>
+                      <Chip tone={impactTone}>{incident.impact}</Chip>
+                    </span>
+                  </span>
+                  <span className="font-mono text-xs flex-shrink-0" style={{ color: 'var(--m3-secondary)' }}>
+                    {new Date(incident.startedAt).toLocaleDateString()}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(incident)}
+                  title="Delete"
+                  aria-label={`Delete ${incident.title}`}
+                  className="btn-icon hover:!bg-[var(--m3-down-bg)]"
+                  style={{ color: 'var(--m3-down)' }}
+                >
+                  <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '18px' }}>delete</span>
                 </button>
               </div>
 
               {/* Expanded panel */}
               {isExpanded && (
-                <div className="px-5 pb-5 pt-4 space-y-4" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
+                <div id={panelId} className="px-5 pb-5 pt-4 space-y-4" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
 
                   {/* Affected monitors */}
                   <div>
@@ -182,13 +200,13 @@ export default function IncidentsPage() {
                       </p>
                       <div className="space-y-3">
                         {(incident.updates ?? []).map((update, i) => {
-                          const uc = statusColors[update.status] ?? NEUTRAL
+                          const updateTone = statusTones[update.status] ?? NEUTRAL
                           return (
                             <div key={update.id} className="flex gap-3">
                               <div className="flex flex-col items-center flex-shrink-0">
                                 <div
                                   className="w-2 h-2 rounded-full flex-shrink-0 mt-0.5"
-                                  style={{ background: i === 0 ? uc : 'var(--m3-outline-variant)' }}
+                                  style={{ background: i === 0 ? updateTone.bar : 'var(--m3-outline-variant)' }}
                                 />
                                 {i < (incident.updates ?? []).length - 1 && (
                                   <div className="w-px flex-1 mt-1" style={{ background: 'var(--m3-outline-variant)', minHeight: 16 }} />
@@ -196,7 +214,7 @@ export default function IncidentsPage() {
                               </div>
                               <div className="flex-1 min-w-0 pb-1">
                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                  <span className="text-xs font-medium" style={{ color: i === 0 ? uc : 'var(--m3-secondary)' }}>
+                                  <span className="text-xs font-medium" style={{ color: i === 0 ? updateTone.text : 'var(--m3-secondary)' }}>
                                     {update.status}
                                   </span>
                                   <span className="font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
@@ -215,20 +233,20 @@ export default function IncidentsPage() {
                   {/* Post update */}
                   {incident.status !== 'resolved' && (
                     <div className="space-y-3">
-                      <p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
-                        Post Update
-                      </p>
-                      <textarea
-                        value={updateBody}
-                        onChange={(e) => setUpdateBody(e.target.value)}
-                        rows={3}
-                        placeholder="Describe the current situation…"
-                        className="input-sig resize-none"
-                      />
+                      <Field label="Post Update">
+                        <textarea
+                          value={updateBody}
+                          onChange={(e) => setUpdateBody(e.target.value)}
+                          rows={3}
+                          placeholder="Describe the current situation…"
+                          className="input-sig resize-none"
+                        />
+                      </Field>
                       <div className="flex flex-wrap items-center gap-3">
                         <select
                           value={updateStatus}
                           onChange={(e) => setUpdateStatus(e.target.value)}
+                          aria-label="New status"
                           className="input-sig"
                           style={{ width: 'auto' }}
                         >
@@ -238,28 +256,24 @@ export default function IncidentsPage() {
                           <option value="resolved">Resolved</option>
                         </select>
                         <button
+                          type="button"
                           onClick={() => {
                             if (!updateBody.trim()) return
                             postUpdateMutation.mutate({ id: incident.id, body: updateBody, status: updateStatus, notifySubscribers: updateNotify })
                           }}
                           disabled={postUpdateMutation.isPending || !updateBody.trim()}
-                          className="btn-primary text-sm font-semibold px-4 py-2 rounded-lg transition-all"
-                          style={{
-                            background: 'var(--m3-primary)',
-                            color: 'var(--m3-on-primary)',
-                            opacity: postUpdateMutation.isPending || !updateBody.trim() ? 0.7 : 1,
-                          }}
+                          className="btn btn-primary"
                         >
                           Post Update
                         </button>
                         <NotifySubscribersCheckbox checked={updateNotify} onChange={setUpdateNotify} />
                       </div>
                       {postUpdateMutation.isError && (
-                        <p role="alert" className="text-sm" style={{ color: 'var(--m3-down)' }}>
+                        <Alert tone="error">
                           {postUpdateMutation.error instanceof Error && postUpdateMutation.error.message
                             ? postUpdateMutation.error.message
                             : 'Failed to post the update. Please try again.'}
-                        </p>
+                        </Alert>
                       )}
                     </div>
                   )}
@@ -268,12 +282,8 @@ export default function IncidentsPage() {
             </div>
           )
         })}
-        {incidents.length === 0 && (
-          <div className="text-center py-14 text-sm" style={{ color: 'var(--m3-secondary)' }}>
-            No incidents reported. All systems operational.
-          </div>
-        )}
       </div>
+      )}
 
       {showCreate && (
         <CreateIncidentModal
@@ -282,6 +292,7 @@ export default function IncidentsPage() {
           onSaved={() => {
             qc.invalidateQueries({ queryKey: ['incidents'] })
             setShowCreate(false)
+            toast.success('Incident created')
           }}
         />
       )}
@@ -290,11 +301,13 @@ export default function IncidentsPage() {
         <ConfirmModal
           title="Delete incident"
           message={`Delete "${confirmDelete.title}"? This cannot be undone.`}
-          onConfirm={() => { deleteMutation.mutate(confirmDelete.id); setConfirmDelete(null) }}
+          pending={deleteMutation.isPending}
+          pendingLabel="Deleting…"
+          onConfirm={() => deleteMutation.mutate(confirmDelete)}
           onCancel={() => setConfirmDelete(null)}
         />
       )}
-    </div>
+    </PageContainer>
   )
 }
 
@@ -323,123 +336,77 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
   }
 
   return (
-    <ModalShell>
-      <div className="rounded-2xl w-full max-w-md" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-        <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-          <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>New Incident</h3>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none transition-colors"
-            style={{ color: 'var(--m3-secondary)' }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container-high)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ''; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)' }}
-          >
-            ×
-          </button>
+    <Modal title="New Incident" icon="warning" onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Field label="Title" required>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            className="input-sig"
+            placeholder="Service degradation"
+          />
+        </Field>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label="Status">
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className="input-sig">
+              <option value="investigating">Investigating</option>
+              <option value="identified">Identified</option>
+              <option value="monitoring">Monitoring</option>
+            </select>
+          </Field>
+          <Field label="Impact">
+            <select value={impact} onChange={(e) => setImpact(e.target.value)} className="input-sig">
+              <option value="none">None</option>
+              <option value="minor">Minor</option>
+              <option value="major">Major</option>
+              <option value="critical">Critical</option>
+            </select>
+          </Field>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
-              Title
-            </label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              className="input-sig"
-              placeholder="Service degradation"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
-                Status
+        <fieldset>
+          <legend className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
+            Affected Monitors
+          </legend>
+          <div
+            className="space-y-1 max-h-36 overflow-y-auto rounded-lg p-2"
+            style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}
+          >
+            {monitors.map((m) => (
+              <label key={m.id} className="flex items-center gap-2.5 text-sm cursor-pointer px-2 py-1.5 rounded-md transition-colors hover:bg-surface-container-high">
+                <input
+                  type="checkbox"
+                  checked={selectedMonitors.includes(m.id)}
+                  onChange={(e) => {
+                    setSelectedMonitors(e.target.checked
+                      ? [...selectedMonitors, m.id]
+                      : selectedMonitors.filter((id) => id !== m.id))
+                  }}
+                />
+                <span style={{ color: 'var(--m3-on-surface)' }}>{m.name}</span>
               </label>
-              <select value={status} onChange={(e) => setStatus(e.target.value)} className="input-sig">
-                <option value="investigating">Investigating</option>
-                <option value="identified">Identified</option>
-                <option value="monitoring">Monitoring</option>
-              </select>
-            </div>
-            <div>
-              <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
-                Impact
-              </label>
-              <select value={impact} onChange={(e) => setImpact(e.target.value)} className="input-sig">
-                <option value="none">None</option>
-                <option value="minor">Minor</option>
-                <option value="major">Major</option>
-                <option value="critical">Critical</option>
-              </select>
-            </div>
+            ))}
+            {monitors.length === 0 && (
+              <p className="text-xs px-2 py-2" style={{ color: 'var(--m3-secondary)' }}>No monitors available</p>
+            )}
           </div>
+        </fieldset>
 
-          <div>
-            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
-              Affected Monitors
-            </label>
-            <div
-              className="space-y-1 max-h-36 overflow-y-auto rounded-lg p-2"
-              style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}
-            >
-              {monitors.map((m) => (
-                <label key={m.id} className="flex items-center gap-2.5 text-sm cursor-pointer px-2 py-1.5 rounded-md transition-colors"
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLLabelElement).style.background = 'var(--m3-surface-container)')}
-                  onMouseLeave={(e) => ((e.currentTarget as HTMLLabelElement).style.background = '')}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedMonitors.includes(m.id)}
-                    onChange={(e) => {
-                      setSelectedMonitors(e.target.checked
-                        ? [...selectedMonitors, m.id]
-                        : selectedMonitors.filter((id) => id !== m.id))
-                    }}
-                    style={{ accentColor: 'var(--admin-control-accent)' }}
-                  />
-                  <span style={{ color: 'var(--m3-on-surface)' }}>{m.name}</span>
-                </label>
-              ))}
-              {monitors.length === 0 && (
-                <p className="text-xs px-2 py-2" style={{ color: 'var(--m3-secondary)' }}>No monitors available</p>
-              )}
-            </div>
-          </div>
+        <NotifySubscribersCheckbox checked={notifySubscribers} onChange={setNotifySubscribers} />
 
-          <NotifySubscribersCheckbox checked={notifySubscribers} onChange={setNotifySubscribers} />
+        {error && <Alert tone="error">{error}</Alert>}
 
-          {error && (
-            <p role="alert" className="text-sm" style={{ color: 'var(--m3-down)' }}>{error}</p>
-          )}
-
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-sm px-4 py-2 rounded-lg transition-colors"
-              style={{ color: 'var(--m3-secondary)' }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)')}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)')}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary text-sm font-semibold px-4 py-2 rounded-lg transition-all"
-              style={{
-                background: loading ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
-                color: loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
-                opacity: loading ? 0.7 : 1,
-              }}
-            >
-              {loading ? 'Creating…' : 'Create Incident'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </ModalShell>
+        <div className="flex justify-end gap-3 pt-2">
+          <button type="button" onClick={onClose} className="btn btn-secondary">
+            Cancel
+          </button>
+          <button type="submit" disabled={loading} className="btn btn-primary">
+            {loading ? 'Creating…' : 'Create Incident'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   )
 }

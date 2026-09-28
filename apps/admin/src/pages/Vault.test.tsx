@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
+import { ToastProvider } from '../components/ui'
 import VaultPage from './Vault'
 
 vi.mock('../api/client', () => ({
@@ -188,7 +189,8 @@ describe('VaultPage', () => {
     await user.click(within(dialog).getByRole('button', { name: /^JSON/ }))
     const jsonInput = within(dialog).getByPlaceholderText(/"key": "value"/)
     await user.type(jsonInput, '{{bad')
-    expect(within(dialog).getByText('JSON — Invalid JSON')).toBeInTheDocument()
+    expect(within(dialog).getByText('Invalid JSON')).toBeInTheDocument()
+    expect(within(dialog).getByRole('textbox', { name: /JSON/ })).toHaveAttribute('aria-invalid', 'true')
     await user.click(within(dialog).getByRole('button', { name: 'Save Secret' }))
     expect(api.post).not.toHaveBeenCalled()
 
@@ -228,11 +230,11 @@ describe('VaultPage', () => {
     const password = within(dialog).getByText('hunter2-s3cret')
     expect(password).toHaveStyle({ filter: 'blur(6px)' })
     // Only the username can be copied while the password is hidden.
-    expect(within(dialog).getAllByTitle('Copy')).toHaveLength(1)
+    expect(within(dialog).getAllByRole('button', { name: /^Copy/ })).toHaveLength(1)
 
     await user.click(within(dialog).getByRole('button', { name: 'Show' }))
     expect(password).toHaveStyle({ filter: 'none' })
-    expect(within(dialog).getAllByTitle('Copy')).toHaveLength(2)
+    expect(within(dialog).getAllByRole('button', { name: /^Copy/ })).toHaveLength(2)
     await user.click(within(dialog).getByRole('button', { name: 'Hide' }))
     expect(password).toHaveStyle({ filter: 'blur(6px)' })
 
@@ -250,7 +252,7 @@ describe('VaultPage', () => {
     await user.click((await screen.findAllByRole('button', { name: /Reveal/ }))[1]!)
     const valueDialog = await screen.findByRole('dialog', { name: 'api-token' })
     expect(within(valueDialog).getByText('tok_abc123')).toBeInTheDocument()
-    await user.click(within(valueDialog).getByTitle('Copy'))
+    await user.click(within(valueDialog).getByRole('button', { name: 'Copy value' }))
     expect(writeText).toHaveBeenCalledWith('tok_abc123')
     await user.click(within(valueDialog).getByText('Close', { selector: 'button' }))
 
@@ -265,12 +267,12 @@ describe('VaultPage', () => {
 
     await openVault(user)
     await screen.findByText('db-login')
-    await user.click(screen.getAllByRole('button', { name: 'delete' })[0]!)
+    await user.click(screen.getByRole('button', { name: 'Delete secret db-login' }))
     expect(screen.getByText('Delete secret "db-login"? This action cannot be undone.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(api.delete).not.toHaveBeenCalled()
 
-    await user.click(screen.getAllByRole('button', { name: 'delete' })[0]!)
+    await user.click(screen.getByRole('button', { name: 'Delete secret db-login' }))
     await user.click(within(screen.getByRole('dialog', { name: 'Delete secret' })).getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/admin/vaults/1/secrets/10'))
   })
@@ -281,7 +283,7 @@ describe('VaultPage', () => {
 
     await openVault(user)
     await screen.findByText('db-login')
-    await user.click(screen.getAllByRole('button', { name: '×' })[0]!)
+    await user.click(screen.getByRole('button', { name: 'Delete vault Production' }))
 
     const dialog = screen.getByRole('dialog', { name: 'Delete vault' })
     expect(within(dialog).getByText('This vault contains 3 secrets. All secrets will be permanently deleted.')).toBeInTheDocument()
@@ -300,12 +302,69 @@ describe('VaultPage', () => {
     renderPage()
 
     await screen.findByText('Staging')
-    await user.click(screen.getAllByRole('button', { name: '×' })[1]!)
+    await user.click(screen.getByRole('button', { name: 'Delete vault Staging' }))
 
     const dialog = screen.getByRole('dialog', { name: 'Delete vault' })
     expect(within(dialog).getByText('This vault may contain secrets. All secrets will be permanently deleted.')).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(api.delete).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed reveal instead of failing silently', async () => {
+    const user = userEvent.setup()
+    const base = vi.mocked(api.get).getMockImplementation()!
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.endsWith('/reveal')) throw new Error('Vault key missing')
+      return base(path)
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<ToastProvider><QueryClientProvider client={queryClient}><VaultPage /></QueryClientProvider></ToastProvider>)
+
+    await openVault(user)
+    await user.click((await screen.findAllByRole('button', { name: /Reveal/ }))[0]!)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not reveal "db-login": Vault key missing')
+    expect(screen.getAllByRole('button', { name: /Reveal/ })[0]).toBeEnabled()
+  })
+
+  it('shows malformed JSON secrets as plain text instead of crashing', async () => {
+    const user = userEvent.setup()
+    const base = vi.mocked(api.get).getMockImplementation()!
+    vi.mocked(api.get).mockImplementation(async (path: string) => (
+      path === '/admin/vaults/1/secrets/12/reveal'
+        ? { id: 12, name: 'config-blob', type: 'json', value: { value: '{not json' } }
+        : base(path)
+    ))
+    renderPage()
+
+    await openVault(user)
+    await user.click((await screen.findAllByRole('button', { name: /Reveal/ }))[2]!)
+    const dialog = await screen.findByRole('dialog', { name: 'config-blob' })
+    expect(dialog.querySelector('pre')).toHaveTextContent('{not json')
+    expect(within(dialog).getByText(/not valid JSON/)).toBeInTheDocument()
+  })
+
+  it('shows a loading state instead of an empty vault while secrets load', async () => {
+    const user = userEvent.setup()
+    const base = vi.mocked(api.get).getMockImplementation()!
+    vi.mocked(api.get).mockImplementation((path: string) => (
+      path === '/admin/vaults/1/secrets' ? new Promise(() => {}) : base(path)
+    ))
+    renderPage()
+
+    await openVault(user)
+    expect(screen.getByText('Loading secrets…')).toBeInTheDocument()
+    expect(screen.queryByText('No secrets in this vault')).not.toBeInTheDocument()
+  })
+
+  it('selects vaults with the keyboard', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    const production = await screen.findByRole('button', { name: /^Production/ })
+    production.focus()
+    await user.keyboard('{Enter}')
+    expect(await screen.findByText('db-login')).toBeInTheDocument()
+    expect(production).toHaveAttribute('aria-current', 'true')
   })
 })

@@ -30,7 +30,9 @@ function buildTestReport(result: TestResult): string {
 
 export function TestResultPanel({ result }: { result: TestResult }) {
   const isOk = result.overall === 'ok'
+  // `tone` tints borders, backgrounds and icons; text uses the darker, contrast-safe status colour.
   const tone = isOk ? 'var(--m3-up-bar)' : 'var(--m3-down)'
+  const toneText = isOk ? 'var(--m3-up)' : 'var(--m3-down)'
 
   const handleDownload = () => {
     const text = buildTestReport(result)
@@ -53,11 +55,12 @@ export function TestResultPanel({ result }: { result: TestResult }) {
         <div className="flex items-center gap-2">
           <span
             className="material-symbols-outlined"
+            aria-hidden="true"
             style={{ fontSize: '18px', color: tone }}
           >
             {isOk ? 'check_circle' : 'cancel'}
           </span>
-          <span className="text-sm font-semibold" style={{ color: tone }}>
+          <span className="text-sm font-semibold" style={{ color: toneText }}>
             {isOk ? 'All checks passed' : 'Test failed'}
           </span>
         </div>
@@ -73,7 +76,7 @@ export function TestResultPanel({ result }: { result: TestResult }) {
               border: '1px solid var(--m3-outline-variant)',
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>download</span>
+            <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '13px' }}>download</span>
             report
           </button>
           <span className="text-xs font-mono" style={{ color: 'var(--m3-secondary)' }}>

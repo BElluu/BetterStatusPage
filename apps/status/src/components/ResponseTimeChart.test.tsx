@@ -46,7 +46,7 @@ describe('ResponseTimeChart', () => {
     await waitFor(() => expect(container.querySelector('.bsp-chart')).not.toBeNull())
   })
 
-  it('shows an empty state when no checks ran or the request fails', async () => {
+  it('tells an empty period apart from a failed request', async () => {
     vi.mocked(getJSON).mockResolvedValueOnce({ buckets: [bucket(1, { count: 0, avg: null })] })
     const { unmount } = render(<ResponseTimeChart monitorId={1} hours={24} buckets={20} aggregation="max" />)
     expect(await screen.findByText('No data for this period')).toBeInTheDocument()
@@ -54,6 +54,7 @@ describe('ResponseTimeChart', () => {
 
     vi.mocked(getJSON).mockRejectedValueOnce(new Error('offline'))
     render(<ResponseTimeChart monitorId={1} hours={24} buckets={20} aggregation="max" />)
-    expect(await screen.findByText('No data for this period')).toBeInTheDocument()
+    expect(await screen.findByText('Could not load response times.')).toBeInTheDocument()
+    expect(screen.queryByText('No data for this period')).not.toBeInTheDocument()
   })
 })

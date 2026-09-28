@@ -8,6 +8,8 @@ import type {
 } from '@bsp/shared'
 import { api } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
+import { EmptyState, ErrorState, LoadingState, PageContainer, PageHeader, Pagination, Switch, useToast } from '../components/ui'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 
 export const SUBSCRIBER_EVENT_LABELS: Record<SubscriberEventType, { label: string; hint: string }> = {
   'incident.created':      { label: 'New incidents',         hint: 'When an incident is published' },
@@ -53,44 +55,19 @@ const METHOD_CONFIG: Record<SubscriptionMethod, { title: string; icon: string; t
 }
 
 export default function SubscribersPage() {
-  const { data: settings } = useQuery<AdminSubscriptionSettings>({
+  const { data: settings, isLoading, isError, refetch } = useQuery<AdminSubscriptionSettings>({
     queryKey: ['subscription-settings'],
     queryFn: () => api.get('/admin/subscribers/settings'),
   })
 
   return (
-    <div className="p-8 space-y-6 fade-up">
-      <div>
-        <h1 className="font-headline font-bold text-2xl" style={{ color: 'var(--m3-on-surface)' }}>Subscribers</h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
-          Choose how visitors of the status page can follow incidents and maintenance
-        </p>
-      </div>
+    <PageContainer>
+      <PageHeader title="Subscribers" subtitle="Choose how visitors of the status page can follow incidents and maintenance" />
+      {isLoading && <LoadingState label="Loading subscription settings…" />}
+      {isError && <ErrorState message="Could not load subscription settings." onRetry={() => void refetch()} />}
       {settings && <SettingsCard settings={settings} />}
       <SubscriberTable />
-    </div>
-  )
-}
-
-function Toggle({ label, hint, checked, onChange }: { label: React.ReactNode; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex items-start gap-3 cursor-pointer select-none">
-      <input type="checkbox" className="sr-only" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span
-        aria-hidden="true"
-        className="relative w-10 h-5 rounded-full transition-colors flex-shrink-0 mt-0.5"
-        style={{ background: checked ? 'var(--m3-primary)' : 'var(--m3-outline-variant)' }}
-      >
-        <span
-          className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
-          style={{ background: checked ? 'var(--m3-on-primary)' : 'var(--m3-secondary)', left: checked ? '22px' : '2px' }}
-        />
-      </span>
-      <span>
-        <span className="block text-sm font-medium" style={{ color: 'var(--m3-on-surface)' }}>{label}</span>
-        {hint && <span className="block text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>{hint}</span>}
-      </span>
-    </label>
+    </PageContainer>
   )
 }
 
@@ -132,7 +109,7 @@ function MethodCard({ method, status, onToggle, feedBase }: {
           <span className="font-headline font-semibold text-sm" style={{ color: 'var(--m3-on-surface)' }}>{config.title}</span>
           <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: badge.bg, color: badge.fg }}>{badge.label}</span>
         </div>
-        <Toggle label={<span className="sr-only">Enable {config.title}</span>} checked={status.enabled} onChange={onToggle} />
+        <Switch checked={status.enabled} onChange={onToggle} aria-label={`Enable ${config.title}`} />
       </div>
       <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>{config.description}</p>
       {status.enabled && status.problems.length > 0 && (
@@ -186,28 +163,28 @@ function SettingsCard({ settings }: { settings: AdminSubscriptionSettings }) {
   return (
     <section className="rounded-2xl p-6 space-y-6" style={cardStyle}>
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-        <div className="space-y-2">
-          <Toggle
+        <div className="space-y-2 md:max-w-2xl">
+          <Switch
             label="Allow visitors to subscribe"
-            hint="Master switch. Off hides the Subscribe button, takes the feeds and the status API offline, and stops notifications to subscribers."
+            description="Master switch. Off hides the Subscribe button, takes the feeds and the status API offline, and stops notifications to subscribers."
             checked={draft.enabled}
             onChange={(v) => set('enabled', v)}
           />
           {draft.enabled && (
-            <p className="text-xs ml-[52px]" style={{ color: offered.length ? 'var(--m3-secondary)' : 'var(--m3-degraded)' }}>
+            <p className="text-xs" style={{ color: offered.length ? 'var(--m3-secondary)' : 'var(--m3-degraded)' }}>
               {offered.length
                 ? `Visitors will choose from: ${offered.map((m) => METHOD_CONFIG[m].title).join(', ')}.`
                 : 'No method is available yet, so the Subscribe button stays hidden.'}
             </p>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          {message && <span className="text-xs" style={{ color: save.isError ? 'var(--m3-down)' : 'var(--m3-up)' }}>{message}</span>}
+        <div className="flex flex-wrap items-center gap-3">
+          {message && <span role={save.isError ? 'alert' : 'status'} className="text-xs" style={{ color: save.isError ? 'var(--m3-down)' : 'var(--m3-up)' }}>{message}</span>}
           <button
+            type="button"
             onClick={() => save.mutate(draft)}
             disabled={save.isPending || !dirty}
-            className="btn-primary text-sm font-semibold px-4 py-2.5 rounded-lg transition-all"
-            style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)', opacity: save.isPending || !dirty ? 0.6 : 1 }}
+            className="btn btn-primary"
           >
             {save.isPending ? 'Saving…' : 'Save settings'}
           </button>
@@ -240,7 +217,6 @@ function SettingsCard({ settings }: { settings: AdminSubscriptionSettings }) {
                   className="mt-1"
                   checked={draft.allowedEvents.includes(type)}
                   onChange={(e) => toggleEvent(type, e.target.checked)}
-                  style={{ accentColor: 'var(--admin-control-accent)' }}
                 />
                 <span>
                   <span className="block text-sm font-medium" style={{ color: 'var(--m3-on-surface)' }}>{SUBSCRIBER_EVENT_LABELS[type].label}</span>
@@ -256,9 +232,9 @@ function SettingsCard({ settings }: { settings: AdminSubscriptionSettings }) {
 
         <div>
           <SectionLabel>Scope</SectionLabel>
-          <Toggle
+          <Switch
             label="Let subscribers choose components"
-            hint="Email and webhook subscribers can follow only selected monitors or tags. Only monitors placed on the public page are offered. Incidents with no linked monitors go to everyone."
+            description="Email and webhook subscribers can follow only selected monitors or tags. Only monitors placed on the public page are offered. Incidents with no linked monitors go to everyone."
             checked={draft.allowComponentScope}
             onChange={(v) => set('allowComponentScope', v)}
           />
@@ -276,8 +252,10 @@ function pick(settings: SettingsDraft): SettingsDraft {
 
 function SubscriberTable() {
   const qc = useQueryClient()
+  const toast = useToast()
   const [filter, setFilter] = useState<Filter>('all')
-  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [search] = useDebouncedValue(searchInput, 300)
   const [page, setPage] = useState(1)
   const [confirmDelete, setConfirmDelete] = useState<Subscriber | null>(null)
 
@@ -285,7 +263,7 @@ function SubscriberTable() {
   if (filter !== 'all') params.set('status', filter)
   if (search.trim()) params.set('search', search.trim())
 
-  const { data } = useQuery<SubscriberList>({
+  const { data, isLoading, isError, refetch } = useQuery<SubscriberList>({
     queryKey: ['subscribers', filter, search.trim(), page],
     queryFn: () => api.get(`/admin/subscribers?${params.toString()}`),
   })
@@ -296,8 +274,18 @@ function SubscriberTable() {
 
   const remove = useMutation({
     mutationFn: (id: number) => api.delete(`/admin/subscribers/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['subscribers'] }),
+    onSuccess: () => {
+      toast.success('Subscriber deleted.')
+      setConfirmDelete(null)
+      qc.invalidateQueries({ queryKey: ['subscribers'] })
+    },
+    onError: (err) => {
+      setConfirmDelete(null)
+      toast.error(err instanceof Error && err.message ? err.message : 'Failed to delete subscriber')
+    },
   })
+
+  const destination = (s: Subscriber) => (s.type === 'webhook' ? s.webhookUrl : s.email) ?? ''
 
   const stats = data?.stats
   const tabs: Array<{ key: Filter; label: string; count: number | undefined }> = [
@@ -317,45 +305,51 @@ function SubscriberTable() {
   return (
     <section className="space-y-4">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ background: 'var(--m3-surface-container)' }}>
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => { setFilter(tab.key); setPage(1) }}
-              className="px-4 py-2 rounded-lg text-sm font-bold transition-all"
-              style={{
-                background: filter === tab.key ? 'var(--m3-surface-container-lowest)' : 'transparent',
-                color: filter === tab.key ? 'var(--m3-on-surface)' : 'var(--m3-secondary)',
-                boxShadow: filter === tab.key ? '0 1px 4px rgba(19,27,46,0.08)' : 'none',
-              }}
-            >
-              {tab.label}{tab.count !== undefined && <span className="ml-1.5 font-mono text-xs opacity-70">{tab.count}</span>}
-            </button>
-          ))}
+        <div role="group" aria-label="Filter by status" className="flex max-w-full overflow-x-auto rounded-xl w-fit" style={{ border: '1px solid var(--m3-outline-variant)' }}>
+          {tabs.map((tab) => {
+            const active = filter === tab.key
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                aria-pressed={active}
+                onClick={() => { setFilter(tab.key); setPage(1) }}
+                className={`px-4 py-2 text-sm font-semibold whitespace-nowrap transition-colors focus-ring ${active ? 'selection-active' : ''}`}
+                style={{ background: 'transparent', color: 'var(--m3-secondary)' }}
+              >
+                {tab.label}{tab.count !== undefined && <span className="ml-1.5 font-mono text-xs opacity-70">{tab.count}</span>}
+              </button>
+            )
+          })}
         </div>
         <input
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+          value={searchInput}
+          onChange={(e) => { setSearchInput(e.target.value); setPage(1) }}
           placeholder="Search email or URL…"
+          aria-label="Search subscribers"
+          type="search"
           className="input-sig md:max-w-xs"
         />
       </div>
 
-      {!data ? (
-        <div className="text-sm" style={{ color: 'var(--m3-secondary)' }}>Loading…</div>
+      {isLoading ? (
+        <LoadingState label="Loading subscribers…" />
+      ) : isError || !data ? (
+        <ErrorState message="Could not load subscribers." onRetry={() => void refetch()} />
       ) : data.subscribers.length === 0 ? (
-        <div className="rounded-2xl p-12 text-center" style={cardStyle}>
-          <span className="material-symbols-outlined" style={{ fontSize: '48px', color: 'var(--m3-outline-variant)' }}>group_off</span>
-          <p className="mt-3 text-sm font-medium" style={{ color: 'var(--m3-secondary)' }}>No subscribers{filter !== 'all' || search ? ' match this filter' : ' yet'}</p>
-        </div>
+        <EmptyState
+          icon="group_off"
+          title={`No subscribers${filter !== 'all' || search ? ' match this filter' : ' yet'}`}
+          description={filter !== 'all' || search ? 'Try another status or search term.' : 'People who subscribe on the status page will appear here.'}
+        />
       ) : (
         <div className="rounded-2xl overflow-x-auto" style={cardStyle}>
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[860px] text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
                 {['Destination', 'Status', 'Receives', 'Scope', 'Last notified', ''].map((h) => (
                   <th key={h} className={`px-4 py-3 font-mono text-xs uppercase tracking-wider ${h === '' ? 'text-right' : 'text-left'}`}
-                    style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}>{h}</th>
+                    style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}>{h === '' ? <span className="sr-only">Actions</span> : h}</th>
                 ))}
               </tr>
             </thead>
@@ -366,7 +360,7 @@ function SubscriberTable() {
                   <tr key={s.id} style={{ borderTop: i > 0 ? '1px solid var(--m3-outline-variant)' : 'none' }}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--m3-secondary)' }}>
+                        <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px', color: 'var(--m3-secondary)' }}>
                           {s.type === 'webhook' ? 'webhook' : 'mail'}
                         </span>
                         <span className="font-medium break-all" style={{ color: 'var(--m3-on-surface)' }}>{s.type === 'webhook' ? s.webhookUrl : s.email}</span>
@@ -398,11 +392,10 @@ function SubscriberTable() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button
+                        type="button"
                         onClick={() => setConfirmDelete(s)}
-                        className="text-xs px-2 py-1 rounded transition-colors"
-                        style={{ color: 'var(--m3-down)' }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--m3-down-bg)')}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = '')}
+                        aria-label={`Delete ${destination(s)}`}
+                        className="btn btn-danger-outline btn-sm"
                       >
                         Delete
                       </button>
@@ -415,19 +408,15 @@ function SubscriberTable() {
         </div>
       )}
 
-      {data && data.pages > 1 && (
-        <div className="flex items-center justify-end gap-2 text-sm" style={{ color: 'var(--m3-secondary)' }}>
-          <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 py-1.5 rounded-lg" style={{ opacity: page <= 1 ? 0.4 : 1 }}>Previous</button>
-          <span>Page {data.page} of {data.pages}</span>
-          <button disabled={page >= data.pages} onClick={() => setPage(page + 1)} className="px-3 py-1.5 rounded-lg" style={{ opacity: page >= data.pages ? 0.4 : 1 }}>Next</button>
-        </div>
-      )}
+      {data && <Pagination page={page} pageCount={data.pages} onPageChange={setPage} />}
 
       {confirmDelete && (
         <ConfirmModal
           title="Delete subscriber"
-          message={`Delete ${confirmDelete.type === 'webhook' ? confirmDelete.webhookUrl : confirmDelete.email}? They stop receiving notifications immediately and their data is removed.`}
-          onConfirm={() => { remove.mutate(confirmDelete.id); setConfirmDelete(null) }}
+          message={`Delete ${destination(confirmDelete)}? They stop receiving notifications immediately and their data is removed.`}
+          pending={remove.isPending}
+          pendingLabel="Deleting…"
+          onConfirm={() => remove.mutate(confirmDelete.id)}
           onCancel={() => setConfirmDelete(null)}
         />
       )}

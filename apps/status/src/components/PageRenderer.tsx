@@ -40,17 +40,11 @@ export function PageRenderer({
   })
 
   return (
-    <section
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        columnGap: '24px',
-        rowGap: '10px',
-      }}
-    >
+    <section className="bsp-layout-grid">
       {sorted.map((node) => (
         <div
           key={node.id}
+          className="bsp-layout-cell"
           style={{
             gridColumn: `${(node.grid?.x ?? 0) + 1} / span ${node.grid?.w ?? 3}`,
             gridRow: `${(node.grid?.y ?? 0) + 1} / span ${node.grid?.h ?? 1}`,
@@ -187,56 +181,61 @@ function NodeRenderer({
   }
 
   if (node.type === 'chart') {
-    const n = node as ChartNode
-    const monitor = monitors.find((m) => m.id === n.monitorId)
-    const rowH = 44
-    const heightPx = (n.chartH ?? 5) * rowH + ((n.chartH ?? 5) - 1) * 10
-    return (
-      <div
-        className="bsp-chart-card"
-        style={{
-          background: 'var(--bsp-chart-bg)',
-          border: '1px solid var(--bsp-card-border)',
-          borderRadius: '16px',
-          padding: '16px 12px 12px',
-          height: heightPx,
-          boxSizing: 'border-box',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-          <div style={{ width: 48, flexShrink: 0 }}>
-            {n.showMonitorType && monitor && (
-              <span
-                className="font-mono text-[10px] uppercase flex-shrink-0 px-1.5 py-0.5 rounded"
-                style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
-              >
-                {monitor.type}
-              </span>
-            )}
-          </div>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)', fontFamily: 'Manrope, sans-serif' }}>
-              {n.title || monitor?.name || `Monitor #${n.monitorId}`}
-            </span>
-            <span style={{ fontSize: 11, color: 'var(--m3-secondary)' }}>
-              {n.aggregation.toUpperCase()} · last {n.hours < 24 ? `${n.hours}h` : n.hours === 24 ? '24h' : n.hours === 48 ? '2d' : '7d'}
-            </span>
-          </div>
-        </div>
-        <div style={{ height: heightPx - 52 }}>
-          <ResponseTimeChart
-            monitorId={n.monitorId}
-            hours={n.hours}
-            buckets={n.buckets}
-            aggregation={n.aggregation}
-            showArea={n.showArea ?? true}
-          />
-        </div>
-      </div>
-    )
+    return <ChartBlock node={node as ChartNode} monitors={monitors} />
   }
 
   return null
+}
+
+function ChartBlock({ node: n, monitors }: { node: ChartNode; monitors: PublicMonitor[] }) {
+  const { t } = useLocale()
+  const monitor = monitors.find((m) => m.id === n.monitorId)
+  const rowH = 44
+  const heightPx = (n.chartH ?? 5) * rowH + ((n.chartH ?? 5) - 1) * 10
+  const period = n.hours <= 24 ? t('chart.lastHours', { n: n.hours }) : t('chart.lastDays', { n: Math.round(n.hours / 24) })
+  return (
+    <div
+      className="bsp-chart-card"
+      style={{
+        background: 'var(--bsp-chart-bg)',
+        border: '1px solid var(--bsp-card-border)',
+        borderRadius: '16px',
+        padding: '16px 12px 12px',
+        height: heightPx,
+        boxSizing: 'border-box',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ width: 48, flexShrink: 0 }}>
+          {n.showMonitorType && monitor && (
+            <span
+              className="font-mono text-[10px] uppercase flex-shrink-0 px-1.5 py-0.5 rounded"
+              style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
+            >
+              {monitor.type}
+            </span>
+          )}
+        </div>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--m3-on-surface)', fontFamily: 'Manrope, sans-serif', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {n.title || monitor?.name || t('chart.monitorFallback', { id: n.monitorId })}
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--m3-secondary)', flexShrink: 0 }}>
+            {t(`chart.${n.aggregation}`).toUpperCase()} · {period}
+          </span>
+        </div>
+      </div>
+      <div style={{ height: heightPx - 52 }}>
+        <ResponseTimeChart
+          monitorId={n.monitorId}
+          hours={n.hours}
+          buckets={n.buckets}
+          aggregation={n.aggregation}
+          showArea={n.showArea ?? true}
+        />
+      </div>
+    </div>
+  )
 }
 
 /* ─────────────────────────────────────────────────────────────────────
@@ -244,17 +243,31 @@ function NodeRenderer({
    ───────────────────────────────────────────────────────────────────── */
 interface StatusBadgeProps {
   label: string
+  /** Dot and tint colour. */
   color: string
+  /** Label colour, darker than `color` so the text stays readable on the tint. */
+  textColor: string
   background: string
   /** Down and degraded monitors get a pulsing marker. */
   pulse: boolean
 }
 
-function StatusPill({ label, color, background, pulse, minWidth }: StatusBadgeProps & { minWidth: string }) {
+/** Colours for one monitor status: vivid for dots and tints, high-contrast for text. */
+function statusColors(status: MonitorStatus): { color: string; textColor: string; background: string } {
+  const tone = status === 'up' ? 'up' : status === 'down' ? 'down' : status === 'degraded' || status === 'affected' ? 'degraded' : null
+  if (!tone) return { color: 'var(--m3-secondary)', textColor: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }
+  return {
+    color: `var(--bsp-${tone})`,
+    textColor: `var(--bsp-${tone}-text)`,
+    background: `color-mix(in srgb, var(--bsp-${tone}) 12%, transparent)`,
+  }
+}
+
+function StatusPill({ label, color, textColor, background, pulse, minWidth }: StatusBadgeProps & { minWidth: string }) {
   return (
     <span
       style={{
-        background, color,
+        background, color: textColor,
         padding: '6px 14px', borderRadius: '999px',
         fontSize: '13px', fontWeight: 700,
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
@@ -329,8 +342,8 @@ function NameBlock({ monitor, showMonitorType, inMaintenance, causingMonitors, b
             padding: '2px 7px', borderRadius: '999px',
             background: 'var(--bsp-maintenance-chip-bg)', color: 'var(--bsp-maintenance-text)',
           }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>construction</span>
-            MAINTENANCE
+            <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '11px' }}>construction</span>
+            <span style={{ textTransform: 'uppercase' }}>{t('page.maintenance')}</span>
           </span>
         )}
         {causingMonitors.length > 0 && (
@@ -338,7 +351,7 @@ function NameBlock({ monitor, showMonitorType, inMaintenance, causingMonitors, b
             display: 'inline-flex', alignItems: 'center', gap: '3px',
             fontSize: '10px', fontWeight: 600, letterSpacing: '0.03em',
             padding: '2px 7px', borderRadius: '999px',
-            background: 'color-mix(in srgb, var(--bsp-degraded) 18%, transparent)', color: 'var(--bsp-degraded)',
+            background: 'color-mix(in srgb, var(--bsp-degraded) 18%, transparent)', color: 'var(--bsp-degraded-text)',
           }}>
             <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>link</span>
             {t('status.affectedBy')}: {causingMonitors.map((m) => m.name).join(', ')}
@@ -378,16 +391,12 @@ function ServiceMonitorCard({
   const isAffected = monitor.currentStatus === 'affected'
 
   const statusLabel   = isUp ? t('status.operational') : isDown ? t('status.outage') : isDegraded ? t('status.degraded') : isAffected ? t('status.affected') : t('status.checking')
-  const statusColor   = isUp ? 'var(--bsp-up)' : isDown ? 'var(--bsp-down)' : isDegraded || isAffected ? 'var(--bsp-degraded)' : 'var(--m3-secondary)'
-  const statusBg      = isUp || isDown || isDegraded || isAffected ? `color-mix(in srgb, ${statusColor} 12%, transparent)` : 'var(--m3-surface-container)'
-  const barColor      = statusColor
-  const barColorLight = `color-mix(in srgb, ${statusColor} 55%, white)`
 
   const uptimeLabel = showUptimePct && overallPct !== undefined
     ? overallPct === null ? t('uptime.noData') : t('uptime.pct', { pct: overallPct.toFixed(1) })
     : null
 
-  const badgeProps: StatusBadgeProps = { label: statusLabel, color: statusColor, background: statusBg, pulse: isDown || isDegraded }
+  const badgeProps: StatusBadgeProps = { label: statusLabel, ...statusColors(monitor.currentStatus), pulse: isDown || isDegraded }
   const nameProps: NameBlockProps = {
     monitor, showMonitorType, inMaintenance,
     causingMonitors: isAffected ? causingMonitors : [],
@@ -400,7 +409,7 @@ function ServiceMonitorCard({
       <div className="bsp-monitor-card" style={{ padding: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <NameBlock {...nameProps} />
-          <UptimeBarsInline monitorId={monitorId} barColor={barColor} barColorLight={barColorLight} />
+          <UptimeBarsInline monitorId={monitorId} />
           <StatusBadgeRight {...badgeProps} gridW={gridW} />
         </div>
       </div>
@@ -430,14 +439,7 @@ function ServiceMonitorCard({
               {t('uptime.today')}
             </span>
           </div>
-          <UptimeBars
-            monitorId={monitorId}
-            barColor={barColor}
-            barColorLight={barColorLight}
-            isDown={isDown}
-            isDegraded={isDegraded}
-            onData={setOverallPct}
-          />
+          <UptimeBars monitorId={monitorId} onData={setOverallPct} />
         </div>
       )}
     </div>
@@ -464,9 +466,7 @@ function CompactMonitorRow({
   const isAffected = monitor.currentStatus === 'affected'
 
   const statusLabel = isUp ? t('status.operational') : isDown ? t('status.outage') : isDegraded ? t('status.degraded') : isAffected ? t('status.affected') : t('status.checking')
-  const statusColor = isUp ? 'var(--bsp-up)' : isDown ? 'var(--bsp-down)' : isDegraded || isAffected ? 'var(--bsp-degraded)' : 'var(--m3-secondary)'
-  const statusBg    = isUp || isDown || isDegraded || isAffected ? `color-mix(in srgb, ${statusColor} 12%, transparent)` : 'var(--m3-surface-container)'
-  const dotColor    = statusColor
+  const { color: dotColor, textColor: statusTextColor, background: statusBg } = statusColors(monitor.currentStatus)
 
   return (
     <div
@@ -501,7 +501,7 @@ function CompactMonitorRow({
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: '3px',
             fontSize: '10px', fontWeight: 600,
-            color: 'var(--bsp-degraded)', marginTop: '2px',
+            color: 'var(--bsp-degraded-text)', marginTop: '2px',
           }}>
             <span className="material-symbols-outlined" style={{ fontSize: '10px' }}>link</span>
             {t('status.affectedBy')}: {causingMonitors.map((m) => m.name).join(', ')}
@@ -522,17 +522,20 @@ function CompactMonitorRow({
       {/* Maintenance chip */}
       {inMaintenance && (
         <span
+          role="img"
+          aria-label={t('page.maintenance')}
+          title={t('page.maintenance')}
           className="flex-shrink-0 flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full"
           style={{ background: 'var(--bsp-maintenance-chip-bg)', color: 'var(--bsp-maintenance-text)' }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>construction</span>
+          <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '11px' }}>construction</span>
         </span>
       )}
 
       {/* Status badge */}
       <span
         className="text-xs font-sans font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
-        style={{ background: statusBg, color: statusColor }}
+        style={{ background: statusBg, color: statusTextColor }}
       >
         {statusLabel}
       </span>
@@ -572,10 +575,16 @@ function GroupBlock({ groupNode, monitors, statusMap, activeIncidents, maintenan
   const anyDegraded = liveMonitors.some((m) => m.currentStatus === 'degraded')
   const aggStatus   = allDown ? 'down' : someDown ? 'partial' : anyDegraded ? 'degraded' : 'up'
 
-  const aggColor    = aggStatus === 'up' ? 'var(--bsp-up)' : aggStatus === 'down' ? 'var(--bsp-down)' : 'var(--bsp-degraded)'
-  const aggDotColor = aggColor
-  const aggBg       = `color-mix(in srgb, ${aggColor} 12%, transparent)`
+  const aggTone     = aggStatus === 'up' ? 'up' : aggStatus === 'down' ? 'down' : 'degraded'
+  const aggDotColor = `var(--bsp-${aggTone})`
+  const aggTextColor = `var(--bsp-${aggTone}-text)`
+  const aggBg       = `color-mix(in srgb, ${aggDotColor} 12%, transparent)`
   const aggLabel    = aggStatus === 'up' ? t('status.operational') : aggStatus === 'down' ? t('status.outage') : aggStatus === 'partial' ? t('status.partialOutage') : t('status.degraded')
+
+  const Header = groupNode.collapsible ? 'button' : 'div'
+  const headerProps = groupNode.collapsible
+    ? { type: 'button' as const, 'aria-expanded': !collapsed, onClick: () => setCollapsed(!collapsed) }
+    : {}
 
   return (
     <div
@@ -583,24 +592,16 @@ function GroupBlock({ groupNode, monitors, statusMap, activeIncidents, maintenan
       style={{ borderRadius: '1rem' }}
     >
       {/* Header */}
-      <div
-        className="flex items-center justify-between px-5 py-4"
+      <Header
+        {...headerProps}
+        className="bsp-group-header w-full text-left flex items-center justify-between gap-3 px-5 py-4"
         style={{
           cursor: groupNode.collapsible ? 'pointer' : 'default',
           userSelect: 'none',
-          transition: 'background 0.15s',
-        }}
-        onClick={() => groupNode.collapsible && setCollapsed(!collapsed)}
-        onMouseEnter={(e) => {
-          if (groupNode.collapsible)
-            (e.currentTarget as HTMLDivElement).style.background = 'var(--m3-surface-container)'
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLDivElement).style.background = ''
         }}
       >
-        <div className="flex items-center gap-3">
-          <div className="relative flex-shrink-0" style={{ width: 10, height: 10 }}>
+        <span className="flex items-center gap-3 min-w-0 flex-wrap">
+          <span className="relative flex-shrink-0 block" style={{ width: 10, height: 10 }}>
             {aggStatus !== 'up' && (
               <span
                 className="monitor-dot-ring"
@@ -611,7 +612,7 @@ function GroupBlock({ groupNode, monitors, statusMap, activeIncidents, maintenan
               className="block w-full h-full rounded-full"
               style={{ background: aggDotColor }}
             />
-          </div>
+          </span>
           <span
             className="bsp-group-label font-headline font-semibold"
             style={{ color: 'var(--bsp-text)', fontSize: '0.95rem' }}
@@ -624,18 +625,19 @@ function GroupBlock({ groupNode, monitors, statusMap, activeIncidents, maintenan
           >
             {t('page.groupServiceCount', { n: liveMonitors.length })}
           </span>
-        </div>
+        </span>
 
-        <div className="flex items-center gap-2">
+        <span className="flex items-center gap-2 flex-shrink-0">
           <span
             className="text-xs font-sans font-semibold px-2.5 py-1 rounded-full"
-            style={{ background: aggBg, color: aggColor }}
+            style={{ background: aggBg, color: aggTextColor }}
           >
             {aggLabel}
           </span>
           {groupNode.collapsible && (
             <span
               className="material-symbols-outlined"
+              aria-hidden="true"
               style={{
                 fontSize: '18px',
                 color: 'var(--m3-secondary)',
@@ -646,8 +648,8 @@ function GroupBlock({ groupNode, monitors, statusMap, activeIncidents, maintenan
               expand_more
             </span>
           )}
-        </div>
-      </div>
+        </span>
+      </Header>
 
       {/* Children */}
       {!collapsed && groupNode.children.length > 0 && (
@@ -759,6 +761,19 @@ function fmtDuration(ms: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
+function formatUptimeDay(date: string, locale: string): string {
+  return new Date(date + 'T12:00:00Z').toLocaleDateString(locale, { month: 'long', day: 'numeric', year: 'numeric' })
+}
+
+/** Up days always use the "up" colour, whatever the monitor's current status is. */
+function uptimeBarBackground(day: UptimeDay): string {
+  return day.status === 'up' ? 'linear-gradient(to top, var(--bsp-up), color-mix(in srgb, var(--bsp-up) 55%, white))'
+    : day.status === 'down' ? 'var(--bsp-down)'
+    : day.status === 'degraded' ? 'var(--bsp-degraded)'
+    : day.status === 'partial' ? 'var(--bsp-partial)'
+    : 'var(--m3-outline-variant)'
+}
+
 function UptimeTooltip({ day, anchorRect }: { day: UptimeDay; anchorRect: DOMRect }) {
   const { t, locale } = useLocale()
   const W = 232
@@ -767,9 +782,7 @@ function UptimeTooltip({ day, anchorRect }: { day: UptimeDay; anchorRect: DOMRec
   left = Math.max(8, Math.min(left, vw - W - 8))
   const bottom = window.innerHeight - anchorRect.top + 10
 
-  const dateLabel = new Date(day.date + 'T12:00:00Z').toLocaleDateString(locale, {
-    month: 'long', day: 'numeric', year: 'numeric',
-  })
+  const dateLabel = formatUptimeDay(day.date, locale)
   const hasIncidents = day.incidents && day.incidents.length > 0
   const noData = day.status === 'no-data'
 
@@ -827,61 +840,106 @@ function UptimeTooltip({ day, anchorRect }: { day: UptimeDay; anchorRect: DOMRec
   )
 }
 
+/**
+ * One day of history. It is a button so the tooltip also opens on keyboard focus and on tap,
+ * not only on mouse hover; screen readers get the date and uptime from its label.
+ */
+function UptimeBar({ day, active, radius, onShow, onHide }: {
+  day: UptimeDay
+  active: boolean
+  radius: string
+  onShow: (day: UptimeDay, el: HTMLElement) => void
+  onHide: () => void
+}) {
+  const { t, locale } = useLocale()
+  const noData = day.status === 'no-data'
+  const label = t('uptime.barLabel', {
+    date: formatUptimeDay(day.date, locale),
+    status: noData ? t('uptime.noData') : t('uptime.pct', { pct: day.uptimePct.toFixed(1) }),
+  })
+  return (
+    <button
+      type="button"
+      className="bsp-uptime-bar"
+      aria-label={label}
+      style={{
+        flex: 1,
+        minWidth: 0,
+        height: '100%',
+        padding: 0,
+        border: 0,
+        borderRadius: radius,
+        background: uptimeBarBackground(day),
+        opacity: noData ? 0.35 : 1,
+        cursor: 'default',
+        transition: 'filter 0.12s ease, transform 0.12s ease',
+        transformOrigin: 'bottom',
+        filter: active ? 'brightness(1.5)' : 'brightness(1)',
+        transform: active ? 'scaleY(1.08)' : 'scaleY(1)',
+      }}
+      onMouseEnter={(e) => onShow(day, e.currentTarget)}
+      onMouseLeave={onHide}
+      onFocus={(e) => onShow(day, e.currentTarget)}
+      onBlur={onHide}
+      onClick={(e) => onShow(day, e.currentTarget)}
+    />
+  )
+}
+
+/** Neutral placeholder bars while the history loads, so no made-up up or down days are shown. */
+function SkeletonBars({ count, radius }: { count: number; radius: string }) {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          aria-hidden="true"
+          style={{ flex: 1, minWidth: 0, height: '100%', borderRadius: radius, background: 'var(--m3-outline-variant)', opacity: 0.3 }}
+        />
+      ))}
+    </>
+  )
+}
+
+function UptimeUnavailable() {
+  const { t } = useLocale()
+  return (
+    <span style={{ flex: 1, alignSelf: 'center', textAlign: 'center', fontSize: '11px', color: 'var(--m3-secondary)' }}>
+      {t('uptime.noData')}
+    </span>
+  )
+}
+
+function useUptimeTooltip() {
+  const [hovered, setHovered] = useState<{ day: UptimeDay; rect: DOMRect } | null>(null)
+  const show = (day: UptimeDay, el: HTMLElement) => setHovered({ day, rect: el.getBoundingClientRect() })
+  const hide = () => setHovered(null)
+  return { hovered, show, hide }
+}
+
 /* ─────────────────────────────────────────────────────────────────────
    UPTIME BARS — full 40-bar version (below position)
    ───────────────────────────────────────────────────────────────────── */
-function UptimeBars({ monitorId, barColor, barColorLight, isDown, isDegraded, onData }: {
+function UptimeBars({ monitorId, onData }: {
   monitorId: number
-  barColor: string
-  barColorLight: string
-  isDown: boolean
-  isDegraded: boolean
   onData?: ((pct: number | null) => void) | undefined
 }) {
-  const uptime = useMonitorUptime(monitorId, 30)
-  const data = uptime?.days ?? null
-  const [hovered, setHovered] = useState<{ day: UptimeDay; rect: DOMRect } | null>(null)
+  const { uptime, failed } = useMonitorUptime(monitorId, 30)
+  const { hovered, show, hide } = useUptimeTooltip()
 
   useEffect(() => {
     if (uptime) onData?.(uptime.overallUptimePct)
   }, [uptime, onData])
 
-  const barColorOf = (day: UptimeDay) =>
-    day.status === 'up' ? `linear-gradient(to top, ${barColor}, ${barColorLight})`
-    : day.status === 'down' ? 'var(--bsp-down)'
-    : day.status === 'degraded' ? 'var(--bsp-degraded)'
-    : day.status === 'partial' ? 'var(--bsp-partial)'
-    : 'var(--m3-outline-variant)'
-
-  const bars: UptimeDay[] = data
-    ? data.slice(-40)
-    : Array.from({ length: 40 }).map((_, i) => {
-        const isLast3 = i >= 37
-        return { date: String(i), status: isLast3 && (isDown || isDegraded) ? (isDown ? 'down' : 'degraded') : 'up', uptimePct: 100 }
-      })
-
   return (
     <>
       {hovered && <UptimeTooltip day={hovered.day} anchorRect={hovered.rect} />}
       <div className="flex h-10 items-end" style={{ gap: '2px' }}>
-        {bars.map((day, i) => (
-          <div
-            key={day.date ?? i}
-            className="flex-1 rounded-sm"
-            style={{
-              height: '100%',
-              background: barColorOf(day),
-              opacity: day.status === 'no-data' ? 0.3 : !data ? 0.7 : 1,
-              cursor: 'default',
-              transition: 'filter 0.12s ease, transform 0.12s ease',
-              transformOrigin: 'bottom',
-              filter: hovered?.day.date === day.date ? 'brightness(1.5)' : 'brightness(1)',
-              transform: hovered?.day.date === day.date ? 'scaleY(1.08)' : 'scaleY(1)',
-            }}
-            onMouseEnter={(e) => data && setHovered({ day, rect: (e.currentTarget as HTMLDivElement).getBoundingClientRect() })}
-            onMouseLeave={() => setHovered(null)}
-          />
-        ))}
+        {failed ? <UptimeUnavailable />
+          : !uptime ? <SkeletonBars count={40} radius="2px" />
+          : uptime.days.slice(-40).map((day, i) => (
+            <UptimeBar key={day.date ?? i} day={day} radius="2px" active={hovered?.day.date === day.date} onShow={show} onHide={hide} />
+          ))}
       </div>
     </>
   )
@@ -892,14 +950,10 @@ function UptimeBars({ monitorId, barColor, barColorLight, isDown, isDegraded, on
    Each bar uses flex:1 so they fill the space evenly. ResizeObserver
    reduces count when container < 30 bars × min 3px + gaps.
    ───────────────────────────────────────────────────────────────────── */
-function UptimeBarsInline({ monitorId, barColor, barColorLight }: {
-  monitorId: number
-  barColor: string
-  barColorLight: string
-}) {
-  const data = useMonitorUptime(monitorId, 30)?.days ?? null
+function UptimeBarsInline({ monitorId }: { monitorId: number }) {
+  const { uptime, failed } = useMonitorUptime(monitorId, 30)
   const [barCount, setBarCount] = useState(30)
-  const [hovered, setHovered] = useState<{ day: UptimeDay; rect: DOMRect } | null>(null)
+  const { hovered, show, hide } = useUptimeTooltip()
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -914,17 +968,6 @@ function UptimeBarsInline({ monitorId, barColor, barColorLight }: {
     return () => ro.disconnect()
   }, [])
 
-  const barColorOf = (day: UptimeDay) =>
-    day.status === 'up' ? `linear-gradient(to top, ${barColor}, ${barColorLight})`
-    : day.status === 'down' ? 'var(--bsp-down)'
-    : day.status === 'degraded' ? 'var(--bsp-degraded)'
-    : day.status === 'partial' ? 'var(--bsp-partial)'
-    : 'var(--m3-outline-variant)'
-
-  const bars: UptimeDay[] = data
-    ? data.slice(-barCount)
-    : Array.from({ length: barCount }).map((_, i) => ({ date: String(i), status: 'up', uptimePct: 100 }))
-
   return (
     <>
       {hovered && <UptimeTooltip day={hovered.day} anchorRect={hovered.rect} />}
@@ -932,24 +975,11 @@ function UptimeBarsInline({ monitorId, barColor, barColorLight }: {
         ref={containerRef}
         style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'stretch', gap: '2px', height: '48px' }}
       >
-        {bars.map((day, i) => (
-          <div
-            key={day.date ?? i}
-            style={{
-              flex: 1,
-              borderRadius: '3px',
-              background: barColorOf(day),
-              opacity: day.status === 'no-data' ? 0.35 : data ? 1 : 0.5,
-              cursor: 'default',
-              transition: 'filter 0.12s ease, transform 0.12s ease',
-              transformOrigin: 'bottom',
-              filter: hovered?.day.date === day.date ? 'brightness(1.5)' : 'brightness(1)',
-              transform: hovered?.day.date === day.date ? 'scaleY(1.08)' : 'scaleY(1)',
-            }}
-            onMouseEnter={(e) => data && setHovered({ day, rect: (e.currentTarget as HTMLDivElement).getBoundingClientRect() })}
-            onMouseLeave={() => setHovered(null)}
-          />
-        ))}
+        {failed ? <UptimeUnavailable />
+          : !uptime ? <SkeletonBars count={barCount} radius="3px" />
+          : uptime.days.slice(-barCount).map((day, i) => (
+            <UptimeBar key={day.date ?? i} day={day} radius="3px" active={hovered?.day.date === day.date} onShow={show} onHide={hide} />
+          ))}
       </div>
     </>
   )
