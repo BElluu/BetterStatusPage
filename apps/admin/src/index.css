@@ -4,19 +4,19 @@
 
 /* ── M3 Color Tokens — Light (exact from mockup) ─────────────────── */
 :root {
-  --m3-surface:                  #faf8ff;
-  --m3-surface-dim:              #d2d9f4;
-  --m3-surface-bright:           #faf8ff;
-  --m3-surface-container-lowest: #ffffff;
-  --m3-surface-container-low:    #f2f3ff;
-  --m3-surface-container:        #eaedff;
-  --m3-surface-container-high:   #e2e7ff;
-  --m3-surface-container-highest:#dae2fd;
-  --m3-on-surface:               #131b2e;
+  --m3-surface:                  #f5f6f9;
+  --m3-surface-dim:              #d7dce5;
+  --m3-surface-bright:           #f5f6f9;
+  --m3-surface-container-lowest: #fafbfc;
+  --m3-surface-container-low:    #eef0f5;
+  --m3-surface-container:        #e7eaf0;
+  --m3-surface-container-high:   #dfe3ea;
+  --m3-surface-container-highest:#d7dce5;
+  --m3-on-surface:               #1c2333;
   --m3-on-surface-variant:       #45464d;
-  --m3-secondary:                #505f76;
-  --m3-outline:                  #76777d;
-  --m3-outline-variant:          #c6c6cd;
+  --m3-secondary:                #566174;
+  --m3-outline:                  #7c828e;
+  --m3-outline-variant:          #d3d7df;
   --m3-primary:                  #000000;
   --m3-on-primary:               #ffffff;
   --m3-on-primary-container:     #497cff;
@@ -69,8 +69,9 @@
   --admin-selection-hover:      #cdd8fa;
   --admin-on-selection:         var(--m3-primary);
   --admin-selection-border:     #aab8dc;
-  --admin-control-accent:       #000000;
-  --admin-icon-container:       #e7e9ee;
+  --admin-control-accent:       #4b5563;
+  --admin-control-on:           #ffffff;
+  --admin-icon-container:       #e4e7ec;
   --admin-icon-color:           #4b5563;
   --audit-create-bg:            #d1fae5;
   --audit-create-text:          #065f46;
@@ -82,19 +83,19 @@
 
 /* ── M3 Color Tokens — Dark ───────────────────────────────────────── */
 html.dark {
-  --m3-surface:                  #0f1117;
-  --m3-surface-dim:              #0f1117;
-  --m3-surface-bright:           #36343b;
-  --m3-surface-container-lowest: #0a0a10;
-  --m3-surface-container-low:    #191921;
-  --m3-surface-container:        #1d1d26;
-  --m3-surface-container-high:   #282730;
-  --m3-surface-container-highest:#33313b;
-  --m3-on-surface:               #e5e0ec;
-  --m3-on-surface-variant:       #c9c4d0;
-  --m3-secondary:                #cac4d0;
-  --m3-outline:                  #948f9a;
-  --m3-outline-variant:          #48454e;
+  --m3-surface:                  #20232a;
+  --m3-surface-dim:              #1a1c22;
+  --m3-surface-bright:           #383c46;
+  --m3-surface-container-lowest: #252830;
+  --m3-surface-container-low:    #1a1c22;
+  --m3-surface-container:        #282b33;
+  --m3-surface-container-high:   #30343d;
+  --m3-surface-container-highest:#383c46;
+  --m3-on-surface:               #e3e5ea;
+  --m3-on-surface-variant:       #c5cad3;
+  --m3-secondary:                #aab0bb;
+  --m3-outline:                  #80868f;
+  --m3-outline-variant:          #3a3e48;
   --m3-primary:                  #b4c5ff;
   --m3-on-primary:               #111318;
   --m3-on-primary-container:     #aac7ff;
@@ -118,8 +119,9 @@ html.dark {
   --admin-selection-hover:      #454953;
   --admin-on-selection:         #f0f1f3;
   --admin-selection-border:     #777e8b;
-  --admin-control-accent:       #cbd5e1;
-  --admin-icon-container:       #30333b;
+  --admin-control-accent:       #c3c8d1;
+  --admin-control-on:           #1a1c22;
+  --admin-icon-container:       #30343d;
   --admin-icon-color:           #d6d9df;
   --audit-create-bg:            #164e3b;
   --audit-create-text:          #a7f3d0;

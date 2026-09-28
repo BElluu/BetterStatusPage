@@ -877,7 +877,7 @@ function PropertiesPanel({
                 className="flex-1 text-xs py-1.5 rounded transition-all focus-ring"
                 style={
                   (n.cardVariant ?? 'default') === v
-                    ? { background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }
+                    ? { background: 'var(--admin-selection)', color: 'var(--admin-on-selection)' }
                     : { background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }
                 }
               >
@@ -1036,7 +1036,7 @@ function PropertiesPanel({
               className="flex-1 text-xs py-1.5 rounded transition-all focus-ring"
               style={
                 n.aggregation === v
-                  ? { background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }
+                  ? { background: 'var(--admin-selection)', color: 'var(--admin-on-selection)' }
                   : { background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }
               }
             >
@@ -1056,7 +1056,7 @@ function PropertiesPanel({
               className="flex-1 text-xs py-1.5 rounded transition-all focus-ring"
               style={
                 (n.chartH ?? 5) === v
-                  ? { background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }
+                  ? { background: 'var(--admin-selection)', color: 'var(--admin-on-selection)' }
                   : { background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }
               }
             >
