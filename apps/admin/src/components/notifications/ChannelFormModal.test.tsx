@@ -206,6 +206,8 @@ describe('ChannelFormModal', () => {
     await user.click(toggle('Enabled'))
     await user.click(toggle('Notify on recovery (when monitor comes back up)'))
 
+    expect(screen.queryByText('Quiet hours')).not.toBeInTheDocument()
+    await user.click(screen.getByTitle('Alert hygiene'))
     expect(screen.queryByText('From', { selector: 'label' })).not.toBeInTheDocument()
     await user.click(toggle('Quiet hours'))
     fireEvent.change(field('From'), { target: { value: '23:00' } })
@@ -221,6 +223,8 @@ describe('ChannelFormModal', () => {
     await user.click(toggle('Group bursts into one message'))
     fireEvent.change(field('From (monitors)'), { target: { value: '1' } })
     fireEvent.change(field('Within (seconds)'), { target: { value: '5' } })
+    // The tab badge counts the active policies.
+    expect(screen.getByTitle('Alert hygiene')).toHaveTextContent('3')
     await create(user)
 
     expect(submittedBody()).toMatchObject({
@@ -249,6 +253,8 @@ describe('ChannelFormModal', () => {
     expect(field('URL')).toHaveValue('https://pager.test')
     expect(field<HTMLSelectElement>('Method')).toHaveValue('PUT')
     expect(screen.getByPlaceholderText('Header')).toHaveValue('X-Key')
+    expect(screen.getByTitle('Alert hygiene')).toHaveTextContent('1')
+    await user.click(screen.getByTitle('Alert hygiene'))
     expect(field('Max alerts')).toHaveValue(5)
 
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
@@ -274,11 +280,13 @@ describe('ChannelFormModal', () => {
     expect(policy.quietHours.enabled).toBe(false)
   })
 
-  it('keeps an unknown stored timezone selectable', () => {
+  it('keeps an unknown stored timezone selectable', async () => {
+    const user = userEvent.setup()
     renderModal(channel({
       alertPolicy: { ...DEFAULT_ALERT_POLICY, quietHours: { ...DEFAULT_ALERT_POLICY.quietHours, enabled: true, timezone: 'Mars/Olympus' } },
     }))
 
+    await user.click(screen.getByTitle('Alert hygiene'))
     expect(field<HTMLSelectElement>('Timezone')).toHaveValue('Mars/Olympus')
   })
 

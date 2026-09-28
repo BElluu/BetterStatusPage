@@ -1,6 +1,6 @@
-import type { TranslationKey } from '@bsp/shared'
+import type { TranslationKey } from '../types/locale.js'
 
-/** English defaults for status page — used as placeholders in the translation editor. */
+/** English status-page copy: the built-in default and the last fallback for every locale. */
 export const EN_DEFAULTS: Record<TranslationKey, string> = {
   'status.operational':    'Operational',
   'status.outage':         'Outage',
