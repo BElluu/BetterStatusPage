@@ -105,6 +105,27 @@ describe('BrandingPage loading', () => {
   })
 })
 
+describe('BrandingPage page header', () => {
+  it('turns the page header off in the preview and the saved branding', async () => {
+    vi.clearAllMocks()
+    vi.mocked(api.get).mockImplementation((path: string) => path === '/admin/branding'
+      ? Promise.resolve({ enabled: 0, showHero: 1, siteName: 'Status', logoType: 'image', logoText: '', logoUrl: null, logoLightUrl: null, logoDarkUrl: null, primaryColor: '#000000', accentColor: '#497cff' })
+      : new Promise(() => {}))
+    vi.mocked(api.patch).mockResolvedValue({})
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={queryClient}><BrandingPage /></QueryClientProvider>)
+
+    const headerSwitch = await screen.findByRole('switch', { name: 'Page header' })
+    await waitFor(() => expect(headerSwitch).toHaveAttribute('aria-checked', 'true'))
+    // Works without custom branding, like the uptime thresholds.
+    expect(headerSwitch).toBeEnabled()
+    fireEvent.click(headerSwitch)
+    expect(headerSwitch).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'Save branding' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/branding', expect.objectContaining({ showHero: 0 })))
+  })
+})
+
 describe('BrandingPage uptime thresholds', () => {
   it('derives the Down limit from Partial outage and blocks saving limits out of order', async () => {
     vi.clearAllMocks()

@@ -162,6 +162,8 @@ export default function App() {
   const layoutHasIncidents = tree ? hasIncidentsBlock(tree.children) : false
 
   const brandingEnabled = !!(branding?.enabled)
+  // A layout option rather than a colour, so it applies with or without custom branding.
+  const showHero = branding?.showHero !== 0
   const isDark = brandingEnabled ? false : savedDarkMode
 
   useEffect(() => {
@@ -311,8 +313,9 @@ export default function App() {
 
       <main className="bsp-content max-w-[1440px] mx-auto px-4 md:px-8" id="status">
 
-        {/* ── Hero ── */}
-        <section className="py-10 md:py-20 flex flex-col items-center text-center fade-up" style={{ animationDelay: '0ms' }}>
+        {/* ── Hero ── (Branding can hide it to leave more room for monitors; the heading stays for screen readers) */}
+        {!showHero && <h1 className="sr-only">{overallStatus}</h1>}
+        {showHero && <section className="py-10 md:py-20 flex flex-col items-center text-center fade-up" style={{ animationDelay: '0ms' }}>
           <div
             className="bsp-status-banner inline-flex items-center gap-3 px-4 py-2 rounded-full mb-6 md:mb-8"
             style={{ background: 'var(--m3-surface-container-high)' }}
@@ -342,11 +345,11 @@ export default function App() {
               {layoutHasIncidents && activeIncidents.length > 0 && ` ${t('page.incidentLine', { n: activeIncidents.length })}`}
             </p>
           )}
-        </section>
+        </section>}
 
         {/* ── Main content — always from PageRenderer when tree exists ── */}
         {tree && tree.children.length > 0 ? (
-          <section className="mb-32 fade-up" style={{ animationDelay: '80ms' }}>
+          <section className={`mb-32 fade-up${showHero ? '' : ' pt-8 md:pt-12'}`} style={{ animationDelay: '80ms' }}>
             <PageRenderer
               tree={tree}
               monitors={liveMonitors}

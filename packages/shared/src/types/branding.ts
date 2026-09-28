@@ -76,6 +76,8 @@ export interface Branding {
   chartGridColor: string
   customCss: string | null
   enabled: number
+  /** 1 shows the status headline above the page content; 0 hides it to leave more room for monitors. */
+  showHero: number
   logoType: string
   logoText: string | null
   updatedAt: number

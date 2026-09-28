@@ -258,6 +258,7 @@ export const branding = sqliteTable('branding', {
   uptimeThresholdUp: real('uptime_threshold_up').notNull().default(DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdUp),
   uptimeThresholdDegraded: real('uptime_threshold_degraded').notNull().default(DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdDegraded),
   uptimeThresholdPartial: real('uptime_threshold_partial').notNull().default(DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdPartial),
+  showHero: integer('show_hero').notNull().default(1),
 })
 
 export const subscriptionSettings = sqliteTable('subscription_settings', {
