@@ -32,12 +32,12 @@ export function Switch({ checked, onChange, label, description, disabled = false
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className="relative flex-shrink-0 w-12 h-7 rounded-full transition-colors focus-ring disabled:opacity-50 disabled:cursor-not-allowed"
-      style={{ background: checked ? 'var(--m3-primary)' : 'var(--m3-outline-variant)' }}
+      style={{ background: checked ? 'var(--admin-control-accent)' : 'var(--m3-outline-variant)' }}
     >
       <span
         aria-hidden="true"
         className="absolute top-1 w-5 h-5 rounded-full transition-all"
-        style={{ left: checked ? '24px' : '4px', background: checked ? 'var(--m3-on-primary)' : 'var(--m3-outline)' }}
+        style={{ left: checked ? '24px' : '4px', background: checked ? 'var(--admin-control-on)' : 'var(--m3-outline)' }}
       />
     </button>
   )
