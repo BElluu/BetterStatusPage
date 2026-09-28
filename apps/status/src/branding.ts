@@ -22,6 +22,7 @@ export function resolveBrandingCssVariables(branding: Branding): Record<`--${str
     '--bsp-up': branding.statusUpColor,
     '--bsp-down': branding.statusDownColor,
     '--bsp-degraded': branding.statusDegradedColor,
+    '--bsp-partial': branding.statusPartialColor,
     '--bsp-chart-bg': branding.chartBackground,
     '--bsp-chart-grid': branding.chartGridColor,
     '--color-primary': branding.primaryColor,

@@ -6,7 +6,7 @@ import fs from 'fs'
 import { uploadDir } from '../config.js'
 import { auditActor, diffObjects, writeAudit } from '../services/audit.js'
 import { requestIdentity } from '../middleware/auth.js'
-import { DEFAULT_BRANDING_COLORS } from '@bsp/shared'
+import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS, validateUptimeThresholds, type UptimeThresholds } from '@bsp/shared'
 import { isSafeColor } from '../services/emailTemplate.js'
 
 const ALLOWED_MIME_MAGIC: Array<{ mime: string; magic: number[] }> = [
@@ -58,13 +58,14 @@ const DEFAULTS = {
   logoDarkUrl: null as string | null,
   faviconUrl: null as string | null,
   ...DEFAULT_BRANDING_COLORS,
+  ...DEFAULT_UPTIME_THRESHOLDS,
   customCss: null as string | null,
   enabled: 0 as number,
   logoType: 'image' as string,
   logoText: null as string | null,
 }
 
-type BrandingBody = Partial<Omit<typeof DEFAULTS, 'faviconUrl'>>
+type BrandingBody = Partial<Omit<typeof DEFAULTS, 'faviconUrl' | keyof typeof DEFAULT_UPTIME_THRESHOLDS>> & Partial<UptimeThresholds>
 
 const COLOR_FIELDS = Object.keys(DEFAULT_BRANDING_COLORS) as Array<keyof typeof DEFAULT_BRANDING_COLORS>
 
@@ -82,14 +83,24 @@ export async function brandingRoutes(app: FastifyInstance) {
     }
     const now = Date.now()
     const existing = (await db.select().from(branding))[0]
+    // Validated as a set: a partial update must still leave the stored thresholds descending.
+    const thresholdOf = (field: keyof typeof DEFAULT_UPTIME_THRESHOLDS): number =>
+      req.body[field] !== undefined ? req.body[field] : existing?.[field] ?? DEFAULTS[field]
+    const thresholdError = validateUptimeThresholds({
+      uptimeThresholdUp: thresholdOf('uptimeThresholdUp'),
+      uptimeThresholdDegraded: thresholdOf('uptimeThresholdDegraded'),
+      uptimeThresholdPartial: thresholdOf('uptimeThresholdPartial'),
+    })
+    if (thresholdError) return reply.code(400).send({ error: thresholdError })
     const updates: Record<string, unknown> = { updatedAt: now }
 
     const fields = [
       'siteName', 'primaryColor', 'accentColor', 'backgroundColor',
       'cardBackground', 'cardBorderColor', 'textColor', 'textMutedColor',
-      'statusUpColor', 'statusDownColor', 'statusDegradedColor', 'customCss', 'enabled',
+      'statusUpColor', 'statusDownColor', 'statusDegradedColor', 'statusPartialColor', 'customCss', 'enabled',
       'elevatedBackground', 'chartBackground', 'chartGridColor',
       'logoType', 'logoText', 'logoUrl', 'logoLightUrl', 'logoDarkUrl',
+      'uptimeThresholdUp', 'uptimeThresholdDegraded', 'uptimeThresholdPartial',
     ] as const
     for (const field of fields) {
       if (req.body[field] !== undefined) updates[field] = req.body[field]

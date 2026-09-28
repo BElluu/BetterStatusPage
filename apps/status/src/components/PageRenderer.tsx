@@ -850,6 +850,7 @@ function UptimeBars({ monitorId, barColor, barColorLight, isDown, isDegraded, on
     day.status === 'up' ? `linear-gradient(to top, ${barColor}, ${barColorLight})`
     : day.status === 'down' ? 'var(--bsp-down)'
     : day.status === 'degraded' ? 'var(--bsp-degraded)'
+    : day.status === 'partial' ? 'var(--bsp-partial)'
     : 'var(--m3-outline-variant)'
 
   const bars: UptimeDay[] = data
@@ -917,6 +918,7 @@ function UptimeBarsInline({ monitorId, barColor, barColorLight }: {
     day.status === 'up' ? `linear-gradient(to top, ${barColor}, ${barColorLight})`
     : day.status === 'down' ? 'var(--bsp-down)'
     : day.status === 'degraded' ? 'var(--bsp-degraded)'
+    : day.status === 'partial' ? 'var(--bsp-partial)'
     : 'var(--m3-outline-variant)'
 
   const bars: UptimeDay[] = data
