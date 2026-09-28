@@ -162,8 +162,13 @@ export default function App() {
   const layoutHasIncidents = tree ? hasIncidentsBlock(tree.children) : false
 
   const brandingEnabled = !!(branding?.enabled)
-  // A layout option rather than a colour, so it applies with or without custom branding.
-  const showHero = branding?.showHero !== 0
+  // Layout options rather than colours, so they apply with or without custom branding. They wait
+  // for the branding to arrive, so a section the admin turned off never flashes in on load.
+  const brandingKnown = brandingPreview !== null || layoutData !== undefined || status !== undefined
+    || (statusQuery.isError && layoutQuery.isError)
+  const showHero = brandingKnown && branding?.showHero !== 0
+  const showFooter = brandingKnown && branding?.showFooter !== 0
+  const showProjectLink = brandingKnown && branding?.showProjectLink !== 0
   const isDark = brandingEnabled ? false : savedDarkMode
 
   useEffect(() => {
@@ -449,9 +454,9 @@ export default function App() {
           </section>
         )}
 
-        {/* ── Footer ── */}
-        <footer
-          className="bsp-footer text-center py-12 mt-auto"
+        {/* ── Footer ── (pushed to the bottom of the viewport on a short page) */}
+        {showFooter && <footer
+          className={`bsp-footer text-center mt-auto pt-12 ${showProjectLink ? 'pb-4' : 'pb-12'}`}
           style={{
             color: 'var(--m3-secondary)',
             borderTop: '0',
@@ -463,8 +468,27 @@ export default function App() {
             <img src={imageLogoUrl ?? (isDark ? '/logo_dark.png' : '/logo_light.png')} alt={siteName} style={{ height: '80px', maxWidth: '260px', objectFit: 'contain', margin: '0 auto 16px', opacity: 0.75 }} />
           )}
           <p className="text-xs uppercase tracking-widest">{siteName}</p>
-        </footer>
+        </footer>}
       </main>
+
+      {/* Page-wide, so it sits in the bottom-right corner of the window, not of the content column. */}
+      {showProjectLink && (
+        <div className="flex justify-end px-4 md:px-8 pb-4 pt-2">
+          <a
+            href="https://github.com/BElluu/BetterStatusPage"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bsp-project-link inline-flex items-center gap-1.5 text-[11px] rounded"
+          >
+            <svg aria-hidden="true" width="11" height="11" viewBox="0 0 12 12" fill="currentColor">
+              <rect x="0.5" y="6" width="3" height="5.5" rx="1" />
+              <rect x="4.5" y="3.5" width="3" height="8" rx="1" />
+              <rect x="8.5" y="0.5" width="3" height="11" rx="1" />
+            </svg>
+            <span className="font-semibold">BetterStatusPage</span>
+          </a>
+        </div>
+      )}
 
       {showSubscribe && subscriptionOptions && subscribable && (
         <SubscribeDialog options={subscriptionOptions} onClose={() => setShowSubscribe(false)} />

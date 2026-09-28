@@ -227,6 +227,31 @@ describe('status App', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'All systems operational.' })).toHaveClass('sr-only')
   })
 
+  it('shows the footer and a small link to the project by default', async () => {
+    renderApp()
+
+    expect(await screen.findByRole('contentinfo')).toBeInTheDocument()
+    const projectLink = screen.getByRole('link', { name: 'BetterStatusPage' })
+    expect(projectLink).toHaveAttribute('href', 'https://github.com/BElluu/BetterStatusPage')
+    expect(projectLink).toHaveAttribute('target', '_blank')
+    expect(projectLink).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+
+  it('hides the footer and the project link independently when branding turns them off', async () => {
+    data.layout = { tree: layout, branding: { enabled: 0, showFooter: 0 } }
+    const { unmount } = renderApp()
+    expect(await screen.findByRole('list', { name: 'Rendered layout' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'BetterStatusPage' })).toBeInTheDocument()
+    expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument()
+    unmount()
+
+    data.layout = { tree: layout, branding: { enabled: 0, showProjectLink: 0 } }
+    renderApp()
+    expect(await screen.findByRole('list', { name: 'Rendered layout' })).toBeInTheDocument()
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'BetterStatusPage' })).not.toBeInTheDocument()
+  })
+
   it('toggles dark mode, offers subscriptions and advertises the RSS feed to feed readers', async () => {
     const user = userEvent.setup()
     dark.value = true
