@@ -4,11 +4,18 @@ import { DEFAULT_ALERT_POLICY } from '@bsp/shared'
 import type { ChannelAlertPolicy, NotificationChannel } from '@bsp/shared'
 import { CHANNEL_TYPES, CHANNEL_TYPE_ORDER, Field, buildChannelConfig, initialDrafts, isChannelType, type ChannelDrafts, type ChannelType } from './channelTypes'
 import { ModalShell } from '../ModalShell'
+import { SidePanelFrame, SideTabStrip, type SidePanelMeta, type SideTab } from '../SidePanel'
 
 interface Props {
   channel: NotificationChannel | null
   onClose: () => void
   onSaved: () => void
+}
+
+type ChannelPanelKey = 'hygiene'
+
+const PANEL_META: Record<ChannelPanelKey, SidePanelMeta> = {
+  hygiene: { icon: 'notifications_paused', label: 'Alert hygiene' },
 }
 
 const FALLBACK_TIMEZONES = ['UTC', 'Europe/Warsaw', 'Europe/London', 'Europe/Berlin', 'America/New_York', 'America/Los_Angeles', 'Asia/Tokyo']
@@ -68,6 +75,12 @@ export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
   const [groupMin, setGroupMin]             = useState(initialPolicy.grouping.minMonitors)
   const [groupWindow, setGroupWindow]       = useState(initialPolicy.grouping.windowSeconds)
 
+  const [sidePanel, setSidePanel] = useState<ChannelPanelKey | null>(null)
+  const activePolicies = [quietEnabled, throttleEnabled, groupEnabled].filter(Boolean).length
+  const sideTabs: SideTab<ChannelPanelKey>[] = [
+    { key: 'hygiene', badge: activePolicies > 0 ? String(activePolicies) : null },
+  ]
+
   const [loading, setLoading]   = useState(false)
   const [testing, setTesting]   = useState(false)
   const [testMsg, setTestMsg]   = useState<{ ok: boolean; text: string } | null>(null)
@@ -121,9 +134,17 @@ export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
 
   return (
     <ModalShell align="top">
-      <div className="rounded-2xl w-full max-w-xl my-8"
-        style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-
+      <div
+        className="rounded-2xl my-8"
+        style={{
+          display: 'flex', flexDirection: 'row',
+          width: sidePanel ? 'min(1024px, calc(100vw - 32px))' : 'min(620px, calc(100vw - 32px))',
+          background: 'var(--m3-surface-container-low)',
+          border: '1px solid var(--m3-outline-variant)',
+          transition: 'width 0.2s ease',
+        }}
+      >
+      <div style={{ flex: '0 0 auto', width: sidePanel ? '576px' : 'calc(100% - 44px)', minWidth: 0 }}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
           <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>
@@ -179,77 +200,6 @@ export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
             <Toggle label="Notify on recovery (when monitor comes back up)" checked={notifyOnRecovery} onChange={setNotifyOnRecovery} />
           </div>
 
-          <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
-
-          {/* ── Alert hygiene ── */}
-          <div className="space-y-4">
-            <div>
-              <p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Alert hygiene</p>
-              <p className="text-xs mt-1" style={{ color: 'var(--m3-secondary)' }}>
-                Everything here is off by default. Suppressed notifications still appear in the delivery history with the reason.
-              </p>
-            </div>
-
-            <PolicyBlock
-              label="Quiet hours"
-              hint="Silence this channel during a recurring local-time window. A window ending at or before it starts wraps past midnight."
-              checked={quietEnabled}
-              onChange={setQuietEnabled}
-            >
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="From">
-                  <input type="time" value={quietStart} onChange={(e) => setQuietStart(e.target.value)} className="input-sig" />
-                </Field>
-                <Field label="To">
-                  <input type="time" value={quietEnd} onChange={(e) => setQuietEnd(e.target.value)} className="input-sig" />
-                </Field>
-              </div>
-              <Field label="Timezone">
-                <select value={quietTimezone} onChange={(e) => setQuietTimezone(e.target.value)} className="input-sig">
-                  {timezoneOptions(quietTimezone).map((zone) => <option key={zone} value={zone}>{zone}</option>)}
-                </select>
-              </Field>
-              <Field label="During the window">
-                <select value={quietMode} onChange={(e) => setQuietMode(e.target.value as 'defer' | 'suppress')} className="input-sig">
-                  <option value="defer">Hold notifications and send them when it ends</option>
-                  <option value="suppress">Drop notifications entirely</option>
-                </select>
-              </Field>
-            </PolicyBlock>
-
-            <PolicyBlock
-              label="Rate cap per monitor"
-              hint="Caps how often a single monitor may alert on this channel. Recoveries are never capped."
-              checked={throttleEnabled}
-              onChange={setThrottleEnabled}
-            >
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Max alerts">
-                  <input type="number" min={1} max={100} value={throttleMax} onChange={(e) => setThrottleMax(Math.max(1, Number(e.target.value)))} className="input-sig" />
-                </Field>
-                <Field label="Per (minutes)">
-                  <input type="number" min={1} max={1440} value={throttleWindow} onChange={(e) => setThrottleWindow(Math.max(1, Number(e.target.value)))} className="input-sig" />
-                </Field>
-              </div>
-            </PolicyBlock>
-
-            <PolicyBlock
-              label="Group bursts into one message"
-              hint="Delays notifications by the window. If enough distinct monitors fire inside it, one digest goes out instead of many; otherwise they are sent individually."
-              checked={groupEnabled}
-              onChange={setGroupEnabled}
-            >
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="From (monitors)">
-                  <input type="number" min={2} max={100} value={groupMin} onChange={(e) => setGroupMin(Math.max(2, Number(e.target.value)))} className="input-sig" />
-                </Field>
-                <Field label="Within (seconds)">
-                  <input type="number" min={10} max={900} value={groupWindow} onChange={(e) => setGroupWindow(Math.max(10, Number(e.target.value)))} className="input-sig" />
-                </Field>
-              </div>
-            </PolicyBlock>
-          </div>
-
           {/* Test result */}
           {testMsg && (
             <div className="rounded-lg px-4 py-3 text-xs"
@@ -284,7 +234,77 @@ export default function ChannelFormModal({ channel, onClose, onSaved }: Props) {
             </button>
           </div>
         </form>
-      </div>
+      </div>{/* main column */}
+
+      {sidePanel === 'hygiene' && (
+        <SidePanelFrame meta={PANEL_META.hygiene}>
+          <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
+            Everything here is off by default. Suppressed notifications still appear in the delivery history with the reason.
+          </p>
+
+          <PolicyBlock
+            label="Quiet hours"
+            hint="Silence this channel during a recurring local-time window. A window ending at or before it starts wraps past midnight."
+            checked={quietEnabled}
+            onChange={setQuietEnabled}
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="From">
+                <input type="time" value={quietStart} onChange={(e) => setQuietStart(e.target.value)} className="input-sig" />
+              </Field>
+              <Field label="To">
+                <input type="time" value={quietEnd} onChange={(e) => setQuietEnd(e.target.value)} className="input-sig" />
+              </Field>
+            </div>
+            <Field label="Timezone">
+              <select value={quietTimezone} onChange={(e) => setQuietTimezone(e.target.value)} className="input-sig">
+                {timezoneOptions(quietTimezone).map((zone) => <option key={zone} value={zone}>{zone}</option>)}
+              </select>
+            </Field>
+            <Field label="During the window">
+              <select value={quietMode} onChange={(e) => setQuietMode(e.target.value as 'defer' | 'suppress')} className="input-sig">
+                <option value="defer">Hold notifications and send them when it ends</option>
+                <option value="suppress">Drop notifications entirely</option>
+              </select>
+            </Field>
+          </PolicyBlock>
+
+          <PolicyBlock
+            label="Rate cap per monitor"
+            hint="Caps how often a single monitor may alert on this channel. Recoveries are never capped."
+            checked={throttleEnabled}
+            onChange={setThrottleEnabled}
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Max alerts">
+                <input type="number" min={1} max={100} value={throttleMax} onChange={(e) => setThrottleMax(Math.max(1, Number(e.target.value)))} className="input-sig" />
+              </Field>
+              <Field label="Per (minutes)">
+                <input type="number" min={1} max={1440} value={throttleWindow} onChange={(e) => setThrottleWindow(Math.max(1, Number(e.target.value)))} className="input-sig" />
+              </Field>
+            </div>
+          </PolicyBlock>
+
+          <PolicyBlock
+            label="Group bursts into one message"
+            hint="Delays notifications by the window. If enough distinct monitors fire inside it, one digest goes out instead of many; otherwise they are sent individually."
+            checked={groupEnabled}
+            onChange={setGroupEnabled}
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="From (monitors)">
+                <input type="number" min={2} max={100} value={groupMin} onChange={(e) => setGroupMin(Math.max(2, Number(e.target.value)))} className="input-sig" />
+              </Field>
+              <Field label="Within (seconds)">
+                <input type="number" min={10} max={900} value={groupWindow} onChange={(e) => setGroupWindow(Math.max(10, Number(e.target.value)))} className="input-sig" />
+              </Field>
+            </div>
+          </PolicyBlock>
+        </SidePanelFrame>
+      )}
+
+      <SideTabStrip tabs={sideTabs} meta={PANEL_META} active={sidePanel} onToggle={setSidePanel} />
+      </div>{/* outer flex row */}
     </ModalShell>
   )
 }

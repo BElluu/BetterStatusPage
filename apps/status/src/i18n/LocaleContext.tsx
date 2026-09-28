@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
-import type { TranslationKey, LocaleSummary } from '@bsp/shared'
-import { EN_DEFAULTS } from './defaults'
+import { resolveTranslation, type TranslationKey, type LocaleSummary } from '@bsp/shared'
 import { getJSON } from '../api'
 
 const LS_KEY = 'bsp-locale'
@@ -15,11 +14,12 @@ interface LocaleCtx {
 }
 
 function translate(
+  code: string,
   translations: Partial<Record<TranslationKey, string>>,
   key: TranslationKey,
   params?: Record<string, string | number>,
 ): string {
-  let value = translations[key] ?? EN_DEFAULTS[key] ?? key
+  let value = resolveTranslation(code, translations, key)
   if (params) {
     for (const [k, v] of Object.entries(params)) {
       value = value.replace(`{${k}}`, String(v))
@@ -31,7 +31,7 @@ function translate(
 const Context = createContext<LocaleCtx>({
   locale: 'en',
   availableLocales: [],
-  t: (key, params) => translate({}, key, params),
+  t: (key, params) => translate('en', {}, key, params),
   setLocale: () => {},
 })
 
@@ -81,7 +81,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     setLocaleState(code)
   }, [])
 
-  const t: TFn = useCallback((key, params) => translate(translations, key, params), [translations])
+  const t: TFn = useCallback((key, params) => translate(locale, translations, key, params), [locale, translations])
 
   return (
     <Context.Provider value={{ locale, availableLocales, t, setLocale }}>

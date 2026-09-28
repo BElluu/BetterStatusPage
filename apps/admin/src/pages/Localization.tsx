@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { Locale, TranslationKey } from '@bsp/shared'
-import { EN_DEFAULTS } from '../i18n/statusDefaults'
+import { EN_DEFAULTS, builtInDefaultsFor, type Locale, type TranslationKey } from '@bsp/shared'
 
 /* ── Translation key groups ──────────────────────────────────────── */
 const STATUS_PAGE_GROUPS: Array<{ label: string; keys: TranslationKey[] }> = [
@@ -128,6 +127,8 @@ function LocaleEditor({ locale, onDelete }: { locale: Locale; onDelete: () => vo
   const [translations, setTranslations] = useState<Partial<Record<TranslationKey, string>>>(() => locale.translations ?? {})
   const [saved, setSaved] = useState(false)
   const qc = useQueryClient()
+  const builtIn = builtInDefaultsFor(locale.code)
+  const placeholders = builtIn?.translations ?? EN_DEFAULTS
 
   const saveMutation = useMutation({
     mutationFn: () => api.patch(`/admin/locales/${locale.code}`, { translations }),
@@ -206,14 +207,16 @@ function LocaleEditor({ locale, onDelete }: { locale: Locale; onDelete: () => vo
         </div>
       </div>
 
-      {locale.isDefault === 1 && (
-        <div
-          className="mb-4 px-4 py-3 rounded-xl text-sm"
-          style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-on-surface-variant)' }}
-        >
-          English is the built-in default. Values left empty will automatically use the English defaults.
-        </div>
-      )}
+      <div
+        className="mb-4 px-4 py-3 rounded-xl text-sm"
+        style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-on-surface-variant)' }}
+      >
+        {builtIn?.language === 'English'
+          ? 'English is the built-in default. Values left empty will automatically use the English defaults.'
+          : builtIn
+            ? `${builtIn.language} has built-in defaults. Values left empty will automatically use the ${builtIn.language} defaults.`
+            : 'This language has no built-in defaults. Values left empty will automatically use the English defaults.'}
+      </div>
 
       {/* Keys */}
       <div className="flex-1 overflow-y-auto pr-2">
@@ -229,7 +232,7 @@ function LocaleEditor({ locale, onDelete }: { locale: Locale; onDelete: () => vo
               <KeyRow
                 key={key}
                 keyName={key}
-                placeholder={EN_DEFAULTS[key]}
+                placeholder={placeholders[key]}
                 value={translations[key] ?? ''}
                 onChange={(v) => setTranslations((prev) => ({ ...prev, [key]: v }))}
               />
