@@ -366,6 +366,30 @@ sudo certbot --nginx -d status.example.com -d admin.example.com
 
 Certbot edits your Nginx configs automatically and sets up auto-renewal.
 
+### Behind Cloudflare: "Origin not allowed"
+
+In production the app rejects state-changing requests (setup wizard, login, saving settings) whose `Origin` header does not match the address the app thinks it is served from. It builds that address from `X-Forwarded-Proto` and `Host`.
+
+With Cloudflare's **Flexible** SSL mode, the browser talks HTTPS to Cloudflare, but Cloudflare talks plain HTTP to Nginx on port 80. Nginx's `$scheme` is then `http`, so the app sees `http://status.example.com` while the browser sends `Origin: https://status.example.com`, and the request fails with `403 Origin not allowed`. Setting `ALLOWED_ORIGINS` is not the fix — the forwarded protocol is wrong.
+
+Pick one of two fixes:
+
+**Option 1 — keep Flexible, hardcode the protocol in Nginx.** In the `location` block replace `$scheme` with a fixed value:
+
+```nginx
+proxy_set_header   X-Forwarded-Proto https;
+```
+
+This works as long as every request reaches Nginx through Cloudflare. Traffic between Cloudflare and your server stays unencrypted.
+
+**Option 2 — switch Cloudflare to Full (strict).** Set SSL/TLS mode to *Full (strict)* in the Cloudflare dashboard and give Nginx a `listen 443 ssl` server block with a certificate (a Cloudflare Origin Certificate or Let's Encrypt). `X-Forwarded-Proto $scheme` then carries `https` and no other change is needed. Traffic is encrypted end to end.
+
+Either way, reload Nginx afterwards:
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
 ---
 
 ## Updates
