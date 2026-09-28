@@ -15,6 +15,7 @@ const LIGHT_MODE_TOKENS = {
   cardBorderColor: '--m3-outline-variant', chartGridColor: '--m3-outline-variant',
   textColor: '--m3-on-surface', textMutedColor: '--m3-secondary',
   statusUpColor: '--m3-up-bar', statusDownColor: '--m3-down', statusDegradedColor: '--m3-degraded-bar',
+  statusPartialColor: '--m3-partial-bar',
 } as const
 
 test('default branding colors match the actual public light-mode CSS tokens', () => {

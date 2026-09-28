@@ -8,8 +8,8 @@ import { checkPing } from './ping.js'
 import { checkDns } from './dns.js'
 import { checkSqlServer } from './sqlserver.js'
 import { sendNotifications } from './notifier.js'
-import { evaluateAlertTransition } from '../services/alertThresholds.js'
-import { lt, eq, and, lte, gte, inArray } from 'drizzle-orm'
+import { evaluateAlertTransition, isFailureStatus } from '../services/alertThresholds.js'
+import { lt, gt, eq, and, lte, gte, inArray, sql } from 'drizzle-orm'
 import type { HttpsConfig, PingConfig, DnsConfig, SqlServerConfig, MonitorStatus } from '@bsp/shared'
 import { getSchedulerConfig, type SchedulerConfig } from '../config/scheduler.js'
 
@@ -120,18 +120,31 @@ export async function recordObservation(
 ): Promise<void> {
   const checkedAt = Date.now()
 
-  await db.insert(monitorResults).values({
+  const inMaintenance = await isInMaintenance(monitor.id, checkedAt)
+  // The public status always reflects the latest observation; only alerting is debounced, via
+  // the separate alert_* columns, so a flapping endpoint cannot page anyone every interval.
+  const transition = inMaintenance ? null : evaluateAlertTransition(monitor, result.status)
+  // A failure still short of the failure threshold does not count against uptime (yet).
+  const unconfirmed = transition !== null && isFailureStatus(result.status) && transition.alertConfirmedStatus !== result.status
+
+  const inserted = (await db.insert(monitorResults).values({
     monitorId: monitor.id,
     status: result.status,
     responseMs: result.responseMs,
     checkedAt,
     errorMessage: result.error,
-  })
+    unconfirmed: unconfirmed ? 1 : 0,
+  }).returning({ id: monitorResults.id }))[0]!
 
-  const inMaintenance = await isInMaintenance(monitor.id, checkedAt)
-  // The public status always reflects the latest observation; only alerting is debounced, via
-  // the separate alert_* columns, so a flapping endpoint cannot page anyone every interval.
-  const transition = inMaintenance ? null : evaluateAlertTransition(monitor, result.status)
+  // Once the threshold confirms the failure, the outage started with the first failure of the
+  // streak: the observations that were waiting for confirmation now count against uptime too.
+  if (transition?.fire && isFailureStatus(transition.fire.status)) {
+    await db.update(monitorResults).set({ unconfirmed: 0 }).where(and(
+      eq(monitorResults.monitorId, monitor.id),
+      eq(monitorResults.unconfirmed, 1),
+      gt(monitorResults.id, sql`(select coalesce(max(id), 0) from monitor_results where monitor_id = ${monitor.id} and unconfirmed = 0 and id < ${inserted.id})`),
+    ))
+  }
   await db.update(monitors).set({
     currentStatus: result.status,
     lastCheckedAt: checkedAt,

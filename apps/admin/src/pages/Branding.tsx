@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { DEFAULT_BRANDING_COLORS, type Branding } from '@bsp/shared'
+import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS, validateUptimeThresholds, type Branding, type UptimeThresholds } from '@bsp/shared'
 import { api } from '../api/client'
 
 interface BrandingForm {
@@ -21,10 +21,15 @@ interface BrandingForm {
   statusUpColor: string
   statusDownColor: string
   statusDegradedColor: string
+  statusPartialColor: string
   elevatedBackground: string
   chartBackground: string
   chartGridColor: string
   customCss: string
+  // Kept as typed text so a field can be cleared while editing; parsed on preview and save.
+  uptimeThresholdUp: string
+  uptimeThresholdDegraded: string
+  uptimeThresholdPartial: string
 }
 
 const DEFAULTS: BrandingForm = {
@@ -37,6 +42,18 @@ const DEFAULTS: BrandingForm = {
   logoDarkUrl: undefined,
   ...DEFAULT_BRANDING_COLORS,
   customCss: '',
+  uptimeThresholdUp: String(DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdUp),
+  uptimeThresholdDegraded: String(DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdDegraded),
+  uptimeThresholdPartial: String(DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdPartial),
+}
+
+function parseThresholds(form: BrandingForm): UptimeThresholds {
+  const parse = (value: string) => value.trim() === '' ? Number.NaN : Number(value)
+  return {
+    uptimeThresholdUp: parse(form.uptimeThresholdUp),
+    uptimeThresholdDegraded: parse(form.uptimeThresholdDegraded),
+    uptimeThresholdPartial: parse(form.uptimeThresholdPartial),
+  }
 }
 
 const PREVIEW_SRC = window.location.port === '5173'
@@ -84,10 +101,14 @@ export default function BrandingPage() {
       statusUpColor: branding.statusUpColor ?? DEFAULTS.statusUpColor,
       statusDownColor: branding.statusDownColor ?? DEFAULTS.statusDownColor,
       statusDegradedColor: branding.statusDegradedColor ?? DEFAULTS.statusDegradedColor,
+      statusPartialColor: branding.statusPartialColor ?? DEFAULTS.statusPartialColor,
       elevatedBackground: branding.elevatedBackground ?? DEFAULTS.elevatedBackground,
       chartBackground: branding.chartBackground ?? DEFAULTS.chartBackground,
       chartGridColor: branding.chartGridColor ?? DEFAULTS.chartGridColor,
       customCss: branding.customCss ?? '',
+      uptimeThresholdUp: String(branding.uptimeThresholdUp ?? DEFAULTS.uptimeThresholdUp),
+      uptimeThresholdDegraded: String(branding.uptimeThresholdDegraded ?? DEFAULTS.uptimeThresholdDegraded),
+      uptimeThresholdPartial: String(branding.uptimeThresholdPartial ?? DEFAULTS.uptimeThresholdPartial),
     })
   }, [branding])
 
@@ -95,11 +116,15 @@ export default function BrandingPage() {
   const currentLightLogoUrl = form.logoLightUrl === null ? null : logoPreviews.light ?? branding?.logoLightUrl ?? null
   const currentDarkLogoUrl = form.logoDarkUrl === null ? null : logoPreviews.dark ?? branding?.logoDarkUrl ?? null
 
+  const thresholds = parseThresholds(form)
+  const thresholdError = validateUptimeThresholds(thresholds)
+
   const previewBranding = useMemo<Branding>(() => ({
     id: branding?.id ?? 1,
     faviconUrl: branding?.faviconUrl ?? null,
     updatedAt: branding?.updatedAt ?? Date.now(),
     ...form,
+    ...parseThresholds(form),
     enabled: form.enabled ? 1 : 0,
     logoText: form.logoText || null,
     logoUrl: currentLogoUrl,
@@ -128,6 +153,7 @@ export default function BrandingPage() {
     mutationFn: async () => {
       await api.patch('/admin/branding', {
         ...form,
+        ...parseThresholds(form),
         enabled: form.enabled ? 1 : 0,
         customCss: form.customCss || null,
         logoText: form.logoText || null,
@@ -188,6 +214,10 @@ export default function BrandingPage() {
     setCssEditorOpen(false)
   }
 
+  // The public page uses the default palette while custom branding is off.
+  const statusColor = (key: 'statusUpColor' | 'statusDegradedColor' | 'statusPartialColor' | 'statusDownColor') =>
+    form.enabled ? form[key] : DEFAULTS[key]
+
   const set = (key: keyof BrandingForm) => (value: string) => editForm((current) => ({ ...current, [key]: value }))
 
   return (
@@ -224,6 +254,18 @@ export default function BrandingPage() {
             </div>
           </div>
 
+          <Section title="Uptime bar">
+            <p className="text-[10px] leading-relaxed" style={{ color: 'var(--m3-secondary)' }}>Minimum daily uptime for each colour of the uptime bar. Applies to every monitor, with or without custom branding. Failures below a monitor's failure threshold are not counted.</p>
+            <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--m3-outline-variant)' }}>
+              <ThresholdRow color={statusColor('statusUpColor')} label="Operational" operator="≥" value={form.uptimeThresholdUp} onChange={set('uptimeThresholdUp')} first />
+              <ThresholdRow color={statusColor('statusDegradedColor')} label="Degraded" operator="≥" value={form.uptimeThresholdDegraded} onChange={set('uptimeThresholdDegraded')} />
+              <ThresholdRow color={statusColor('statusPartialColor')} label="Partial outage" operator="≥" value={form.uptimeThresholdPartial} onChange={set('uptimeThresholdPartial')} />
+              <ThresholdRow color={statusColor('statusDownColor')} label="Down" operator="<" value={form.uptimeThresholdPartial} />
+            </div>
+            <p className="text-[10px]" style={{ color: 'var(--m3-secondary)' }}>Values in % of successful checks per day. The Down limit follows Partial outage.</p>
+            {thresholdError && <p role="alert" className="text-xs" style={{ color: 'var(--m3-error)' }}>{thresholdError}</p>}
+          </Section>
+
           <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: form.enabled ? 'rgba(34,197,94,0.08)' : 'var(--m3-surface-container)', border: `1px solid ${form.enabled ? 'rgba(34,197,94,0.3)' : 'var(--m3-outline-variant)'}` }}>
             <div><p className="text-sm font-semibold">Custom branding</p><p className="text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>{form.enabled ? 'Custom colors are active' : 'Default project colors are in use'}</p></div>
             <button type="button" aria-label="Custom branding" aria-pressed={form.enabled} onClick={toggleBranding} className="relative flex-shrink-0 w-12 h-6 rounded-full transition-colors" style={{ background: form.enabled ? '#22c55e' : 'var(--m3-outline-variant)' }}><span className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform" style={{ transform: form.enabled ? 'translateX(22px)' : 'translateX(0)' }} /></button>
@@ -248,6 +290,7 @@ export default function BrandingPage() {
             <ColorField label="Operational (↑)" value={form.statusUpColor} onChange={set('statusUpColor')} />
             <ColorField label="Down (↓)" value={form.statusDownColor} onChange={set('statusDownColor')} />
             <ColorField label="Degraded (~)" value={form.statusDegradedColor} onChange={set('statusDegradedColor')} />
+            <ColorField label="Partial outage (uptime bar)" value={form.statusPartialColor} onChange={set('statusPartialColor')} />
           </Section>
           <Section title="Accent">
             <ColorField label="Primary color and chart line" value={form.primaryColor} onChange={set('primaryColor')} />
@@ -262,7 +305,7 @@ export default function BrandingPage() {
         </div>
 
         <div className="px-5 py-4 shrink-0 flex items-center gap-3" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
-          <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="btn-primary flex-1 text-sm font-semibold py-2 rounded-lg">{saveMutation.isPending ? 'Saving…' : 'Save branding'}</button>
+          <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || thresholdError !== null} className="btn-primary flex-1 text-sm font-semibold py-2 rounded-lg">{saveMutation.isPending ? 'Saving…' : 'Save branding'}</button>
           {saved && <span className="text-sm shrink-0" style={{ color: 'var(--m3-primary)' }}>Saved!</span>}
           {saveMutation.isError && <span role="alert" className="text-xs" style={{ color: 'var(--m3-error)' }}>{saveMutation.error instanceof Error ? saveMutation.error.message : 'Save failed'}</span>}
         </div>
@@ -305,6 +348,25 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <div><label className="block text-xs mb-1.5" style={{ color: 'var(--m3-secondary)' }}>{label}</label>{children}</div>
 }
 
+/** One colour of the uptime bar; without `onChange` the value is derived and shown read-only. */
+function ThresholdRow({ color, label, operator, value, onChange, first = false }: {
+  color: string
+  label: string
+  operator: string
+  value: string
+  onChange?: (value: string) => void
+  first?: boolean
+}) {
+  return <div className="grid items-center gap-2 px-3 py-2" style={{ gridTemplateColumns: '12px 1fr 14px 76px', background: 'var(--m3-surface-container-lowest)', borderTop: first ? undefined : '1px solid var(--m3-outline-variant)' }}>
+    <span aria-hidden="true" className="w-3 h-3 rounded" style={{ background: color }} />
+    <span className="text-xs">{label}</span>
+    <span aria-hidden="true" className="font-mono text-xs text-right" style={{ color: 'var(--m3-secondary)' }}>{operator}</span>
+    {onChange
+      ? <input type="number" min={0} max={100} step={0.01} value={value} onChange={(event) => onChange(event.target.value)} aria-label={`${label} from (%)`} className="input-sig font-mono text-xs" />
+      : <span className="font-mono text-xs px-2 py-1.5 rounded-md" style={{ color: 'var(--m3-secondary)', border: '1px dashed var(--m3-outline-variant)' }} aria-label={`${label} below (%)`}>{value || '…'} <span className="text-[10px]">auto</span></span>}
+  </div>
+}
+
 function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return <Field label={label}><div className="flex items-center gap-2"><input type="color" value={value.startsWith('rgba') ? '#000000' : value} onChange={(event) => onChange(event.target.value)} className="w-8 h-8 rounded-md cursor-pointer shrink-0 p-0.5" style={{ border: '1px solid var(--m3-outline-variant)', background: 'var(--m3-surface-container-lowest)' }} /><input value={value} onChange={(event) => onChange(event.target.value)} maxLength={25} className="input-sig font-mono text-xs" /></div></Field>
 }
@@ -333,7 +395,7 @@ const CSS_CLASSES = [
 const CSS_VARIABLES = [
   '--bsp-bg', '--bsp-card-bg', '--bsp-elevated-bg', '--bsp-card-border',
   '--bsp-text', '--bsp-text-muted', '--bsp-primary', '--bsp-accent',
-  '--bsp-up', '--bsp-down', '--bsp-degraded', '--bsp-chart-bg', '--bsp-chart-grid',
+  '--bsp-up', '--bsp-down', '--bsp-degraded', '--bsp-partial', '--bsp-chart-bg', '--bsp-chart-grid',
 ] as const
 
 function CssEditorModal({ value, onChange, onClose }: { value: string; onChange: (value: string) => void; onClose: () => void }) {
