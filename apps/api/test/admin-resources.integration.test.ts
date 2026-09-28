@@ -73,6 +73,15 @@ describe('branding and layout', () => {
     assert.deepEqual([persisted.uptimeThresholdUp, persisted.uptimeThresholdDegraded, persisted.uptimeThresholdPartial], [99.5, 97, 90])
   })
 
+  it('shows the page header by default and stores the header switch as 0 or 1', async () => {
+    const patch = (payload: Record<string, unknown>) => app.inject({ method: 'PATCH', url: '/branding', payload })
+    assert.equal((await app.inject({ url: '/branding' })).json().showHero, 1)
+    assert.equal((await patch({ showHero: 0 })).statusCode, 200)
+    assert.equal((await app.inject({ url: '/branding' })).json().showHero, 0)
+    for (const value of [2, true, 'no']) assert.equal((await patch({ showHero: value })).statusCode, 400, String(value))
+    assert.equal((await patch({ showHero: 1 })).statusCode, 200)
+  })
+
   it('rejects branding colours that are not hex or rgb() values and never emails unsafe ones', async () => {
     for (const value of ['red;background:url(https://evil.test/x)', '#12345g', '"><script>', 'expression(alert(1))', 42]) {
       const response = await app.inject({ method: 'PATCH', url: '/branding', payload: { textColor: value } })

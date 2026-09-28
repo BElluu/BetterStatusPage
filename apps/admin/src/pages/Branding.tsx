@@ -7,6 +7,7 @@ import { Field, Switch } from '../components/ui'
 
 interface BrandingForm {
   enabled: boolean
+  showHero: boolean
   siteName: string
   logoType: 'image' | 'text'
   logoText: string
@@ -36,6 +37,7 @@ interface BrandingForm {
 
 const DEFAULTS: BrandingForm = {
   enabled: false,
+  showHero: true,
   siteName: 'Status Page',
   logoType: 'image',
   logoText: '',
@@ -87,6 +89,7 @@ export default function BrandingPage() {
     if (!branding || edited.current) return
     setForm({
       enabled: !!branding.enabled,
+      showHero: (branding.showHero ?? 1) === 1,
       siteName: branding.siteName,
       logoType: branding.logoType === 'text' ? 'text' : 'image',
       logoText: branding.logoText ?? '',
@@ -128,6 +131,7 @@ export default function BrandingPage() {
     ...form,
     ...parseThresholds(form),
     enabled: form.enabled ? 1 : 0,
+    showHero: form.showHero ? 1 : 0,
     logoText: form.logoText || null,
     logoUrl: currentLogoUrl,
     logoLightUrl: currentLightLogoUrl,
@@ -157,6 +161,7 @@ export default function BrandingPage() {
         ...form,
         ...parseThresholds(form),
         enabled: form.enabled ? 1 : 0,
+        showHero: form.showHero ? 1 : 0,
         customCss: form.customCss || null,
         logoText: form.logoText || null,
         ...(form.logoUrl === null ? { logoUrl: null } : {}),
@@ -255,6 +260,15 @@ export default function BrandingPage() {
               </div>
             </div>
           </div>
+
+          <Section title="Layout">
+            <Switch
+              checked={form.showHero}
+              onChange={(showHero) => editForm((current) => ({ ...current, showHero }))}
+              label="Page header"
+              description="The overall status headline and monitor count above the page. Turn it off to give monitors more room."
+            />
+          </Section>
 
           <Section title="Uptime bar">
             <p className="text-[10px] leading-relaxed" style={{ color: 'var(--m3-secondary)' }}>Minimum daily uptime for each colour of the uptime bar. Applies to every monitor, with or without custom branding. Failures below a monitor's failure threshold are not counted.</p>

@@ -216,6 +216,17 @@ describe('status App', () => {
     expect(screen.queryByRole('button', { name: 'Toggle dark mode' })).not.toBeInTheDocument()
   })
 
+  it('hides the page header when branding turns it off, even without custom branding', async () => {
+    data.layout = { tree: layout, branding: { enabled: 0, showHero: 0 } }
+    renderApp()
+
+    expect(await screen.findByRole('list', { name: 'Rendered layout' })).toBeInTheDocument()
+    expect(screen.queryByText('Real-time Network Status')).not.toBeInTheDocument()
+    expect(screen.queryByText('2 services monitored in real time.')).not.toBeInTheDocument()
+    // The overall status is still announced as the page heading.
+    expect(await screen.findByRole('heading', { level: 1, name: 'All systems operational.' })).toHaveClass('sr-only')
+  })
+
   it('toggles dark mode, offers subscriptions and links the RSS feed', async () => {
     const user = userEvent.setup()
     dark.value = true
