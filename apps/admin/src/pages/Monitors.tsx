@@ -6,6 +6,7 @@ import type { HttpsConfig, Monitor, MonitorStatus } from '@bsp/shared'
 import { StatusBadge } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
 import { ConfirmModal } from '../components/ConfirmModal'
+import { EmptyState, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
 
 type SortCol = 'name' | 'type' | 'intervalSecs' | 'currentStatus' | 'lastCheckedAt'
 
@@ -20,6 +21,7 @@ const COLS: Array<{ label: string; key: SortCol | null }> = [
 
 export default function MonitorsPage() {
   const qc = useQueryClient()
+  const toast = useToast()
   const [editingMonitor, setEditingMonitor] = useState<Monitor | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<Monitor | null>(null)
@@ -27,7 +29,7 @@ export default function MonitorsPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [activeTags, setActiveTags] = useState<string[]>([])
 
-  const { data: monitors = [], isLoading } = useQuery<Monitor[]>({
+  const { data: monitors = [], isPending, isError, refetch } = useQuery<Monitor[]>({
     queryKey: ['monitors'],
     queryFn: () => api.get('/admin/monitors'),
     refetchInterval: 30_000,
@@ -66,14 +68,25 @@ export default function MonitorsPage() {
   }, [qc])
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.delete(`/admin/monitors/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['monitors'] }),
+    mutationFn: (monitor: Monitor) => api.delete(`/admin/monitors/${monitor.id}`),
+    onSuccess: (_data, monitor) => {
+      qc.invalidateQueries({ queryKey: ['monitors'] })
+      setConfirmDelete(null)
+      toast.success(`Deleted "${monitor.name}"`)
+    },
+    onError: (err) => toast.error(`Couldn't delete monitor: ${(err as Error).message}`),
   })
 
   const checkNowMutation = useMutation({
-    mutationFn: (id: number) => api.post(`/admin/monitors/${id}/check-now`, {}),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['monitors'] }),
+    mutationFn: (monitor: Monitor) => api.post(`/admin/monitors/${monitor.id}/check-now`, {}),
+    onSuccess: (_data, monitor) => {
+      qc.invalidateQueries({ queryKey: ['monitors'] })
+      toast.success(`Checked "${monitor.name}"`)
+    },
+    onError: (err, monitor) => toast.error(`Couldn't check "${monitor.name}": ${(err as Error).message}`),
   })
+
+  const checkingId = checkNowMutation.isPending ? (checkNowMutation.variables?.id ?? null) : null
 
   function toggleSort(col: SortCol) {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -108,22 +121,17 @@ export default function MonitorsPage() {
   }, [monitors, sortCol, sortDir, activeTags])
 
   return (
-    <div className="p-8 space-y-6 fade-up">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-headline font-bold text-2xl" style={{ color: 'var(--m3-on-surface)' }}>Monitors</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
-            {monitors.length} monitor{monitors.length !== 1 ? 's' : ''} · 15s refresh
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="btn-primary text-sm font-semibold px-4 py-2.5 rounded-lg transition-all"
-          style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }}
-        >
-          + Add Monitor
-        </button>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Monitors"
+        subtitle={isPending || isError ? undefined : `${monitors.length} monitor${monitors.length !== 1 ? 's' : ''} · Live`}
+        actions={
+          <button type="button" onClick={() => setShowCreate(true)} className="btn btn-primary">
+            <span className="material-symbols-outlined" aria-hidden="true">add_circle</span>
+            Add Monitor
+          </button>
+        }
+      />
 
       {/* Tag filter bar */}
       {allTags.length > 0 && (
@@ -132,9 +140,9 @@ export default function MonitorsPage() {
           {allTags.map((t) => {
             const active = activeTags.includes(t.label)
             return (
-              <button key={t.label}
+              <button key={t.label} type="button" aria-pressed={active}
                 onClick={() => setActiveTags((prev) => active ? prev.filter((l) => l !== t.label) : [...prev, t.label])}
-                className="text-xs px-2.5 py-1 rounded-full font-medium transition-all"
+                className="text-xs px-2.5 py-1 rounded-full font-medium transition-all focus-ring"
                 style={active
                   ? { background: `${t.color}2a`, color: t.color, border: `1px solid ${t.color}66` }
                   : { background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)', border: '1px solid var(--m3-outline-variant)' }
@@ -145,52 +153,74 @@ export default function MonitorsPage() {
             )
           })}
           {activeTags.length > 0 && (
-            <button onClick={() => setActiveTags([])}
-              className="text-xs px-2 py-1 rounded"
-              style={{ color: 'var(--m3-secondary)' }}
-            >Clear</button>
+            <button type="button" onClick={() => setActiveTags([])} className="btn btn-ghost btn-sm">Clear</button>
           )}
         </div>
       )}
 
-      {isLoading ? (
-        <div className="text-sm" style={{ color: 'var(--m3-secondary)' }}>Loading…</div>
+      {isPending ? (
+        <LoadingState label="Loading monitors…" />
+      ) : isError ? (
+        <ErrorState message="Couldn't load monitors." onRetry={() => void refetch()} />
+      ) : monitors.length === 0 ? (
+        <EmptyState
+          icon="radio_button_checked"
+          title="No monitors yet"
+          description="Add a monitor to start tracking uptime."
+          action={
+            <button type="button" onClick={() => setShowCreate(true)} className="btn btn-primary">
+              <span className="material-symbols-outlined" aria-hidden="true">add_circle</span>
+              Add Monitor
+            </button>
+          }
+        />
       ) : (
-        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-          <table className="w-full text-sm">
+        <div className="rounded-2xl overflow-x-auto" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
+          <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-                {COLS.map(({ label, key }) => (
-                  <th
-                    key={label}
-                    className={`px-4 py-3 font-mono text-xs uppercase tracking-wider ${label === '' ? 'text-right' : 'text-left'}`}
-                    style={{
-                      color: key && sortCol === key ? 'var(--m3-primary)' : 'var(--m3-secondary)',
-                      background: 'var(--m3-surface-container)',
-                      cursor: key ? 'pointer' : 'default',
-                      userSelect: 'none',
-                      whiteSpace: 'nowrap',
-                    }}
-                    onClick={() => key && toggleSort(key)}
-                  >
-                    {label}
-                    {key && sortCol === key && (
-                      <span className="ml-1 inline-block" style={{ fontSize: '10px' }}>
-                        {sortDir === 'asc' ? '↑' : '↓'}
-                      </span>
-                    )}
-                  </th>
-                ))}
+                {COLS.map(({ label, key }) => {
+                  const sorted = key !== null && sortCol === key
+                  return (
+                    <th
+                      key={label}
+                      scope="col"
+                      aria-sort={sorted ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
+                      className={`px-4 py-3 font-mono text-xs uppercase tracking-wider ${label === '' ? 'text-right' : 'text-left'}`}
+                      style={{
+                        color: sorted ? 'var(--m3-primary)' : 'var(--m3-secondary)',
+                        background: 'var(--m3-surface-container)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {key ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(key)}
+                          className="inline-flex items-center gap-1 uppercase tracking-wider rounded focus-ring"
+                          style={{ color: 'inherit', userSelect: 'none' }}
+                        >
+                          {label}
+                          {sorted && (
+                            <span aria-hidden="true" style={{ fontSize: '10px' }}>
+                              {sortDir === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </button>
+                      ) : (
+                        <span className="sr-only">Actions</span>
+                      )}
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
               {displayed.map((monitor, i) => (
                 <tr
                   key={monitor.id}
-                  className="transition-colors"
+                  className="transition-colors hover:bg-surface-container"
                   style={{ borderTop: i > 0 ? '1px solid var(--m3-outline-variant)' : 'none' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--m3-surface-container)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = '')}
                 >
                   <td className="px-4 py-3">
                     <div className="font-medium" style={{ color: 'var(--m3-on-surface)' }}>{monitor.name}</div>
@@ -200,7 +230,7 @@ export default function MonitorsPage() {
                         {(monitor.tags ?? []).map((t, j) => {
                           const active = activeTags.includes(t.label)
                           return (
-                            <button key={j} type="button"
+                            <button key={j} type="button" aria-pressed={active}
                               onClick={(e) => { e.stopPropagation(); setActiveTags((prev) => active ? prev.filter((l) => l !== t.label) : [...prev, t.label]) }}
                               className="text-xs px-1.5 py-0.5 rounded-full font-medium transition-all"
                               style={{ background: active ? `${t.color}33` : `${t.color}22`, color: t.color, border: `1px solid ${active ? `${t.color}66` : `${t.color}44`}` }}
@@ -230,14 +260,19 @@ export default function MonitorsPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       {monitor.type !== 'webhook' && (
-                        <ActionBtn onClick={() => checkNowMutation.mutate(monitor.id)} title="Check now">
-                          <IconRefresh />
+                        <ActionBtn
+                          onClick={() => checkNowMutation.mutate(monitor)}
+                          title={checkingId === monitor.id ? 'Checking…' : 'Check now'}
+                          label={checkingId === monitor.id ? `Checking ${monitor.name}…` : `Check ${monitor.name} now`}
+                          disabled={checkingId === monitor.id}
+                        >
+                          <IconRefresh spinning={checkingId === monitor.id} />
                         </ActionBtn>
                       )}
-                      <ActionBtn onClick={() => setEditingMonitor(monitor)} title="Edit">
+                      <ActionBtn onClick={() => setEditingMonitor(monitor)} title="Edit" label={`Edit ${monitor.name}`}>
                         <IconEdit />
                       </ActionBtn>
-                      <ActionBtn onClick={() => setConfirmDelete(monitor)} title="Delete" danger>
+                      <ActionBtn onClick={() => setConfirmDelete(monitor)} title="Delete" label={`Delete ${monitor.name}`} danger>
                         <IconTrash />
                       </ActionBtn>
                     </div>
@@ -247,7 +282,7 @@ export default function MonitorsPage() {
               {displayed.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-sm" style={{ color: 'var(--m3-secondary)' }}>
-                    {monitors.length === 0 ? 'No monitors yet. Click "+ Add Monitor" to create one.' : 'No monitors match the selected tags.'}
+                    No monitors match the selected tags.
                   </td>
                 </tr>
               )}
@@ -273,11 +308,13 @@ export default function MonitorsPage() {
         <ConfirmModal
           title="Delete Monitor"
           message={`Delete "${confirmDelete.name}"? This cannot be undone.`}
-          onConfirm={() => { deleteMutation.mutate(confirmDelete.id); setConfirmDelete(null) }}
+          pending={deleteMutation.isPending}
+          pendingLabel="Deleting…"
+          onConfirm={() => deleteMutation.mutate(confirmDelete)}
           onCancel={() => setConfirmDelete(null)}
         />
       )}
-    </div>
+    </PageContainer>
   )
 }
 
@@ -287,7 +324,7 @@ function CertExpiryChip({ monitor }: { monitor: Monitor }) {
   const days = Math.floor((expiresAt - Date.now()) / 86_400_000)
   const certExpiry = (monitor.config as HttpsConfig).certExpiry
   const warnDays = certExpiry?.enabled ? certExpiry.warnDays : DEFAULT_CERT_WARN_DAYS
-  const color = days < 0 ? 'var(--m3-down)' : days <= warnDays ? 'var(--m3-degraded-bar)' : 'var(--m3-secondary)'
+  const color = days < 0 ? 'var(--m3-down)' : days <= warnDays ? 'var(--m3-degraded)' : 'var(--m3-secondary)'
   return (
     <div className="font-mono text-xs mt-0.5" style={{ color }} title={`TLS certificate expires ${new Date(expiresAt).toLocaleString()}`}>
       {days < 0 ? 'TLS certificate expired' : `TLS certificate: ${days} ${days === 1 ? 'day' : 'days'} left`}
@@ -295,30 +332,22 @@ function CertExpiryChip({ monitor }: { monitor: Monitor }) {
   )
 }
 
-function ActionBtn({ children, onClick, title, danger = false }: {
-  children: React.ReactNode; onClick: () => void; title: string; danger?: boolean
+function ActionBtn({ children, onClick, title, label, danger = false, disabled = false }: {
+  children: React.ReactNode; onClick: () => void; title: string; label: string; danger?: boolean; disabled?: boolean
 }) {
   return (
-    <button onClick={onClick} title={title}
-      className="p-1.5 rounded-md transition-all"
-      style={{ color: danger ? 'var(--m3-down)' : 'var(--m3-secondary)' }}
-      onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLButtonElement).style.background = danger ? 'var(--m3-down-bg)' : 'var(--m3-surface-container-high)'
-        ;(e.currentTarget as HTMLButtonElement).style.color = danger ? 'var(--m3-down)' : 'var(--m3-on-surface)'
-      }}
-      onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLButtonElement).style.background = ''
-        ;(e.currentTarget as HTMLButtonElement).style.color = danger ? 'var(--m3-down)' : 'var(--m3-secondary)'
-      }}
+    <button type="button" onClick={onClick} title={title} aria-label={label} disabled={disabled}
+      className={danger ? 'btn-icon hover:!bg-[var(--m3-down-bg)]' : 'btn-icon'}
+      style={danger ? { color: 'var(--m3-down)' } : undefined}
     >
       {children}
     </button>
   )
 }
 
-function IconRefresh() {
+function IconRefresh({ spinning = false }: { spinning?: boolean }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true" className={spinning ? 'animate-spin' : undefined}>
       <path d="M1 7a6 6 0 106-6 6 6 0 00-4.5 2L1 4.5" />
       <path d="M1 1v3.5H4.5" />
     </svg>
@@ -327,7 +356,7 @@ function IconRefresh() {
 
 function IconEdit() {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z" />
     </svg>
   )
@@ -335,7 +364,7 @@ function IconEdit() {
 
 function IconTrash() {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M2 3.5h10M5 3.5V2h4v1.5M5.5 6v4.5M8.5 6v4.5M3 3.5l.7 8h6.6l.7-8" />
     </svg>
   )

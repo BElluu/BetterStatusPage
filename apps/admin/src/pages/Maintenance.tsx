@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { MaintenanceWindow, Monitor } from '@bsp/shared'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { NotifySubscribersCheckbox } from '../components/subscribers/NotifySubscribersCheckbox'
-import { ModalShell } from '../components/ModalShell'
+import { ModalHeader, ModalShell } from '../components/ModalShell'
+import { Alert, EmptyState, ErrorState, Field, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
 
 type Tab = 'active' | 'upcoming' | 'past'
 
@@ -24,8 +25,8 @@ function formatDuration(startMs: number, endMs: number) {
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`
 }
 
-function countdown(endsAt: number) {
-  const remaining = endsAt - Date.now()
+function countdown(endsAt: number, now: number) {
+  const remaining = endsAt - now
   if (remaining <= 0) return 'Ended'
   const totalMins = Math.ceil(remaining / 60000)
   if (totalMins < 60) return `${totalMins}m remaining`
@@ -34,15 +35,26 @@ function countdown(endsAt: number) {
   return mins > 0 ? `${hours}h ${mins}m remaining` : `${hours}h remaining`
 }
 
+/** Current time, re-read every 30 seconds so windows move between tabs and countdowns stay fresh. */
+function useNow(intervalMs = 30_000) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), intervalMs)
+    return () => clearInterval(timer)
+  }, [intervalMs])
+  return now
+}
+
 export default function MaintenancePage() {
   const qc = useQueryClient()
+  const toast = useToast()
   const [tab, setTab] = useState<Tab>('active')
   const [showCreate, setShowCreate] = useState(false)
   const [editing, setEditing] = useState<MaintenanceWindow | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<MaintenanceWindow | null>(null)
   const [confirmEndEarly, setConfirmEndEarly] = useState<MaintenanceWindow | null>(null)
 
-  const { data: windows = [] } = useQuery<MaintenanceWindow[]>({
+  const { data: windows = [], isPending, isError, refetch } = useQuery<MaintenanceWindow[]>({
     queryKey: ['maintenance'],
     queryFn: () => api.get('/admin/maintenance'),
     refetchInterval: 30_000,
@@ -54,16 +66,26 @@ export default function MaintenancePage() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.delete(`/admin/maintenance/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['maintenance'] }),
+    mutationFn: (win: MaintenanceWindow) => api.delete(`/admin/maintenance/${win.id}`),
+    onSuccess: (_data, win) => {
+      qc.invalidateQueries({ queryKey: ['maintenance'] })
+      setConfirmDelete(null)
+      toast.success(`Deleted "${win.name}"`)
+    },
+    onError: (err) => toast.error(`Couldn't delete maintenance window: ${(err as Error).message}`),
   })
 
   const endEarlyMutation = useMutation({
-    mutationFn: (id: number) => api.patch(`/admin/maintenance/${id}`, { endsAt: Date.now() }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['maintenance'] }),
+    mutationFn: (win: MaintenanceWindow) => api.patch(`/admin/maintenance/${win.id}`, { endsAt: Date.now() }),
+    onSuccess: (_data, win) => {
+      qc.invalidateQueries({ queryKey: ['maintenance'] })
+      setConfirmEndEarly(null)
+      toast.success(`Ended "${win.name}"`)
+    },
+    onError: (err) => toast.error(`Couldn't end maintenance: ${(err as Error).message}`),
   })
 
-  const now = Date.now()
+  const now = useNow()
   const { active, upcoming, past } = useMemo(() => {
     const active: MaintenanceWindow[] = []
     const upcoming: MaintenanceWindow[] = []
@@ -85,31 +107,27 @@ export default function MaintenancePage() {
   }
 
   return (
-    <div className="p-8 space-y-6 fade-up">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-headline font-bold text-2xl" style={{ color: 'var(--m3-on-surface)' }}>Maintenance Windows</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
-            {active.length} active · {upcoming.length} upcoming · {past.length} past
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="btn-primary flex items-center gap-2 py-3 px-4 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98]"
-          style={{ background: 'var(--m3-on-surface)', color: 'var(--m3-surface)' }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_circle</span>
-          Schedule Maintenance
-        </button>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Maintenance Windows"
+        subtitle={isPending || isError ? undefined : `${active.length} active · ${upcoming.length} upcoming · ${past.length} past`}
+        actions={
+          <button type="button" onClick={() => setShowCreate(true)} className="btn btn-primary">
+            <span className="material-symbols-outlined" aria-hidden="true">add_circle</span>
+            Schedule Maintenance
+          </button>
+        }
+      />
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ background: 'var(--m3-surface-container)' }}>
+      <div className="flex gap-1 p-1 rounded-xl w-fit max-w-full overflow-x-auto" style={{ background: 'var(--m3-surface-container)' }}>
         {(['active', 'upcoming', 'past'] as Tab[]).map((t) => (
           <button
             key={t}
+            type="button"
+            aria-pressed={tab === t}
             onClick={() => setTab(t)}
-            className="px-5 py-2 rounded-lg text-sm font-bold transition-all capitalize"
+            className="px-5 py-2 rounded-lg text-sm font-bold transition-all capitalize focus-ring"
             style={{
               background: tab === t ? 'var(--m3-surface-container-lowest)' : 'transparent',
               color: tab === t ? 'var(--m3-on-surface)' : 'var(--m3-secondary)',
@@ -133,6 +151,11 @@ export default function MaintenancePage() {
       </div>
 
       {/* List */}
+      {isPending ? (
+        <LoadingState label="Loading maintenance windows…" />
+      ) : isError ? (
+        <ErrorState message="Couldn't load maintenance windows." onRetry={() => void refetch()} />
+      ) : (
       <div className="space-y-2">
         {displayed.map((win) => {
           const isActive = win.startsAt <= now && win.endsAt >= now
@@ -170,7 +193,7 @@ export default function MaintenancePage() {
                       className="text-xs px-2 py-0.5 rounded-full font-bold animate-pulse"
                       style={{ background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)' }}
                     >
-                      ACTIVE · {countdown(win.endsAt)}
+                      ACTIVE · {countdown(win.endsAt, now)}
                     </span>
                   )}
                 </div>
@@ -181,7 +204,7 @@ export default function MaintenancePage() {
 
                 <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs" style={{ color: 'var(--m3-secondary)' }}>
                   <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>schedule</span>
+                    <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '14px' }}>schedule</span>
                     {formatDateTime(win.startsAt)} → {formatDateTime(win.endsAt)}
                     <span className="ml-1 opacity-70">({formatDuration(win.startsAt, win.endsAt)})</span>
                   </span>
@@ -204,32 +227,30 @@ export default function MaintenancePage() {
                 </div>
               </div>
 
-              <div className="flex gap-2 flex-shrink-0">
+              <div className="flex items-center gap-1 flex-shrink-0">
                 {isActive && (
-                  <button
-                    onClick={() => setConfirmEndEarly(win)}
-                    className="btn-primary text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors"
-                  >
+                  <button type="button" onClick={() => setConfirmEndEarly(win)} className="btn btn-primary btn-sm mr-1">
                     End now
                   </button>
                 )}
                 <button
+                  type="button"
                   onClick={() => setEditing(win)}
-                  className="text-xs px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ color: 'var(--m3-secondary)' }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container-high)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)' }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ''; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)' }}
+                  title="Edit"
+                  aria-label={`Edit ${win.name}`}
+                  className="btn-icon"
                 >
-                  Edit
+                  <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '18px' }}>edit</span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => setConfirmDelete(win)}
-                  className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+                  title="Delete"
+                  aria-label={`Delete ${win.name}`}
+                  className="btn-icon hover:!bg-[var(--m3-down-bg)]"
                   style={{ color: 'var(--m3-down)' }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-down-bg)' }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '' }}
                 >
-                  Delete
+                  <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '18px' }}>delete</span>
                 </button>
               </div>
             </div>
@@ -237,19 +258,19 @@ export default function MaintenancePage() {
         })}
 
         {displayed.length === 0 && (
-          <div className="text-center py-14 text-sm" style={{ color: 'var(--m3-secondary)' }}>
-            {tab === 'active' && 'No active maintenance windows. All systems running normally.'}
-            {tab === 'upcoming' && 'No upcoming maintenance scheduled.'}
-            {tab === 'past' && 'No past maintenance windows.'}
-          </div>
+          <EmptyState
+            icon="construction"
+            title={tab === 'active' ? 'No active maintenance windows' : tab === 'upcoming' ? 'No upcoming maintenance scheduled' : 'No past maintenance windows'}
+          />
         )}
       </div>
+      )}
 
       {showCreate && (
         <MaintenanceModal
           monitors={monitors}
           onClose={() => setShowCreate(false)}
-          onSaved={() => { qc.invalidateQueries({ queryKey: ['maintenance'] }); setShowCreate(false) }}
+          onSaved={() => { qc.invalidateQueries({ queryKey: ['maintenance'] }); setShowCreate(false); toast.success('Maintenance scheduled') }}
         />
       )}
       {editing && (
@@ -257,7 +278,7 @@ export default function MaintenancePage() {
           monitors={monitors}
           initial={editing}
           onClose={() => setEditing(null)}
-          onSaved={() => { qc.invalidateQueries({ queryKey: ['maintenance'] }); setEditing(null) }}
+          onSaved={() => { qc.invalidateQueries({ queryKey: ['maintenance'] }); setEditing(null); toast.success('Maintenance window updated') }}
         />
       )}
 
@@ -265,7 +286,9 @@ export default function MaintenancePage() {
         <ConfirmModal
           title="Delete maintenance window"
           message={`Delete "${confirmDelete.name}"? This cannot be undone.`}
-          onConfirm={() => { deleteMutation.mutate(confirmDelete.id); setConfirmDelete(null) }}
+          pending={deleteMutation.isPending}
+          pendingLabel="Deleting…"
+          onConfirm={() => deleteMutation.mutate(confirmDelete)}
           onCancel={() => setConfirmDelete(null)}
         />
       )}
@@ -276,11 +299,13 @@ export default function MaintenancePage() {
           message={`End "${confirmEndEarly.name}" now? The end time will be set to the current time.`}
           confirmLabel="End now"
           danger={false}
-          onConfirm={() => { endEarlyMutation.mutate(confirmEndEarly.id); setConfirmEndEarly(null) }}
+          pending={endEarlyMutation.isPending}
+          pendingLabel="Ending…"
+          onConfirm={() => endEarlyMutation.mutate(confirmEndEarly)}
           onCancel={() => setConfirmEndEarly(null)}
         />
       )}
-    </div>
+    </PageContainer>
   )
 }
 
@@ -358,6 +383,7 @@ function MaintenanceModal({
   onSaved: () => void
 }) {
   const isEdit = !!initial
+  const title = isEdit ? 'Edit Maintenance Window' : 'Schedule Maintenance'
 
   // Default: starts in 1h, ends in 3h
   const defaultStart = toLocalDatetimeValue(Date.now() + 60 * 60 * 1000)
@@ -411,33 +437,13 @@ function MaintenanceModal({
   }
 
   return (
-    <ModalShell>
+    <ModalShell onClose={onClose} label={title}>
       <div className="rounded-2xl w-full max-w-lg" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined" style={{ fontSize: '22px', color: 'var(--m3-primary)' }}>construction</span>
-            <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>
-              {isEdit ? 'Edit Maintenance Window' : 'Schedule Maintenance'}
-            </h3>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none"
-            style={{ color: 'var(--m3-secondary)' }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container-high)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ''; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)' }}
-          >
-            ×
-          </button>
-        </div>
+        <ModalHeader icon="construction" title={title} onClose={onClose} />
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Name */}
-          <div>
-            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
-              Name
-            </label>
+          <Field label="Name" required>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -445,13 +451,9 @@ function MaintenanceModal({
               className="input-sig"
               placeholder="Scheduled database maintenance"
             />
-          </div>
+          </Field>
 
-          {/* Description */}
-          <div>
-            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
-              Description <span style={{ color: 'var(--m3-outline)' }}>(optional)</span>
-            </label>
+          <Field label={<>Description <span style={{ color: 'var(--m3-outline)' }}>(optional)</span></>}>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -459,44 +461,43 @@ function MaintenanceModal({
               className="input-sig resize-none"
               placeholder="Brief description visible on the status page…"
             />
-          </div>
+          </Field>
 
           {/* Time range */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <fieldset>
+              <legend className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
                 Starts At
-              </label>
+              </legend>
               <DateTimeInput
                 label="Starts At"
                 value={startsAt}
                 onChange={setStartsAt}
               />
-            </div>
-            <div>
-              <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
+            </fieldset>
+            <fieldset>
+              <legend className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
                 Ends At
-              </label>
+              </legend>
               <DateTimeInput
                 label="Ends At"
                 value={endsAt}
                 onChange={setEndsAt}
               />
-            </div>
+            </fieldset>
           </div>
 
           {/* Affected monitors */}
-          <div>
+          <fieldset aria-labelledby="maintenance-affected-monitors">
             <div className="flex items-center justify-between mb-2">
-              <label className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
+              <span id="maintenance-affected-monitors" className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
                 Affected Monitors
-              </label>
+              </span>
               <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: 'var(--m3-secondary)' }}>
                 <input
                   type="checkbox"
                   checked={allMonitors}
                   onChange={(e) => setAllMonitors(e.target.checked)}
-                  style={{ accentColor: 'var(--admin-control-accent)' }}
                 />
                 All monitors
               </label>
@@ -507,15 +508,11 @@ function MaintenanceModal({
                 style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}
               >
                 {monitors.map((m) => (
-                  <label key={m.id} className="flex items-center gap-2.5 text-sm cursor-pointer px-2 py-1.5 rounded-md"
-                    onMouseEnter={(e) => ((e.currentTarget as HTMLLabelElement).style.background = 'var(--m3-surface-container-high)')}
-                    onMouseLeave={(e) => ((e.currentTarget as HTMLLabelElement).style.background = '')}
-                  >
+                  <label key={m.id} className="flex items-center gap-2.5 text-sm cursor-pointer px-2 py-1.5 rounded-md hover:bg-surface-container-high">
                     <input
                       type="checkbox"
                       checked={selectedMonitors.includes(m.id)}
                       onChange={() => toggleMonitor(m.id)}
-                      style={{ accentColor: 'var(--admin-control-accent)' }}
                     />
                     <span style={{ color: 'var(--m3-on-surface)' }}>{m.name}</span>
                     <span className="ml-auto font-mono text-xs" style={{ color: 'var(--m3-outline)' }}>{m.type}</span>
@@ -531,35 +528,17 @@ function MaintenanceModal({
                 No monitors selected — notifications will not be suppressed.
               </p>
             )}
-          </div>
+          </fieldset>
 
           {!isEdit && <NotifySubscribersCheckbox checked={notifySubscribers} onChange={setNotifySubscribers} />}
 
-          {error && (
-            <p className="text-sm" style={{ color: 'var(--m3-down)' }}>{error}</p>
-          )}
+          {error && <Alert tone="error">{error}</Alert>}
 
           <div className="flex justify-end gap-3 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-sm px-4 py-2 rounded-lg"
-              style={{ color: 'var(--m3-secondary)' }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)')}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)')}
-            >
+            <button type="button" onClick={onClose} className="btn btn-secondary">
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary text-sm font-semibold px-4 py-2 rounded-lg transition-all"
-              style={{
-                background: loading ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
-                color: loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
-                opacity: loading ? 0.7 : 1,
-              }}
-            >
+            <button type="submit" disabled={loading} className="btn btn-primary">
               {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Schedule'}
             </button>
           </div>

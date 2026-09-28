@@ -5,6 +5,7 @@ import type { Incident } from '@bsp/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import IncidentsPage from './Incidents'
+import { ToastProvider } from '../components/ui'
 
 vi.mock('../api/client', () => ({
   api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
@@ -39,7 +40,7 @@ function mockGets(list: Incident[] = incidents) {
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><IncidentsPage /></QueryClientProvider>)
+  return render(<QueryClientProvider client={queryClient}><ToastProvider><IncidentsPage /></ToastProvider></QueryClientProvider>)
 }
 
 describe('IncidentsPage', () => {
@@ -63,7 +64,26 @@ describe('IncidentsPage', () => {
     mockGets([])
     renderPage()
 
-    expect(await screen.findByText('No incidents reported. All systems operational.')).toBeInTheDocument()
+    expect(await screen.findByText('No incidents yet')).toBeInTheDocument()
+    expect(screen.queryByText(/All systems operational/)).not.toBeInTheDocument()
+  })
+
+  it('shows loading and error states instead of the empty copy', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('boom'))
+    renderPage()
+
+    expect(screen.getByText('Loading incidents…')).toBeInTheDocument()
+    expect(await screen.findByText("Couldn't load incidents.")).toBeInTheDocument()
+    expect(screen.queryByText('No incidents yet')).not.toBeInTheDocument()
+  })
+
+  it('exposes the expand toggle as a button with aria-expanded', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    const toggle = await screen.findByRole('button', { name: /Checkout errors/, expanded: false })
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('expands an incident to show monitors and its update timeline', async () => {
@@ -215,16 +235,29 @@ describe('IncidentsPage', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click((await screen.findAllByRole('button', { name: 'Delete' }))[1]!)
+    await user.click(await screen.findByRole('button', { name: 'Delete DNS blip' }))
     expect(screen.getByText('Delete "DNS blip"? This cannot be undone.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(api.delete).not.toHaveBeenCalled()
 
-    await user.click(screen.getAllByRole('button', { name: 'Delete' })[1]!)
-    await user.click(screen.getAllByRole('button', { name: 'Delete' }).at(-1)!)
+    await user.click(screen.getByRole('button', { name: 'Delete DNS blip' }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
 
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/admin/incidents/2'))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     // Deleting from the row must not also expand it.
     expect(screen.queryByText('None linked')).not.toBeInTheDocument()
+  })
+
+  it('keeps the delete dialog open and reports a failed delete', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.delete).mockRejectedValueOnce(new Error('Forbidden'))
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Delete DNS blip' }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(await screen.findByText("Couldn't delete incident: Forbidden")).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Delete incident' })).toBeInTheDocument()
   })
 })

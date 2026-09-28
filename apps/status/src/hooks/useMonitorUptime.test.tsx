@@ -20,11 +20,11 @@ describe('useMonitorUptime', () => {
     const { fetchMock, release } = deferredFetch()
     const { result } = renderHook(() => useMonitorUptime(3, 30))
 
-    expect(result.current).toBeNull()
+    expect(result.current).toEqual({ uptime: null, failed: false })
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/public/monitor/3/uptime?days=30')
     release('/api/v1/public/monitor/3/uptime?days=30', uptimeFor(99.5))
 
-    await waitFor(() => expect(result.current).toEqual(uptimeFor(99.5)))
+    await waitFor(() => expect(result.current).toEqual({ uptime: uptimeFor(99.5), failed: false }))
   })
 
   it('ignores a stale response that arrives after the monitor changed', async () => {
@@ -33,19 +33,19 @@ describe('useMonitorUptime', () => {
 
     rerender({ id: 2 })
     release('/api/v1/public/monitor/2/uptime?days=30', uptimeFor(50))
-    await waitFor(() => expect(result.current?.overallUptimePct).toBe(50))
+    await waitFor(() => expect(result.current.uptime?.overallUptimePct).toBe(50))
 
     release('/api/v1/public/monitor/1/uptime?days=30', uptimeFor(10))
     await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(result.current?.overallUptimePct).toBe(50)
+    expect(result.current.uptime?.overallUptimePct).toBe(50)
   })
 
-  it('stays empty when the request fails', async () => {
+  it('reports a failed request instead of loading forever', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 500 }))
     const { result } = renderHook(() => useMonitorUptime(4, 30))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(result.current).toBeNull()
+    await waitFor(() => expect(result.current).toEqual({ uptime: null, failed: true }))
   })
 })

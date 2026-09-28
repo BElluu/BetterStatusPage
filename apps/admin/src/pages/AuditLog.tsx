@@ -1,6 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
+import { EmptyState, ErrorState, LoadingState, PageContainer, PageHeader, Pagination } from '../components/ui'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import type { AuditLogEntry, AuditAction, AuditEntityType } from '@bsp/shared'
 
 interface AuditPage {
@@ -76,12 +78,12 @@ function DiffView({ diff }: { diff: Record<string, unknown> }) {
               <tr key={key}>
                 <td style={{ padding: '2px 8px 2px 0', color: 'var(--m3-secondary)', whiteSpace: 'nowrap', verticalAlign: 'top' }}>{key}</td>
                 <td style={{ padding: '2px 8px', verticalAlign: 'top' }}>
-                  <span style={{ color: '#991b1b', background: 'rgba(239,68,68,0.08)', borderRadius: 4, padding: '0 4px', display: 'inline-block', wordBreak: 'break-all' }}>
+                  <span style={{ color: 'var(--audit-delete-text)', background: 'var(--audit-delete-bg)', borderRadius: 4, padding: '0 4px', display: 'inline-block', wordBreak: 'break-all' }}>
                     {from === null ? 'null' : String(from)}
                   </span>
                 </td>
                 <td style={{ padding: '2px 0', verticalAlign: 'top' }}>
-                  <span style={{ color: '#065f46', background: 'rgba(16,185,129,0.1)', borderRadius: 4, padding: '0 4px', display: 'inline-block', wordBreak: 'break-all' }}>
+                  <span style={{ color: 'var(--audit-create-text)', background: 'var(--audit-create-bg)', borderRadius: 4, padding: '0 4px', display: 'inline-block', wordBreak: 'break-all' }}>
                     {to === null ? 'null' : String(to)}
                   </span>
                 </td>
@@ -106,14 +108,19 @@ function DiffView({ diff }: { diff: Record<string, unknown> }) {
   )
 }
 
+const GRID_COLUMNS = '168px 160px 90px 160px 1fr'
+const FILTER_LABEL = 'font-mono text-[10px] uppercase tracking-widest'
+
 export default function AuditLogPage() {
   const [page, setPage] = useState(1)
-  const [userEmail, setUserEmail] = useState('')
+  const [emailInput, setEmailInput] = useState('')
+  const [userEmail, flushEmail] = useDebouncedValue(emailInput, 300)
   const [entityType, setEntityType] = useState('')
   const [action, setAction] = useState('')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate]   = useState('')
   const [expanded, setExpanded] = useState<number | null>(null)
+  const idPrefix = useId()
 
   // Reset to page 1 when filters change
   const filters = useMemo(() => ({
@@ -130,26 +137,22 @@ export default function AuditLogPage() {
     Object.fromEntries(Object.entries(filters).map(([k, v]) => [k, String(v)])),
   ).toString()
 
-  const { data, isFetching } = useQuery<AuditPage>({
+  const { data, isFetching, isLoading, isError, refetch } = useQuery<AuditPage>({
     queryKey: ['audit', qs],
     queryFn: () => api.get(`/admin/audit?${qs}`),
     refetchOnMount: 'always',
   })
 
-  function applyFilter() { setPage(1) }
+  function clearFilters() {
+    setEmailInput(''); flushEmail(''); setEntityType(''); setAction(''); setFromDate(''); setToDate(''); setPage(1)
+  }
 
   const entries = data?.entries ?? []
   const totalPages = data?.pages ?? 1
 
   return (
-    <div className="p-8 space-y-5 fade-up">
-      {/* Header */}
-      <div>
-        <h1 className="font-headline font-bold text-2xl" style={{ color: 'var(--m3-on-surface)' }}>Audit Log</h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
-          {data ? `${data.total} entries` : 'Loading…'}
-        </p>
-      </div>
+    <PageContainer>
+      <PageHeader title="Audit Log" subtitle={data ? `${data.total} entries` : undefined} />
 
       {/* Filters */}
       <div
@@ -157,11 +160,12 @@ export default function AuditLogPage() {
         style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}
       >
         <div className="flex flex-col gap-1 min-w-[180px] flex-1">
-          <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: 'var(--m3-outline)' }}>User</label>
+          <label htmlFor={`${idPrefix}-user`} className={FILTER_LABEL} style={{ color: 'var(--m3-outline)' }}>User</label>
           <input
-            value={userEmail}
-            onChange={(e) => setUserEmail(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && applyFilter()}
+            id={`${idPrefix}-user`}
+            value={emailInput}
+            onChange={(e) => { setEmailInput(e.target.value); setPage(1) }}
+            onKeyDown={(e) => { if (e.key === 'Enter') flushEmail() }}
             placeholder="Filter by email…"
             className="input-sig"
             style={{ height: '36px', fontSize: '13px' }}
@@ -169,8 +173,9 @@ export default function AuditLogPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: 'var(--m3-outline)' }}>Entity</label>
+          <label htmlFor={`${idPrefix}-entity`} className={FILTER_LABEL} style={{ color: 'var(--m3-outline)' }}>Entity</label>
           <select
+            id={`${idPrefix}-entity`}
             value={entityType}
             onChange={(e) => { setEntityType(e.target.value); setPage(1) }}
             className="input-sig"
@@ -184,8 +189,9 @@ export default function AuditLogPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: 'var(--m3-outline)' }}>Action</label>
+          <label htmlFor={`${idPrefix}-action`} className={FILTER_LABEL} style={{ color: 'var(--m3-outline)' }}>Action</label>
           <select
+            id={`${idPrefix}-action`}
             value={action}
             onChange={(e) => { setAction(e.target.value); setPage(1) }}
             className="input-sig"
@@ -199,8 +205,9 @@ export default function AuditLogPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: 'var(--m3-outline)' }}>From</label>
+          <label htmlFor={`${idPrefix}-from`} className={FILTER_LABEL} style={{ color: 'var(--m3-outline)' }}>From</label>
           <input
+            id={`${idPrefix}-from`}
             type="date"
             value={fromDate}
             onChange={(e) => { setFromDate(e.target.value); setPage(1) }}
@@ -210,8 +217,9 @@ export default function AuditLogPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="font-mono text-[10px] uppercase tracking-widest" style={{ color: 'var(--m3-outline)' }}>To</label>
+          <label htmlFor={`${idPrefix}-to`} className={FILTER_LABEL} style={{ color: 'var(--m3-outline)' }}>To</label>
           <input
+            id={`${idPrefix}-to`}
             type="date"
             value={toDate}
             onChange={(e) => { setToDate(e.target.value); setPage(1) }}
@@ -220,168 +228,147 @@ export default function AuditLogPage() {
           />
         </div>
 
-        {(userEmail || entityType || action || fromDate || toDate) && (
-          <button
-            onClick={() => { setUserEmail(''); setEntityType(''); setAction(''); setFromDate(''); setToDate(''); setPage(1) }}
-            className="text-sm px-3 py-2 rounded-lg transition-colors self-end"
-            style={{ color: 'var(--m3-secondary)', height: '36px' }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)' }}
-          >
+        {(emailInput || entityType || action || fromDate || toDate) && (
+          <button type="button" onClick={clearFilters} className="btn btn-ghost btn-sm self-end" style={{ height: '36px' }}>
             Clear
           </button>
         )}
       </div>
 
       {/* Table */}
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{ border: '1px solid var(--m3-outline-variant)', opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.15s' }}
-      >
-        {/* Header */}
+      {isLoading ? (
+        <LoadingState label="Loading audit log…" />
+      ) : isError ? (
+        <ErrorState message="Could not load the audit log." onRetry={() => void refetch()} />
+      ) : entries.length === 0 ? (
+        <EmptyState icon="history" title="No audit entries found." description="Try widening the filters or the date range." />
+      ) : (
         <div
-          className="grid font-mono text-[10px] uppercase tracking-widest px-5 py-2.5"
-          style={{
-            gridTemplateColumns: '168px 160px 90px 160px 1fr',
-            color: 'var(--m3-outline)',
-            borderBottom: '1px solid var(--m3-outline-variant)',
-            background: 'var(--m3-surface-container)',
-          }}
+          className="rounded-2xl overflow-x-auto"
+          style={{ border: '1px solid var(--m3-outline-variant)', opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.15s' }}
         >
-          <span>Timestamp</span>
-          <span>User</span>
-          <span>Action</span>
-          <span>Entity</span>
-          <span>Details</span>
-        </div>
-
-        {entries.length === 0 && !isFetching && (
-          <div className="text-center py-14 text-sm" style={{ color: 'var(--m3-secondary)' }}>
-            No audit entries found.
-          </div>
-        )}
-
-        {entries.map((entry) => {
-          const ac = ACTION_COLORS[entry.action]
-          const entityLabel = ENTITY_LABELS[entry.entityType as AuditEntityType] ?? entry.entityType
-          const entityIcon  = ENTITY_ICONS[entry.entityType as AuditEntityType] ?? 'article'
-          const isExpanded  = expanded === entry.id
-          const hasDiff     = entry.diff && Object.keys(entry.diff).length > 0
-
-          return (
+          <div className="min-w-[860px]">
+            {/* Header */}
             <div
-              key={entry.id}
-              style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}
+              className="grid font-mono text-[10px] uppercase tracking-widest px-5 py-2.5"
+              style={{
+                gridTemplateColumns: GRID_COLUMNS,
+                color: 'var(--m3-outline)',
+                borderBottom: '1px solid var(--m3-outline-variant)',
+                background: 'var(--m3-surface-container)',
+              }}
             >
-              {/* Main row */}
-              <div
-                className="grid items-center px-5 py-3 transition-colors"
-                style={{ gridTemplateColumns: '168px 160px 90px 160px 1fr', cursor: hasDiff ? 'pointer' : 'default' }}
-                onClick={() => hasDiff && setExpanded(isExpanded ? null : entry.id)}
-                onMouseEnter={(e) => { if (hasDiff) (e.currentTarget as HTMLDivElement).style.background = 'var(--m3-surface-container-low)' }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = '' }}
-              >
-                {/* Timestamp */}
-                <span className="font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
-                  {formatTs(entry.timestamp)}
-                </span>
-
-                {/* User */}
-                <span className="text-sm truncate" style={{ color: 'var(--m3-on-surface)' }} title={entry.userEmail}>
-                  {entry.userEmail}
-                </span>
-
-                {/* Action badge */}
-                <span
-                  className="text-xs font-bold px-2 py-0.5 rounded-full w-fit"
-                  style={{ background: ac.bg, color: ac.color }}
-                >
-                  {ac.label}
-                </span>
-
-                {/* Entity */}
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '14px', color: 'var(--m3-secondary)' }}>
-                    {entityIcon}
-                  </span>
-                  <div className="min-w-0">
-                    <div className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--m3-outline)' }}>
-                      {entityLabel}
-                    </div>
-                    <div className="text-xs truncate" style={{ color: 'var(--m3-on-surface)' }} title={entry.entityName}>
-                      {entry.entityName}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Details / expand */}
-                <div className="flex items-center justify-between min-w-0">
-                  {hasDiff ? (
-                    <span className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
-                      {isExpanded ? 'Hide details' : `${Object.keys(entry.diff!).length} field${Object.keys(entry.diff!).length !== 1 ? 's' : ''} changed`}
-                    </span>
-                  ) : (
-                    <span className="text-xs" style={{ color: 'var(--m3-outline)' }}>—</span>
-                  )}
-                  {hasDiff && (
-                    <span
-                      className="material-symbols-outlined"
-                      style={{
-                        fontSize: '16px', color: 'var(--m3-secondary)',
-                        transform: isExpanded ? 'rotate(180deg)' : 'none',
-                        transition: 'transform 0.2s',
-                      }}
-                    >
-                      expand_more
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Expanded diff */}
-              {isExpanded && hasDiff && (
-                <div
-                  className="px-5 py-3"
-                  style={{ borderTop: '1px solid var(--m3-outline-variant)', background: 'var(--m3-surface-container-lowest)' }}
-                >
-                  <DiffView diff={entry.diff!} />
-                </div>
-              )}
+              <span>Timestamp</span>
+              <span>User</span>
+              <span>Action</span>
+              <span>Entity</span>
+              <span>Details</span>
             </div>
-          )
-        })}
-      </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <span className="text-sm" style={{ color: 'var(--m3-secondary)' }}>
-            Page {page} of {totalPages} · {data?.total ?? 0} entries
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
-              style={{ color: 'var(--m3-secondary)', border: '1px solid var(--m3-outline-variant)' }}
-              onMouseEnter={(e) => { if (page > 1) (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container)' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '' }}
-            >
-              ← Prev
-            </button>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
-              style={{ color: 'var(--m3-secondary)', border: '1px solid var(--m3-outline-variant)' }}
-              onMouseEnter={(e) => { if (page < totalPages) (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container)' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '' }}
-            >
-              Next →
-            </button>
+            {entries.map((entry) => {
+              const ac = ACTION_COLORS[entry.action]
+              const entityLabel = ENTITY_LABELS[entry.entityType as AuditEntityType] ?? entry.entityType
+              const entityIcon  = ENTITY_ICONS[entry.entityType as AuditEntityType] ?? 'article'
+              const isExpanded  = expanded === entry.id
+              const hasDiff     = entry.diff && Object.keys(entry.diff).length > 0
+              const diffId      = `${idPrefix}-diff-${entry.id}`
+              const fieldCount  = hasDiff ? Object.keys(entry.diff!).length : 0
+
+              return (
+                <div
+                  key={entry.id}
+                  style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}
+                >
+                  {/* Main row */}
+                  <div
+                    className="grid items-center px-5 py-3"
+                    style={{ gridTemplateColumns: GRID_COLUMNS }}
+                  >
+                    {/* Timestamp */}
+                    <span className="font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
+                      {formatTs(entry.timestamp)}
+                    </span>
+
+                    {/* User */}
+                    <span className="text-sm truncate" style={{ color: 'var(--m3-on-surface)' }} title={entry.userEmail}>
+                      {entry.userEmail}
+                    </span>
+
+                    {/* Action badge */}
+                    <span
+                      className="text-xs font-bold px-2 py-0.5 rounded-full w-fit"
+                      style={{ background: ac.bg, color: ac.color }}
+                    >
+                      {ac.label}
+                    </span>
+
+                    {/* Entity */}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="material-symbols-outlined flex-shrink-0" aria-hidden="true" style={{ fontSize: '14px', color: 'var(--m3-secondary)' }}>
+                        {entityIcon}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--m3-outline)' }}>
+                          {entityLabel}
+                        </div>
+                        <div className="text-xs truncate" style={{ color: 'var(--m3-on-surface)' }} title={entry.entityName}>
+                          {entry.entityName}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Details / expand */}
+                    {hasDiff ? (
+                      <button
+                        type="button"
+                        onClick={() => setExpanded(isExpanded ? null : entry.id)}
+                        aria-expanded={isExpanded}
+                        aria-controls={isExpanded ? diffId : undefined}
+                        className="focus-ring flex items-center justify-between gap-2 min-w-0 -mx-2 px-2 py-1.5 rounded-lg text-left transition-colors hover:bg-[var(--m3-surface-container-low)]"
+                      >
+                        <span className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
+                          {isExpanded ? 'Hide details' : `${fieldCount} field${fieldCount !== 1 ? 's' : ''} changed`}
+                        </span>
+                        <span
+                          className="material-symbols-outlined"
+                          aria-hidden="true"
+                          style={{
+                            fontSize: '16px', color: 'var(--m3-secondary)',
+                            transform: isExpanded ? 'rotate(180deg)' : 'none',
+                            transition: 'transform 0.2s',
+                          }}
+                        >
+                          expand_more
+                        </span>
+                      </button>
+                    ) : (
+                      <span className="text-xs" style={{ color: 'var(--m3-outline)' }}>—</span>
+                    )}
+                  </div>
+
+                  {/* Expanded diff */}
+                  {isExpanded && hasDiff && (
+                    <div
+                      id={diffId}
+                      className="px-5 py-3"
+                      style={{ borderTop: '1px solid var(--m3-outline-variant)', background: 'var(--m3-surface-container-lowest)' }}
+                    >
+                      <DiffView diff={entry.diff!} />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
-    </div>
+
+      <Pagination
+        page={page}
+        pageCount={totalPages}
+        onPageChange={setPage}
+        summary={`Page ${page} of ${totalPages} · ${data?.total ?? 0} entries`}
+      />
+    </PageContainer>
   )
 }

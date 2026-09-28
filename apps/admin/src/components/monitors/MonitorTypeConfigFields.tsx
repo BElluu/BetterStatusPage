@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { CERT_REMINDER_DAYS, DEFAULT_CERT_WARN_DAYS, MAX_CERT_WARN_DAYS } from '@bsp/shared'
 import type { CertExpiryConfig, MonitorType, VaultRef } from '@bsp/shared'
+import { ConfirmModal } from '../ConfirmModal'
+import { CopyButton } from '../CopyButton'
+import { Alert } from '../ui'
 import { ConnectionStringSection, CredentialSection } from './CredentialSection'
 import { Field, JSON_MAPPING_FIELDS, Note, SectionDivider, type VaultPickerProps } from './monitorFormParts'
 
@@ -63,7 +66,7 @@ function CertExpiryFields({ config, updateConfig }: ConfigProps) {
   return (
     <div className="space-y-2">
       <label className="flex items-center gap-2 text-sm cursor-pointer select-none" style={{ color: 'var(--m3-on-surface-variant)' }}>
-        <input type="checkbox" checked={enabled} className="accent-indigo-500"
+        <input type="checkbox" checked={enabled}
           onChange={(e) => updateConfig('certExpiry', { enabled: e.target.checked, warnDays })} />
         Warn before the TLS certificate expires
       </label>
@@ -201,7 +204,8 @@ export interface WebhookSectionProps {
   /** Only a saved monitor can rotate its token. */
   canReset: boolean
   resetting: boolean
-  onReset: () => void
+  /** Rotates the token; resolves once the new token is in place and rejects when it could not be rotated. */
+  onReset: () => Promise<void>
 }
 
 export function webhookUrl(token: string) {
@@ -209,13 +213,18 @@ export function webhookUrl(token: string) {
 }
 
 function WebhookSection({ token, canReset, resetting, onReset }: WebhookSectionProps) {
-  const [copied, setCopied] = useState(false)
+  const [confirmReset, setConfirmReset] = useState(false)
+  const [resetError, setResetError] = useState('')
 
-  async function handleCopyUrl() {
-    if (!token) return
-    await navigator.clipboard.writeText(webhookUrl(token))
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  async function handleConfirmReset() {
+    setResetError('')
+    try {
+      await onReset()
+    } catch (err) {
+      setResetError(err instanceof Error && err.message ? err.message : 'Could not reset the token.')
+    } finally {
+      setConfirmReset(false)
+    }
   }
 
   return (
@@ -227,47 +236,42 @@ function WebhookSection({ token, canReset, resetting, onReset }: WebhookSectionP
       {token ? (
         <>
           <Field label="Webhook URL">
-            <div className="flex gap-2 items-stretch">
-              <input
-                readOnly
-                className="input-sig flex-1 font-mono text-xs"
-                value={webhookUrl(token)}
-              />
-              <button
-                type="button"
-                onClick={handleCopyUrl}
-                className="flex items-center gap-1 px-3 rounded-lg text-xs font-semibold transition-all flex-shrink-0"
-                style={{
-                  background: copied ? 'var(--m3-primary-fixed)' : 'var(--m3-surface-container-high)',
-                  color: copied ? 'var(--m3-primary)' : 'var(--m3-on-surface)',
-                  border: '1px solid var(--m3-outline-variant)',
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
-                  {copied ? 'check' : 'content_copy'}
-                </span>
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
+            {(control) => (
+              <div className="flex gap-2 items-stretch">
+                <input
+                  {...control}
+                  readOnly
+                  className="input-sig flex-1 font-mono text-xs"
+                  value={webhookUrl(token)}
+                />
+                <CopyButton value={webhookUrl(token)} label="Copy" />
+              </div>
+            )}
           </Field>
+          {resetError && <Alert tone="error">Couldn't reset the token: {resetError}</Alert>}
           {canReset && (
             <div className="flex justify-end">
               <button
                 type="button"
-                onClick={onReset}
+                onClick={() => setConfirmReset(true)}
                 disabled={resetting}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors"
-                style={{
-                  color: 'var(--m3-secondary)',
-                  background: 'var(--m3-surface-container)',
-                  border: '1px solid var(--m3-outline-variant)',
-                  opacity: resetting ? 0.6 : 1,
-                }}
+                className="btn btn-outline btn-sm"
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>refresh</span>
+                <span className="material-symbols-outlined" aria-hidden="true">refresh</span>
                 {resetting ? 'Resetting…' : 'Reset token'}
               </button>
             </div>
+          )}
+          {confirmReset && (
+            <ConfirmModal
+              title="Reset webhook token"
+              message="The existing webhook URL will stop working. Any service that still calls it must be updated with the new URL."
+              confirmLabel="Reset token"
+              pending={resetting}
+              pendingLabel="Resetting…"
+              onConfirm={() => void handleConfirmReset()}
+              onCancel={() => setConfirmReset(false)}
+            />
           )}
         </>
       ) : (

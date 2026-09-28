@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '../../api/client'
 import type { Monitor, MonitorType, NotificationChannel, MonitorTag } from '@bsp/shared'
-import { ModalShell } from '../ModalShell'
+import { ModalHeader, ModalShell } from '../ModalShell'
 import { AuthSection, readAuth } from './AuthSection'
 import { SidePanelFrame, SideTabStrip, type SideTab } from '../SidePanel'
 import { ChannelsSection, DependenciesSection, PANEL_META, RequestSection, type SidePanelKey } from './MonitorSidePanel'
@@ -9,6 +9,7 @@ import { MonitorTypeConfigFields } from './MonitorTypeConfigFields'
 import { Field, type SecretSummary, type VaultSummary } from './monitorFormParts'
 import { TagsSection } from './TagsSection'
 import { TestResultPanel, type TestResult } from './TestResultPanel'
+import { Alert } from '../ui'
 
 interface Props {
   monitor: Monitor | null
@@ -112,13 +113,14 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
     setConfig((prev) => ({ ...prev, [key]: value }))
   }
 
+  /** Errors propagate so the webhook section can show why the token was not rotated. */
   async function handleResetToken() {
     if (!monitor) return
     setResettingToken(true)
     try {
       const updated = await api.post<{ webhookToken: string }>(`/admin/monitors/${monitor.id}/reset-token`, {})
       setWebhookToken(updated.webhookToken)
-    } catch { /* ignore */ } finally {
+    } finally {
       setResettingToken(false)
     }
   }
@@ -186,52 +188,34 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
   ]
 
   return (
-    <ModalShell align="top">
+    <ModalShell align="top" onClose={onClose} label={isEdit ? 'Edit Monitor' : 'New Monitor'}>
       <div
-        className="rounded-2xl my-8"
+        className="rounded-2xl my-8 flex flex-col lg:flex-row"
         style={{
-          display: 'flex', flexDirection: 'row',
           width: sidePanel ? 'min(1024px, calc(100vw - 32px))' : 'min(604px, calc(100vw - 32px))',
           background: 'var(--m3-surface-container-low)',
           border: '1px solid var(--m3-outline-variant)',
           transition: 'width 0.2s ease',
         }}
       >
-      <div style={{ flex: '0 0 auto', width: sidePanel ? '560px' : 'calc(100% - 44px)', minWidth: 0 }}>
+      <div className={`flex-none min-w-0 w-full ${sidePanel ? 'lg:w-[560px]' : 'lg:w-[calc(100%-44px)]'}`}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-          <h3 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>
-            {isEdit ? 'Edit Monitor' : 'New Monitor'}
-          </h3>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-xl leading-none transition-colors"
-            style={{ color: 'var(--m3-secondary)' }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container-high)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ''; (e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)' }}
-          >
-            ×
-          </button>
-        </div>
+        <ModalHeader icon="radio_button_checked" title={isEdit ? 'Edit Monitor' : 'New Monitor'} onClose={onClose} />
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && (
-            <div className="rounded-lg px-4 py-3 text-sm" style={{ background: 'rgba(255,77,106,0.08)', border: '1px solid rgba(255,77,106,0.2)', color: 'var(--m3-down)' }}>
-              {error}
-            </div>
-          )}
+          {error && <Alert tone="error">{error}</Alert>}
 
           <Field label="Name">
             <input value={name} onChange={(e) => setName(e.target.value)} required className="input-sig" placeholder="My Service" />
           </Field>
 
           {/* Type tabs */}
-          <div>
-            <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Type</label>
-            <div className="flex rounded-lg p-1 gap-1" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}>
+          <div role="group" aria-labelledby="monitor-type-label">
+            <span id="monitor-type-label" className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Type</span>
+            <div className="flex flex-wrap rounded-lg p-1 gap-1" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}>
               {MONITOR_TYPES.map((t) => (
-                <button key={t.value} type="button" onClick={() => handleTypeChange(t.value)}
-                  className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all ${type === t.value ? 'selection-active' : ''}`}
+                <button key={t.value} type="button" onClick={() => handleTypeChange(t.value)} aria-pressed={type === t.value}
+                  className={`flex-1 text-xs font-medium py-1.5 px-2 rounded-md transition-all whitespace-nowrap focus-ring ${type === t.value ? 'selection-active' : ''}`}
                   style={type === t.value
                     ? { background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 25%, transparent)' }
                     : { color: 'var(--m3-secondary)', border: '1px solid transparent' }
@@ -247,7 +231,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
             <input type="number" value={intervalSecs} onChange={(e) => setIntervalSecs(Number(e.target.value))} min={10} className="input-sig" />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Timeout (ms)">
               <input type="number" value={timeoutMs} onChange={(e) => setTimeoutMs(Number(e.target.value))} min={1000} className="input-sig" />
             </Field>
@@ -256,7 +240,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Alert after (checks)">
               <input type="number" value={failureThreshold} onChange={(e) => setFailureThreshold(Math.max(1, Number(e.target.value)))} min={1} max={20} className="input-sig" />
             </Field>
@@ -282,39 +266,19 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
           {/* ── Test result panel ─────────────────────────────────────────── */}
           {testResult && <TestResultPanel result={testResult} />}
 
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose}
-              className="px-4 py-2 text-sm rounded-lg transition-colors"
-              style={{ color: 'var(--m3-secondary)' }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-on-surface)')}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--m3-secondary)')}
-            >
+          <div className="flex flex-wrap justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn btn-secondary">
               {webhookCreated ? 'Close' : 'Cancel'}
             </button>
             {isTestable && (
-              <button type="button" onClick={handleTest} disabled={testing || loading}
-                className="px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5"
-                style={{
-                  background: 'var(--m3-surface-container-high)',
-                  color: testing ? 'var(--m3-secondary)' : 'var(--m3-on-surface)',
-                  opacity: testing ? 0.7 : 1,
-                  border: '1px solid var(--m3-outline-variant)',
-                }}
-              >
+              <button type="button" onClick={handleTest} disabled={testing || loading} className="btn btn-outline">
                 {testing
-                  ? <><span className="material-symbols-outlined animate-spin" style={{ fontSize: '15px' }}>progress_activity</span> Testing…</>
-                  : <><span className="material-symbols-outlined" style={{ fontSize: '15px' }}>play_arrow</span> Test</>
+                  ? <><span className="material-symbols-outlined animate-spin" aria-hidden="true">progress_activity</span> Testing…</>
+                  : <><span className="material-symbols-outlined" aria-hidden="true">play_arrow</span> Test</>
                 }
               </button>
             )}
-            <button type="submit" disabled={loading}
-              className="btn-primary px-4 py-2 text-sm font-semibold rounded-lg transition-all"
-              style={{
-                background: loading ? 'var(--m3-surface-container-high)' : 'var(--m3-primary)',
-                color:      loading ? 'var(--m3-secondary)' : 'var(--m3-on-primary)',
-                opacity: loading ? 0.7 : 1,
-              }}
-            >
+            <button type="submit" disabled={loading} className="btn btn-primary">
               {loading ? 'Saving…' : webhookCreated ? 'Done' : isEdit ? 'Save Changes' : 'Create Monitor'}
             </button>
           </div>
@@ -323,7 +287,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
 
       {/* ── Side panel ─────────────────────────────────────────────────── */}
       {sidePanel && (
-        <SidePanelFrame meta={PANEL_META[sidePanel]}>
+        <SidePanelFrame meta={PANEL_META[sidePanel]} layout="responsive">
           {sidePanel === 'request' && <RequestSection config={config} updateConfig={updateConfig} />}
           {sidePanel === 'auth' && <AuthSection auth={auth} onChange={(next) => updateConfig('auth', next)} vaultPicker={vaultPicker} />}
           {sidePanel === 'tags' && <TagsSection tags={tags} allTags={allTags} onChange={setTags} />}
@@ -339,7 +303,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
       )}
 
       {/* ── Vertical tab strip ──────────────────────────────────────────── */}
-      <SideTabStrip tabs={sideTabs} meta={PANEL_META} active={sidePanel} onToggle={setSidePanel} />
+      <SideTabStrip tabs={sideTabs} meta={PANEL_META} active={sidePanel} onToggle={setSidePanel} layout="responsive" />
 
       </div>{/* outer flex row */}
     </ModalShell>

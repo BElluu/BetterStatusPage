@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, setSession, type AuthUser } from '../api/client'
+import { Alert, Field } from '../components/ui'
 
 export default function ChangePasswordPage() {
   const navigate = useNavigate()
@@ -32,22 +33,18 @@ export default function ChangePasswordPage() {
         <div className="rounded-2xl p-8" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
           <div className="mb-6">
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4" style={{ background: 'var(--m3-on-surface)' }}>
-              <span className="material-symbols-outlined" style={{ color: 'var(--m3-surface)', fontSize: '22px' }}>lock_reset</span>
+              <span className="material-symbols-outlined" aria-hidden="true" style={{ color: 'var(--m3-surface)', fontSize: '22px' }}>lock_reset</span>
             </div>
             <h1 className="font-headline font-bold text-2xl" style={{ color: 'var(--m3-on-surface)' }}>Set your password</h1>
             <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>You must change your temporary password before continuing.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(255,77,106,0.08)', border: '1px solid rgba(255,77,106,0.2)', color: 'var(--m3-down)' }}>
-                {error}
-              </div>
-            )}
-            <div>
-              <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>New Password</label>
+            {error && <Alert tone="error">{error}</Alert>}
+            <Field label="New Password" hint="Minimum 8 characters">
               <input
                 type="password"
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -56,22 +53,22 @@ export default function ChangePasswordPage() {
                 placeholder="Minimum 8 characters"
                 autoFocus
               />
-            </div>
-            <div>
-              <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Confirm Password</label>
+            </Field>
+            <Field label="Confirm Password">
               <input
                 type="password"
+                autoComplete="new-password"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 required
                 className="input-sig w-full"
                 placeholder="Repeat the password"
               />
-            </div>
+            </Field>
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full py-3 rounded-xl font-headline font-bold text-sm transition-all active:scale-[0.98]"
+              className="btn btn-primary w-full py-3 font-headline font-bold"
             >
               {loading ? 'Saving…' : 'Set Password & Continue'}
             </button>

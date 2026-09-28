@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Monitor } from '@bsp/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -302,7 +302,7 @@ describe('MonitorFormModal', () => {
     await user.type(screen.getByPlaceholderText('Header name'), 'X-Env')
     await user.type(screen.getByPlaceholderText('Value'), 'prod')
     await user.click(screen.getByRole('button', { name: '+ Add' }))
-    await user.click(screen.getAllByRole('button', { name: '×' }).at(-1)!)
+    await user.click(screen.getByRole('button', { name: 'Remove header 2' }))
     await user.click(screen.getByPlaceholderText(/"key": "value"/))
     await user.paste('{"ping":true}')
     await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
@@ -435,9 +435,31 @@ describe('MonitorFormModal', () => {
 
     expect(screen.getByDisplayValue(/\/hook\/stale$/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Reset token/ }))
+    // Rotating the token breaks the old URL, so it needs confirmation first.
+    const dialog = screen.getByRole('dialog', { name: 'Reset webhook token' })
+    expect(within(dialog).getByText(/The existing webhook URL will stop working/)).toBeInTheDocument()
+    expect(api.post).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button', { name: 'Reset token' }))
 
     expect(api.post).toHaveBeenCalledWith('/admin/monitors/5/reset-token', {})
     expect(await screen.findByDisplayValue(/\/hook\/fresh$/)).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Reset webhook token' })).not.toBeInTheDocument())
+  })
+
+  it('shows why a webhook token could not be reset', async () => {
+    const user = userEvent.setup()
+    mockGets({
+      '/admin/notifications/monitor/5/channels': [],
+      '/admin/monitors/5/dependencies': { dependsOnIds: [] },
+    })
+    vi.mocked(api.post).mockRejectedValueOnce(new Error('Monitor is locked'))
+    renderModal(existingMonitor({ id: 5, type: 'webhook', config: {}, webhookToken: 'stale' }))
+
+    await user.click(screen.getByRole('button', { name: /Reset token/ }))
+    await user.click(within(screen.getByRole('dialog', { name: 'Reset webhook token' })).getByRole('button', { name: 'Reset token' }))
+
+    expect(await screen.findByText("Couldn't reset the token: Monitor is locked")).toBeInTheDocument()
+    expect(screen.getByDisplayValue(/\/hook\/stale$/)).toBeInTheDocument()
   })
 
   it('runs a test against the current configuration and renders the steps', async () => {

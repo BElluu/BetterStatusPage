@@ -103,10 +103,10 @@ describe('BackupsPage', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(await screen.findByRole('button', { name: 'Download' }))
+    await user.click(await screen.findByRole('button', { name: 'Download bsp-2026-09-01.backup' }))
     expect(api.download).toHaveBeenCalledWith('/admin/backups/bsp-2026-09-01.backup/download', 'bsp-2026-09-01.backup')
 
-    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: 'Delete bsp-2026-09-01.backup' }))
     const dialog = screen.getByRole('dialog', { name: 'Delete backup' })
     const confirm = within(dialog).getByRole('button', { name: 'Delete backup' })
     expect(confirm).toBeDisabled()
@@ -115,6 +115,21 @@ describe('BackupsPage', () => {
 
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/admin/backups/bsp-2026-09-01.backup?confirm=bsp-2026-09-01.backup'))
     expect(await screen.findByText('Backup deleted.')).toBeInTheDocument()
+  })
+
+  it('labels only the running action and tones the message', async () => {
+    const user = userEvent.setup()
+    let resolveCreate: (value: unknown) => void = () => {}
+    vi.mocked(api.post).mockImplementationOnce(() => new Promise((resolve) => { resolveCreate = resolve }))
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Create backup' }))
+    expect(screen.getByRole('button', { name: 'Creating backup…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Saved' })).toBeDisabled()
+    expect(screen.queryByText('Saving…')).not.toBeInTheDocument()
+    resolveCreate({})
+    expect(await screen.findByText('Backup created successfully.')).toBeInTheDocument()
+    expect(screen.getByText('Backup created successfully.').closest('[data-tone]')).toHaveAttribute('data-tone', 'success')
   })
 })
 

@@ -19,11 +19,9 @@ function field<T extends HTMLElement = HTMLInputElement>(label: string, index = 
   return control as T
 }
 
-/** Toggles are a clickable track next to the label text. */
+/** Toggles are role="switch" buttons named by their visible label. */
 function toggle(label: string): HTMLElement {
-  const track = screen.getByText(label).previousElementSibling
-  if (!(track instanceof HTMLElement)) throw new Error(`No toggle for ${label}`)
-  return track
+  return screen.getByRole('switch', { name: label })
 }
 
 function renderModal(channel: NotificationChannel | null = null) {
@@ -109,11 +107,11 @@ describe('ChannelFormModal', () => {
     await user.click(screen.getByRole('button', { name: /Webhook/ }))
     expect(screen.getByText('No custom headers.')).toBeInTheDocument()
     await user.type(field('URL'), 'https://hooks.example.test/alert')
-    await user.click(screen.getByRole('button', { name: '+ Add' }))
+    await user.click(screen.getByRole('button', { name: 'Add header' }))
     await user.type(screen.getByPlaceholderText('Header'), 'Authorization')
     await user.type(screen.getByPlaceholderText('Value'), 'Bearer x')
     // A row without a name is ignored.
-    await user.click(screen.getByRole('button', { name: '+ Add' }))
+    await user.click(screen.getByRole('button', { name: 'Add header' }))
     expect(field<HTMLTextAreaElement>('Body').value).toContain('"monitor": "{{monitor_name}}"')
     await user.selectOptions(field<HTMLSelectElement>('Method'), 'GET')
     expect(screen.queryByText('Body', { selector: 'label' })).not.toBeInTheDocument()
@@ -134,8 +132,8 @@ describe('ChannelFormModal', () => {
     await user.type(field('Name'), 'Hook')
     await user.click(screen.getByRole('button', { name: /Webhook/ }))
     await user.type(field('URL'), 'https://hooks.example.test/alert')
-    await user.click(screen.getByRole('button', { name: '+ Add' }))
-    await user.click(screen.getAllByRole('button', { name: '×' }).at(-1)!)
+    await user.click(screen.getByRole('button', { name: 'Add header' }))
+    await user.click(screen.getAllByRole('button', { name: /^Remove header/ }).at(-1)!)
     await user.clear(field('Body'))
     await user.click(field('Body'))
     await user.paste('{"s":"{{status}}"}')
@@ -295,17 +293,37 @@ describe('ChannelFormModal', () => {
     vi.mocked(api.post).mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('SMTP not configured'))
     renderModal(channel({}))
 
-    await user.click(screen.getByRole('button', { name: 'Send Test' }))
+    await user.click(screen.getByRole('button', { name: 'Send test (saved settings)' }))
     expect(await screen.findByText('Test sent successfully')).toBeInTheDocument()
     expect(api.post).toHaveBeenCalledWith('/admin/notifications/channels/5/test', {})
 
-    await user.click(screen.getByRole('button', { name: 'Send Test' }))
+    await user.click(screen.getByRole('button', { name: 'Send test (saved settings)' }))
     expect(await screen.findByText('SMTP not configured')).toBeInTheDocument()
+  })
+
+  it('disables the saved-settings test while the form has unsaved edits', async () => {
+    const user = userEvent.setup()
+    renderModal(channel({}))
+
+    const test = screen.getByRole('button', { name: 'Send test (saved settings)' })
+    expect(test).toBeEnabled()
+    await user.type(screen.getByLabelText('Name'), ' edited')
+    expect(test).toBeDisabled()
+    expect(test).toHaveAccessibleDescription(/Save your changes first/)
+  })
+
+  it('is a labelled dialog that closes on Escape', async () => {
+    const user = userEvent.setup()
+    const { onClose } = renderModal()
+
+    expect(screen.getByRole('dialog', { name: 'New Notification Channel' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('offers no test for a channel that is not saved yet', () => {
     renderModal()
-    expect(screen.queryByRole('button', { name: 'Send Test' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send test (saved settings)' })).not.toBeInTheDocument()
   })
 
   it('shows a save error and stays open', async () => {

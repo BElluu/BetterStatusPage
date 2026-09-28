@@ -20,16 +20,8 @@ export const JSON_MAPPING_FIELDS: Record<'basic' | 'oauth2' | 'cas' | 'sqlserver
   sqlserver: [{ key: 'username', label: 'Username' }, { key: 'password', label: 'Password' }],
 }
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <label className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
-        {label}
-      </label>
-      {children}
-    </div>
-  )
-}
+/** The shared caps-style form field: its label is programmatically tied to the control it wraps. */
+export { Field } from '../ui'
 
 export function SectionDivider({ label }: { label: string }) {
   return (
@@ -41,17 +33,18 @@ export function SectionDivider({ label }: { label: string }) {
   )
 }
 
-/** Tinted callout: `info` uses the accent blue, `warning` the degraded amber. */
+/** Tinted callout: `info` uses the accent blue, `warning` the degraded amber (text colour, not the bar colour). */
 export function Note({ tone, children }: { tone: 'info' | 'warning'; children: ReactNode }) {
-  const color = tone === 'info' ? 'var(--m3-on-primary-container)' : 'var(--m3-degraded-bar)'
+  const color = tone === 'info' ? 'var(--m3-on-primary-container)' : 'var(--m3-degraded)'
+  const tint = tone === 'info' ? color : 'var(--m3-degraded-bar)'
   return (
     <div
       className="flex items-start gap-2 rounded-lg px-3 py-2"
-      style={{ background: `color-mix(in srgb, ${color} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 20%, transparent)` }}
+      style={{ background: `color-mix(in srgb, ${tint} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${tint} 20%, transparent)` }}
     >
       {tone === 'info'
-        ? <span className="material-symbols-outlined" style={{ fontSize: '16px', color, lineHeight: '20px' }}>info</span>
-        : <span style={{ color, lineHeight: '20px' }}>⚠</span>}
+        ? <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px', color, lineHeight: '20px' }}>info</span>
+        : <span aria-hidden="true" style={{ color, lineHeight: '20px' }}>⚠</span>}
       <p className="text-xs" style={{ color: 'var(--m3-on-surface-variant)' }}>{children}</p>
     </div>
   )

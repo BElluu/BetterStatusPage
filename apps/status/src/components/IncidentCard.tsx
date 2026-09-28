@@ -21,11 +21,12 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
   const { t, locale } = useLocale()
   const [expanded, setExpanded] = useState(false)
 
+  // `color` is for text; `dotColor` for dots and the card's accent border.
   const statusCfg: Record<string, { color: string; dotColor: string; badgeBg: string }> = {
-    investigating: { color: 'var(--bsp-down)', dotColor: 'var(--bsp-down)', badgeBg: 'color-mix(in srgb, var(--bsp-down) 10%, transparent)' },
-    identified:    { color: 'var(--bsp-degraded)', dotColor: 'var(--bsp-degraded)', badgeBg: 'color-mix(in srgb, var(--bsp-degraded) 10%, transparent)' },
+    investigating: { color: 'var(--bsp-down-text)', dotColor: 'var(--bsp-down)', badgeBg: 'color-mix(in srgb, var(--bsp-down) 10%, transparent)' },
+    identified:    { color: 'var(--bsp-degraded-text)', dotColor: 'var(--bsp-degraded)', badgeBg: 'color-mix(in srgb, var(--bsp-degraded) 10%, transparent)' },
     monitoring:    { color: 'var(--bsp-primary)', dotColor: 'var(--bsp-primary)', badgeBg: 'color-mix(in srgb, var(--bsp-primary) 10%, transparent)' },
-    resolved:      { color: 'var(--bsp-up)', dotColor: 'var(--bsp-up)', badgeBg: 'color-mix(in srgb, var(--bsp-up) 10%, transparent)' },
+    resolved:      { color: 'var(--bsp-up-text)', dotColor: 'var(--bsp-up)', badgeBg: 'color-mix(in srgb, var(--bsp-up) 10%, transparent)' },
   }
 
   const statusLabels: Record<string, string> = {
@@ -46,6 +47,11 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
   /* ── Resolved: collapsible row ──────────────────────────────────── */
   if (!isActive) {
     const duration = incident.resolvedAt ? formatDuration(incident.startedAt, incident.resolvedAt) : null
+    const expandable = updates.length > 0
+    const Row = expandable ? 'button' : 'div'
+    const rowProps = expandable
+      ? { type: 'button' as const, 'aria-expanded': expanded, onClick: () => setExpanded((v) => !v) }
+      : {}
     return (
       <div
         className="bsp-incident-card"
@@ -55,31 +61,23 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
         }}
       >
         {/* ── Header row ── */}
-        <button
-          className="w-full text-left transition-colors"
+        <Row
+          {...rowProps}
+          className="bsp-incident-row w-full text-left transition-colors"
           style={{
-            display: 'grid',
-            gridTemplateColumns: '200px 1fr auto auto',
-            gap: '40px',
-            alignItems: 'center',
-            padding: '28px 40px',
             borderRadius: '16px',
-            background: 'transparent',
-            cursor: updates.length > 0 ? 'pointer' : 'default',
+            cursor: expandable ? 'pointer' : 'default',
           }}
-          onClick={() => updates.length > 0 && setExpanded((v) => !v)}
-          onMouseEnter={(e) => { if (updates.length > 0) (e.currentTarget as HTMLButtonElement).style.background = 'var(--m3-surface-container-low)' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
         >
           {/* Date */}
-          <div className="font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--m3-secondary)' }}>
+          <div className="bsp-incident-row__date font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--m3-secondary)' }}>
             {formatDate(incident.startedAt, locale)}
             <br />
             <span className="text-xs normal-case">{formatTime(incident.startedAt, locale)}</span>
           </div>
 
           {/* Title + subtitle */}
-          <div>
+          <div className="bsp-incident-row__title">
             <h4 className="font-headline font-bold text-xl" style={{ color: 'var(--m3-on-surface)' }}>
               {incident.title}
             </h4>
@@ -92,7 +90,7 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
 
           {/* Badge */}
           <span
-            className="font-bold text-xs uppercase tracking-wide whitespace-nowrap"
+            className="bsp-incident-row__badge font-bold text-xs uppercase tracking-wide whitespace-nowrap"
             style={{
               padding: '6px 16px',
               borderRadius: '999px',
@@ -104,9 +102,10 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
           </span>
 
           {/* Chevron */}
-          {updates.length > 0 && (
+          {expandable && (
             <span
-              className="material-symbols-outlined transition-transform"
+              className="bsp-incident-row__chevron material-symbols-outlined transition-transform"
+              aria-hidden="true"
               style={{
                 fontSize: '20px',
                 color: 'var(--m3-secondary)',
@@ -116,11 +115,11 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
               expand_more
             </span>
           )}
-        </button>
+        </Row>
 
         {/* ── Expanded timeline ── */}
-        {expanded && updates.length > 0 && (
-          <div style={{ padding: '0 40px 32px 240px' }}>
+        {expanded && expandable && (
+          <div className="bsp-incident-timeline">
             <div className="space-y-6" style={{ borderLeft: '2px solid var(--m3-outline-variant)', paddingLeft: '32px' }}>
                 {updates.map((update, i) => {
                   const updateCfg = statusCfg[update.status] ?? statusCfg['investigating']!
@@ -163,18 +162,17 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
   /* ── Active: full card ───────────────────────────────────────────── */
   return (
     <div
-      className="bsp-incident-card"
+      className="bsp-incident-card bsp-incident-active"
       style={{
         background: 'var(--m3-surface-container-low)',
         borderRadius: '2rem',
-        padding: '40px',
-        borderLeft: `4px solid ${cfg.color}`,
+        borderLeft: `4px solid ${cfg.dotColor}`,
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '40px' }}>
+      <div className="bsp-incident-active-grid">
 
         {/* ── Date column ── */}
-        <div className="font-mono text-sm uppercase tracking-widest pt-1" style={{ color: 'var(--m3-secondary)' }}>
+        <div className="font-mono text-xs md:text-sm uppercase tracking-widest md:pt-1" style={{ color: 'var(--m3-secondary)' }}>
           {formatDate(incident.startedAt, locale)}
           <br />
           <span className="text-xs">{formatTime(incident.startedAt, locale)}</span>
@@ -195,7 +193,7 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
             {isActive && (
               <span
                 className="animate-pulse inline-block rounded-full ml-1.5"
-                style={{ width: 5, height: 5, background: cfg.color, verticalAlign: 'middle' }}
+                style={{ width: 5, height: 5, background: cfg.dotColor, verticalAlign: 'middle' }}
               />
             )}
           </span>
@@ -203,7 +201,7 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
           {/* Title */}
           <h3
             className="font-headline font-bold mb-4 leading-tight"
-            style={{ fontSize: '28px', color: 'var(--m3-on-surface)' }}
+            style={{ fontSize: 'clamp(1.375rem, 4vw, 28px)', color: 'var(--m3-on-surface)' }}
           >
             {incident.title}
           </h3>

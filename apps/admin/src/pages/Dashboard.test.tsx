@@ -82,10 +82,28 @@ describe('DashboardPage', () => {
     renderPage()
 
     expect(await screen.findByRole('heading', { name: 'No Monitors Yet' })).toBeInTheDocument()
-    expect(screen.getByText('No monitors yet. Add a monitor to start tracking uptime.')).toBeInTheDocument()
-    expect(screen.getByText('No active issues.')).toBeInTheDocument()
+    expect(screen.getByText('Add a monitor to start tracking uptime.')).toBeInTheDocument()
+    expect(await screen.findByText('No active issues.')).toBeInTheDocument()
     expect(screen.getByText('—')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Recent Activity' })).not.toBeInTheDocument()
     expect(screen.getByAltText('BetterStatusPage')).toHaveAttribute('src', '/admin/logo_dark.png')
+  })
+
+  it('shows a loading state instead of empty copy while monitors load', () => {
+    vi.mocked(api.get).mockImplementation(() => new Promise(() => {}))
+    renderPage()
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading monitors…')
+    expect(screen.queryByText('No Monitors Yet')).not.toBeInTheDocument()
+    expect(screen.queryByText('No active issues.')).not.toBeInTheDocument()
+  })
+
+  it('shows an error state with retry when monitors fail to load', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('boom'))
+    renderPage()
+
+    expect(await screen.findByText("Couldn't load monitors.")).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Try again/ })).toBeInTheDocument()
+    expect(screen.queryByText('No Monitors Yet')).not.toBeInTheDocument()
   })
 })

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
@@ -67,9 +67,72 @@ describe('SubscribersPage methods', () => {
     const user = userEvent.setup()
     renderPage()
     const rss = await screen.findByTestId('method-rss')
-    await user.click(within(rss).getByText('Enable RSS / Atom'))
+    await user.click(within(rss).getByRole('switch', { name: 'Enable RSS / Atom' }))
     expect(within(rss).getByText('Offered to visitors')).toBeInTheDocument()
     expect(screen.getByText('Visitors will choose from: Slack, RSS / Atom.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save settings' })).toBeEnabled()
+  })
+})
+
+describe('SubscribersPage table', () => {
+  const subscriber = {
+    id: 7, type: 'email', email: 'reader@example.test', webhookUrl: null, webhookMethod: null, webhookHeaderNames: [],
+    notifyOnFailure: false, status: 'active', events: [...SUBSCRIBER_EVENT_TYPES], monitorIds: [], tags: [],
+    lastNotifiedAt: null, lastError: null, consecutiveFailures: 0, createdAt: 1,
+  }
+  const list = (pages = 2) => ({ subscribers: [subscriber], stats: { total: 1, active: 1, pending: 0, unsubscribed: 0, disabled: 0 }, total: 1, page: 1, limit: 25, pages })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(api.get).mockImplementation(async (path: string) => (
+      path === '/admin/subscribers/settings' ? settings() : path === '/admin/monitors' ? [] : list()
+    ) as never)
+    vi.mocked(api.delete).mockResolvedValue(undefined as never)
+  })
+
+  const subscriberCalls = () => vi.mocked(api.get).mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith('/admin/subscribers?'))
+
+  it('debounces search, pages with the shared pagination and confirms deletes', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    expect(await screen.findByText('reader@example.test')).toBeInTheDocument()
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search subscribers' }), 'rea')
+    await waitFor(() => expect(subscriberCalls().some((path) => path.includes('search=rea'))).toBe(true))
+    expect(subscriberCalls().filter((path) => /search=r(&|$)|search=re(&|$)/.test(path))).toHaveLength(0)
+
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
+    await waitFor(() => expect(subscriberCalls().at(-1)).toContain('page=2'))
+
+    await user.click(screen.getByRole('button', { name: 'Delete reader@example.test' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/admin/subscribers/7'))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('uses a pressed segmented control for the status filter', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('reader@example.test')
+    expect(screen.getByRole('button', { name: /^All/ })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: /^Paused/ }))
+    expect(screen.getByRole('button', { name: /^Paused/ })).toHaveAttribute('aria-pressed', 'true')
+    await waitFor(() => expect(subscriberCalls().at(-1)).toContain('status=disabled'))
+  })
+
+  it('shows a retryable error instead of a stuck loading message', async () => {
+    const user = userEvent.setup()
+    let fail = true
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/admin/subscribers/settings') return settings() as never
+      if (path === '/admin/monitors') return [] as never
+      if (fail) throw new Error('down')
+      return list(1) as never
+    })
+    renderPage()
+    expect(await screen.findByText('Could not load subscribers.')).toBeInTheDocument()
+    fail = false
+    await user.click(screen.getByRole('button', { name: /Try again/ }))
+    expect(await screen.findByText('reader@example.test')).toBeInTheDocument()
   })
 })

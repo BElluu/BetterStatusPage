@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
+import { CopyButton } from '../components/CopyButton'
 import { Modal, ModalShell } from '../components/ModalShell'
+import { Alert, EmptyState, ErrorState, Field, LoadingState, useToast } from '../components/ui'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -31,10 +33,15 @@ interface RevealedSecret {
   value: { username?: string; password?: string; value?: string }
 }
 
+function errorMessage(err: unknown, fallback: string) {
+  return err instanceof Error && err.message ? err.message : fallback
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function VaultPage() {
   const qc = useQueryClient()
+  const toast = useToast()
   const [selectedVaultId, setSelectedVaultId] = useState<number | null>(null)
   const [showCreateVault, setShowCreateVault] = useState(false)
   const [showCreateSecret, setShowCreateSecret] = useState(false)
@@ -43,29 +50,46 @@ export default function VaultPage() {
   const [deleteVaultTarget, setDeleteVaultTarget] = useState<Vault | null>(null)
   const [deleteSecretTarget, setDeleteSecretTarget] = useState<VaultSecret | null>(null)
 
-  const { data: vaults = [] } = useQuery<Vault[]>({
+  const vaultsQuery = useQuery<Vault[]>({
     queryKey: ['vaults'],
     queryFn: () => api.get('/admin/vaults'),
   })
+  const vaults = vaultsQuery.data ?? []
 
-  const { data: secrets = [] } = useQuery<VaultSecret[]>({
+  const secretsQuery = useQuery<VaultSecret[]>({
     queryKey: ['vault-secrets', selectedVaultId],
     queryFn: () => api.get(`/admin/vaults/${selectedVaultId}/secrets`),
     enabled: selectedVaultId !== null,
   })
+  const secrets = secretsQuery.data ?? []
 
   const deleteVault = useMutation({
     mutationFn: (id: number) => api.delete(`/admin/vaults/${id}`),
     onSuccess: (_, id) => {
+      const vault = vaults.find((v) => v.id === id)
+      toast.success(vault ? `Deleted vault "${vault.name}".` : 'Vault deleted.')
+      setDeleteVaultTarget(null)
       qc.invalidateQueries({ queryKey: ['vaults'] })
       if (selectedVaultId === id) setSelectedVaultId(null)
+    },
+    onError: (err) => {
+      setDeleteVaultTarget(null)
+      toast.error(errorMessage(err, 'Failed to delete vault'))
     },
   })
 
   const deleteSecret = useMutation({
     mutationFn: ({ vaultId, secretId }: { vaultId: number; secretId: number }) =>
       api.delete(`/admin/vaults/${vaultId}/secrets/${secretId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['vault-secrets', selectedVaultId] }),
+    onSuccess: () => {
+      toast.success('Secret deleted.')
+      setDeleteSecretTarget(null)
+      qc.invalidateQueries({ queryKey: ['vault-secrets', selectedVaultId] })
+    },
+    onError: (err) => {
+      setDeleteSecretTarget(null)
+      toast.error(errorMessage(err, 'Failed to delete secret'))
+    },
   })
 
   async function handleReveal(secret: VaultSecret) {
@@ -73,6 +97,8 @@ export default function VaultPage() {
     try {
       const data = await api.get<RevealedSecret>(`/admin/vaults/${secret.vaultId}/secrets/${secret.id}/reveal`)
       setRevealedSecret(data)
+    } catch (err) {
+      toast.error(`Could not reveal "${secret.name}": ${errorMessage(err, 'unknown error')}`)
     } finally {
       setRevealing(null)
     }
@@ -81,37 +107,52 @@ export default function VaultPage() {
   const selectedVault = vaults.find((v) => v.id === selectedVaultId)
 
   return (
-    <div className="flex h-full overflow-hidden fade-up">
+    <div className="flex flex-col md:flex-row h-full md:overflow-hidden fade-up">
       {/* ── Left sidebar: vault list ── */}
-      <aside className="w-64 flex flex-col shrink-0 overflow-y-auto" style={{ borderRight: '1px solid var(--m3-outline-variant)', background: 'var(--m3-surface-container-low)' }}>
+      <aside
+        aria-label="Vaults"
+        className="w-full md:w-64 flex flex-col shrink-0 md:overflow-y-auto border-b md:border-b-0 md:border-r"
+        style={{ borderColor: 'var(--m3-outline-variant)', background: 'var(--m3-surface-container-low)' }}
+      >
         <div className="flex items-center justify-between px-4 py-4" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
           <div>
             <h1 className="font-headline font-bold text-base" style={{ color: 'var(--m3-on-surface)' }}>Vaults</h1>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>{vaults.length} vault{vaults.length !== 1 ? 's' : ''}</p>
+            {vaultsQuery.data && (
+              <p className="text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>{vaults.length} vault{vaults.length !== 1 ? 's' : ''}</p>
+            )}
           </div>
           <button
+            type="button"
             onClick={() => setShowCreateVault(true)}
-            className="btn-primary w-8 h-8 flex items-center justify-center rounded-xl transition-colors text-lg leading-none font-bold"
-            style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }}
+            className="btn btn-primary btn-sm px-2"
+            aria-label="Create vault"
             title="Create vault"
           >
-            +
+            <span className="material-symbols-outlined" aria-hidden="true">add</span>
           </button>
         </div>
 
         <div className="flex-1 p-2 space-y-1">
           {/* Local vaults */}
-          {vaults.map((vault) => (
-            <VaultRow
-              key={vault.id}
-              vault={vault}
-              isSelected={selectedVaultId === vault.id}
-              onClick={() => setSelectedVaultId(vault.id)}
-              onDelete={() => setDeleteVaultTarget(vault)}
-            />
-          ))}
-          {vaults.length === 0 && (
-            <p className="text-xs text-center py-6" style={{ color: 'var(--m3-secondary)' }}>No vaults yet</p>
+          {vaultsQuery.isLoading ? (
+            <LoadingState label="Loading vaults…" className="py-6" />
+          ) : vaultsQuery.isError ? (
+            <ErrorState message="Could not load vaults." onRetry={() => void vaultsQuery.refetch()} className="px-3 py-6" />
+          ) : (
+            <>
+              {vaults.map((vault) => (
+                <VaultRow
+                  key={vault.id}
+                  vault={vault}
+                  isSelected={selectedVaultId === vault.id}
+                  onClick={() => setSelectedVaultId(vault.id)}
+                  onDelete={() => setDeleteVaultTarget(vault)}
+                />
+              ))}
+              {vaults.length === 0 && (
+                <p className="text-xs text-center py-6" style={{ color: 'var(--m3-secondary)' }}>No vaults yet</p>
+              )}
+            </>
           )}
 
           {/* Azure KeyVault — coming soon */}
@@ -122,7 +163,7 @@ export default function VaultPage() {
               style={{ background: 'var(--m3-surface-container)' }}
               title="Coming soon"
             >
-              <span className="material-symbols-outlined shrink-0" style={{ fontSize: '18px', color: 'var(--m3-secondary)' }}>cloud</span>
+              <span className="material-symbols-outlined shrink-0" aria-hidden="true" style={{ fontSize: '18px', color: 'var(--m3-secondary)' }}>cloud</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate" style={{ color: 'var(--m3-on-surface)' }}>Azure Key Vault</p>
                 <p className="text-[10px]" style={{ color: 'var(--m3-secondary)' }}>Coming soon</p>
@@ -133,43 +174,42 @@ export default function VaultPage() {
       </aside>
 
       {/* ── Right panel: secrets ── */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col md:overflow-hidden min-w-0">
         {selectedVault ? (
           <>
-            <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-              <div>
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 md:px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--m3-primary)' }}>lock</span>
-                  <h2 className="font-headline font-bold text-lg" style={{ color: 'var(--m3-on-surface)' }}>{selectedVault.name}</h2>
+                  <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '20px', color: 'var(--m3-primary)' }}>lock</span>
+                  <h2 className="font-headline font-bold text-lg break-all" style={{ color: 'var(--m3-on-surface)' }}>{selectedVault.name}</h2>
                   <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide" style={{ background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)' }}>LOCAL</span>
                 </div>
                 {selectedVault.description && (
                   <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>{selectedVault.description}</p>
                 )}
               </div>
-              <button
-                onClick={() => setShowCreateSecret(true)}
-                className="btn-primary flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl transition-all"
-                style={{ background: 'var(--m3-primary)', color: 'var(--m3-on-primary)' }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
+              <button type="button" onClick={() => setShowCreateSecret(true)} className="btn btn-primary">
+                <span className="material-symbols-outlined" aria-hidden="true">add</span>
                 New Secret
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
-              {secrets.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full gap-4" style={{ color: 'var(--m3-secondary)' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '48px', opacity: 0.4 }}>key_off</span>
-                  <p className="text-sm">No secrets in this vault</p>
-                  <button
-                    onClick={() => setShowCreateSecret(true)}
-                    className="text-sm font-medium px-4 py-2 rounded-xl"
-                    style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface)' }}
-                  >
-                    Add first secret
-                  </button>
-                </div>
+            <div className="flex-1 overflow-y-auto p-4 md:p-6">
+              {secretsQuery.isLoading ? (
+                <LoadingState label="Loading secrets…" />
+              ) : secretsQuery.isError ? (
+                <ErrorState message="Could not load the secrets in this vault." onRetry={() => void secretsQuery.refetch()} />
+              ) : secrets.length === 0 ? (
+                <EmptyState
+                  icon="key_off"
+                  title="No secrets in this vault"
+                  description="Store credentials, tokens or JSON configuration that monitors can reference."
+                  action={
+                    <button type="button" onClick={() => setShowCreateSecret(true)} className="btn btn-secondary">
+                      Add first secret
+                    </button>
+                  }
+                />
               ) : (
                 <div className="space-y-2">
                   {secrets.map((secret) => (
@@ -186,8 +226,8 @@ export default function VaultPage() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center gap-3" style={{ color: 'var(--m3-secondary)' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '56px', opacity: 0.3 }}>shield_lock</span>
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 py-16" style={{ color: 'var(--m3-secondary)' }}>
+            <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '56px', opacity: 0.3 }}>shield_lock</span>
             <p className="text-sm">Select a vault to view its secrets</p>
           </div>
         )}
@@ -197,14 +237,14 @@ export default function VaultPage() {
       {showCreateVault && (
         <CreateVaultModal
           onClose={() => setShowCreateVault(false)}
-          onCreated={(v) => { qc.invalidateQueries({ queryKey: ['vaults'] }); setSelectedVaultId(v.id); setShowCreateVault(false) }}
+          onCreated={(v) => { qc.invalidateQueries({ queryKey: ['vaults'] }); setSelectedVaultId(v.id); setShowCreateVault(false); toast.success(`Created vault "${v.name}".`) }}
         />
       )}
       {showCreateSecret && selectedVaultId !== null && (
         <CreateSecretModal
           vaultId={selectedVaultId}
           onClose={() => setShowCreateSecret(false)}
-          onCreated={() => { qc.invalidateQueries({ queryKey: ['vault-secrets', selectedVaultId] }); setShowCreateSecret(false) }}
+          onCreated={() => { qc.invalidateQueries({ queryKey: ['vault-secrets', selectedVaultId] }); setShowCreateSecret(false); toast.success('Secret saved.') }}
         />
       )}
       {revealedSecret && (
@@ -213,12 +253,10 @@ export default function VaultPage() {
       {deleteVaultTarget && (
         <DeleteVaultModal
           vault={deleteVaultTarget}
-          secretCount={deleteVaultTarget.id === selectedVaultId ? secrets.length : null}
+          secretCount={deleteVaultTarget.id === selectedVaultId && secretsQuery.data ? secrets.length : null}
+          pending={deleteVault.isPending}
           onClose={() => setDeleteVaultTarget(null)}
-          onConfirm={() => {
-            deleteVault.mutate(deleteVaultTarget.id)
-            setDeleteVaultTarget(null)
-          }}
+          onConfirm={() => deleteVault.mutate(deleteVaultTarget.id)}
         />
       )}
       {deleteSecretTarget && (
@@ -226,10 +264,9 @@ export default function VaultPage() {
           title="Delete secret"
           message={`Delete secret "${deleteSecretTarget.name}"? This action cannot be undone.`}
           confirmLabel="Delete"
-          onConfirm={() => {
-            deleteSecret.mutate({ vaultId: deleteSecretTarget.vaultId, secretId: deleteSecretTarget.id })
-            setDeleteSecretTarget(null)
-          }}
+          pending={deleteSecret.isPending}
+          pendingLabel="Deleting…"
+          onConfirm={() => deleteSecret.mutate({ vaultId: deleteSecretTarget.vaultId, secretId: deleteSecretTarget.id })}
           onCancel={() => setDeleteSecretTarget(null)}
         />
       )}
@@ -247,30 +284,34 @@ function VaultRow({ vault, isSelected, onClick, onDelete }: {
 }) {
   return (
     <div
-      className="group flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors"
+      className={`group flex items-center gap-1 rounded-xl transition-colors ${isSelected ? '' : 'hover:bg-[var(--m3-surface-container)]'}`}
       style={{
-        background: isSelected ? 'var(--m3-surface-container-lowest)' : 'transparent',
+        background: isSelected ? 'var(--m3-surface-container-lowest)' : undefined,
         boxShadow: isSelected ? '0 1px 4px rgba(19,27,46,0.08)' : 'none',
       }}
-      onClick={onClick}
-      onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--m3-surface-container)' }}
-      onMouseLeave={(e) => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
     >
-      <span className="material-symbols-outlined shrink-0" style={{ fontSize: '18px', color: isSelected ? 'var(--m3-primary)' : 'var(--m3-secondary)', fontVariationSettings: isSelected ? "'FILL' 1" : "'FILL' 0" }}>lock</span>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate" style={{ color: 'var(--m3-on-surface)' }}>{vault.name}</p>
-        {vault.description && (
-          <p className="text-[10px] truncate" style={{ color: 'var(--m3-secondary)' }}>{vault.description}</p>
-        )}
-      </div>
       <button
-        onClick={(e) => { e.stopPropagation(); onDelete() }}
-        className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-lg transition-all text-xs shrink-0"
-        style={{ color: 'var(--m3-secondary)' }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--m3-error-container)'; (e.currentTarget as HTMLElement).style.color = 'var(--m3-on-error-container)' }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ''; (e.currentTarget as HTMLElement).style.color = 'var(--m3-secondary)' }}
+        type="button"
+        onClick={onClick}
+        aria-current={isSelected ? 'true' : undefined}
+        className="flex-1 min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl text-left focus-ring"
       >
-        ×
+        <span className="material-symbols-outlined shrink-0" aria-hidden="true" style={{ fontSize: '18px', color: isSelected ? 'var(--m3-primary)' : 'var(--m3-secondary)', fontVariationSettings: isSelected ? "'FILL' 1" : "'FILL' 0" }}>lock</span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-sm font-medium truncate" style={{ color: 'var(--m3-on-surface)' }}>{vault.name}</span>
+          {vault.description && (
+            <span className="block text-[10px] truncate" style={{ color: 'var(--m3-secondary)' }}>{vault.description}</span>
+          )}
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        aria-label={`Delete vault ${vault.name}`}
+        title="Delete vault"
+        className="btn-icon w-7 h-7 mr-1.5 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 hover:!text-[color:var(--m3-down)]"
+      >
+        <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px' }}>close</span>
       </button>
     </div>
   )
@@ -289,47 +330,41 @@ function SecretRow({ secret, isRevealing, onReveal, onDelete }: {
 }) {
   return (
     <div
-      className="flex items-center gap-4 px-4 py-3 rounded-xl"
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 rounded-xl"
       style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}
     >
-      <span className="material-symbols-outlined shrink-0" style={{ fontSize: '20px', color: 'var(--m3-secondary)' }}>{TYPE_ICONS[secret.type] ?? 'key'}</span>
+      <span className="material-symbols-outlined shrink-0" aria-hidden="true" style={{ fontSize: '20px', color: 'var(--m3-secondary)' }}>{TYPE_ICONS[secret.type] ?? 'key'}</span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold" style={{ color: 'var(--m3-on-surface)' }}>{secret.name}</p>
+        <p className="text-sm font-semibold break-all" style={{ color: 'var(--m3-on-surface)' }}>{secret.name}</p>
         <p className="text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>
           {TYPE_LABELS[secret.type]} · Updated {new Date(secret.updatedAt).toLocaleDateString()}
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <button
-          onClick={onReveal}
-          disabled={isRevealing}
-          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all"
-          style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface)', opacity: isRevealing ? 0.6 : 1 }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{isRevealing ? 'progress_activity' : 'visibility'}</span>
+        <button type="button" onClick={onReveal} disabled={isRevealing} className="btn btn-secondary btn-sm">
+          <span className={`material-symbols-outlined ${isRevealing ? 'animate-spin' : ''}`} aria-hidden="true">{isRevealing ? 'progress_activity' : 'visibility'}</span>
           {isRevealing ? 'Loading…' : 'Reveal'}
         </button>
         <button
+          type="button"
           onClick={onDelete}
-          className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-all"
-          style={{ color: 'var(--m3-secondary)' }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--m3-error-container)'; (e.currentTarget as HTMLElement).style.color = 'var(--m3-on-error-container)' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ''; (e.currentTarget as HTMLElement).style.color = 'var(--m3-secondary)' }}
+          aria-label={`Delete secret ${secret.name}`}
+          title="Delete secret"
+          className="btn-icon hover:!text-[color:var(--m3-down)]"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>delete</span>
+          <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px' }}>delete</span>
         </button>
       </div>
     </div>
   )
 }
 
-// ── Create Vault modal ─────────────────────────────────────────────────────────
-
 // ── Delete Vault modal (with checkbox when secrets exist) ─────────────────────
 
-function DeleteVaultModal({ vault, secretCount, onClose, onConfirm }: {
+function DeleteVaultModal({ vault, secretCount, pending, onClose, onConfirm }: {
   vault: Vault
   secretCount: number | null  // null = unknown (vault not currently selected/loaded)
+  pending: boolean
   onClose: () => void
   onConfirm: () => void
 }) {
@@ -337,16 +372,17 @@ function DeleteVaultModal({ vault, secretCount, onClose, onConfirm }: {
   const [confirmed, setConfirmed] = useState(false)
 
   return (
-    <ModalShell>
+    <ModalShell onClose={pending ? undefined : onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Delete vault"
+        aria-busy={pending || undefined}
         className="rounded-2xl p-6 w-full max-w-sm space-y-4"
         style={{ background: 'var(--m3-surface-container-lowest)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
       >
         <div className="flex items-start gap-3">
-          <span className="material-symbols-outlined mt-0.5 shrink-0" style={{ fontSize: '22px', color: 'var(--m3-error)' }}>warning</span>
+          <span className="material-symbols-outlined mt-0.5 shrink-0" aria-hidden="true" style={{ fontSize: '22px', color: 'var(--m3-error)' }}>warning</span>
           <div>
             <h3 className="font-headline text-lg font-bold" style={{ color: 'var(--m3-on-surface)' }}>
               Delete vault
@@ -368,8 +404,9 @@ function DeleteVaultModal({ vault, secretCount, onClose, onConfirm }: {
               <input
                 type="checkbox"
                 checked={confirmed}
+                disabled={pending}
                 onChange={(e) => setConfirmed(e.target.checked)}
-                className="w-4 h-4 rounded accent-red-500"
+                className="w-4 h-4 rounded"
               />
               <span className="text-sm font-medium" style={{ color: 'var(--m3-on-error-container)' }}>
                 I understand all secrets will be permanently deleted
@@ -378,26 +415,17 @@ function DeleteVaultModal({ vault, secretCount, onClose, onConfirm }: {
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <button
-            onClick={onClose}
-            className="px-5 py-2 rounded-full text-sm font-bold"
-            style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }}
-          >
+        <div className="flex flex-wrap justify-end gap-2 pt-1">
+          <button type="button" onClick={onClose} disabled={pending} className="btn btn-secondary rounded-full px-5 py-2">
             Cancel
           </button>
           <button
+            type="button"
             onClick={onConfirm}
-            disabled={hasSecrets && !confirmed}
-            className="px-5 py-2 rounded-full text-sm font-bold transition-all"
-            style={{
-              background: hasSecrets && !confirmed ? 'var(--m3-surface-container-high)' : 'var(--m3-error-container)',
-              color: hasSecrets && !confirmed ? 'var(--m3-secondary)' : 'var(--m3-on-error-container)',
-              border: hasSecrets && !confirmed ? '1px solid transparent' : '1px solid color-mix(in srgb, var(--m3-error) 45%, transparent)',
-              cursor: hasSecrets && !confirmed ? 'not-allowed' : 'pointer',
-            }}
+            disabled={pending || (hasSecrets && !confirmed)}
+            className="btn btn-danger rounded-full px-5 py-2"
           >
-            Delete vault
+            {pending ? 'Deleting…' : 'Delete vault'}
           </button>
         </div>
       </div>
@@ -412,6 +440,7 @@ function CreateVaultModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const [description, setDescription] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const typeLabelId = useId()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -421,44 +450,41 @@ function CreateVaultModal({ onClose, onCreated }: { onClose: () => void; onCreat
       const vault = await api.post<Vault>('/admin/vaults', { name, description: description || undefined })
       onCreated(vault)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create vault')
+      setError(errorMessage(err, 'Failed to create vault'))
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <Modal title="Create Vault" onClose={onClose}>
+    <Modal title="Create Vault" icon="shield_lock" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <ErrorBanner message={error} />}
-        <Field label="Vault name">
+        {error && <Alert tone="error">{error}</Alert>}
+        <Field label="Vault name" required>
           <input value={name} onChange={(e) => setName(e.target.value)} required className="input-sig" placeholder="My Credentials" autoFocus />
         </Field>
         <Field label="Description (optional)">
           <input value={description} onChange={(e) => setDescription(e.target.value)} className="input-sig" placeholder="What this vault stores…" />
         </Field>
-        <Field label="Type">
-          <div className="flex items-center gap-3">
+        <div role="group" aria-labelledby={typeLabelId}>
+          <p id={typeLabelId} className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Type</p>
+          <div className="flex flex-wrap items-center gap-3">
             <div
-              className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1"
-              style={{
-                background: 'var(--m3-surface-container-high)',
-                border: '1px solid color-mix(in srgb, var(--m3-primary) 45%, var(--m3-outline-variant))',
-                boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--m3-primary) 16%, transparent)',
-              }}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 selection-active"
+              style={{ border: '1px solid var(--m3-outline-variant)' }}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--m3-primary)' }}>storage</span>
-              <span className="text-sm font-medium" style={{ color: 'var(--m3-primary)' }}>Local</span>
+              <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px' }}>storage</span>
+              <span className="text-sm font-medium">Local</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 opacity-40 cursor-not-allowed" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }} title="Coming soon">
-              <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--m3-secondary)' }}>cloud</span>
+              <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px', color: 'var(--m3-secondary)' }}>cloud</span>
               <div>
                 <span className="text-sm" style={{ color: 'var(--m3-secondary)' }}>Azure Key Vault</span>
                 <span className="text-[10px] block" style={{ color: 'var(--m3-secondary)' }}>Coming soon</span>
               </div>
             </div>
           </div>
-        </Field>
+        </div>
         <ModalActions onClose={onClose} loading={loading} submitLabel="Create Vault" />
       </form>
     </Modal>
@@ -477,6 +503,7 @@ function CreateSecretModal({ vaultId, onClose, onCreated }: { vaultId: number; o
   const [jsonError, setJsonError] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const typeLabelId = useId()
 
   function validateJson(v: string) {
     try { JSON.parse(v); setJsonError('') } catch { setJsonError('Invalid JSON') }
@@ -495,7 +522,7 @@ function CreateSecretModal({ vaultId, onClose, onCreated }: { vaultId: number; o
       await api.post(`/admin/vaults/${vaultId}/secrets`, body)
       onCreated()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create secret')
+      setError(errorMessage(err, 'Failed to create secret'))
     } finally {
       setLoading(false)
     }
@@ -508,47 +535,49 @@ function CreateSecretModal({ vaultId, onClose, onCreated }: { vaultId: number; o
   ]
 
   return (
-    <Modal title="New Secret" onClose={onClose}>
+    <Modal title="New Secret" icon="key" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <ErrorBanner message={error} />}
-        <Field label="Secret name">
+        {error && <Alert tone="error">{error}</Alert>}
+        <Field label="Secret name" required>
           <input value={name} onChange={(e) => setName(e.target.value)} required className="input-sig" placeholder="my-api-key" autoFocus />
         </Field>
 
-        <Field label="Type">
-          <div className="grid grid-cols-3 gap-2">
+        <div role="group" aria-labelledby={typeLabelId}>
+          <p id={typeLabelId} className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Type</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {types.map((t) => (
               <button
                 key={t.value}
                 type="button"
+                aria-pressed={type === t.value}
                 onClick={() => setType(t.value)}
-                className={`px-3 py-2.5 rounded-xl text-left transition-all ${type === t.value ? 'selection-active' : ''}`}
+                className={`px-3 py-2.5 rounded-xl text-left transition-all focus-ring ${type === t.value ? 'selection-active' : ''}`}
                 style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)', border: '1px solid var(--m3-outline-variant)' }}
               >
-                <p className="text-xs font-bold">{t.label}</p>
-                <p className="text-[10px] mt-0.5 opacity-80">{t.desc}</p>
+                <span className="block text-xs font-bold">{t.label}</span>
+                <span className="block text-[10px] mt-0.5 opacity-80">{t.desc}</span>
               </button>
             ))}
           </div>
-        </Field>
+        </div>
 
         {type === 'userpass' && (
           <>
-            <Field label="Username">
+            <Field label="Username" required>
               <input value={username} onChange={(e) => setUsername(e.target.value)} required className="input-sig" placeholder="admin" autoComplete="off" />
             </Field>
-            <Field label="Password">
+            <Field label="Password" required>
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="input-sig" placeholder="••••••••" autoComplete="new-password" />
             </Field>
           </>
         )}
         {type === 'value' && (
-          <Field label="Value">
+          <Field label="Value" required>
             <input value={value} onChange={(e) => setValue(e.target.value)} required className="input-sig" placeholder="Bearer eyJ…" autoComplete="off" />
           </Field>
         )}
         {type === 'json' && (
-          <Field label={`JSON${jsonError ? ` — ${jsonError}` : ''}`}>
+          <Field label="JSON" required error={jsonError || undefined}>
             <textarea
               value={json}
               onChange={(e) => { setJson(e.target.value); validateJson(e.target.value) }}
@@ -569,11 +598,21 @@ function CreateSecretModal({ vaultId, onClose, onCreated }: { vaultId: number; o
 
 // ── Reveal modal ───────────────────────────────────────────────────────────────
 
+/** Pretty-prints stored JSON; falls back to the raw text when it cannot be parsed so the modal never crashes. */
+function formatJson(raw: string): { text: string; valid: boolean } {
+  try {
+    return { text: JSON.stringify(JSON.parse(raw), null, 2), valid: true }
+  } catch {
+    return { text: raw, valid: false }
+  }
+}
+
 function RevealModal({ secret, onClose }: { secret: RevealedSecret; onClose: () => void }) {
   const [showPassword, setShowPassword] = useState(false)
+  const json = secret.type === 'json' ? formatJson(secret.value.value ?? '{}') : null
 
   return (
-    <Modal title={secret.name} onClose={onClose}>
+    <Modal title={secret.name} icon={TYPE_ICONS[secret.type] ?? 'key'} onClose={onClose}>
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-secondary)' }}>
@@ -585,24 +624,34 @@ function RevealModal({ secret, onClose }: { secret: RevealedSecret; onClose: () 
           <>
             <RevealField label="Username" value={secret.value.username ?? ''} mono />
             <RevealField label="Password" value={secret.value.password ?? ''} hidden={!showPassword} mono
-              action={<button onClick={() => setShowPassword((p) => !p)} className="text-xs" style={{ color: 'var(--m3-primary)' }}>{showPassword ? 'Hide' : 'Show'}</button>}
+              action={
+                <button type="button" onClick={() => setShowPassword((p) => !p)} aria-pressed={showPassword} className="btn btn-ghost btn-sm py-1 text-xs">
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              }
             />
           </>
         )}
         {(secret.type === 'value') && (
           <RevealField label="Value" value={secret.value.value ?? ''} mono />
         )}
-        {secret.type === 'json' && (
+        {json && (
           <div>
-            <p className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: 'var(--m3-secondary)' }}>JSON</p>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>JSON</p>
+              <CopyButton value={json.text} iconOnly />
+            </div>
+            {!json.valid && (
+              <Alert tone="warning" className="mb-2">The stored value is not valid JSON; showing it as plain text.</Alert>
+            )}
             <pre className="text-xs p-3 rounded-xl overflow-auto max-h-64" style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface)', fontFamily: 'monospace' }}>
-              {JSON.stringify(JSON.parse(secret.value.value ?? '{}'), null, 2)}
+              {json.text}
             </pre>
           </div>
         )}
 
         <div className="pt-2 flex justify-end">
-          <button onClick={onClose} className="text-sm font-medium px-4 py-2 rounded-xl" style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface)' }}>
+          <button type="button" onClick={onClose} className="btn btn-secondary">
             Close
           </button>
         </div>
@@ -622,16 +671,7 @@ function RevealField({ label, value, mono, hidden, action }: { label: string; va
         <span className={`text-sm flex-1 break-all ${mono ? 'font-mono' : ''}`} style={{ color: 'var(--m3-on-surface)', filter: hidden ? 'blur(6px)' : 'none', userSelect: hidden ? 'none' : undefined }}>
           {value || '(empty)'}
         </span>
-        {!hidden && (
-          <button
-            onClick={() => navigator.clipboard.writeText(value)}
-            className="shrink-0 text-xs px-2 py-1 rounded-lg"
-            style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
-            title="Copy"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>content_copy</span>
-          </button>
-        )}
+        {!hidden && <CopyButton value={value} label={`Copy ${label.toLowerCase()}`} iconOnly />}
       </div>
     </div>
   )
@@ -639,28 +679,11 @@ function RevealField({ label, value, mono, hidden, action }: { label: string; va
 
 // ── Shared primitives ──────────────────────────────────────────────────────────
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-[10px] uppercase tracking-wider mb-1.5 font-semibold" style={{ color: 'var(--m3-secondary)' }}>{label}</label>
-      {children}
-    </div>
-  )
-}
-
-function ErrorBanner({ message }: { message: string }) {
-  return (
-    <div className="px-4 py-3 rounded-xl text-sm" style={{ background: 'var(--m3-error-container)', color: 'var(--m3-on-error-container)' }}>
-      {message}
-    </div>
-  )
-}
-
 function ModalActions({ onClose, loading, submitLabel }: { onClose: () => void; loading: boolean; submitLabel: string }) {
   return (
-    <div className="flex justify-end gap-3 pt-2">
-      <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-xl" style={{ color: 'var(--m3-secondary)' }}>Cancel</button>
-      <button type="submit" disabled={loading} className="btn-primary px-4 py-2 text-sm font-semibold rounded-xl transition-all" style={{ opacity: loading ? 0.7 : 1 }}>
+    <div className="flex flex-wrap justify-end gap-3 pt-2">
+      <button type="button" onClick={onClose} className="btn btn-ghost">Cancel</button>
+      <button type="submit" disabled={loading} className="btn btn-primary">
         {loading ? 'Saving…' : submitLabel}
       </button>
     </div>
