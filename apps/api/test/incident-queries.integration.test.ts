@@ -3,7 +3,7 @@ import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import rateLimit from '@fastify/rate-limit'
 import { db } from '../src/db/client.js'
-import { incidentMonitors, incidents, layout, monitorDependencies, monitorResults, monitors } from '../src/db/schema.js'
+import { branding, incidentMonitors, incidents, layout, monitorDependencies, monitorResults, monitors } from '../src/db/schema.js'
 import { auditRoutes } from '../src/routes/audit.js'
 import { incidentRoutes } from '../src/routes/incidents.js'
 import { monitorRoutes } from '../src/routes/monitors.js'
@@ -17,6 +17,7 @@ const testDb = createTestDb('bsp-incident-queries-test-')
 const app = Fastify({ logger: false })
 let publicId = 0
 let internalId = 0
+let thresholdId = 0
 
 async function addMonitor(name: string): Promise<number> {
   const now = Date.now()
@@ -28,9 +29,10 @@ before(async () => {
   initTestDb()
   publicId = await addMonitor('Website')
   internalId = await addMonitor('Internal DB')
+  thresholdId = await addMonitor('Threshold monitor')
   await db.insert(layout).values({
     id: 1,
-    tree: JSON.stringify({ id: 'root', type: 'page', children: [{ id: 'm1', type: 'monitor', monitorId: publicId }] }),
+    tree: JSON.stringify({ id: 'root', type: 'page', children: [{ id: 'm1', type: 'monitor', monitorId: publicId }, { id: 'm2', type: 'monitor', monitorId: thresholdId }] }),
     updatedAt: Date.now(),
   })
 
@@ -222,7 +224,8 @@ describe('public uptime', () => {
     assert.equal(today['date'], new Date(now).toISOString().slice(0, 10))
     assert.equal(today['checksTotal'], 3)
     assert.equal(today['checksUp'], 2)
-    assert.equal(today['status'], 'degraded')
+    // 66.7% is below the default partial-outage threshold (95%).
+    assert.equal(today['status'], 'down')
     assert.ok(Math.abs(body.overallUptimePct - 200 / 3) < 1e-9)
 
     await db.insert(monitorResults).values({ monitorId: publicId, status: 'down', checkedAt: now - 500 })
@@ -230,6 +233,27 @@ describe('public uptime', () => {
     assert.equal(cached.days[1].checksTotal, 3)
     // A different window is a different cache entry.
     assert.equal((await app.inject({ url: `/public/monitor/${publicId}/uptime?days=1` })).json().days[0].checksTotal, 4)
+  })
+})
+
+describe('public uptime thresholds', () => {
+  it('colours days by the configured thresholds and ignores unconfirmed failures', async () => {
+    const monitorId = thresholdId
+    const now = Date.now()
+    const results = Array.from({ length: 100 }, (_, i) => ({
+      monitorId, status: i < 2 ? 'down' : 'up', checkedAt: now - 1_000 - i,
+    }))
+    // An unconfirmed blip is stored as a failure but must not lower uptime.
+    results.push({ monitorId, status: 'down', checkedAt: now - 5_000, unconfirmed: 1 } as typeof results[number])
+    await db.insert(monitorResults).values(results)
+
+    await db.insert(branding).values({ id: 1, updatedAt: now, uptimeThresholdUp: 99.9, uptimeThresholdDegraded: 98, uptimeThresholdPartial: 90 })
+      .onConflictDoUpdate({ target: branding.id, set: { uptimeThresholdUp: 99.9, uptimeThresholdDegraded: 98, uptimeThresholdPartial: 90 } })
+    const body = (await app.inject({ url: `/public/monitor/${monitorId}/uptime?days=1` })).json()
+    const today = body.days[0]
+    assert.equal(today.checksTotal, 101)
+    assert.equal(today.checksUp, 99)
+    assert.equal(today.status, 'degraded') // 98.02% ≥ 98
   })
 })
 

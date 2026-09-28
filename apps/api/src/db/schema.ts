@@ -1,5 +1,5 @@
-import { sqliteTable, integer, text, primaryKey } from 'drizzle-orm/sqlite-core'
-import { DEFAULT_BRANDING_COLORS } from '@bsp/shared'
+import { sqliteTable, integer, text, real, primaryKey } from 'drizzle-orm/sqlite-core'
+import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -54,6 +54,9 @@ export const monitorResults = sqliteTable('monitor_results', {
   responseMs: integer('response_ms'),
   checkedAt: integer('checked_at').notNull(),
   errorMessage: text('error_message'),
+  // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
+  /** 1 for a failure not (yet) confirmed by the monitor's failure threshold; it does not lower uptime. */
+  unconfirmed: integer('unconfirmed').notNull().default(0),
 })
 
 export const incidents = sqliteTable('incidents', {
@@ -246,6 +249,10 @@ export const branding = sqliteTable('branding', {
   chartGridColor: text('chart_grid_color').notNull().default(DEFAULT_BRANDING_COLORS.chartGridColor),
   logoLightUrl: text('logo_light_url'),
   logoDarkUrl: text('logo_dark_url'),
+  statusPartialColor: text('status_partial_color').notNull().default(DEFAULT_BRANDING_COLORS.statusPartialColor),
+  uptimeThresholdUp: real('uptime_threshold_up').notNull().default(DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdUp),
+  uptimeThresholdDegraded: real('uptime_threshold_degraded').notNull().default(DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdDegraded),
+  uptimeThresholdPartial: real('uptime_threshold_partial').notNull().default(DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdPartial),
 })
 
 export const subscriptionSettings = sqliteTable('subscription_settings', {

@@ -3,6 +3,10 @@ import type { MonitorStatus } from '@bsp/shared'
 /** Statuses that represent a failing monitor and therefore open an alert. */
 const FAILURE_STATUSES = new Set<string>(['down', 'degraded'])
 
+export function isFailureStatus(status: string): boolean {
+  return FAILURE_STATUSES.has(status)
+}
+
 export interface AlertThresholdState {
   alertConfirmedStatus: string
   alertPendingStatus: string | null

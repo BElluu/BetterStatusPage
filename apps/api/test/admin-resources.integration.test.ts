@@ -62,6 +62,17 @@ describe('branding and layout', () => {
     assert.equal((await db.select().from(auditLog)).some((entry) => entry.entityType === 'branding'), true)
   })
 
+  it('persists uptime thresholds only while they stay descending within 0-100', async () => {
+    const patch = (payload: Record<string, unknown>) => app.inject({ method: 'PATCH', url: '/branding', payload })
+    assert.equal((await patch({ uptimeThresholdUp: 99.5, uptimeThresholdDegraded: 97, uptimeThresholdPartial: 90 })).statusCode, 200)
+    // Checked against the stored values, so a partial update cannot break the order.
+    assert.equal((await patch({ uptimeThresholdDegraded: 99.5 })).statusCode, 400)
+    assert.equal((await patch({ uptimeThresholdUp: 101 })).statusCode, 400)
+    assert.equal((await patch({ uptimeThresholdPartial: null })).statusCode, 400)
+    const persisted = (await app.inject({ url: '/branding' })).json()
+    assert.deepEqual([persisted.uptimeThresholdUp, persisted.uptimeThresholdDegraded, persisted.uptimeThresholdPartial], [99.5, 97, 90])
+  })
+
   it('rejects branding colours that are not hex or rgb() values and never emails unsafe ones', async () => {
     for (const value of ['red;background:url(https://evil.test/x)', '#12345g', '"><script>', 'expression(alert(1))', 42]) {
       const response = await app.inject({ method: 'PATCH', url: '/branding', payload: { textColor: value } })

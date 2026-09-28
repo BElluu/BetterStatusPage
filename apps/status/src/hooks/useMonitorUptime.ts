@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
+import type { UptimeDayStatus } from '@bsp/shared'
 import { getJSON } from '../api'
 
 export interface UptimeDay {
   date: string
-  status: string
+  status: UptimeDayStatus
   uptimePct: number
   incidents?: Array<{ id: number; title: string; durationMs: number | null }>
 }

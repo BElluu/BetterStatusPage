@@ -1,5 +1,5 @@
 import { sqlite } from './client.js'
-import { DEFAULT_BRANDING_COLORS } from '@bsp/shared'
+import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 
 const migrations = `
 CREATE TABLE IF NOT EXISTS users (
@@ -338,6 +338,11 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE subscribers ADD COLUMN failure_notified_at INTEGER`, desc: 'subscribers.failure_notified_at' },
   { sql: `ALTER TABLE subscribers ADD COLUMN disabled_at INTEGER`, desc: 'subscribers.disabled_at' },
   { sql: `CREATE INDEX IF NOT EXISTS idx_notification_deliveries_throttle ON notification_deliveries(channel_id, monitor_id, event_type, created_at)`, desc: 'notification_deliveries throttle index' },
+  { sql: `ALTER TABLE monitor_results ADD COLUMN unconfirmed INTEGER NOT NULL DEFAULT 0`, desc: 'monitor_results.unconfirmed' },
+  { sql: `ALTER TABLE branding ADD COLUMN status_partial_color TEXT NOT NULL DEFAULT '${DEFAULT_BRANDING_COLORS.statusPartialColor}'`, desc: 'branding.status_partial_color' },
+  { sql: `ALTER TABLE branding ADD COLUMN uptime_threshold_up REAL NOT NULL DEFAULT ${DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdUp}`, desc: 'branding.uptime_threshold_up' },
+  { sql: `ALTER TABLE branding ADD COLUMN uptime_threshold_degraded REAL NOT NULL DEFAULT ${DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdDegraded}`, desc: 'branding.uptime_threshold_degraded' },
+  { sql: `ALTER TABLE branding ADD COLUMN uptime_threshold_partial REAL NOT NULL DEFAULT ${DEFAULT_UPTIME_THRESHOLDS.uptimeThresholdPartial}`, desc: 'branding.uptime_threshold_partial' },
 ]
 
 /**
