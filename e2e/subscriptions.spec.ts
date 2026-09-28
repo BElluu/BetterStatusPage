@@ -76,6 +76,7 @@ test('a visitor subscribes by email, confirms, gets incident mail and unsubscrib
   const manageTab = await page.context().newPage()
   await manageTab.goto(manageLink)
   await manageTab.getByRole('button', { name: 'Unsubscribe' }).click()
+  await manageTab.getByRole('button', { name: 'Yes, unsubscribe' }).click()
   await expect(manageTab.getByText(/You have been unsubscribed/)).toBeVisible()
 
   const mailsBefore = inbox.filter((mail) => mail.includes(email)).length
