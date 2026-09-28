@@ -167,7 +167,7 @@ The audit log page (admin-only) lets you filter by **user**, **entity type**, **
 
 ### 🌍 i18n, branding, the works
 
-- **Multi-language support** — add your own locale, translate every string, set a default
+- **Multi-language support** — add your own locale, translate every string, set a default; English and Polish (`pl`) ship with complete built-in copy
 - **Full branding** — site name, logo, favicon, 13 theme colors, and a custom CSS field for when you really want to go wild
 - **Dark mode** — because it's not optional anymore
 

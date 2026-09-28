@@ -43,13 +43,24 @@ describe('LocalizationPage', () => {
 
     await user.click(await screen.findByRole('button', { name: /Polski/ }))
     expect(screen.getByDisplayValue('Działa')).toBeInTheDocument()
-    await user.type(screen.getByPlaceholderText('All systems operational.'), 'Wszystko działa.')
+    expect(screen.getByText(/Polish has built-in defaults/)).toBeInTheDocument()
+    await user.type(screen.getByPlaceholderText('Wszystkie systemy działają.'), 'Wszystko działa.')
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
 
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/locales/pl', {
       translations: { 'status.operational': 'Działa', 'overall.allOperational': 'Wszystko działa.' },
     }))
     expect(await screen.findByRole('button', { name: 'Saved!' })).toBeInTheDocument()
+  })
+
+  it('falls back to English placeholders for a language without built-in defaults', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.get).mockResolvedValue([...locales, { code: 'de', name: 'Deutsch', isDefault: 0, translations: {} }])
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: /Deutsch/ }))
+    expect(screen.getByText(/no built-in defaults/)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('All systems operational.')).toHaveValue('')
   })
 
   it('sets a locale as default and deletes it', async () => {

@@ -3,7 +3,8 @@ import { api } from '../../api/client'
 import type { Monitor, MonitorType, NotificationChannel, MonitorTag } from '@bsp/shared'
 import { ModalShell } from '../ModalShell'
 import { AuthSection, readAuth } from './AuthSection'
-import { ChannelsSection, DependenciesSection, RequestSection, SidePanelFrame, SideTabStrip, type SidePanelKey, type SideTab } from './MonitorSidePanel'
+import { SidePanelFrame, SideTabStrip, type SideTab } from '../SidePanel'
+import { ChannelsSection, DependenciesSection, PANEL_META, RequestSection, type SidePanelKey } from './MonitorSidePanel'
 import { MonitorTypeConfigFields } from './MonitorTypeConfigFields'
 import { Field, type SecretSummary, type VaultSummary } from './monitorFormParts'
 import { TagsSection } from './TagsSection'
@@ -174,7 +175,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
   const isTestable = type === 'https' || type === 'sqlserver' || type === 'ping' || type === 'dns'
   const webhookCreated = type === 'webhook' && !isEdit && !!webhookToken
 
-  const sideTabs: SideTab[] = [
+  const sideTabs: SideTab<SidePanelKey>[] = [
     ...(type === 'https' ? [
       { key: 'auth' as const,    badge: authType !== 'none' ? authType.slice(0, 1).toUpperCase() : null },
       { key: 'request' as const, badge: headerCount > 0 ? String(headerCount) : null },
@@ -322,7 +323,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
 
       {/* ── Side panel ─────────────────────────────────────────────────── */}
       {sidePanel && (
-        <SidePanelFrame panel={sidePanel}>
+        <SidePanelFrame meta={PANEL_META[sidePanel]}>
           {sidePanel === 'request' && <RequestSection config={config} updateConfig={updateConfig} />}
           {sidePanel === 'auth' && <AuthSection auth={auth} onChange={(next) => updateConfig('auth', next)} vaultPicker={vaultPicker} />}
           {sidePanel === 'tags' && <TagsSection tags={tags} allTags={allTags} onChange={setTags} />}
@@ -338,7 +339,7 @@ export default function MonitorFormModal({ monitor, allTags = [], onClose, onSav
       )}
 
       {/* ── Vertical tab strip ──────────────────────────────────────────── */}
-      <SideTabStrip tabs={sideTabs} active={sidePanel} onToggle={setSidePanel} />
+      <SideTabStrip tabs={sideTabs} meta={PANEL_META} active={sidePanel} onToggle={setSidePanel} />
 
       </div>{/* outer flex row */}
     </ModalShell>
