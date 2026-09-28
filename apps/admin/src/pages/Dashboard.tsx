@@ -6,6 +6,9 @@ import { StatusBadge } from '../components/monitors/StatusBadge'
 import { useDarkMode } from '../hooks/useDarkMode'
 import { EmptyState, ErrorState, LoadingState, PageContainer, PageHeader } from '../components/ui'
 
+/** Shared surface for the summary tiles, matching the component cards below. */
+const TILE_STYLE = { background: 'var(--m3-surface-container-lowest)' } as const
+
 export default function DashboardPage() {
   const [isDark] = useDarkMode()
   const monitorsQuery = useQuery<Monitor[]>({
@@ -46,7 +49,7 @@ export default function DashboardPage() {
       actions={
         <div
           className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
-          style={{ background: 'var(--m3-surface-container-highest)' }}
+          style={{ background: 'var(--m3-surface-container-lowest)', border: '1px solid var(--m3-outline-variant)' }}
         >
           <span className="w-2 h-2 rounded-full animate-pulse" aria-hidden="true" style={{ background: 'var(--m3-up-bar)' }} />
           <span style={{ color: 'var(--m3-on-surface-variant)' }}>Live Metrics</span>
@@ -75,7 +78,7 @@ export default function DashboardPage() {
         {/* Global Status — span 2 */}
         <div
           className="md:col-span-2 p-8 rounded-xl flex flex-col justify-between"
-          style={{ background: 'var(--m3-surface-container-lowest)', boxShadow: '0px 12px 32px rgba(19,27,46,0.04)' }}
+          style={TILE_STYLE}
         >
           <div>
             <span className="font-label text-xs uppercase tracking-widest block mb-4" style={{ color: 'var(--m3-secondary)' }}>
@@ -131,12 +134,12 @@ export default function DashboardPage() {
         <div
           className="p-8 rounded-xl flex flex-col justify-between"
           style={{
-            background: activeIncidents.length > 0 ? 'var(--m3-error-container)' : 'var(--m3-surface-container-highest)',
+            ...TILE_STYLE,
+            ...(activeIncidents.length > 0 ? { background: 'var(--m3-error-container)' } : {}),
             color: activeIncidents.length > 0 ? 'var(--m3-on-error-container)' : 'var(--m3-on-surface)',
-            border: '1px solid var(--m3-outline-variant)',
           }}
         >
-          <span className="font-label text-xs uppercase tracking-widest opacity-60">Active Incidents</span>
+          <span className="font-label text-xs uppercase tracking-widest" style={{ color: activeIncidents.length > 0 ? 'inherit' : 'var(--m3-secondary)' }}>Active Incidents</span>
           <div>
             <div className="text-5xl font-extrabold mb-2">{incidentsQuery.isSuccess ? activeIncidents.length : '—'}</div>
             <p className="text-sm opacity-80">
@@ -154,16 +157,13 @@ export default function DashboardPage() {
         {/* Monitor Stats */}
         <div
           className="p-8 rounded-xl flex flex-col justify-between"
-          style={{ background: 'var(--m3-surface-container-highest)' }}
+          style={TILE_STYLE}
         >
-          <span className="font-label text-xs uppercase tracking-widest" style={{ color: 'var(--m3-on-surface-variant)' }}>
+          <span className="font-label text-xs uppercase tracking-widest" style={{ color: 'var(--m3-secondary)' }}>
             Monitor Health
           </span>
           <div>
-            <div
-              className="text-4xl font-bold mb-1"
-              style={{ color: 'var(--m3-on-primary-container)' }}
-            >
+            <div className="text-5xl font-extrabold mb-2" style={{ color: 'var(--m3-on-surface)' }}>
               {monitors.length > 0 ? `${Math.round((up / monitors.length) * 100)}%` : '—'}
             </div>
             <div className="flex items-center gap-1 text-xs font-semibold" style={{ color: up === monitors.length && monitors.length > 0 ? 'var(--m3-up)' : 'var(--m3-secondary)' }}>

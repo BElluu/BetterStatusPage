@@ -20,7 +20,7 @@
   --m3-primary:                  #000000;
   --m3-on-primary:               #ffffff;
   --m3-on-primary-container:     #497cff;
-  --m3-primary-fixed:            #dbe1ff;
+  --m3-primary-fixed:            #dbe7ff;
   --m3-primary-fixed-dim:        #b4c5ff;
   --m3-primary-container:        #00174b;
   --m3-surface-tint:             #0053db;
@@ -66,9 +66,9 @@
   --admin-on-action-primary:    #172033;
   --admin-action-focus:         rgba(73, 124, 255, 0.28);
   --admin-selection:            var(--m3-primary-fixed);
-  --admin-selection-hover:      #cdd8fa;
+  --admin-selection-hover:      #c9d9ff;
   --admin-on-selection:         var(--m3-primary);
-  --admin-selection-border:     #aab8dc;
+  --admin-selection-border:     #a9bfe6;
   --admin-control-accent:       #4b5563;
   --admin-control-on:           #ffffff;
   --admin-icon-container:       #e4e7ec;
@@ -195,11 +195,18 @@ input[type='radio'] {
   }
   .btn-sm .material-symbols-outlined { font-size: 16px; }
 
+  /* Outlined in light mode so the filled primary button is the only filled action. */
   .btn-secondary {
-    background: var(--m3-surface-container-high);
+    background: transparent;
+    border-color: var(--m3-outline-variant);
     color: var(--m3-on-surface);
   }
-  .btn-secondary:hover:not(:disabled) { background: var(--m3-surface-container-highest); }
+  .btn-secondary:hover:not(:disabled) { background: var(--m3-surface-container); }
+  html.dark .btn-secondary {
+    background: var(--m3-surface-container-high);
+    border-color: transparent;
+  }
+  html.dark .btn-secondary:hover:not(:disabled) { background: var(--m3-surface-container-highest); }
 
   .btn-ghost {
     background: transparent;
