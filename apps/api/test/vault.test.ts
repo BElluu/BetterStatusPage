@@ -23,7 +23,9 @@ describe('vault encryption', () => {
     assert.throws(() => decrypt('invalid'), /Invalid ciphertext format/)
 
     const [iv, tag, encrypted] = encrypt('secret').split(':') as [string, string, string]
-    const tampered = `${iv}:${tag}:${encrypted.slice(0, -2)}00`
+    // Flip every bit of the last byte so the ciphertext always changes (overwriting with a fixed byte is a no-op 1/256 of the time)
+    const lastByte = (parseInt(encrypted.slice(-2), 16) ^ 0xff).toString(16).padStart(2, '0')
+    const tampered = `${iv}:${tag}:${encrypted.slice(0, -2)}${lastByte}`
     assert.throws(() => decrypt(tampered))
   })
 })
