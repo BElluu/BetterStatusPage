@@ -168,7 +168,9 @@ Strona dziennika audytu (tylko dla adminów) pozwala filtrować po **użytkownik
 ### 🌍 i18n, branding i cała reszta
 
 - **Obsługa wielu języków** — dodaj własną lokalizację, przetłumacz każdy tekst, ustaw domyślny; angielski i polski (`pl`) mają kompletne wbudowane tłumaczenia
-- **Pełny branding** — nazwa strony, logo, favicon, 13 kolorów motywu i pole na własny CSS, gdy naprawdę chcesz poszaleć
+- **Pełny branding** — nazwa strony, logo (warianty jasne/ciemne lub tekstowe), favicon, 14 kolorów motywu i pole na własny CSS, gdy naprawdę chcesz poszaleć
+- **Progi paska uptime** — ustaw dzienne progi dostępności (domyślnie 99,9 / 99 / 95), przy których 30-dniowy pasek robi się zielony, żółty, pomarańczowy lub czerwony
+- **Przełączniki układu** — ukryj nagłówek ze statusem, stopkę albo mały link BetterStatusPage w prawym dolnym rogu
 - **Tryb ciemny** — bo dziś to obowiązek, a nie opcja
 
 ### 🔗 Zależności między monitorami
@@ -244,7 +246,7 @@ Zmiany statusu docierają zarówno do panelu admina, jak i do strony publicznej 
 | Język | TypeScript | 5.7 |
 | Backend | Fastify | 5.x |
 | Baza danych | SQLite (`node:sqlite`) | wbudowana |
-| ORM | Drizzle | 0.40 |
+| ORM | Drizzle | 0.45 |
 | Frontend | React | 19 |
 | Budowanie | Vite | 6.x |
 | Style | Tailwind CSS | 3.x |
@@ -252,7 +254,7 @@ Zmiany statusu docierają zarówno do panelu admina, jak i do strony publicznej 
 | Stan | Zustand | 5.x |
 | Przeciągnij i upuść | dnd-kit | 6.x |
 | Uwierzytelnianie | Sesje po stronie serwera, ciasteczka HttpOnly JWT, CSRF, TOTP, bcrypt | — |
-| E-mail | Nodemailer | 8.x |
+| E-mail | Nodemailer | 9.x |
 | SQL Server | mssql | 11.x |
 | Harmonogram | node-cron | 3.x |
 
@@ -529,7 +531,6 @@ Pięć typów monitorów pokrywa większość przypadków, ale zawsze jest coś 
 - **gRPC** — health checki dla usług, które nie mówią po HTTP
 - **Redis / Valkey** — `PING` i sprawdzanie obecności kluczy w warstwie cache
 - **Playwright / Puppeteer** — pełny syntetyczny monitoring w przeglądarce dla przepływów wymagających renderowania JavaScriptu (logowanie, ścieżki zakupowe, SPA)
-- **Wygasanie certyfikatów TLS/SSL** — wyłap przeterminowane certyfikaty, zanim zrobią to użytkownicy
 - **Kafka / RabbitMQ** — łączność z brokerem i monitoring opóźnień
 - **Własne skryptowe sprawdzenia** — uruchom dowolny fragment Node.js, zwróć status — pełna elastyczność dla wszystkiego, co nie pasuje do predefiniowanego typu
 

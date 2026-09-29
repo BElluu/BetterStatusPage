@@ -168,7 +168,9 @@ The audit log page (admin-only) lets you filter by **user**, **entity type**, **
 ### 🌍 i18n, branding, the works
 
 - **Multi-language support** — add your own locale, translate every string, set a default; English and Polish (`pl`) ship with complete built-in copy
-- **Full branding** — site name, logo, favicon, 13 theme colors, and a custom CSS field for when you really want to go wild
+- **Full branding** — site name, logo (light/dark variants or text), favicon, 14 theme colors, and a custom CSS field for when you really want to go wild
+- **Uptime bar thresholds** — choose the daily uptime percentages (defaults 99.9 / 99 / 95) at which the 30-day bar turns green, yellow, orange or red
+- **Layout toggles** — hide the status headline, the footer, or the small BetterStatusPage link in the bottom-right corner
 - **Dark mode** — because it's not optional anymore
 
 ### 🔗 Monitor dependencies
@@ -244,7 +246,7 @@ Status changes propagate to both the admin dashboard and the public page instant
 | Language | TypeScript | 5.7 |
 | Backend | Fastify | 5.x |
 | Database | SQLite (`node:sqlite`) | built-in |
-| ORM | Drizzle | 0.40 |
+| ORM | Drizzle | 0.45 |
 | Frontend | React | 19 |
 | Build | Vite | 6.x |
 | Styling | Tailwind CSS | 3.x |
@@ -252,7 +254,7 @@ Status changes propagate to both the admin dashboard and the public page instant
 | State | Zustand | 5.x |
 | Drag & drop | dnd-kit | 6.x |
 | Auth | Server-side sessions, HttpOnly JWT cookies, CSRF, TOTP, bcrypt | — |
-| Email | Nodemailer | 8.x |
+| Email | Nodemailer | 9.x |
 | SQL Server | mssql | 11.x |
 | Scheduler | node-cron | 3.x |
 
@@ -536,7 +538,6 @@ Five monitor types cover most cases, but there's always more ground to cover:
 - **gRPC** — health check support for services that don't speak HTTP
 - **Redis / Valkey** — `PING` and key presence checks for your cache layer
 - **Playwright / Puppeteer** — full browser-based synthetic monitoring for flows that require JavaScript rendering (login flows, checkout funnels, SPAs)
-- **TLS/SSL certificate expiry** — catch expired certs before your users do
 - **Kafka / RabbitMQ** — broker connectivity and lag monitoring
 - **Custom scripted checks** — run an arbitrary Node.js snippet, return a status — full flexibility for anything that doesn't fit a predefined type
 
