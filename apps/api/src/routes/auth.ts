@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import bcrypt from 'bcryptjs'
 import QRCode from 'qrcode'
@@ -24,6 +25,8 @@ import {
 } from '../services/authSession.js'
 import { writeAudit } from '../services/audit.js'
 import { verifySecondFactor } from '../services/twoFactor.js'
+import { confirmIdentity, markSessionVerified } from '../services/identityConfirmation.js'
+import { auditSignIn, auditSignInDenial, type CredentialDenialCode, type SignInMethod } from '../services/signInAudit.js'
 import { passwordLoginEnabled, type OidcConfig } from '../config/oidc.js'
 import { getOidcConfig, getOidcTestConfig } from '../services/oidcSettings.js'
 import {
@@ -32,6 +35,7 @@ import {
   evaluateOidcClaims,
   exchangeOidcCode,
   linkOidcIdentity,
+  OIDC_CONFIRMATION_MAX_AGE_SECONDS,
   runOidcTest,
   storeOidcTestResult,
   type OidcDenialCode,
@@ -42,22 +46,39 @@ const OIDC_FLOW_COOKIE = 'bsp_oidc_flow'
 const OIDC_FLOW_PATH = '/api/v1/auth/oidc'
 const OIDC_FLOW_SECONDS = 10 * 60
 const OIDC_FAILED_REDIRECT = '/admin/login?error=oidc_failed'
+const SSO_CONFIRM_PAGE = '/admin/sso-confirm'
+// Carries the pending second factor of an SSO sign-in from the callback to the login page's code form.
+const TWO_FACTOR_CHALLENGE_COOKIE = 'bsp_2fa_challenge'
+const TWO_FACTOR_CHALLENGE_PATH = '/api/v1/auth/2fa'
+const TWO_FACTOR_CHALLENGE_SECONDS = 5 * 60
 // Denials about the identity itself show "no account matches"; the rest show the generic failure.
 const ACCOUNT_DENIALS = new Set<OidcDenialCode>(['no_email_claim', 'email_not_verified', 'no_matching_account', 'subject_mismatch'])
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, 1000)
 
 interface OidcFlowClaims extends OidcFlowState {
-  /** 'oidc-flow' signs a user in; 'oidc-test' only reports the outcome to the administrator who started it. */
-  purpose?: 'oidc-flow' | 'oidc-test'
+  /**
+   * 'oidc-flow' signs a user in; 'oidc-test' only reports the outcome to the administrator who started it;
+   * 'oidc-confirm' re-authenticates the user of an existing SSO session before a sensitive action.
+   */
+  purpose?: 'oidc-flow' | 'oidc-test' | 'oidc-confirm'
   adminUserId?: number
+  /** 'oidc-confirm': the session to mark as confirmed and its user. The callback has no session cookie (SameSite=Strict). */
+  sessionId?: string
+  userId?: number
+}
+
+interface TwoFactorChallenge {
+  purpose?: string
+  userId?: number
+  authMethod?: AuthMethod
 }
 
 /** Redirects to the provider, keeping the PKCE verifier, state and nonce in a short-lived signed cookie. */
 export async function startOidcFlow(
   app: FastifyInstance, reply: FastifyReply, cfg: OidcConfig,
-  extra: Pick<OidcFlowClaims, 'purpose' | 'adminUserId'>,
+  extra: Pick<OidcFlowClaims, 'purpose' | 'adminUserId' | 'sessionId' | 'userId'>,
 ) {
-  const { url, flow } = await beginOidcLogin(cfg)
+  const { url, flow } = await beginOidcLogin(cfg, { confirm: extra.purpose === 'oidc-confirm' })
   reply.setCookie(OIDC_FLOW_COOKIE, app.jwt.sign({ ...extra, ...flow }, { expiresIn: OIDC_FLOW_SECONDS }), {
     path: OIDC_FLOW_PATH,
     httpOnly: true,
@@ -84,6 +105,28 @@ async function verifyPassword(user: typeof users.$inferSelect, password: string)
   return bcrypt.compare(password, user.passwordHash)
 }
 
+/** Records a refused password sign-in, or a refused 2FA step of either kind of sign-in. */
+function denySignIn(method: SignInMethod, code: CredentialDenialCode, reason: string, email?: string) {
+  return auditSignInDenial(method, { code, reason, email })
+}
+
+/**
+ * Makes a pending temporary password unusable once its user signed in through SSO: they did not need it, and the
+ * administrator who handed it out still knows it. They can set a password of their own later in Settings.
+ */
+async function revokeTemporaryPassword(user: typeof users.$inferSelect): Promise<typeof users.$inferSelect> {
+  if (!user.mustChangePassword) return user
+  const passwordHash = await bcrypt.hash(randomBytes(32).toString('base64url'), 10)
+  await db.update(users).set({ passwordHash, mustChangePassword: 0 }).where(eq(users.id, user.id))
+  await writeAudit({ userId: user.id, userEmail: user.email }, 'update', 'user-security', user.id, user.email, { temporaryPasswordRevoked: true })
+  return { ...user, passwordHash, mustChangePassword: 0 }
+}
+
+/** Ends the SSO confirmation popup; the page tells the opening window through a BroadcastChannel. */
+function confirmRedirect(reply: FastifyReply, ok: boolean) {
+  return reply.redirect(`${SSO_CONFIRM_PAGE}?status=${ok ? 'ok' : 'failed'}`)
+}
+
 async function finishLogin(app: FastifyInstance, reply: FastifyReply, user: typeof users.$inferSelect, authMethod: AuthMethod = 'password') {
   const identity = await createAuthSession(app, reply, user, authMethod)
   return publicSession(identity)
@@ -92,7 +135,12 @@ async function finishLogin(app: FastifyInstance, reply: FastifyReply, user: type
 export async function authRoutes(app: FastifyInstance) {
   app.get('/config', async () => {
     const { config } = await getOidcConfig()
-    return { passwordLogin: passwordLoginEnabled(config), oidc: config ? { label: config.buttonLabel } : null }
+    // `loginUrl` starts SSO on the redirect URI's host: the flow cookie is only sent back to the host that set it,
+    // so starting on another one (127.0.0.1 vs localhost, an internal name vs PUBLIC_URL) would lose it.
+    return {
+      passwordLogin: passwordLoginEnabled(config),
+      oidc: config ? { label: config.buttonLabel, loginUrl: `${new URL(config.redirectUri).origin}${OIDC_FLOW_PATH}/login` } : null,
+    }
   })
 
   app.get('/oidc/login', { config: { rateLimit: LOGIN_RATE_LIMIT } }, async (req, reply) => {
@@ -104,6 +152,20 @@ export async function authRoutes(app: FastifyInstance) {
       req.log.error({ err: error }, 'OIDC discovery failed')
       await auditOidcDenial(cfg, { code: 'discovery_failed', reason: `OIDC discovery against the issuer failed: ${errorText(error)}` })
       return reply.redirect(OIDC_FAILED_REDIRECT)
+    }
+  })
+
+  // Opened in a popup by the admin UI when a sensitive action needs an SSO session to be confirmed.
+  app.get('/oidc/confirm', { preHandler: requireAuth, config: { rateLimit: LOGIN_RATE_LIMIT } }, async (req, reply) => {
+    const identity = requestIdentity(req)
+    const { config: cfg } = await getOidcConfig()
+    if (identity.authMethod !== 'oidc' || !cfg) return confirmRedirect(reply, false)
+    try {
+      return await startOidcFlow(app, reply, cfg, { purpose: 'oidc-confirm', sessionId: identity.sessionId, userId: identity.userId })
+    } catch (error) {
+      req.log.error({ err: error }, 'OIDC discovery failed')
+      await auditOidcDenial(cfg, { code: 'discovery_failed', reason: `OIDC discovery against the issuer failed: ${errorText(error)}` })
+      return confirmRedirect(reply, false)
     }
   })
 
@@ -125,6 +187,31 @@ export async function authRoutes(app: FastifyInstance) {
 
     const { config: cfg } = await getOidcConfig()
     if (!cfg) return reply.code(404).send({ error: 'OIDC is not configured' })
+
+    if (flow?.purpose === 'oidc-confirm') {
+      if (!flow.sessionId || !Number.isInteger(flow.userId)) return confirmRedirect(reply, false)
+      try {
+        const exchanged = await exchangeOidcCode(cfg, callbackUrlFor(cfg, query), flow, OIDC_CONFIRMATION_MAX_AGE_SECONDS)
+        const decision = exchanged.denial ? { user: null, denial: exchanged.denial } as const : await evaluateOidcClaims(cfg, exchanged.claims)
+        if (!decision.user || decision.user.id !== flow.userId) {
+          const denial = decision.denial ?? {
+            code: 'confirmation_mismatch' as const,
+            reason: `The confirmation signed in as ${decision.user!.email}, not as the user of the session being confirmed.`,
+            email: decision.user!.email,
+          }
+          req.log.warn({ code: denial.code, reason: denial.reason }, 'OIDC confirmation refused')
+          await auditOidcDenial(cfg, denial)
+          return confirmRedirect(reply, false)
+        }
+        if (decision.link) await linkOidcIdentity(cfg, decision.user, decision.subject)
+        return confirmRedirect(reply, await markSessionVerified(flow.sessionId, flow.userId!))
+      } catch (error) {
+        req.log.warn({ err: error }, 'OIDC confirmation failed')
+        await auditOidcDenial(cfg, { code: 'token_exchange_failed', reason: `The confirmation could not be completed: ${errorText(error)}` })
+        return confirmRedirect(reply, false)
+      }
+    }
+
     if (flow?.purpose !== 'oidc-flow') {
       // Only audited for what looks like a real provider redirect: anyone can open the callback URL.
       if (query.has('state')) {
@@ -147,13 +234,20 @@ export async function authRoutes(app: FastifyInstance) {
       }
       const { user } = decision
       if (decision.link) await linkOidcIdentity(cfg, user, decision.subject)
-      // The IdP authenticated the user and enforces its own MFA, so no local password or TOTP step.
-      await createAuthSession(app, reply, { ...user, totpEnabled: 0 }, 'oidc')
-      await writeAudit(
-        { userId: user.id, userEmail: user.email },
-        'update', 'user-security', user.id, user.email,
-        { oidcLogin: true },
-      )
+      // The IdP replaces the password. A user who enabled 2FA here still has to enter their code.
+      if (user.totpEnabled) {
+        const challenge: TwoFactorChallenge = { purpose: 'two-factor-login', userId: user.id, authMethod: 'oidc' }
+        reply.setCookie(TWO_FACTOR_CHALLENGE_COOKIE, app.jwt.sign(challenge, { expiresIn: TWO_FACTOR_CHALLENGE_SECONDS }), {
+          path: TWO_FACTOR_CHALLENGE_PATH,
+          httpOnly: true,
+          secure: process.env['NODE_ENV'] === 'production',
+          sameSite: 'strict',
+          maxAge: TWO_FACTOR_CHALLENGE_SECONDS,
+        })
+        return reply.redirect('/admin/login?two-factor=sso')
+      }
+      await createAuthSession(app, reply, await revokeTemporaryPassword(user), 'oidc')
+      await auditSignIn(user, 'sso', false)
       return reply.redirect('/admin/')
     } catch (error) {
       req.log.warn({ err: error }, 'OIDC callback failed')
@@ -165,33 +259,57 @@ export async function authRoutes(app: FastifyInstance) {
   app.post<{ Body: { email: string; password: string } }>('/login', {
     config: { rateLimit: LOGIN_RATE_LIMIT },
   }, async (req, reply) => {
-    if (!passwordLoginEnabled((await getOidcConfig()).config)) return reply.code(403).send({ error: 'Password sign-in is disabled' })
     const { email, password } = req.body
+    const typedEmail = typeof email === 'string' && email.trim() ? email.trim().slice(0, 320) : undefined
+    if (!passwordLoginEnabled((await getOidcConfig()).config)) {
+      await denySignIn('password', 'password_login_disabled', 'Password sign-in is disabled; only single sign-on is allowed.', typedEmail)
+      return reply.code(403).send({ error: 'Password sign-in is disabled' })
+    }
     const user = (await db.select().from(users).where(eq(users.email, email)))[0]
-    if (!user || !await verifyPassword(user, password)) {
+    if (!user) {
+      await denySignIn('password', 'no_matching_account', `No user has the email ${typedEmail ?? '(none entered)'}.`, typedEmail)
+      return reply.code(401).send({ error: 'Invalid credentials' })
+    }
+    if (!await verifyPassword(user, password)) {
+      await denySignIn('password', 'wrong_password', 'The password is incorrect.', user.email)
       return reply.code(401).send({ error: 'Invalid credentials' })
     }
     if (user.totpEnabled) {
       const challengeToken = app.jwt.sign({ purpose: 'two-factor-login', userId: user.id }, { expiresIn: '5m' })
       return { requiresTwoFactor: true, challengeToken }
     }
-    return finishLogin(app, reply, user)
+    const session = await finishLogin(app, reply, user)
+    await auditSignIn(user, 'password', false)
+    return session
   })
 
-  app.post<{ Body: { challengeToken: string; code: string } }>('/2fa/verify', {
+  // A password sign-in sends its challenge in the body; an SSO sign-in left it in a cookie at the callback.
+  app.post<{ Body: { challengeToken?: string; code: string } }>('/2fa/verify', {
     config: { rateLimit: LOGIN_RATE_LIMIT },
   }, async (req, reply) => {
-    let challenge: { purpose?: string; userId?: number }
-    try { challenge = app.jwt.verify(req.body.challengeToken) }
-    catch { return reply.code(401).send({ error: 'Two-factor challenge expired' }) }
+    const token = req.body.challengeToken || req.cookies[TWO_FACTOR_CHALLENGE_COOKIE]
+    // Where the challenge came from says which sign-in it continues, even when it can no longer be read.
+    const method: SignInMethod = req.body.challengeToken ? 'password' : 'sso'
+    let challenge: TwoFactorChallenge
+    try { challenge = app.jwt.verify(token ?? '') }
+    catch {
+      await denySignIn(method, 'two_factor_expired', 'The authentication code was entered more than 5 minutes after the first sign-in step, or the challenge was missing or invalid.')
+      return reply.code(401).send({ error: 'Two-factor challenge expired' })
+    }
     if (challenge.purpose !== 'two-factor-login' || !Number.isInteger(challenge.userId)) {
       return reply.code(401).send({ error: 'Invalid two-factor challenge' })
     }
-    const user = (await db.select().from(users).where(eq(users.id, challenge.userId!)))[0]
-    if (!user || !await verifySecondFactor(user, req.body.code)) {
+    const found = (await db.select().from(users).where(eq(users.id, challenge.userId!)))[0]
+    if (!found || !await verifySecondFactor(found, req.body.code)) {
+      if (found) await denySignIn(method, 'invalid_two_factor_code', 'The authentication or recovery code is incorrect.', found.email)
       return reply.code(401).send({ error: 'Invalid authentication code' })
     }
-    return finishLogin(app, reply, user)
+    reply.clearCookie(TWO_FACTOR_CHALLENGE_COOKIE, { path: TWO_FACTOR_CHALLENGE_PATH })
+    const authMethod: AuthMethod = challenge.authMethod === 'oidc' ? 'oidc' : 'password'
+    const user = authMethod === 'oidc' ? await revokeTemporaryPassword(found) : found
+    const session = await finishLogin(app, reply, user, authMethod)
+    await auditSignIn(user, authMethod === 'oidc' ? 'sso' : 'password', true)
+    return session
   })
 
   app.get('/session', { preHandler: requireAuth, config: ALLOW_PENDING_PASSWORD_CHANGE }, async (req) => {
@@ -224,11 +342,10 @@ export async function authRoutes(app: FastifyInstance) {
     const user = (await db.select().from(users).where(eq(users.id, identity.userId)))[0]
     if (!user) return reply.code(404).send({ error: 'User not found' })
 
-    if (!user.mustChangePassword) {
-      if (!currentPassword) return reply.code(400).send({ error: 'Current password is required' })
-      if (!await verifyPassword(user, currentPassword)) {
-        return reply.code(400).send({ error: 'Current password is incorrect' })
-      }
+    // The session, not the user row: an SSO session never has to replace a temporary password, so it confirms too.
+    if (!identity.mustChangePassword) {
+      if (identity.authMethod === 'password' && !currentPassword) return reply.code(400).send({ error: 'Current password is required' })
+      if (!await confirmIdentity(identity, currentPassword, reply)) return reply
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10)
@@ -244,12 +361,11 @@ export async function authRoutes(app: FastifyInstance) {
     return finishLogin(app, reply, updated, identity.authMethod)
   })
 
-  app.post<{ Body: { currentPassword: string } }>('/2fa/setup', { preHandler: requireAuth }, async (req, reply) => {
+  app.post<{ Body: { currentPassword?: string } }>('/2fa/setup', { preHandler: requireAuth }, async (req, reply) => {
     const identity = requestIdentity(req)
+    if (!await confirmIdentity(identity, req.body?.currentPassword, reply)) return reply
     const user = (await db.select().from(users).where(eq(users.id, identity.userId)))[0]
-    if (!user || !await verifyPassword(user, req.body.currentPassword)) {
-      return reply.code(400).send({ error: 'Current password is incorrect' })
-    }
+    if (!user) return reply.code(404).send({ error: 'User not found' })
     if (user.totpEnabled) return reply.code(409).send({ error: 'Two-factor authentication is already enabled' })
     const secret = generateTotpSecret()
     const uri = totpUri(secret, user.email)
@@ -294,12 +410,11 @@ export async function authRoutes(app: FastifyInstance) {
     return { recoveryCodes }
   })
 
-  app.post<{ Body: { currentPassword: string; code: string } }>('/2fa/disable', { preHandler: requireAuth }, async (req, reply) => {
+  app.post<{ Body: { currentPassword?: string; code: string } }>('/2fa/disable', { preHandler: requireAuth }, async (req, reply) => {
     const identity = requestIdentity(req)
+    if (!await confirmIdentity(identity, req.body?.currentPassword, reply)) return reply
     const user = (await db.select().from(users).where(eq(users.id, identity.userId)))[0]
-    if (!user || !await verifyPassword(user, req.body.currentPassword)) {
-      return reply.code(400).send({ error: 'Current password is incorrect' })
-    }
+    if (!user) return reply.code(404).send({ error: 'User not found' })
     if (!user.totpEnabled) return reply.code(409).send({ error: 'Two-factor authentication is not enabled' })
     if (!await verifySecondFactor(user, req.body.code)) {
       return reply.code(400).send({ error: 'Invalid authentication code' })

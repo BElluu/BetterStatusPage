@@ -26,6 +26,9 @@ interface BuilderState {
   /** Move a root-level monitor node into a group */
   moveToGroup: (nodeId: string, targetGroupId: string) => void
 
+  /** Move a group child onto the canvas at the given grid position, shifting root items at >= grid.y down */
+  moveOutOfGroup: (nodeId: string, grid: GridPos) => void
+
   /** Insert a root node at the given grid position, shifting existing items at >= dropY down to make room */
   insertRootNode: (node: Omit<LayoutNode, 'id'>, dropY: number) => void
 }
@@ -51,6 +54,14 @@ function mapTree(children: LayoutNode[], fn: (n: LayoutNode) => LayoutNode): Lay
       return { ...g, children: mapTree(g.children, fn) }
     }
     return updated
+  })
+}
+
+/** Root items at or below `fromY` pushed down by `by` rows, so a new item fits at `fromY`. */
+function shiftRootDown(children: LayoutNode[], fromY: number, by: number): LayoutNode[] {
+  return children.map((child) => {
+    const cg = child.grid
+    return cg && cg.y >= fromY ? ({ ...child, grid: { ...cg, y: cg.y + by } } as LayoutNode) : child
   })
 }
 
@@ -148,20 +159,26 @@ export const useBuilderStore = create<BuilderState>((set) => ({
     })
   },
 
+  moveOutOfGroup: (nodeId, grid) => {
+    set((s) => {
+      const group = s.tree.children.find(
+        (n) => n.type === 'group' && (n as GroupNode).children.some((c) => c.id === nodeId),
+      ) as GroupNode | undefined
+      const moved = group?.children.find((c) => c.id === nodeId)
+      if (!group || !moved) return s
+      const rootChildren = s.tree.children.map((n) =>
+        n.id === group.id ? { ...group, children: group.children.filter((c) => c.id !== nodeId) } : n,
+      )
+      const children = [...shiftRootDown(rootChildren, grid.y, grid.h), { ...moved, grid } as LayoutNode]
+      return { tree: { ...s.tree, children }, isDirty: true }
+    })
+  },
+
   insertRootNode: (nodeWithoutId, dropY) => {
     const node = { ...nodeWithoutId, id: nanoid(8) } as LayoutNode
     const itemH = node.grid?.h ?? 1
-    set((s) => {
-      // Shift every root item whose y is at or below the drop row
-      const shifted = s.tree.children.map((child) => {
-        const cg = child.grid
-        if (cg && cg.y >= dropY) {
-          return { ...child, grid: { ...cg, y: cg.y + itemH } } as LayoutNode
-        }
-        return child
-      })
-      return { tree: { ...s.tree, children: [...shifted, node] }, isDirty: true }
-    })
+    // Shift every root item whose y is at or below the drop row
+    set((s) => ({ tree: { ...s.tree, children: [...shiftRootDown(s.tree.children, dropY, itemH), node] }, isDirty: true }))
   },
 
   reorderGroupChildren: (groupId, fromId, toId) => {

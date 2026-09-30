@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import ReactGridLayout, { WidthProvider } from 'react-grid-layout/legacy'
 import type { Layout, LayoutItem } from 'react-grid-layout/legacy'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import {
-  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
-  type DragEndEvent,
+  DndContext, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors,
+  type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -20,6 +21,9 @@ import {
 import type {
   Monitor, LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode, IncidentsNode, ChartNode, GridPos,
 } from '@bsp/shared'
+
+/** What the builder knows about a monitor: /admin/layout/monitors, readable by branding users too. */
+type BuilderMonitor = Pick<Monitor, 'id' | 'name' | 'type'>
 
 // ── Prune monitor nodes that reference deleted monitors ───────────────────────
 function pruneOrphanedMonitors(
@@ -78,7 +82,7 @@ function createToolboxNode(type: string, options: { monitorId?: number; label?: 
 }
 
 /** Human name of a node, used for accessible labels on cards and their delete buttons. */
-function nodeLabel(node: LayoutNode, monitors: Monitor[]): string {
+function nodeLabel(node: LayoutNode, monitors: BuilderMonitor[]): string {
   const monitorName = (id: number) => monitors.find((m) => m.id === id)?.name ?? `#${id}`
   switch (node.type) {
     case 'group':     return `Group ${(node as GroupNode).label || 'Group'}`
@@ -116,9 +120,10 @@ export default function BuilderPage() {
     tree, setTree, isDirty, markClean,
     addNode, updateNode, deleteNode,
     applyGridLayout, reorderGroupChildren,
-    moveToGroup, insertRootNode,
+    moveToGroup, moveOutOfGroup, insertRootNode,
     selectNode, selectedId,
   } = useBuilderStore()
+  const canvasRef = useRef<HTMLDivElement>(null)
 
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -134,9 +139,9 @@ export default function BuilderPage() {
     i: '__dropping__', x: 0, y: 0, w: 1, h: 1,
   })
 
-  const monitorsQuery = useQuery<Monitor[]>({
-    queryKey: ['monitors'],
-    queryFn: () => api.get('/admin/monitors'),
+  const monitorsQuery = useQuery<BuilderMonitor[]>({
+    queryKey: ['layout-monitors'],
+    queryFn: () => api.get('/admin/layout/monitors'),
   })
   const monitors = useMemo(() => monitorsQuery.data ?? [], [monitorsQuery.data])
 
@@ -266,6 +271,21 @@ export default function BuilderPage() {
         reorderGroupChildren(groupId, active.id as string, over.id as string)
       }
     }
+  }
+
+  /** A group child dropped outside its group lands on the canvas cell under the pointer. */
+  function handleMoveOut(child: LayoutNode, clientX: number, clientY: number) {
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect || clientX < rect.left || clientX > rect.right || clientY < rect.top) return
+    const [marginX, marginY] = [10, 10]
+    const colW = (rect.width - marginX * (COLS - 1)) / COLS
+    const g = defaultGrid(child.type)
+    const w = Math.min(g.w, COLS)
+    const h = child.type === 'text' ? calcTextH((child as TextNode).markdown) : g.h
+    const col = Math.floor((clientX - rect.left) / (colW + marginX))
+    const x = Math.max(0, Math.min(col, COLS - w))
+    const y = Math.max(0, Math.floor((clientY - rect.top) / (ROW_H + marginY)))
+    moveOutOfGroup(child.id, { x, y, w, h })
   }
 
   return (
@@ -434,7 +454,7 @@ export default function BuilderPage() {
           ) : tree.children.length === 0 ? (
             <EmptyDrop onDrop={handleDrop} droppingItem={droppingItem} rglLayout={rglLayout} />
           ) : (
-            <div className="relative">
+            <div className="relative" ref={canvasRef}>
               {/* Column guides */}
               <div className="absolute inset-0 pointer-events-none" style={{
                 display: 'grid',
@@ -477,6 +497,7 @@ export default function BuilderPage() {
                     onUpdate={(patch) => updateNode(node.id, patch)}
                     onAddChild={(n) => addNode(node.id, n)}
                     onMoveToGroup={(nodeId, groupId) => moveToGroup(nodeId, groupId)}
+                    onMoveOut={handleMoveOut}
                     sensors={sensors}
                     onGroupDragEnd={handleGroupDragEnd(node.id)}
                   />
@@ -557,7 +578,7 @@ function EmptyDrop({ onDrop, droppingItem, rglLayout }: {
 // ── Node card ─────────────────────────────────────────────────────────────────
 interface NodeCardProps {
   node: LayoutNode
-  monitors: Monitor[]
+  monitors: BuilderMonitor[]
   isSelected: boolean
   onSelect: () => void
   onSelectChild: (id: string) => void
@@ -565,6 +586,8 @@ interface NodeCardProps {
   onUpdate: (patch: Partial<LayoutNode>) => void
   onAddChild: (n: Omit<LayoutNode, 'id'>) => void
   onMoveToGroup: (nodeId: string, groupId: string) => void
+  /** A group child was dropped outside its group, at this viewport point. */
+  onMoveOut: (child: LayoutNode, clientX: number, clientY: number) => void
   sensors: ReturnType<typeof useSensors>
   onGroupDragEnd: (e: DragEndEvent) => void
 }
@@ -673,12 +696,39 @@ function NodeCard(props: NodeCardProps) {
 // ── Group card (with inner @dnd-kit sortable) ─────────────────────────────────
 function GroupCard({
   node, monitors, isSelected, onSelect, onSelectChild, onDelete, onUpdate, onAddChild,
-  onMoveToGroup,
+  onMoveToGroup, onMoveOut,
   sensors, onGroupDragEnd,
 }: Omit<NodeCardProps, 'node'> & { node: GroupNode }) {
   const { selectedId } = useBuilderStore()
   const ring = isSelected ? 'ring-2 ring-primary' : 'ring-1 ring-outline-variant'
   const [isDragOver, setIsDragOver] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [draggedChild, setDraggedChild] = useState<LayoutNode | null>(null)
+  // dnd-kit's delta is scroll-adjusted, so the drop point is tracked from the pointer itself.
+  const pointerRef = useRef({ x: 0, y: 0 })
+
+  useEffect(() => {
+    if (!draggedChild) return
+    const track = (e: PointerEvent) => { pointerRef.current = { x: e.clientX, y: e.clientY } }
+    window.addEventListener('pointermove', track)
+    return () => window.removeEventListener('pointermove', track)
+  }, [draggedChild])
+
+  function handleChildDragStart({ active, activatorEvent }: DragStartEvent) {
+    const e = activatorEvent as PointerEvent
+    pointerRef.current = { x: e.clientX, y: e.clientY }
+    setDraggedChild(node.children.find((c) => c.id === active.id) ?? null)
+  }
+
+  function handleChildDragEnd(event: DragEndEvent) {
+    const child = draggedChild
+    setDraggedChild(null)
+    const rect = cardRef.current?.getBoundingClientRect()
+    const { x, y } = pointerRef.current
+    const outside = rect && (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom)
+    if (child && outside) onMoveOut(child, x, y)
+    else onGroupDragEnd(event)
+  }
 
   function handleDragOver(e: React.DragEvent) {
     e.preventDefault()
@@ -705,7 +755,7 @@ function GroupCard({
   }
 
   return (
-    <div className={`relative h-full flex flex-col rounded-xl bg-surface-container-low overflow-hidden focus-ring ${ring}`} {...selectableCard(onSelect, isSelected, nodeLabel(node, monitors))}>
+    <div ref={cardRef} className={`relative h-full flex flex-col rounded-xl bg-surface-container-low overflow-hidden focus-ring ${ring}`} {...selectableCard(onSelect, isSelected, nodeLabel(node, monitors))}>
       <DeleteBtn onDelete={onDelete} label={nodeLabel(node, monitors)} />
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 shrink-0 pr-7">
@@ -723,7 +773,13 @@ function GroupCard({
         onDragLeave={() => setIsDragOver(false)}
         onDrop={handleDrop}
       >
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onGroupDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleChildDragStart}
+          onDragEnd={handleChildDragEnd}
+          onDragCancel={() => setDraggedChild(null)}
+        >
           <SortableContext items={node.children.map((c) => c.id)} strategy={verticalListSortingStrategy}>
             <div className="space-y-1.5">
               {node.children.map((child) => (
@@ -741,12 +797,25 @@ function GroupCard({
               ))}
             </div>
           </SortableContext>
+          {/* Portalled: the card clips its overflow and sits in a transformed grid item, so an
+              in-place overlay could not follow the pointer out of the group. */}
+          {createPortal(
+            <DragOverlay>
+              {draggedChild && (
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm shadow-lg cursor-grabbing" style={{ background: 'var(--m3-surface-container-high)' }}>
+                  <span className="text-secondary" aria-hidden="true">⠿</span>
+                  <span className="text-on-surface-variant truncate">{nodeLabel(draggedChild, monitors)}</span>
+                </div>
+              )}
+            </DragOverlay>,
+            document.body,
+          )}
         </DndContext>
 
         <div className={`mt-1.5 border-2 border-dashed rounded-lg py-2 text-center text-[10px] transition-colors ${
           isDragOver ? 'border-primary text-primary' : 'border-outline-variant text-secondary'
         }`}>
-          {isDragOver ? 'Drop here' : 'Drag monitor from toolbox'}
+          {isDragOver ? 'Drop here' : 'Drag monitor from toolbox · drag out to ungroup'}
         </div>
       </div>
     </div>
@@ -755,7 +824,7 @@ function GroupCard({
 
 function SortableGroupItem({
   child, monitors, onSelect, isSelected, onDelete,
-}: { child: LayoutNode; monitors: Monitor[]; onSelect: () => void; isSelected: boolean; onDelete: () => void }) {
+}: { child: LayoutNode; monitors: BuilderMonitor[]; onSelect: () => void; isSelected: boolean; onDelete: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: child.id })
 
@@ -822,7 +891,7 @@ function PropertiesPanel({
   node, monitors, onUpdate, onAddChild,
 }: {
   node: LayoutNode
-  monitors: Monitor[]
+  monitors: BuilderMonitor[]
   onUpdate: (patch: Partial<LayoutNode>) => void
   onAddChild: (n: Omit<LayoutNode, 'id'>) => void
 }) {

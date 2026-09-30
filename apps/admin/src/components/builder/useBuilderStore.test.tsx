@@ -42,6 +42,24 @@ describe('builder store', () => {
     expect(reordered.children.map((node) => node.type === 'monitor' && node.monitorId)).toEqual([2, 1])
   })
 
+  it('moves a group child back onto the canvas, shifting the rows below', () => {
+    const store = useBuilderStore.getState()
+    store.addNode('root', { ...createGroupNode('Group'), grid: { x: 0, y: 0, w: 1, h: 3 } })
+    store.addNode('root', { ...createMonitorNode(2), grid: { x: 0, y: 3, w: 1, h: 1 } })
+    const [group, below] = useBuilderStore.getState().tree.children
+    useBuilderStore.getState().addNode(group!.id, createMonitorNode(1))
+    const childId = (findNode(useBuilderStore.getState().tree.children, group!.id) as { children: { id: string }[] }).children[0]!.id
+
+    useBuilderStore.getState().moveOutOfGroup(childId, { x: 1, y: 3, w: 1, h: 1 })
+    const { tree, isDirty } = useBuilderStore.getState()
+    const emptied = findNode(tree.children, group!.id)
+    if (!emptied || emptied.type !== 'group') throw new Error('Group missing')
+    expect(emptied.children).toEqual([])
+    expect(tree.children.find((n) => n.id === childId)?.grid).toEqual({ x: 1, y: 3, w: 1, h: 1 })
+    expect(tree.children.find((n) => n.id === below!.id)?.grid?.y).toBe(4)
+    expect(isDirty).toBe(true)
+  })
+
   it('applies grid layouts and shifts rows when inserting', () => {
     useBuilderStore.getState().addNode('root', { ...createMonitorNode(1), grid: { x: 0, y: 1, w: 1, h: 1 } })
     const node = useBuilderStore.getState().tree.children[0]!

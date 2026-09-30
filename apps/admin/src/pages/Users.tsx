@@ -5,6 +5,7 @@ import { ConfirmModal } from '../components/ConfirmModal'
 import { CopyButton } from '../components/CopyButton'
 import { ResetTwoFactorModal } from '../components/ResetTwoFactorModal'
 import { SingleSignOnModal } from '../components/SingleSignOnModal'
+import { useSsoConfirmation } from '../components/SsoConfirmation'
 import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
 
 interface User {
@@ -38,6 +39,7 @@ const ROW_ACTION = 'w-8 h-8 flex items-center justify-center rounded-lg transiti
 
 export default function UsersPage() {
   const qc = useQueryClient()
+  const ssoConfirmation = useSsoConfirmation()
   const toast = useToast()
   const emailInputId = useId()
   const [showCreate, setShowCreate] = useState(false)
@@ -113,8 +115,8 @@ export default function UsersPage() {
   })
 
   const resetTwoFactorMutation = useMutation({
-    mutationFn: ({ id, currentPassword }: { id: number; currentPassword: string }) =>
-      api.post<{ twoFactorEnabled: false }>(`/admin/users/${id}/reset-2fa`, { currentPassword }),
+    mutationFn: ({ id, currentPassword }: { id: number; currentPassword: string | undefined }) =>
+      ssoConfirmation.run(() => api.post<{ twoFactorEnabled: false }>(`/admin/users/${id}/reset-2fa`, currentPassword === undefined ? {} : { currentPassword })),
     onSuccess: (_data, variables) => {
       const user = users.find((candidate) => candidate.id === variables.id)
       setMessage(user ? `Two-factor authentication reset for ${user.email}.` : 'Two-factor authentication reset.')
@@ -415,6 +417,7 @@ export default function UsersPage() {
           email={twoFactorResetTarget.email}
           pending={resetTwoFactorMutation.isPending}
           {...(resetTwoFactorMutation.error ? { error: errorMessage(resetTwoFactorMutation.error, 'Failed to reset two-factor authentication') } : {})}
+          ssoConfirmation={ssoConfirmation}
           onConfirm={(currentPassword) => resetTwoFactorMutation.mutate({ id: twoFactorResetTarget.id, currentPassword })}
           onCancel={() => { if (!resetTwoFactorMutation.isPending) setTwoFactorResetTarget(null) }}
         />
