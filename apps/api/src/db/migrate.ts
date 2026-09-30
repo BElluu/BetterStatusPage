@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto'
+import bcrypt from 'bcryptjs'
 import { sqlite } from './client.js'
 import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 
@@ -195,6 +197,7 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
   last_seen_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL,
   auth_method TEXT NOT NULL DEFAULT 'password',
+  verified_at INTEGER,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
@@ -367,6 +370,7 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE auth_sessions ADD COLUMN auth_method TEXT NOT NULL DEFAULT 'password'`, desc: 'auth_sessions.auth_method' },
   { sql: `ALTER TABLE users ADD COLUMN oidc_issuer TEXT`, desc: 'users.oidc_issuer' },
   { sql: `ALTER TABLE users ADD COLUMN oidc_subject TEXT`, desc: 'users.oidc_subject' },
+  { sql: `ALTER TABLE auth_sessions ADD COLUMN verified_at INTEGER`, desc: 'auth_sessions.verified_at' },
 ]
 
 /**
@@ -449,6 +453,18 @@ function migrateLegacyLogoVariants(): void {
   })
 }
 
+/**
+ * Accounts linked to SSO before a sign-in started revoking the temporary password may still have a working one
+ * that their administrator knows. Linking only happens on an SSO sign-in, so revoke it the same way.
+ */
+function revokeTemporaryPasswordsOfSsoUsers(): void {
+  runDataMigration('sso-users-temporary-password-revoked-v1', () => {
+    const pending = sqlite.prepare('SELECT id FROM users WHERE must_change_password = 1 AND oidc_subject IS NOT NULL').all() as Array<{ id: number }>
+    const revoke = sqlite.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?')
+    for (const { id } of pending) revoke.run(bcrypt.hashSync(randomBytes(32).toString('base64url'), 10), id)
+  })
+}
+
 /** Runs all migrations against the already-initialized DB. */
 export function runMigrations(): void {
   sqlite.exec(migrations)
@@ -463,6 +479,7 @@ export function runMigrations(): void {
   sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oidc_identity ON users(oidc_issuer, oidc_subject)`)
   alignBrandingDefaultsWithLightMode()
   migrateLegacyLogoVariants()
+  revokeTemporaryPasswordsOfSsoUsers()
   seedAlertConfirmedStatus()
   console.log('✓ Migrations applied')
 }

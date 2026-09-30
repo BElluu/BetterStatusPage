@@ -6,7 +6,8 @@ import { Alert } from '../components/ui'
 
 interface AuthConfig {
   passwordLogin: boolean
-  oidc: { label: string } | null
+  /** `loginUrl` is on the host the identity provider returns to, which may differ from the one this page is on. */
+  oidc: { label: string; loginUrl?: string } | null
 }
 
 const SSO_ERRORS: Record<string, string> = {
@@ -30,6 +31,9 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [searchParams] = useSearchParams()
+  // An SSO sign-in of a user with 2FA comes back here for the code; the server holds the challenge in a cookie.
+  const [ssoChallenge, setSsoChallenge] = useState(searchParams.get('two-factor') === 'sso')
+  const codeStep = !!challengeToken || ssoChallenge
   const [authConfig, setAuthConfig] = useState<AuthConfig>({ passwordLogin: true, oidc: null })
   const ssoError = SSO_ERRORS[searchParams.get('error') ?? '']
 
@@ -42,8 +46,8 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      if (challengeToken) {
-        const user = await api.post<AuthUser>('/auth/2fa/verify', { challengeToken, code })
+      if (codeStep) {
+        const user = await api.post<AuthUser>('/auth/2fa/verify', challengeToken ? { challengeToken, code } : { code })
         setSession(user)
         navigate(user.mustChangePassword ? '/admin/change-password' : '/admin/')
       } else {
@@ -156,18 +160,18 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {(error || ssoError) && <Alert tone="error">{error || ssoError}</Alert>}
 
-            {authConfig.oidc && !challengeToken && (
-              <a href="/api/v1/auth/oidc/login" className="btn btn-primary w-full py-3 font-headline font-bold text-center block">
+            {authConfig.oidc && !codeStep && (
+              <a href={authConfig.oidc.loginUrl ?? '/api/v1/auth/oidc/login'} className="btn btn-primary w-full py-3 font-headline font-bold text-center block">
                 {authConfig.oidc.label}
               </a>
             )}
-            {authConfig.oidc && authConfig.passwordLogin && !challengeToken && (
+            {authConfig.oidc && authConfig.passwordLogin && !codeStep && (
               <p className="text-xs font-sans text-center" style={{ color: 'var(--m3-secondary)' }}>or use your password</p>
             )}
 
-            {(authConfig.passwordLogin || challengeToken) && <>
+            {(authConfig.passwordLogin || codeStep) && <>
 
-            {!challengeToken && <div>
+            {!codeStep && <div>
               <label htmlFor="login-email" className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
                 Email
               </label>
@@ -183,7 +187,7 @@ export default function LoginPage() {
               />
             </div>}
 
-            {!challengeToken && <div>
+            {!codeStep && <div>
               <label htmlFor="login-password" className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
                 Password
               </label>
@@ -199,7 +203,7 @@ export default function LoginPage() {
               />
             </div>}
 
-            {challengeToken && (
+            {codeStep && (
               <div>
                 <label htmlFor="login-two-factor-code" className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
                   Authentication code
@@ -219,9 +223,9 @@ export default function LoginPage() {
                   type="button"
                   className="text-xs mt-2 rounded focus-ring hover:underline"
                   style={{ color: 'var(--m3-secondary)' }}
-                  onClick={() => { setChallengeToken(''); setCode('') }}
+                  onClick={() => { setChallengeToken(''); setSsoChallenge(false); setCode('') }}
                 >
-                  Back to password sign-in
+                  Back to sign-in
                 </button>
               </div>
             )}
@@ -231,7 +235,7 @@ export default function LoginPage() {
               disabled={loading}
               className="btn btn-primary w-full py-3 mt-2 font-headline font-bold"
             >
-              {loading ? 'Signing in…' : challengeToken ? 'Verify & sign in' : 'Sign in'}
+              {loading ? 'Signing in…' : codeStep ? 'Verify & sign in' : 'Sign in'}
             </button>
             </>}
           </form>

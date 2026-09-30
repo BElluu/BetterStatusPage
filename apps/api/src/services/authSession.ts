@@ -3,8 +3,6 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { and, eq, lt, ne } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { authSessions, users } from '../db/schema.js'
-import { passwordLoginEnabled } from '../config/oidc.js'
-import { getOidcConfig } from './oidcSettings.js'
 import { normalizeRole } from './roles.js'
 import { sseService } from './sse.service.js'
 
@@ -70,6 +68,7 @@ export async function createAuthSession(
     lastSeenAt: now,
     expiresAt,
     authMethod,
+    verifiedAt: now,
   })
 
   const role = normalizeRole(user.role)
@@ -81,21 +80,18 @@ export async function createAuthSession(
     email: user.email,
     role,
     sessionId,
-    mustChangePassword: await mustChangePassword(user, authMethod),
+    mustChangePassword: mustChangePassword(user, authMethod),
     twoFactorEnabled: !!user.totpEnabled,
     authMethod,
   }
 }
 
 /**
- * A pending temporary password must be changed in every session while password sign-in is possible, so the
- * password the administrator handed out stops working. With password sign-in disabled it cannot be used, so
- * an SSO session skips the change. The OIDC settings are only read in that rare case.
+ * A password session must replace a pending temporary password, so the one the administrator handed out stops
+ * working. An SSO session never has to: the SSO sign-in makes the temporary password unusable instead.
  */
-async function mustChangePassword(user: { mustChangePassword: number }, authMethod: string): Promise<boolean> {
-  if (!user.mustChangePassword) return false
-  if (authMethod !== 'oidc') return true
-  return passwordLoginEnabled((await getOidcConfig()).config)
+function mustChangePassword(user: { mustChangePassword: number }, authMethod: string): boolean {
+  return !!user.mustChangePassword && authMethod !== 'oidc'
 }
 
 export function clearAuthCookies(reply: FastifyReply): void {
@@ -133,7 +129,7 @@ export async function authenticateRequest(req: FastifyRequest): Promise<AuthIden
     email: user.email,
     role: normalizeRole(user.role),
     sessionId: session.id,
-    mustChangePassword: await mustChangePassword(user, session.authMethod),
+    mustChangePassword: mustChangePassword(user, session.authMethod),
     twoFactorEnabled: !!user.totpEnabled,
     authMethod: session.authMethod === 'oidc' ? 'oidc' : 'password',
   }

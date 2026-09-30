@@ -51,3 +51,22 @@ describe('Drizzle schema matches migrated SQLite schema', () => {
     })
   }
 })
+
+describe('data migrations', () => {
+  const rerun = (name: string) => {
+    sqlite.prepare('DELETE FROM schema_migrations WHERE name = ?').run(name)
+    runMigrations()
+  }
+
+  it('revokes the pending temporary password of users already linked to SSO', () => {
+    const insert = sqlite.prepare('INSERT INTO users (email, password_hash, role, must_change_password, oidc_issuer, oidc_subject, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    const linked = Number(insert.run('linked@example.test', 'temporary-hash', 'operator', 1, 'https://idp.example.test', 'sub-1', 1).lastInsertRowid)
+    const local = Number(insert.run('local@example.test', 'temporary-hash', 'operator', 1, null, null, 1).lastInsertRowid)
+    rerun('sso-users-temporary-password-revoked-v1')
+
+    const user = (id: number) => sqlite.prepare('SELECT password_hash, must_change_password FROM users WHERE id = ?').get(id) as { password_hash: string; must_change_password: number }
+    assert.equal(user(linked).must_change_password, 0)
+    assert.notEqual(user(linked).password_hash, 'temporary-hash')
+    assert.deepEqual({ ...user(local) }, { password_hash: 'temporary-hash', must_change_password: 1 })
+  })
+})

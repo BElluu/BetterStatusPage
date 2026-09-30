@@ -1,5 +1,5 @@
-/** `deny` records a refused action, such as an SSO sign-in that matched no usable account. */
-export type AuditAction = 'create' | 'update' | 'delete' | 'deny'
+/** `allow` records a successful sign-in; `deny` a refused action, such as a sign-in with a wrong password. */
+export type AuditAction = 'create' | 'update' | 'delete' | 'allow' | 'deny'
 
 export type AuditEntityType =
   | 'monitor'
@@ -13,7 +13,8 @@ export type AuditEntityType =
   | 'vault_secret'
   | 'user'
   | 'oidc_settings'
-  | 'oidc_login'
+  /** Every sign-in attempt, with a password or SSO; `diff.method` says which. */
+  | 'sign_in'
 
 export interface AuditLogEntry {
   id: number

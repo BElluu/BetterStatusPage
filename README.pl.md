@@ -123,13 +123,13 @@ Pozwól zespołowi logować się dostawcą tożsamości, którego już używa �
 - **Tylko istniejący użytkownicy** — SSO nigdy nie tworzy kont. Użytkownicy są dopasowywani po zweryfikowanym adresie email i zachowują swoją rolę w BetterStatusPage, więc nikt nie wejdzie przypadkiem.
 - **Logowanie hasłem zostaje jako zabezpieczenie** — albo wyłącz je, gdy SSO już działa. Da się je wyłączyć dopiero po udanym teście połączenia z dostawcą, a `OIDC_FORCE_PASSWORD_LOGIN=true` to przełącznik awaryjny na wypadek awarii dostawcy.
 - **Przyjazne dla infrastruktury jako kod** — te same ustawienia mogą pochodzić ze zmiennych `OIDC_*`, które wtedy nadpisują formularz i go blokują.
-- **Audytowane** — każde logowanie SSO i każda zmiana ustawień trafia do dziennika audytu (sekret nigdy).
+- **Audytowane** — każde logowanie, udane czy odrzucone, i każda zmiana ustawień trafia do dziennika audytu (sekret nigdy).
 
 > Zobacz **[docs/single-sign-on.md](docs/single-sign-on.md)** — konfiguracja, uwagi o dostawcach i rozwiązywanie problemów (po angielsku).
 
 ### 🎨 Kreator stron metodą przeciągnij i upuść
 
-Publiczna strona statusu to nie tylko lista zielonych kropek. To w pełni konfigurowalny układ siatki, który projektujesz samodzielnie — przeciągnij karty monitorów, pogrupuj je według usług, dodaj bloki tekstu w markdownie, wrzuć kanał incydentów, zmień rozmiary, gotowe. Bez CSS.
+Publiczna strona statusu to nie tylko lista zielonych kropek. To w pełni konfigurowalny układ siatki, który projektujesz samodzielnie — przeciągnij karty monitorów, pogrupuj je według usług (i przeciągaj je do grup i z grup), dodaj bloki tekstu w markdownie, wrzuć kanał incydentów, zmień rozmiary, gotowe. Bez CSS.
 
 ### 📢 Zarządzanie incydentami
 
@@ -173,10 +173,11 @@ Każda zmiana w panelu admina jest rejestrowana — kto, kiedy i co dokładnie z
 | Ustawienia SMTP | Konfiguracja / aktualizacja |
 | Sejfy i sekrety | Tworzenie, aktualizacja (nazwa, zmiana wartości oznaczona jako `[redacted]`), usuwanie |
 | Użytkownicy | Tworzenie, zmiana roli, reset hasła, usuwanie |
-| Bezpieczeństwo konta | Włączenie lub wyłączenie uwierzytelniania dwuskładnikowego TOTP |
-| Single sign-on | Konfiguracja lub zmiana ustawień OpenID Connect, logowania SSO |
+| Bezpieczeństwo konta | Włączenie lub wyłączenie uwierzytelniania dwuskładnikowego TOTP, zmiana hasła, powiązanie konta z SSO, unieważnienie hasła tymczasowego |
+| Ustawienia SSO | Konfiguracja lub zmiana ustawień OpenID Connect |
+| Logowania | Każde logowanie hasłem lub przez SSO: udane albo odrzucone z powodem (nieznany email, błędne hasło, błędny kod 2FA, odmowa SSO…) |
 
-Strona dziennika audytu (tylko dla adminów) pozwala filtrować po **użytkowniku**, **typie encji**, **akcji** (create / update / delete) i **zakresie dat**. Kliknij dowolny wiersz, by rozwinąć różnice.
+Strona dziennika audytu (tylko dla adminów) pozwala filtrować po **użytkowniku**, **typie encji**, **akcji** (create / update / delete / allowed / denied) i **zakresie dat**. Kliknij dowolny wiersz, by rozwinąć różnice.
 
 ### 🌍 i18n, branding i cała reszta
 
@@ -357,7 +358,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Zestaw E2E przy każdym uruchomieniu startuje od pustej instancji (dane robocze w `.e2e/` są najpierw czyszczone), przechodzi kreator konfiguracji, a potem obejmuje monitory, incydenty, okna serwisowe, subskrypcje e-mail i dostęp oparty na rolach. GitHub Actions uruchamia lint, testy, pokrycie, buildy, Playwright E2E i produkcyjny test dymny Dockera dla pull requestów i pushy do `main`.
+Zestaw E2E przy każdym uruchomieniu startuje od pustej instancji (dane robocze w `.e2e/` są najpierw czyszczone), przechodzi kreator konfiguracji, a potem obejmuje monitory, incydenty, okna serwisowe, subskrypcje e-mail, przeciąganie w kreatorze stron i dostęp oparty na rolach. GitHub Actions uruchamia lint, testy, pokrycie, buildy, Playwright E2E i produkcyjny test dymny Dockera dla pull requestów i pushy do `main`.
 
 ### Produkcja
 
@@ -415,7 +416,7 @@ MONITOR_RESULT_PURGE_CRON=0 2 * * *
 | **operator** | Monitory, incydenty, okna serwisowe, powiadomienia, kreator stron, branding, lokalizacja i ustawienia |
 | **branding** | Kreator stron, branding, lokalizacja i ustawienia konta |
 
-Sesje administratorów są przechowywane po stronie serwera i uwierzytelniane ciasteczkiem `HttpOnly`, `SameSite=Strict`. Żądania przeglądarki zmieniające stan wymagają pasującego tokena CSRF. Użytkownicy mogą włączyć uwierzytelnianie dwuskładnikowe TOTP w **Ustawieniach** i otrzymać osiem jednorazowych kodów odzyskiwania. Administratorzy mogą też włączyć [jednokrotne logowanie OpenID Connect](docs/single-sign-on.md) w **Użytkownicy → Single sign-on**.
+Sesje administratorów są przechowywane po stronie serwera i uwierzytelniane ciasteczkiem `HttpOnly`, `SameSite=Strict`. Żądania przeglądarki zmieniające stan wymagają pasującego tokena CSRF. Użytkownicy mogą włączyć uwierzytelnianie dwuskładnikowe TOTP w **Ustawieniach** i otrzymać osiem jednorazowych kodów odzyskiwania; działa ono zarówno przy logowaniu hasłem, jak i przez SSO. Administratorzy mogą też włączyć [jednokrotne logowanie OpenID Connect](docs/single-sign-on.md) w **Użytkownicy → Single sign-on**. Wrażliwe akcje (ustawienia logowania, 2FA, zmiana hasła) potwierdza się tak, jak zalogowała się sesja: aktualnym hasłem albo ponownym zalogowaniem u dostawcy tożsamości w okienku pop-up.
 
 ---
 

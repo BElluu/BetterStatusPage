@@ -107,7 +107,7 @@ describe('OIDC settings', () => {
 
     // Takes effect immediately, no restart.
     const config = await app.inject({ url: '/auth/config' })
-    assert.deepEqual(config.json(), { passwordLogin: true, oidc: { label: 'Sign in with SSO' } })
+    assert.deepEqual(config.json(), { passwordLogin: true, oidc: { label: 'Sign in with SSO', loginUrl: 'https://status.example.test/api/v1/auth/oidc/login' } })
   })
 
   it('keeps the stored secret when none is sent and audits without the secret value', async () => {
@@ -192,7 +192,7 @@ describe('OIDC email verification', () => {
 
 describe('Refused OIDC sign-ins', () => {
   const denials = async () => (await db.select().from(auditLog))
-    .filter((entry) => entry.entityType === 'oidc_login' && entry.action === 'deny')
+    .filter((entry) => entry.entityType === 'sign_in' && entry.action === 'deny')
     .map((entry) => JSON.parse(entry.diff ?? '{}') as { code: string; reason: string })
 
   it('audits a discovery failure and shows only a generic message', async () => {
