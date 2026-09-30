@@ -7,7 +7,10 @@ BetterStatusPage can sign administrators in through any OpenID Connect (OIDC) id
 - SSO signs in **existing users only**. It never creates accounts. Create the user first in **Users → New User**, then they can use SSO.
 - The account is matched by the **email** claim from the identity provider, case-insensitively. The email must be verified: the provider must send `email_verified: true`, or, for Microsoft Entra ID, `xms_edov: true` (see [Microsoft Entra ID](#microsoft-entra-id)).
 - The user keeps their BetterStatusPage role (`admin`, `operator`, `branding`). Roles are not read from the identity provider.
-- An SSO sign-in skips the local password and TOTP step, because the identity provider authenticates the user and enforces its own MFA.
+- An SSO sign-in skips the local password and TOTP step, because the identity provider authenticates the user and enforces its own MFA. It never changes the stored password.
+- The temporary password given when the user was created is handled by whether password sign-in is enabled:
+  - **Enabled:** the first SSO sign-in asks the user to set their own password, as a password sign-in would. The temporary password is not needed for that, so it never has to be handed to the user, and the one the administrator knows stops working.
+  - **Disabled:** it cannot be used, so an SSO sign-in does not ask for it to be changed. If password sign-in is turned on later, the next sign-in asks for the change.
 - Password sign-in stays available next to SSO unless you disable it.
 - Every SSO sign-in and every settings change is written to the audit log. The client secret is never logged.
 - A refused SSO sign-in shows the user only a generic message. The reason is written to the audit log for administrators, see [Why a sign-in was refused](#why-a-sign-in-was-refused).

@@ -24,7 +24,6 @@ export function SingleSignOnModal({ onClose }: { onClose: () => void }) {
   const [data, setData] = useState<OidcResponse | null>(null)
   const [form, setForm] = useState<OidcSettings | null>(null)
   const [clientSecret, setClientSecret] = useState('')
-  const [clearSecret, setClearSecret] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
   const [loadError, setLoadError] = useState('')
   const [busy, setBusy] = useState<'save' | 'test' | null>(null)
@@ -62,7 +61,7 @@ export function SingleSignOnModal({ onClose }: { onClose: () => void }) {
     setBusy('save'); setMessage(null)
     try {
       const saved = await api.put<OidcSettings>('/admin/oidc', {
-        ...form, clientSecret, clearClientSecret: clearSecret, currentPassword,
+        ...form, clientSecret, currentPassword,
       })
       toast.success(saved.enabled ? 'Single sign-on settings saved. They apply immediately.' : 'Single sign-on settings saved.')
       onClose()
@@ -92,20 +91,14 @@ export function SingleSignOnModal({ onClose }: { onClose: () => void }) {
           <Field label="Client ID">
             <input className="input-m3" value={form.clientId} onChange={(e) => update({ clientId: e.target.value })} autoComplete="off" />
           </Field>
-          <Field label="Client secret" hint={form.hasClientSecret && !clearSecret ? 'A secret is stored. Leave empty to keep it.' : 'Optional for public clients.'}>
+          <Field label="Client secret" hint={form.hasClientSecret ? 'A secret is stored. Leave empty to keep it.' : 'Optional for public clients.'}>
             <input
               className="input-m3" type="password" autoComplete="new-password" value={clientSecret}
-              onChange={(e) => { setClientSecret(e.target.value); setClearSecret(false) }}
-              placeholder={form.hasClientSecret && !clearSecret ? '••••••••' : ''}
+              onChange={(e) => setClientSecret(e.target.value)}
+              placeholder={form.hasClientSecret ? '••••••••' : ''}
             />
           </Field>
         </div>
-        {form.hasClientSecret && (
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={clearSecret} onChange={(e) => { setClearSecret(e.target.checked); if (e.target.checked) setClientSecret('') }} />
-            Remove the stored client secret
-          </label>
-        )}
         <Field label="Redirect URI" hint={redirectUri ? <>Register <code>{redirectUri}</code> as the callback URL in your identity provider.</> : 'Set PUBLIC_URL on the server or enter the callback URL here.'}>
           <input className="input-m3" value={form.redirectUri} onChange={(e) => update({ redirectUri: e.target.value })} placeholder={data.defaultRedirectUri} />
         </Field>
