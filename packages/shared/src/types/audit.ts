@@ -1,4 +1,5 @@
-export type AuditAction = 'create' | 'update' | 'delete'
+/** `deny` records a refused action, such as an SSO sign-in that matched no usable account. */
+export type AuditAction = 'create' | 'update' | 'delete' | 'deny'
 
 export type AuditEntityType =
   | 'monitor'
@@ -12,6 +13,7 @@ export type AuditEntityType =
   | 'vault_secret'
   | 'user'
   | 'oidc_settings'
+  | 'oidc_login'
 
 export interface AuditLogEntry {
   id: number

@@ -25,12 +25,15 @@ import { writeAudit } from '../services/audit.js'
 import { verifySecondFactor } from '../services/twoFactor.js'
 import { passwordLoginEnabled } from '../config/oidc.js'
 import { getOidcConfig } from '../services/oidcSettings.js'
-import { beginOidcLogin, completeOidcLogin, type OidcFlowState } from '../services/oidc.js'
+import { auditOidcDenial, beginOidcLogin, completeOidcLogin, type OidcDenialCode, type OidcFlowState } from '../services/oidc.js'
 
 const OIDC_FLOW_COOKIE = 'bsp_oidc_flow'
 const OIDC_FLOW_PATH = '/api/v1/auth/oidc'
 const OIDC_FLOW_SECONDS = 10 * 60
 const OIDC_FAILED_REDIRECT = '/admin/login?error=oidc_failed'
+// Denials about the identity itself show "no account matches"; the rest show the generic failure.
+const ACCOUNT_DENIALS = new Set<OidcDenialCode>(['no_email_claim', 'email_not_verified', 'no_matching_account'])
+const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, 1000)
 
 function publicSession(identity: AuthIdentity) {
   const { sessionId: _sessionId, ...safe } = identity
@@ -68,6 +71,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.redirect(url)
     } catch (error) {
       req.log.error({ err: error }, 'OIDC discovery failed')
+      await auditOidcDenial(cfg, { code: 'discovery_failed', reason: `OIDC discovery against the issuer failed: ${errorText(error)}` })
       return reply.redirect(OIDC_FAILED_REDIRECT)
     }
   })
@@ -77,14 +81,32 @@ export async function authRoutes(app: FastifyInstance) {
     if (!cfg) return reply.code(404).send({ error: 'OIDC is not configured' })
     const token = req.cookies[OIDC_FLOW_COOKIE]
     reply.clearCookie(OIDC_FLOW_COOKIE, { path: OIDC_FLOW_PATH })
-    if (!token) return reply.redirect(OIDC_FAILED_REDIRECT)
+    const query = new URL(req.url, 'http://localhost').searchParams
+    let flow: OidcFlowState & { purpose?: string }
     try {
-      const flow = app.jwt.verify<OidcFlowState & { purpose?: string }>(token)
-      if (flow.purpose !== 'oidc-flow') return reply.redirect(OIDC_FAILED_REDIRECT)
+      if (!token) throw new Error('missing')
+      flow = app.jwt.verify<OidcFlowState & { purpose?: string }>(token)
+      if (flow.purpose !== 'oidc-flow') throw new Error('wrong purpose')
+    } catch {
+      // Only audited for what looks like a real provider redirect: anyone can open the callback URL.
+      if (query.has('state')) {
+        await auditOidcDenial(cfg, {
+          code: 'flow_expired',
+          reason: 'The sign-in session cookie was missing or expired. The sign-in took longer than 10 minutes, '
+            + 'or the redirect URI points to a different host than the one the sign-in started on (for example localhost vs 127.0.0.1).',
+        })
+      }
+      return reply.redirect(OIDC_FAILED_REDIRECT)
+    }
+    try {
       const callbackUrl = new URL(cfg.redirectUri)
-      callbackUrl.search = new URL(req.url, 'http://localhost').search
-      const user = await completeOidcLogin(cfg, callbackUrl, flow)
-      if (!user) return reply.redirect('/admin/login?error=oidc_no_account')
+      callbackUrl.search = query.toString()
+      const { user, denial } = await completeOidcLogin(cfg, callbackUrl, flow)
+      if (!user) {
+        req.log.warn({ code: denial.code, reason: denial.reason }, 'OIDC sign-in refused')
+        await auditOidcDenial(cfg, denial)
+        return reply.redirect(ACCOUNT_DENIALS.has(denial.code) ? '/admin/login?error=oidc_no_account' : OIDC_FAILED_REDIRECT)
+      }
       // The IdP authenticated the user and enforces its own MFA, so no local password or TOTP step.
       await createAuthSession(app, reply, { ...user, mustChangePassword: 0, totpEnabled: 0 })
       await writeAudit(
@@ -95,6 +117,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.redirect('/admin/')
     } catch (error) {
       req.log.warn({ err: error }, 'OIDC callback failed')
+      await auditOidcDenial(cfg, { code: 'token_exchange_failed', reason: `The sign-in could not be completed: ${errorText(error)}` })
       return reply.redirect(OIDC_FAILED_REDIRECT)
     }
   })

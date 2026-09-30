@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
-import { Alert, ErrorState, Field, LoadingState, Switch } from './ui'
+import { Alert, ErrorState, Field, LoadingState, Switch, useToast } from './ui'
 import { ModalShell } from './ModalShell'
 
 interface OidcSettings {
@@ -29,6 +29,7 @@ export function SingleSignOnModal({ onClose }: { onClose: () => void }) {
   const [loadError, setLoadError] = useState('')
   const [busy, setBusy] = useState<'save' | 'test' | null>(null)
   const [message, setMessage] = useState<Message | null>(null)
+  const toast = useToast()
 
   const load = useCallback(() => api.get<OidcResponse>('/admin/oidc')
     .then((res) => { setData(res); setForm(res.settings); setLoadError('') })
@@ -63,11 +64,9 @@ export function SingleSignOnModal({ onClose }: { onClose: () => void }) {
       const saved = await api.put<OidcSettings>('/admin/oidc', {
         ...form, clientSecret, clearClientSecret: clearSecret, currentPassword,
       })
-      setClientSecret(''); setClearSecret(false); setCurrentPassword('')
-      setForm(saved)
-      setData({ ...data!, source: saved.enabled ? 'database' : 'none', settings: saved })
-      setMessage({ tone: 'success', text: 'Sign-in settings saved. They apply immediately.' })
-    } catch (err) { setMessage({ tone: 'error', text: errorText(err) }) } finally { setBusy(null) }
+      toast.success(saved.enabled ? 'Single sign-on settings saved. They apply immediately.' : 'Single sign-on settings saved.')
+      onClose()
+    } catch (err) { setMessage({ tone: 'error', text: errorText(err) }); setBusy(null) }
   }
 
   return <ModalShell align="top" onClose={busy ? undefined : onClose} label="Single sign-on">
@@ -120,7 +119,7 @@ export function SingleSignOnModal({ onClose }: { onClose: () => void }) {
         </div>
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1" checked={form.allowUnverifiedEmail} onChange={(e) => update({ allowUnverifiedEmail: e.target.checked })} />
-          <span>Accept identity providers that omit <code>email_verified</code> (for example Microsoft Entra ID). Enable only if the email claim is trustworthy.</span>
+          <span>Accept identity providers that omit <code>email_verified</code>. Enable only if the email claim is trustworthy. Not needed for Microsoft Entra ID: add the <code>xms_edov</code> optional claim instead.</span>
         </label>
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1" checked={form.disablePasswordLogin} onChange={(e) => update({ disablePasswordLogin: e.target.checked })} />

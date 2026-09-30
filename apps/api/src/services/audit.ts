@@ -1,5 +1,6 @@
 import { db } from '../db/client.js'
 import { auditLog } from '../db/schema.js'
+import type { AuditAction } from '@bsp/shared'
 
 const SENSITIVE_KEY = /(password|secret|token|authorization|cookie|credential|vaultconfig|encryptedvalue|recoverycode)/i
 
@@ -60,7 +61,7 @@ export function auditActor(identity: { userId: number; email: string }): Actor {
  */
 export async function writeAudit(
   actor: Actor,
-  action: 'create' | 'update' | 'delete',
+  action: AuditAction,
   entityType: string,
   entityId: number | string | null,
   entityName: string,

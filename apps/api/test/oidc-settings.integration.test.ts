@@ -9,6 +9,7 @@ import { auditLog, oidcSettings, users } from '../src/db/schema.js'
 import { requireAuth, requireRole } from '../src/middleware/auth.js'
 import { authRoutes } from '../src/routes/auth.js'
 import { oidcSettingsRoutes } from '../src/routes/oidcSettings.js'
+import { checkEmailVerified } from '../src/services/oidc.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const testDb = createTestDb('bsp-oidc-settings-test-')
@@ -168,5 +169,49 @@ describe('OIDC settings', () => {
     } finally {
       delete process.env['OIDC_FORCE_PASSWORD_LOGIN']
     }
+  })
+})
+
+describe('OIDC email verification', () => {
+  it('accepts email_verified or the Entra xms_edov claim', () => {
+    assert.equal(checkEmailVerified({ email_verified: true }, false), null)
+    assert.equal(checkEmailVerified({ email_verified: 'true' }, false), null)
+    assert.equal(checkEmailVerified({ xms_edov: true }, false), null)
+  })
+
+  it('refuses a missing verification claim unless unverified emails are allowed', () => {
+    assert.match(checkEmailVerified({}, false) ?? '', /xms_edov optional claim/)
+    assert.equal(checkEmailVerified({}, true), null)
+  })
+
+  it('never overrides an explicit false', () => {
+    assert.match(checkEmailVerified({ email_verified: false }, true) ?? '', /email_verified is false/)
+    assert.match(checkEmailVerified({ xms_edov: false }, true) ?? '', /xms_edov is false/)
+  })
+})
+
+describe('Refused OIDC sign-ins', () => {
+  const denials = async () => (await db.select().from(auditLog))
+    .filter((entry) => entry.entityType === 'oidc_login' && entry.action === 'deny')
+    .map((entry) => JSON.parse(entry.diff ?? '{}') as { code: string; reason: string })
+
+  it('audits a discovery failure and shows only a generic message', async () => {
+    await db.update(oidcSettings).set({ enabled: 1, disablePasswordLogin: 0, issuer: 'http://127.0.0.1:9', clientId: valid.clientId, redirectUri: valid.redirectUri })
+    const response = await app.inject({ url: '/auth/oidc/login' })
+    assert.equal(response.statusCode, 302)
+    assert.equal(response.headers.location, '/admin/login?error=oidc_failed')
+    assert.ok((await denials()).some((d) => d.code === 'discovery_failed'))
+  })
+
+  it('audits a provider redirect without the sign-in cookie, but not a bare callback hit', async () => {
+    const before = (await denials()).length
+    const bare = await app.inject({ url: '/auth/oidc/callback' })
+    assert.equal(bare.headers.location, '/admin/login?error=oidc_failed')
+    assert.equal((await denials()).length, before)
+
+    await app.inject({ url: '/auth/oidc/callback?code=abc&state=xyz' })
+    const after = await denials()
+    assert.equal(after.length, before + 1)
+    assert.equal(after.at(-1)!.code, 'flow_expired')
   })
 })
