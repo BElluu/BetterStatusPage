@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createGroupNode, createMonitorNode, defaultGrid, findNode, useBuilderStore } from './useBuilderStore'
+import { createGroupNode, createIncidentsNode, createMonitorNode, createTextNode, defaultGrid, findNode, useBuilderStore } from './useBuilderStore'
 
 describe('builder store', () => {
   beforeEach(() => {
@@ -40,6 +40,23 @@ describe('builder store', () => {
     const reordered = findNode(useBuilderStore.getState().tree.children, group!.id)
     if (!reordered || reordered.type !== 'group') throw new Error('Group missing')
     expect(reordered.children.map((node) => node.type === 'monitor' && node.monitorId)).toEqual([2, 1])
+  })
+
+  it('moves text blocks into groups but not blocks a group cannot show', () => {
+    const store = useBuilderStore.getState()
+    store.addNode('root', { ...createGroupNode('Group'), grid: defaultGrid('group') })
+    store.addNode('root', { ...createTextNode(), grid: { x: 0, y: 1, w: 3, h: 2 } })
+    store.addNode('root', { ...createIncidentsNode(), grid: { x: 0, y: 3, w: 3, h: 1 } })
+    const [group, text, incidents] = useBuilderStore.getState().tree.children
+    useBuilderStore.getState().moveToGroup(text!.id, group!.id)
+    useBuilderStore.getState().moveToGroup(incidents!.id, group!.id)
+
+    const { children } = useBuilderStore.getState().tree
+    expect(children.map((n) => n.id)).toEqual([group!.id, incidents!.id])
+    const grouped = children[0]!
+    if (grouped.type !== 'group') throw new Error('Group missing')
+    expect(grouped.children.map((n) => n.type)).toEqual(['text'])
+    expect(grouped.children[0]!.grid).toBeUndefined()
   })
 
   it('moves a group child back onto the canvas, shifting the rows below', () => {

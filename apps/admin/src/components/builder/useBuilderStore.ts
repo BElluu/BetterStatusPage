@@ -23,7 +23,7 @@ interface BuilderState {
   /** Reorder children inside a group (for @dnd-kit within-group DnD) */
   reorderGroupChildren: (groupId: string, fromId: string, toId: string) => void
 
-  /** Move a root-level monitor node into a group */
+  /** Move a root-level monitor or text node into a group (the only kinds a group renders) */
   moveToGroup: (nodeId: string, targetGroupId: string) => void
 
   /** Move a group child onto the canvas at the given grid position, shifting root items at >= grid.y down */
@@ -55,6 +55,11 @@ function mapTree(children: LayoutNode[], fn: (n: LayoutNode) => LayoutNode): Lay
     }
     return updated
   })
+}
+
+/** Groups render monitors and text blocks only, so only those can be moved into one. */
+export function canJoinGroup(node: LayoutNode): boolean {
+  return node.type === 'monitor' || node.type === 'text'
 }
 
 /** Root items at or below `fromY` pushed down by `by` rows, so a new item fits at `fromY`. */
@@ -146,7 +151,7 @@ export const useBuilderStore = create<BuilderState>((set) => ({
   moveToGroup: (nodeId, targetGroupId) => {
     set((s) => {
       const node = s.tree.children.find((c) => c.id === nodeId)
-      if (!node || node.type !== 'monitor') return s
+      if (!node || !canJoinGroup(node)) return s
       // Strip grid — group children don't use RGL positioning
       const { grid: _g, ...nodeData } = node as LayoutNode & { grid?: GridPos }
       const rootChildren = s.tree.children.filter((c) => c.id !== nodeId)
