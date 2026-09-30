@@ -52,9 +52,14 @@ describe('SsoTestResultPage', () => {
     expect(api.get).toHaveBeenCalledWith('/admin/oidc/test-sign-in/abc%2F1')
 
     const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1)
-    expect(rows.map((row) => within(row).getAllByRole('cell')[0].textContent)).toEqual(['sub', 'email', 'email_verified', 'alpha', 'zeta'])
-    expect(within(rows[2]).getAllByRole('cell')[1]).toHaveTextContent('true')
-    expect(within(rows[3]).getAllByRole('cell')[1]).toHaveTextContent('{"nested":true}')
+      .map((row) => within(row).getAllByRole('cell').map((cell) => cell.textContent))
+    expect(rows).toEqual([
+      ['sub', 'u-1'],
+      ['email', 'owner@example.test'],
+      ['email_verified', 'true'],
+      ['alpha', '{"nested":true}'],
+      ['zeta', 'z'],
+    ])
   })
 
   it('shows an email match that will link the account', async () => {
