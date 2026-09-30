@@ -1,8 +1,18 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, setSession, type AuthUser } from '../api/client'
 import { useDarkMode } from '../hooks/useDarkMode'
 import { Alert } from '../components/ui'
+
+interface AuthConfig {
+  passwordLogin: boolean
+  oidc: { label: string } | null
+}
+
+const SSO_ERRORS: Record<string, string> = {
+  oidc_failed: 'Single sign-on failed. Try again or contact an administrator.',
+  oidc_no_account: 'No account matches your single sign-on identity. Ask an administrator to create one.',
+}
 
 const FEATURES = [
   { icon: 'bolt', label: 'Live status updates' },
@@ -19,6 +29,13 @@ export default function LoginPage() {
   const [challengeToken, setChallengeToken] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [searchParams] = useSearchParams()
+  const [authConfig, setAuthConfig] = useState<AuthConfig>({ passwordLogin: true, oidc: null })
+  const ssoError = SSO_ERRORS[searchParams.get('error') ?? '']
+
+  useEffect(() => {
+    api.get<AuthConfig>('/auth/config').then(setAuthConfig).catch(() => { /* keep password-only default */ })
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -137,7 +154,18 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && <Alert tone="error">{error}</Alert>}
+            {(error || ssoError) && <Alert tone="error">{error || ssoError}</Alert>}
+
+            {authConfig.oidc && !challengeToken && (
+              <a href="/api/v1/auth/oidc/login" className="btn btn-primary w-full py-3 font-headline font-bold text-center block">
+                {authConfig.oidc.label}
+              </a>
+            )}
+            {authConfig.oidc && authConfig.passwordLogin && !challengeToken && (
+              <p className="text-xs font-sans text-center" style={{ color: 'var(--m3-secondary)' }}>or use your password</p>
+            )}
+
+            {(authConfig.passwordLogin || challengeToken) && <>
 
             {!challengeToken && <div>
               <label htmlFor="login-email" className="block text-xs font-sans font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>
@@ -205,6 +233,7 @@ export default function LoginPage() {
             >
               {loading ? 'Signing in…' : challengeToken ? 'Verify & sign in' : 'Sign in'}
             </button>
+            </>}
           </form>
         </div>
       </div>

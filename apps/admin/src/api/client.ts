@@ -11,6 +11,7 @@ export interface AuthUser {
   role: string
   mustChangePassword: boolean
   twoFactorEnabled: boolean
+  authMethod?: 'password' | 'oidc'
 }
 
 export function setSession(user: AuthUser): void {

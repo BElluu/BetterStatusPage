@@ -4,13 +4,15 @@ import { api, getCurrentUser } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { CopyButton } from '../components/CopyButton'
 import { ResetTwoFactorModal } from '../components/ResetTwoFactorModal'
+import { SingleSignOnModal } from '../components/SingleSignOnModal'
 import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
 
 interface User {
   id: number
   email: string
   role: string
-  mustChangePassword: number
+  pendingTemporaryPassword: boolean
+  ssoLinked: boolean
   twoFactorEnabled: number
   createdAt: number
 }
@@ -39,6 +41,7 @@ export default function UsersPage() {
   const toast = useToast()
   const emailInputId = useId()
   const [showCreate, setShowCreate] = useState(false)
+  const [showSso, setShowSso] = useState(false)
   const [newEmail, setNewEmail] = useState('')
   const [createdUser, setCreatedUser] = useState<{ email: string; temporaryPassword: string } | null>(null)
   const [resetResult, setResetResult] = useState<{ email: string; temporaryPassword: string } | null>(null)
@@ -137,12 +140,20 @@ export default function UsersPage() {
         title="Users"
         subtitle={isLoading || isError ? undefined : `${users.length} user${users.length !== 1 ? 's' : ''}`}
         actions={
-          <button type="button" onClick={() => { setShowCreate(true); setError('') }} className="btn btn-primary">
-            <span className="material-symbols-outlined" aria-hidden="true">person_add</span>
-            New User
-          </button>
+          <>
+            <button type="button" onClick={() => setShowSso(true)} className="btn btn-secondary">
+              <span className="material-symbols-outlined" aria-hidden="true">passkey</span>
+              Single sign-on
+            </button>
+            <button type="button" onClick={() => { setShowCreate(true); setError('') }} className="btn btn-primary">
+              <span className="material-symbols-outlined" aria-hidden="true">person_add</span>
+              New User
+            </button>
+          </>
         }
       />
+
+      {showSso && <SingleSignOnModal onClose={() => setShowSso(false)} />}
 
       {message && (
         <Alert tone="success" onDismiss={() => setMessage('')} className="max-w-2xl">{message}</Alert>
@@ -288,7 +299,7 @@ export default function UsersPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {user.mustChangePassword ? (
+                      {user.pendingTemporaryPassword ? (
                         <span className="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: 'var(--m3-degraded-bg)', color: 'var(--m3-degraded)' }}>
                           Temp password
                         </span>
@@ -299,6 +310,9 @@ export default function UsersPage() {
                       )}
                       {!!user.twoFactorEnabled && (
                         <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface)' }}>2FA</span>
+                      )}
+                      {user.ssoLinked && (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full" title="Signed in through single sign-on; matched by their identity-provider account" style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface)' }}>SSO</span>
                       )}
                     </div>
                   </td>

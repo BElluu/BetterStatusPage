@@ -131,6 +131,20 @@ CREATE TABLE IF NOT EXISTS smtp_settings (
   updated_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS oidc_settings (
+  id INTEGER PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  issuer TEXT NOT NULL DEFAULT '',
+  client_id TEXT NOT NULL DEFAULT '',
+  client_secret TEXT NOT NULL DEFAULT '',
+  scopes TEXT NOT NULL DEFAULT '',
+  redirect_uri TEXT NOT NULL DEFAULT '',
+  button_label TEXT NOT NULL DEFAULT '',
+  allow_unverified_email INTEGER NOT NULL DEFAULT 0,
+  disable_password_login INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS locales (
   code               TEXT    PRIMARY KEY,
   name               TEXT    NOT NULL,
@@ -180,6 +194,7 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
   created_at INTEGER NOT NULL,
   last_seen_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL,
+  auth_method TEXT NOT NULL DEFAULT 'password',
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
@@ -349,6 +364,9 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE branding ADD COLUMN show_hero INTEGER NOT NULL DEFAULT 1`, desc: 'branding.show_hero' },
   { sql: `ALTER TABLE branding ADD COLUMN show_footer INTEGER NOT NULL DEFAULT 1`, desc: 'branding.show_footer' },
   { sql: `ALTER TABLE branding ADD COLUMN show_project_link INTEGER NOT NULL DEFAULT 1`, desc: 'branding.show_project_link' },
+  { sql: `ALTER TABLE auth_sessions ADD COLUMN auth_method TEXT NOT NULL DEFAULT 'password'`, desc: 'auth_sessions.auth_method' },
+  { sql: `ALTER TABLE users ADD COLUMN oidc_issuer TEXT`, desc: 'users.oidc_issuer' },
+  { sql: `ALTER TABLE users ADD COLUMN oidc_subject TEXT`, desc: 'users.oidc_subject' },
 ]
 
 /**
@@ -441,6 +459,8 @@ export function runMigrations(): void {
   for (const { sql, desc } of columnMigrations) {
     if (applyColumnMigration(sql)) console.log(`✓ Column migration: ${desc}`)
   }
+  // One IdP identity can be bound to one user only. Needs the columns added above.
+  sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oidc_identity ON users(oidc_issuer, oidc_subject)`)
   alignBrandingDefaultsWithLightMode()
   migrateLegacyLogoVariants()
   seedAlertConfirmedStatus()
