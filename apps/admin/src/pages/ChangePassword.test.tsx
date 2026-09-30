@@ -8,6 +8,7 @@ import ChangePasswordPage from './ChangePassword'
 vi.mock('../api/client', () => ({
   api: { post: vi.fn() },
   setSession: vi.fn(),
+  getCurrentUser: vi.fn(() => null),
 }))
 
 function renderPage() {

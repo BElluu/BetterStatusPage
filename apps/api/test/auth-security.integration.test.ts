@@ -8,7 +8,7 @@ import Fastify from 'fastify'
 import { encrypt } from '../src/crypto/vault.js'
 import { generateRecoveryCodes, generateTotpCode, generateTotpSecret, hashRecoveryCode } from '../src/crypto/totp.js'
 import { db } from '../src/db/client.js'
-import { auditLog, authSessions, users } from '../src/db/schema.js'
+import { auditLog, authSessions, oidcSettings, users } from '../src/db/schema.js'
 import { requireAuth, requireRole } from '../src/middleware/auth.js'
 import { authRoutes } from '../src/routes/auth.js'
 import { userRoutes } from '../src/routes/users.js'
@@ -82,6 +82,29 @@ describe('authentication security regressions', () => {
     assert.equal(changed.statusCode, 200)
     assert.equal(changed.json().mustChangePassword, false)
     assert.equal((await app.inject({ url: '/admin/users', headers: sessionHeaders(changed) })).statusCode, 200)
+  })
+
+  it('asks an SSO session to replace the temporary password only while password sign-in is enabled', async () => {
+    const user = await createUser('sso-user@example.test', 'admin')
+    await db.update(users).set({ mustChangePassword: 1 }).where(eq(users.id, user.id))
+    const now = Date.now()
+    await db.insert(authSessions).values({ id: 'sso-session', userId: user.id, csrfTokenHash: 'unused', createdAt: now, lastSeenAt: now, expiresAt: now + 60_000, authMethod: 'oidc' })
+    const headers = { authorization: `Bearer ${app.jwt.sign({ userId: user.id, email: user.email, role: 'admin', sessionId: 'sso-session' })}` }
+    const sso = { id: 1, issuer: 'https://idp.example.test', clientId: 'bsp', clientSecret: '', scopes: '', redirectUri: 'https://status.example.test/cb', buttonLabel: '', allowUnverifiedEmail: 0, updatedAt: now }
+
+    try {
+      await db.insert(oidcSettings).values({ ...sso, enabled: 1, disablePasswordLogin: 0 })
+      const session = (await app.inject({ url: '/auth/session', headers })).json()
+      assert.equal(session.mustChangePassword, true)
+      assert.equal(session.authMethod, 'oidc')
+      assert.equal((await app.inject({ url: '/admin/users', headers })).statusCode, 403)
+
+      await db.update(oidcSettings).set({ disablePasswordLogin: 1 })
+      assert.equal((await app.inject({ url: '/auth/session', headers })).json().mustChangePassword, false)
+      assert.equal((await app.inject({ url: '/admin/users', headers })).statusCode, 200)
+    } finally {
+      await db.delete(oidcSettings)
+    }
   })
 
   it('normalizes legacy roles in actual sessions and applies the cookie policy', async () => {

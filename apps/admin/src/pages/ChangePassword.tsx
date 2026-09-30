@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, setSession, type AuthUser } from '../api/client'
+import { api, getCurrentUser, setSession, type AuthUser } from '../api/client'
 import { Alert, Field } from '../components/ui'
 
 export default function ChangePasswordPage() {
@@ -36,7 +36,11 @@ export default function ChangePasswordPage() {
               <span className="material-symbols-outlined" aria-hidden="true" style={{ color: 'var(--m3-surface)', fontSize: '22px' }}>lock_reset</span>
             </div>
             <h1 className="font-headline font-bold text-2xl" style={{ color: 'var(--m3-on-surface)' }}>Set your password</h1>
-            <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>You must change your temporary password before continuing.</p>
+            <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
+              {getCurrentUser()?.authMethod === 'oidc'
+                ? 'Password sign-in is enabled, so set your own password to replace the temporary one before continuing.'
+                : 'You must change your temporary password before continuing.'}
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">

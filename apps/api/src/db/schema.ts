@@ -12,6 +12,9 @@ export const users = sqliteTable('users', {
   totpSecret: text('totp_secret'),
   totpEnabled: integer('totp_enabled').notNull().default(0),
   totpRecoveryCodes: text('totp_recovery_codes'),
+  // SSO identity bound on the first OIDC sign-in; later sign-ins match on it instead of the email.
+  oidcIssuer: text('oidc_issuer'),
+  oidcSubject: text('oidc_subject'),
 })
 
 export const authSessions = sqliteTable('auth_sessions', {
@@ -21,6 +24,8 @@ export const authSessions = sqliteTable('auth_sessions', {
   createdAt: integer('created_at').notNull(),
   lastSeenAt: integer('last_seen_at').notNull(),
   expiresAt: integer('expires_at').notNull(),
+  // 'password' or 'oidc'. An SSO session never asks for the temporary password to be changed.
+  authMethod: text('auth_method').notNull().default('password'),
 })
 
 export const monitors = sqliteTable('monitors', {
@@ -190,6 +195,21 @@ export const smtpSettings = sqliteTable('smtp_settings', {
   updatedAt: integer('updated_at').notNull(),
   // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
   vaultConfig: text('vault_config'), // JSON VaultRef | null
+})
+
+export const oidcSettings = sqliteTable('oidc_settings', {
+  id: integer('id').primaryKey(),
+  enabled: integer('enabled').notNull().default(0),
+  issuer: text('issuer').notNull().default(''),
+  clientId: text('client_id').notNull().default(''),
+  /** AES-256-GCM encrypted via crypto/vault.ts; empty when no secret is set. */
+  clientSecret: text('client_secret').notNull().default(''),
+  scopes: text('scopes').notNull().default(''),
+  redirectUri: text('redirect_uri').notNull().default(''),
+  buttonLabel: text('button_label').notNull().default(''),
+  allowUnverifiedEmail: integer('allow_unverified_email').notNull().default(0),
+  disablePasswordLogin: integer('disable_password_login').notNull().default(0),
+  updatedAt: integer('updated_at').notNull(),
 })
 
 export const auditLog = sqliteTable('audit_log', {

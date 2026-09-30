@@ -115,6 +115,18 @@ Trzymanie haseł w zmiennych środowiskowych jest w porządku — do czasu. Bett
 
 Twoje sekrety nigdy nie pojawiają się w logach, odpowiedziach API ani w `git diff`.
 
+### 🔑 Jednokrotne logowanie (SSO) przez OpenID Connect
+
+Pozwól zespołowi logować się dostawcą tożsamości, którego już używa — **Microsoft Entra ID, Keycloak, Okta, Google Workspace, Authentik, Auth0** albo dowolnym innym dostawcą OIDC. Przepływ Authorization Code z PKCE, `state` i `nonce`, kończący się tą samą utwardzoną sesją po stronie serwera co logowanie hasłem.
+
+- **Konfiguracja w interfejsie, od razu w mocy** — wejdź w **Użytkownicy → Single sign-on**, wklej issuera, client ID i sekret, kliknij **Test connection** i zapisz. Bez edycji `.env` i bez restartu. Sekret jest przechowywany zaszyfrowany i nigdy nie jest pokazywany ponownie.
+- **Tylko istniejący użytkownicy** — SSO nigdy nie tworzy kont. Użytkownicy są dopasowywani po zweryfikowanym adresie email i zachowują swoją rolę w BetterStatusPage, więc nikt nie wejdzie przypadkiem.
+- **Logowanie hasłem zostaje jako zabezpieczenie** — albo wyłącz je, gdy SSO już działa. Da się je wyłączyć dopiero po udanym teście połączenia z dostawcą, a `OIDC_FORCE_PASSWORD_LOGIN=true` to przełącznik awaryjny na wypadek awarii dostawcy.
+- **Przyjazne dla infrastruktury jako kod** — te same ustawienia mogą pochodzić ze zmiennych `OIDC_*`, które wtedy nadpisują formularz i go blokują.
+- **Audytowane** — każde logowanie SSO i każda zmiana ustawień trafia do dziennika audytu (sekret nigdy).
+
+> Zobacz **[docs/single-sign-on.md](docs/single-sign-on.md)** — konfiguracja, uwagi o dostawcach i rozwiązywanie problemów (po angielsku).
+
 ### 🎨 Kreator stron metodą przeciągnij i upuść
 
 Publiczna strona statusu to nie tylko lista zielonych kropek. To w pełni konfigurowalny układ siatki, który projektujesz samodzielnie — przeciągnij karty monitorów, pogrupuj je według usług, dodaj bloki tekstu w markdownie, wrzuć kanał incydentów, zmień rozmiary, gotowe. Bez CSS.
@@ -162,6 +174,7 @@ Każda zmiana w panelu admina jest rejestrowana — kto, kiedy i co dokładnie z
 | Sejfy i sekrety | Tworzenie, aktualizacja (nazwa, zmiana wartości oznaczona jako `[redacted]`), usuwanie |
 | Użytkownicy | Tworzenie, zmiana roli, reset hasła, usuwanie |
 | Bezpieczeństwo konta | Włączenie lub wyłączenie uwierzytelniania dwuskładnikowego TOTP |
+| Single sign-on | Konfiguracja lub zmiana ustawień OpenID Connect, logowania SSO |
 
 Strona dziennika audytu (tylko dla adminów) pozwala filtrować po **użytkowniku**, **typie encji**, **akcji** (create / update / delete) i **zakresie dat**. Kliknij dowolny wiersz, by rozwinąć różnice.
 
@@ -253,7 +266,7 @@ Zmiany statusu docierają zarówno do panelu admina, jak i do strony publicznej 
 | Pobieranie danych | TanStack Query | 5.x |
 | Stan | Zustand | 5.x |
 | Przeciągnij i upuść | dnd-kit | 6.x |
-| Uwierzytelnianie | Sesje po stronie serwera, ciasteczka HttpOnly JWT, CSRF, TOTP, bcrypt | — |
+| Uwierzytelnianie | Sesje po stronie serwera, ciasteczka HttpOnly JWT, CSRF, TOTP, bcrypt, OpenID Connect (PKCE) | — |
 | E-mail | Nodemailer | 9.x |
 | SQL Server | mssql | 11.x |
 | Harmonogram | node-cron | 3.x |
@@ -398,11 +411,11 @@ MONITOR_RESULT_PURGE_CRON=0 2 * * *
 
 | Rola | Co może robić |
 |------|-----------------|
-| **admin** | Wszystko, łącznie z użytkownikami, sejfami, dziennikiem audytu i kopiami zapasowymi |
+| **admin** | Wszystko, łącznie z użytkownikami, SSO, sejfami, dziennikiem audytu i kopiami zapasowymi |
 | **operator** | Monitory, incydenty, okna serwisowe, powiadomienia, kreator stron, branding, lokalizacja i ustawienia |
 | **branding** | Kreator stron, branding, lokalizacja i ustawienia konta |
 
-Sesje administratorów są przechowywane po stronie serwera i uwierzytelniane ciasteczkiem `HttpOnly`, `SameSite=Strict`. Żądania przeglądarki zmieniające stan wymagają pasującego tokena CSRF. Użytkownicy mogą włączyć uwierzytelnianie dwuskładnikowe TOTP w **Ustawieniach** i otrzymać osiem jednorazowych kodów odzyskiwania.
+Sesje administratorów są przechowywane po stronie serwera i uwierzytelniane ciasteczkiem `HttpOnly`, `SameSite=Strict`. Żądania przeglądarki zmieniające stan wymagają pasującego tokena CSRF. Użytkownicy mogą włączyć uwierzytelnianie dwuskładnikowe TOTP w **Ustawieniach** i otrzymać osiem jednorazowych kodów odzyskiwania. Administratorzy mogą też włączyć [jednokrotne logowanie OpenID Connect](docs/single-sign-on.md) w **Użytkownicy → Single sign-on**.
 
 ---
 
