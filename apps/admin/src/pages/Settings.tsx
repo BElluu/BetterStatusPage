@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api, clearSession, getCurrentUser, setSession, type AuthUser } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { CopyButton } from '../components/CopyButton'
+import { SsoConfirmationNote, isSsoSession, useSsoConfirmation } from '../components/SsoConfirmation'
 import { Alert, PageContainer, PageHeader } from '../components/ui'
 
 interface TwoFactorSetup {
@@ -15,6 +16,9 @@ interface TwoFactorSetup {
 export default function SettingsPage() {
   const navigate = useNavigate()
   const currentUser = getCurrentUser()
+  // An SSO session confirms these actions at the identity provider instead of with a password.
+  const sso = isSsoSession()
+  const confirmation = useSsoConfirmation()
   const [current, setCurrent] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -33,21 +37,24 @@ export default function SettingsPage() {
     setMessage('')
   }
 
-  async function changePassword(e: React.FormEvent) {
-    e.preventDefault()
+  function fail(err: unknown, fallback: string) {
+    setError(err instanceof Error ? err.message : fallback)
+  }
+
+  async function changePassword() {
     if (password !== confirm) { setError('Passwords do not match'); return }
     if (password.length < 8) { setError('Password must be at least 8 characters'); return }
     resetFeedback()
     setLoading(true)
     try {
-      const user = await api.post<AuthUser>('/auth/change-password', { currentPassword: current, newPassword: password })
+      const user = await confirmation.run(() => api.post<AuthUser>('/auth/change-password', sso ? { newPassword: password } : { currentPassword: current, newPassword: password }))
       setSession(user)
       setCurrent('')
       setPassword('')
       setConfirm('')
       setMessage('Password changed. Other active sessions were signed out.')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to change password')
+      fail(err, 'Failed to change password')
     } finally { setLoading(false) }
   }
 
@@ -55,11 +62,11 @@ export default function SettingsPage() {
     resetFeedback()
     setLoading(true)
     try {
-      const result = await api.post<TwoFactorSetup>('/auth/2fa/setup', { currentPassword: securityPassword })
+      const result = await confirmation.run(() => api.post<TwoFactorSetup>('/auth/2fa/setup', sso ? {} : { currentPassword: securityPassword }))
       setSetup(result)
       setCode('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start two-factor setup')
+      fail(err, 'Failed to start two-factor setup')
     } finally { setLoading(false) }
   }
 
@@ -85,7 +92,7 @@ export default function SettingsPage() {
     resetFeedback()
     setLoading(true)
     try {
-      await api.post('/auth/2fa/disable', { currentPassword: securityPassword, code })
+      await confirmation.run(() => api.post('/auth/2fa/disable', sso ? { code } : { currentPassword: securityPassword, code }))
       setTwoFactorEnabled(false)
       if (currentUser) setSession({ ...currentUser, twoFactorEnabled: false })
       setSecurityPassword('')
@@ -93,7 +100,7 @@ export default function SettingsPage() {
       setRecoveryCodes([])
       setMessage('Two-factor authentication is disabled.')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to disable two-factor authentication')
+      fail(err, 'Failed to disable two-factor authentication')
     } finally { setLoading(false) }
   }
 
@@ -119,8 +126,10 @@ export default function SettingsPage() {
         <section className="rounded-2xl p-6" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
           <h2 className="font-headline font-semibold text-lg mb-1">Change password</h2>
           <p className="text-sm mb-5" style={{ color: 'var(--m3-secondary)' }}>Changing your password signs out every other active session.</p>
-          <form onSubmit={changePassword} className="space-y-4">
-            <PasswordField label="Current password" value={current} onChange={setCurrent} placeholder="Enter current password" />
+          <form onSubmit={(event) => { event.preventDefault(); void changePassword() }} className="space-y-4">
+            {sso
+              ? <SsoConfirmationNote confirmation={confirmation} />
+              : <PasswordField label="Current password" value={current} onChange={setCurrent} placeholder="Enter current password" />}
             <PasswordField label="New password" value={password} onChange={setPassword} placeholder="Minimum 8 characters" minLength={8} />
             <PasswordField label="Confirm new password" value={confirm} onChange={setConfirm} placeholder="Repeat the new password" />
             <button type="submit" disabled={loading} className="btn btn-primary">
@@ -141,8 +150,10 @@ export default function SettingsPage() {
 
           {!twoFactorEnabled && !setup && recoveryCodes.length === 0 && (
             <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void beginTwoFactorSetup() }}>
-              <PasswordField label="Current password" value={securityPassword} onChange={setSecurityPassword} placeholder="Confirm your password" />
-              <button type="submit" disabled={loading || !securityPassword} className="btn btn-primary">Set up 2FA</button>
+              {sso
+                ? <SsoConfirmationNote confirmation={confirmation} />
+                : <PasswordField label="Current password" value={securityPassword} onChange={setSecurityPassword} placeholder="Confirm your password" />}
+              <button type="submit" disabled={loading || (!sso && !securityPassword)} className="btn btn-primary">Set up 2FA</button>
             </form>
           )}
 
@@ -184,9 +195,11 @@ export default function SettingsPage() {
 
           {twoFactorEnabled && recoveryCodes.length === 0 && (
             <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void disableTwoFactor() }}>
-              <PasswordField label="Current password" value={securityPassword} onChange={setSecurityPassword} placeholder="Confirm your password" />
+              {sso
+                ? <SsoConfirmationNote confirmation={confirmation} />
+                : <PasswordField label="Current password" value={securityPassword} onChange={setSecurityPassword} placeholder="Confirm your password" />}
               <TextField label="Authentication or recovery code" value={code} onChange={setCode} placeholder="Code" autoComplete="one-time-code" />
-              <button type="submit" disabled={loading || !securityPassword || !code} className="btn btn-danger-outline">Disable 2FA</button>
+              <button type="submit" disabled={loading || (!sso && !securityPassword) || !code} className="btn btn-danger-outline">Disable 2FA</button>
             </form>
           )}
         </section>

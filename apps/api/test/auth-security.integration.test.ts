@@ -84,7 +84,7 @@ describe('authentication security regressions', () => {
     assert.equal((await app.inject({ url: '/admin/users', headers: sessionHeaders(changed) })).statusCode, 200)
   })
 
-  it('asks an SSO session to replace the temporary password only while password sign-in is enabled', async () => {
+  it('never asks an SSO session to replace a temporary password', async () => {
     const user = await createUser('sso-user@example.test', 'admin')
     await db.update(users).set({ mustChangePassword: 1 }).where(eq(users.id, user.id))
     const now = Date.now()
@@ -93,18 +93,34 @@ describe('authentication security regressions', () => {
     const sso = { id: 1, issuer: 'https://idp.example.test', clientId: 'bsp', clientSecret: '', scopes: '', redirectUri: 'https://status.example.test/cb', buttonLabel: '', allowUnverifiedEmail: 0, updatedAt: now }
 
     try {
+      // Even with password sign-in enabled, e.g. after an administrator reset the password during the session.
       await db.insert(oidcSettings).values({ ...sso, enabled: 1, disablePasswordLogin: 0 })
       const session = (await app.inject({ url: '/auth/session', headers })).json()
-      assert.equal(session.mustChangePassword, true)
+      assert.equal(session.mustChangePassword, false)
       assert.equal(session.authMethod, 'oidc')
-      assert.equal((await app.inject({ url: '/admin/users', headers })).statusCode, 403)
-
-      await db.update(oidcSettings).set({ disablePasswordLogin: 1 })
-      assert.equal((await app.inject({ url: '/auth/session', headers })).json().mustChangePassword, false)
       assert.equal((await app.inject({ url: '/admin/users', headers })).statusCode, 200)
     } finally {
       await db.delete(oidcSettings)
     }
+  })
+
+  it('records every password sign-in, allowed or denied, with the reason', async () => {
+    await createUser('audited@example.test')
+    const signIns = async () => (await db.select().from(auditLog)).filter((entry) => entry.entityType === 'sign_in')
+    const before = (await signIns()).length
+
+    assert.equal((await login('audited@example.test', 'wrong-password')).statusCode, 401)
+    assert.equal((await login('nobody@example.test')).statusCode, 401)
+    assert.equal((await login('audited@example.test')).statusCode, 200)
+
+    const entries = (await signIns()).slice(before).map((entry) => ({ action: entry.action, email: entry.userEmail, ...JSON.parse(entry.diff ?? '{}') as Record<string, unknown> }))
+    assert.deepEqual(entries.map(({ action, email, method, code }) => ({ action, email, method, code })), [
+      { action: 'deny', email: 'audited@example.test', method: 'password', code: 'wrong_password' },
+      { action: 'deny', email: 'nobody@example.test', method: 'password', code: 'no_matching_account' },
+      { action: 'allow', email: 'audited@example.test', method: 'password', code: undefined },
+    ])
+    assert.equal(entries[2]!['twoFactor'], false)
+    assert.ok(entries.every((entry) => !JSON.stringify(entry).includes('wrong-password')))
   })
 
   it('normalizes legacy roles in actual sessions and applies the cookie policy', async () => {

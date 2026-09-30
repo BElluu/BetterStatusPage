@@ -6,8 +6,10 @@ import jwt from '@fastify/jwt'
 import bcrypt from 'bcryptjs'
 import { eq } from 'drizzle-orm'
 import Fastify from 'fastify'
+import { encrypt } from '../src/crypto/vault.js'
+import { generateTotpCode, generateTotpSecret } from '../src/crypto/totp.js'
 import { db } from '../src/db/client.js'
-import { auditLog, oidcSettings, users } from '../src/db/schema.js'
+import { auditLog, authSessions, oidcSettings, users } from '../src/db/schema.js'
 import { requireAuth, requireRole } from '../src/middleware/auth.js'
 import { authRoutes } from '../src/routes/auth.js'
 import { oidcSettingsRoutes } from '../src/routes/oidcSettings.js'
@@ -130,7 +132,7 @@ async function runFlow(claims: Record<string, unknown> | { error: string }, star
 }
 
 const lastDenial = async () => {
-  const entries = (await db.select().from(auditLog)).filter((entry) => entry.entityType === 'oidc_login' && entry.action === 'deny')
+  const entries = (await db.select().from(auditLog)).filter((entry) => entry.entityType === 'sign_in' && entry.action === 'deny')
   return JSON.parse(entries.at(-1)?.diff ?? '{}') as { code?: string; reason?: string }
 }
 const userByEmail = async (email: string) => (await db.select().from(users).where(eq(users.email, email)))[0]!
@@ -204,20 +206,120 @@ describe('OIDC test sign-in', () => {
   })
 })
 
-describe('Temporary password status in the user list', () => {
-  it('stops reporting the temporary password of an SSO user once it cannot be used', async () => {
-    const pending = async () => ((await app.inject({ url: '/admin/users', headers: admin })).json() as Array<{ email: string; pendingTemporaryPassword: boolean; ssoLinked: boolean }>)
+describe('Temporary password of an SSO user', () => {
+  it('is revoked by the SSO sign-in, even with password sign-in enabled', async () => {
+    // Alice had a temporary password and signed in through SSO in the first test.
+    const alice = ((await app.inject({ url: '/admin/users', headers: admin })).json() as Array<{ email: string; pendingTemporaryPassword: boolean; ssoLinked: boolean }>)
       .find((user) => user.email === 'alice@example.test')!
+    assert.equal(alice.ssoLinked, true)
+    assert.equal(alice.pendingTemporaryPassword, false)
 
-    const linked = await pending()
-    assert.equal(linked.ssoLinked, true)
-    // Password sign-in is still enabled, so the temporary password still has to be replaced.
-    assert.equal(linked.pendingTemporaryPassword, true)
-    await db.update(oidcSettings).set({ disablePasswordLogin: 1 })
-    try {
-      assert.equal((await pending()).pendingTemporaryPassword, false)
-    } finally {
-      await db.update(oidcSettings).set({ disablePasswordLogin: 0 })
-    }
+    const withTemporary = await app.inject({ method: 'POST', url: '/auth/login', payload: { email: 'alice@example.test', password } })
+    assert.equal(withTemporary.statusCode, 401)
+    const audit = await db.select().from(auditLog)
+    assert.ok(audit.some((entry) => entry.userEmail === 'alice@example.test' && (entry.diff ?? '').includes('temporaryPasswordRevoked')))
+  })
+})
+
+/** Session headers (cookie + CSRF) from a response that signed someone in. */
+function sessionHeaders(response: InjectResponse): Record<string, string> {
+  const cookies = cookiesFrom(response).filter((c) => c.startsWith('bsp_session=') || c.startsWith('bsp_csrf='))
+  return { cookie: cookies.join('; '), 'x-csrf-token': cookies.find((c) => c.startsWith('bsp_csrf='))!.slice('bsp_csrf='.length) }
+}
+
+describe('Two-factor authentication after SSO', () => {
+  it('asks a user with 2FA for their code before the SSO session starts', async () => {
+    const secret = generateTotpSecret()
+    await db.insert(users).values({
+      email: 'totp@example.test', passwordHash: await bcrypt.hash(password, 4), role: 'operator',
+      totpEnabled: 1, totpSecret: encrypt(secret), createdAt: Date.now(),
+    })
+    const callback = await runFlow({ sub: 'totp-sub', email: 'totp@example.test', email_verified: true })
+    assert.equal(callback.headers.location, '/admin/login?two-factor=sso')
+    assert.equal(cookiesFrom(callback).some((c) => c.startsWith('bsp_session=')), false)
+    const challenge = cookiesFrom(callback).find((c) => c.startsWith('bsp_2fa_challenge='))!
+
+    const wrong = await app.inject({ method: 'POST', url: '/auth/2fa/verify', headers: { cookie: challenge }, payload: { code: '000000' } })
+    assert.equal(wrong.statusCode, 401)
+    const verified = await app.inject({ method: 'POST', url: '/auth/2fa/verify', headers: { cookie: challenge }, payload: { code: generateTotpCode(secret) } })
+    assert.equal(verified.statusCode, 200)
+    assert.equal(verified.json().authMethod, 'oidc')
+    assert.equal(verified.json().twoFactorEnabled, true)
+
+    const signIns = (await db.select().from(auditLog)).filter((entry) => entry.entityType === 'sign_in' && entry.userEmail === 'totp@example.test')
+    assert.deepEqual(signIns.map((entry) => [entry.action, JSON.parse(entry.diff ?? '{}')]), [
+      ['deny', { method: 'sso', code: 'invalid_two_factor_code', reason: 'The authentication or recovery code is incorrect.' }],
+      ['allow', { method: 'sso', twoFactor: true }],
+    ])
+    const expired = await app.inject({ method: 'POST', url: '/auth/2fa/verify', payload: { code: generateTotpCode(secret) } })
+    assert.equal(expired.statusCode, 401)
+    assert.equal((await lastDenial()).code, 'two_factor_expired')
+  })
+})
+
+describe('Confirming sensitive actions in an SSO session', () => {
+  let sso: Record<string, string>
+  let ssoAdminId = 0
+  const ssoClaims = { sub: 'sso-admin-sub', email: 'sso-admin@example.test', email_verified: true }
+  const settingsPayload = () => ({ enabled: true, issuer, clientId: CLIENT_ID, redirectUri: 'http://127.0.0.1/api/v1/auth/oidc/callback' })
+  const expireConfirmation = () => db.update(authSessions).set({ verifiedAt: Date.now() - 11 * 60_000 }).where(eq(authSessions.userId, ssoAdminId))
+
+  before(async () => {
+    ssoAdminId = (await db.insert(users).values({
+      email: 'sso-admin@example.test', passwordHash: await bcrypt.hash('unknown-to-the-user', 4), role: 'admin', createdAt: Date.now(),
+    }).returning())[0]!.id
+    sso = sessionHeaders(await runFlow(ssoClaims))
+  })
+
+  it('accepts a fresh SSO sign-in instead of a password', async () => {
+    const saved = await app.inject({ method: 'PUT', url: '/admin/oidc', headers: sso, payload: settingsPayload() })
+    assert.equal(saved.statusCode, 200)
+  })
+
+  it('asks for an SSO confirmation once the sign-in is older than the window, then accepts it', async () => {
+    await expireConfirmation()
+    const refused = await app.inject({ method: 'PUT', url: '/admin/oidc', headers: sso, payload: { ...settingsPayload(), currentPassword: 'unknown-to-the-user' } })
+    assert.equal(refused.statusCode, 403)
+    assert.equal(refused.json().code, 'SSO_CONFIRMATION_REQUIRED')
+
+    const begin = await app.inject({ url: '/auth/oidc/confirm', headers: { cookie: sso['cookie']! } })
+    const authorize = new URL(begin.headers.location!)
+    assert.equal(authorize.searchParams.get('prompt'), 'login')
+    assert.equal(authorize.searchParams.get('max_age'), '300')
+    const confirmed = await runFlow({ ...ssoClaims, auth_time: Math.floor(Date.now() / 1000) }, '/auth/oidc/confirm', { cookie: sso['cookie']! })
+    assert.equal(confirmed.headers.location, '/admin/sso-confirm?status=ok')
+
+    const saved = await app.inject({ method: 'PUT', url: '/admin/oidc', headers: sso, payload: settingsPayload() })
+    assert.equal(saved.statusCode, 200)
+  })
+
+  it('refuses a confirmation without a fresh auth_time or by another user', async () => {
+    await expireConfirmation()
+    const stale = await runFlow({ ...ssoClaims, auth_time: Math.floor(Date.now() / 1000) - 3600 }, '/auth/oidc/confirm', { cookie: sso['cookie']! })
+    assert.equal(stale.headers.location, '/admin/sso-confirm?status=failed')
+    const missing = await runFlow(ssoClaims, '/auth/oidc/confirm', { cookie: sso['cookie']! })
+    assert.equal(missing.headers.location, '/admin/sso-confirm?status=failed')
+    const other = await runFlow({ sub: 'alice-sub', email: 'alice@example.test', email_verified: true, auth_time: Math.floor(Date.now() / 1000) }, '/auth/oidc/confirm', { cookie: sso['cookie']! })
+    assert.equal(other.headers.location, '/admin/sso-confirm?status=failed')
+    assert.equal((await lastDenial()).code, 'confirmation_mismatch')
+
+    const refused = await app.inject({ method: 'PUT', url: '/admin/oidc', headers: sso, payload: settingsPayload() })
+    assert.equal(refused.statusCode, 403)
+  })
+
+  it('does not confirm a password session through SSO', async () => {
+    const begin = await app.inject({ url: '/auth/oidc/confirm', headers: { cookie: admin['cookie']! } })
+    assert.equal(begin.headers.location, '/admin/sso-confirm?status=failed')
+    const refused = await app.inject({ method: 'PUT', url: '/admin/oidc', headers: admin, payload: settingsPayload() })
+    assert.equal(refused.statusCode, 400)
+  })
+
+  it('lets an SSO user set up 2FA and set a password with the SSO confirmation', async () => {
+    const fresh = sessionHeaders(await runFlow(ssoClaims))
+    const setup = await app.inject({ method: 'POST', url: '/auth/2fa/setup', headers: fresh, payload: {} })
+    assert.equal(setup.statusCode, 200)
+    const changed = await app.inject({ method: 'POST', url: '/auth/change-password', headers: fresh, payload: { newPassword: 'chosen-by-sso-user' } })
+    assert.equal(changed.statusCode, 200)
+    assert.equal(changed.json().authMethod, 'oidc')
   })
 })

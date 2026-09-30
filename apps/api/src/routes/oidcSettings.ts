@@ -1,13 +1,12 @@
 import type { FastifyInstance } from 'fastify'
-import bcrypt from 'bcryptjs'
-import { eq } from 'drizzle-orm'
 import { db } from '../db/client.js'
-import { oidcSettings, users } from '../db/schema.js'
+import { oidcSettings } from '../db/schema.js'
 import { encrypt } from '../crypto/vault.js'
 import { SENSITIVE_ACTION_RATE_LIMIT } from '../config/rateLimits.js'
 import { buildOidcConfig, defaultOidcRedirectUri, type OidcConfig } from '../config/oidc.js'
 import { requestIdentity } from '../middleware/auth.js'
 import { auditActor, diffObjects, writeAudit } from '../services/audit.js'
+import { confirmIdentity } from '../services/identityConfirmation.js'
 import { readOidcTestResult, storeOidcTestResult, testOidcDiscovery } from '../services/oidc.js'
 import { getOidcConfig, getOidcSettingsRow, getOidcTestConfig, oidcConfigFromRow, type OidcSettingsRow } from '../services/oidcSettings.js'
 import { startOidcFlow } from './auth.js'
@@ -72,10 +71,7 @@ export async function oidcSettingsRoutes(app: FastifyInstance) {
     }
     const body = req.body ?? {}
     const identity = requestIdentity(req)
-    const admin = (await db.select().from(users).where(eq(users.id, identity.userId)))[0]
-    if (!body.currentPassword || !admin || !await bcrypt.compare(body.currentPassword, admin.passwordHash)) {
-      return reply.code(400).send({ error: 'Current password is incorrect' })
-    }
+    if (!await confirmIdentity(identity, body.currentPassword, reply)) return reply
 
     const previous = await getOidcSettingsRow()
     const secretChanged = !!body.clientSecret?.trim()

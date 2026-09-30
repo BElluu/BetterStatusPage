@@ -144,6 +144,6 @@ describe('AuditLogPage', () => {
 
     expect(await screen.findByText('No audit entries found.')).toBeInTheDocument()
     expect(screen.getByText('Timestamp')).toBeInTheDocument()
-    expect(screen.getByText('Changes made in the admin panel and refused SSO sign-ins are recorded here.')).toBeInTheDocument()
+    expect(screen.getByText('Changes made in the admin panel and every sign-in, allowed or denied, are recorded here.')).toBeInTheDocument()
   })
 })

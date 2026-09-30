@@ -533,7 +533,7 @@ Administrators can sign in through an OpenID Connect identity provider (Entra ID
 
 ## Recover access when 2FA is lost
 
-An administrator can reset 2FA for another user from **Admin → Users**. The action requires the administrator's current password and exact confirmation of the target email address. It removes only the target user's 2FA configuration, revokes all of their active sessions, and writes an audit entry. It does not change their password.
+An administrator can reset 2FA for another user from **Admin → Users**. The action requires the administrator to confirm who they are (their current password, or single sign-on when they signed in with it, see [single-sign-on.md](single-sign-on.md#confirming-sensitive-actions)) and exact confirmation of the target email address. It removes only the target user's 2FA configuration, revokes all of their active sessions, and writes an audit entry. It does not change their password.
 
 An administrator cannot use this action on their own account. If the installation has only one administrator and both the authenticator and recovery codes are unavailable, use the emergency CLI from a trusted host. Access to the application host and data volume is the authority for this operation.
 

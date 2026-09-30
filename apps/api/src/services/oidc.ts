@@ -5,6 +5,7 @@ import { db } from '../db/client.js'
 import { users } from '../db/schema.js'
 import type { OidcConfig } from '../config/oidc.js'
 import { writeAudit } from './audit.js'
+import { auditSignInDenial } from './signInAudit.js'
 
 type User = typeof users.$inferSelect
 
@@ -33,7 +34,14 @@ export interface OidcFlowState {
   codeVerifier: string
 }
 
-export async function beginOidcLogin(cfg: OidcConfig): Promise<{ url: string; flow: OidcFlowState }> {
+/** An SSO confirmation must come from a sign-in at the provider no older than this (the ID token's auth_time). */
+export const OIDC_CONFIRMATION_MAX_AGE_SECONDS = 5 * 60
+
+/**
+ * Builds the provider redirect. `confirm` asks the provider to authenticate the user again (`prompt=login`)
+ * and to report when it did (`max_age`), so the callback can require a fresh `auth_time`.
+ */
+export async function beginOidcLogin(cfg: OidcConfig, options: { confirm?: boolean } = {}): Promise<{ url: string; flow: OidcFlowState }> {
   const config = await discover(cfg)
   const flow: OidcFlowState = {
     state: client.randomState(),
@@ -47,6 +55,7 @@ export async function beginOidcLogin(cfg: OidcConfig): Promise<{ url: string; fl
     nonce: flow.nonce,
     code_challenge: await client.calculatePKCECodeChallenge(flow.codeVerifier),
     code_challenge_method: 'S256',
+    ...(options.confirm ? { prompt: 'login', max_age: String(OIDC_CONFIRMATION_MAX_AGE_SECONDS) } : {}),
   })
   return { url: url.href, flow }
 }
@@ -61,6 +70,7 @@ export type OidcDenialCode =
   | 'email_not_verified'
   | 'no_matching_account'
   | 'subject_mismatch'
+  | 'confirmation_mismatch'
 
 export interface OidcDenial {
   code: OidcDenialCode
@@ -96,9 +106,12 @@ export function checkEmailVerified(claims: Record<string, unknown>, allowUnverif
     + 'For other providers, enable "Accept identity providers that omit email_verified" only if their email claim is trustworthy.'
 }
 
-/** Completes the code exchange and returns the validated ID token claims, or why that failed. */
+/**
+ * Completes the code exchange and returns the validated ID token claims, or why that failed. With `maxAge`
+ * the ID token must carry an `auth_time` no older than that many seconds.
+ */
 export async function exchangeOidcCode(
-  cfg: OidcConfig, callbackUrl: URL, flow: OidcFlowState,
+  cfg: OidcConfig, callbackUrl: URL, flow: OidcFlowState, maxAge?: number,
 ): Promise<{ claims: Record<string, unknown>; denial?: undefined } | { claims?: undefined; denial: OidcDenial }> {
   const config = await discover(cfg)
   try {
@@ -107,6 +120,7 @@ export async function exchangeOidcCode(
       expectedState: flow.state,
       expectedNonce: flow.nonce,
       idTokenExpected: true,
+      ...(maxAge !== undefined ? { maxAge } : {}),
     })
     return { claims: tokens.claims() ?? {} }
   } catch (error) {
@@ -167,16 +181,9 @@ export async function linkOidcIdentity(cfg: OidcConfig, user: User, subject: str
   )
 }
 
-/**
- * Records a refused SSO sign-in. Nobody is signed in yet, so the actor is user 0 with the email the
- * provider asserted, when there was one.
- */
+/** Records a refused SSO sign-in or confirmation as a 'sign_in' denial, with the issuer. */
 export async function auditOidcDenial(cfg: OidcConfig, denial: OidcDenial): Promise<void> {
-  await writeAudit(
-    { userId: 0, userEmail: denial.email ?? 'unknown (SSO)' },
-    'deny', 'oidc_login', null, denial.email ?? 'SSO sign-in',
-    { code: denial.code, reason: denial.reason, issuer: cfg.issuer },
-  )
+  await auditSignInDenial('sso', denial, { issuer: cfg.issuer })
 }
 
 function describeExchangeError(error: unknown): OidcDenial {

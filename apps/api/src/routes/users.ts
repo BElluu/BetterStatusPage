@@ -9,9 +9,8 @@ import { requestIdentity } from '../middleware/auth.js'
 import { revokeUserSessions } from '../services/authSession.js'
 import { normalizeRole, VALID_ROLES } from '../services/roles.js'
 import { resetTwoFactor } from '../services/twoFactor.js'
+import { confirmIdentity } from '../services/identityConfirmation.js'
 import { SENSITIVE_ACTION_RATE_LIMIT } from '../config/rateLimits.js'
-import { passwordLoginEnabled } from '../config/oidc.js'
-import { getOidcConfig } from '../services/oidcSettings.js'
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
@@ -22,7 +21,7 @@ function generateTempPassword(): string {
 
 export async function userRoutes(app: FastifyInstance) {
   app.get('/', async () => {
-    const [all, { config }] = await Promise.all([db.select({
+    const all = await db.select({
       id: users.id,
       email: users.email,
       role: users.role,
@@ -30,14 +29,13 @@ export async function userRoutes(app: FastifyInstance) {
       twoFactorEnabled: users.totpEnabled,
       oidcIssuer: users.oidcIssuer,
       createdAt: users.createdAt,
-    }).from(users), getOidcConfig()])
-    const passwordLogin = passwordLoginEnabled(config)
+    }).from(users)
     return all.map(({ mustChangePassword, oidcIssuer, ...u }) => ({
       ...u,
       role: normalizeRole(u.role),
       ssoLinked: !!oidcIssuer,
-      // A user who signed in through SSO has either replaced the temporary password or cannot use it.
-      pendingTemporaryPassword: !!mustChangePassword && (!oidcIssuer || passwordLogin),
+      // An SSO sign-in revokes the temporary password, so the flag alone is accurate.
+      pendingTemporaryPassword: !!mustChangePassword,
     }))
   })
 
@@ -104,10 +102,7 @@ export async function userRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'Use account settings to disable your own two-factor authentication' })
     }
 
-    const currentAdmin = (await db.select().from(users).where(eq(users.id, actor.userId)))[0]
-    if (!currentAdmin || !req.body.currentPassword || !await bcrypt.compare(req.body.currentPassword, currentAdmin.passwordHash)) {
-      return reply.code(400).send({ error: 'Current password is incorrect' })
-    }
+    if (!await confirmIdentity(actor, req.body?.currentPassword, reply)) return reply
 
     const target = (await db.select().from(users).where(eq(users.id, id)))[0]
     if (!target) return reply.code(404).send({ error: 'User not found' })

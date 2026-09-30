@@ -26,6 +26,8 @@ export const authSessions = sqliteTable('auth_sessions', {
   expiresAt: integer('expires_at').notNull(),
   // 'password' or 'oidc'. An SSO session never asks for the temporary password to be changed.
   authMethod: text('auth_method').notNull().default('password'),
+  // When the user last proved who they are in this session: the sign-in, or a later SSO confirmation.
+  verifiedAt: integer('verified_at'),
 })
 
 export const monitors = sqliteTable('monitors', {
