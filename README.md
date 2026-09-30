@@ -129,7 +129,7 @@ Let your team sign in with the identity provider they already use — **Microsof
 
 ### 🎨 A drag-and-drop page builder
 
-The public status page isn't just a list of green dots. It's a fully customizable grid layout you design yourself — drag in monitor cards, group them by service, add markdown text blocks, drop in an incident feed, resize everything, done. No CSS required.
+The public status page isn't just a list of green dots. It's a fully customizable grid layout you design yourself — drag in monitor cards, group them by service (and drag them into or out of groups), add markdown text blocks, drop in an incident feed, resize everything, done. No CSS required.
 
 ### 📢 Incident management
 
@@ -173,7 +173,7 @@ Every mutation in the admin panel is recorded — who did it, when, and exactly 
 | SMTP settings | Configure / update |
 | Vaults & secrets | Create, update (name, value change flagged as `[redacted]`), delete |
 | Users | Create, role change, password reset, delete |
-| Account security | Enable or disable TOTP two-factor authentication |
+| Account security | Enable or disable TOTP two-factor authentication, password changes, SSO account linking, revoked temporary passwords |
 | SSO settings | Configure or change OpenID Connect settings |
 | Sign-ins | Every sign-in with a password or SSO: allowed, or denied with the reason (unknown email, wrong password, wrong 2FA code, refused by SSO…) |
 
@@ -359,7 +359,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The E2E suite starts from an empty instance every run (runtime data lives under `.e2e/` and is wiped first), walks through the setup wizard, and then covers monitors, incidents, maintenance, email subscriptions and role-based access. GitHub Actions runs lint, tests, coverage, builds, Playwright E2E, and a production Docker smoke test on pull requests and pushes to `main`.
+The E2E suite starts from an empty instance every run (runtime data lives under `.e2e/` and is wiped first), walks through the setup wizard, and then covers monitors, incidents, maintenance, email subscriptions, the page builder's drag and drop and role-based access. GitHub Actions runs lint, tests, coverage, builds, Playwright E2E, and a production Docker smoke test on pull requests and pushes to `main`.
 
 ### Production
 
@@ -422,7 +422,7 @@ SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
 | **operator** | Monitors, incidents, maintenance, notifications, page builder, branding, localization, and settings |
 | **branding** | Page builder, branding, localization, and account settings |
 
-Administrator sessions are stored server-side and authenticated with an `HttpOnly`, `SameSite=Strict` cookie. State-changing browser requests require a matching CSRF token. Users can enable TOTP two-factor authentication from **Settings** and receive eight single-use recovery codes. Administrators can also enable [OpenID Connect single sign-on](docs/single-sign-on.md) from **Users → Single sign-on**.
+Administrator sessions are stored server-side and authenticated with an `HttpOnly`, `SameSite=Strict` cookie. State-changing browser requests require a matching CSRF token. Users can enable TOTP two-factor authentication from **Settings** and receive eight single-use recovery codes; it applies to password and SSO sign-ins alike. Administrators can also enable [OpenID Connect single sign-on](docs/single-sign-on.md) from **Users → Single sign-on**. Sensitive actions (sign-in settings, 2FA, password changes) are confirmed the way the session signed in: with the current password, or by signing in again at the identity provider in a pop-up.
 
 ---
 

@@ -37,7 +37,7 @@ No restart or `.env` change is needed.
 3. Click **Test connection** to run OIDC discovery against the issuer, then **Save**. Saving asks you to confirm who you are, see [Confirming sensitive actions](#confirming-sensitive-actions).
 4. Reopen the form and click **Test sign-in**. It opens the identity provider in a new tab with the saved settings, and after you sign in there it shows every claim of the ID token and what a real sign-in would do: which user it signs in as, whether it links the account, or why it is refused. Nobody is signed in, nothing is linked and nothing is saved. It works while SSO is switched off, so you can check the setup before enabling it.
 
-The sign-in page shows the SSO button as soon as the settings are saved.
+The sign-in page shows the SSO button as soon as the settings are saved. The button starts the sign-in on the host of the redirect URI, so it works even when the admin panel was opened under another name (for example `127.0.0.1` while the redirect URI uses `localhost`); after signing in you are on the redirect URI's host.
 
 ## Configure it with environment variables
 
@@ -85,7 +85,7 @@ BetterStatusPage accepts the email when `xms_edov` is `true`. When it is `false`
 Changing the sign-in settings, resetting another user's 2FA, turning your own 2FA on or off and changing your password all ask you to confirm who you are, the way you signed in:
 
 - **Signed in with a password:** enter your current password.
-- **Signed in with SSO:** no password is asked for. If you signed in, or last confirmed, less than 10 minutes ago, the action goes through. Otherwise **Confirm with single sign-on** opens a window at the identity provider, which asks you to sign in again (`prompt=login`). The ID token must report a sign-in (`auth_time`) from the last 5 minutes and belong to the same user; then the window closes and the action is retried, keeping what you entered. A provider that sends no `auth_time` cannot confirm, and the attempt is logged as `token_exchange_failed`.
+- **Signed in with SSO:** no password is asked for. If you signed in, or last confirmed, less than 10 minutes ago, the action goes through. Otherwise clicking **Save** (or the action's button) opens a pop-up window at the identity provider, which asks you to sign in again (`prompt=login`). The ID token must report a sign-in (`auth_time`) from the last 5 minutes and belong to the same user; then the window closes and the action completes, keeping what you entered. While the window is open, **Cancel** abandons the action. If the browser blocks the pop-up, the form says so: allow pop-ups for the site and click the button again. A provider that sends no `auth_time` cannot confirm, and the attempt is logged as `token_exchange_failed`.
 
 An SSO user can therefore set a password or turn on 2FA without ever knowing the temporary password.
 
@@ -101,7 +101,7 @@ The sign-in page shows only *"Single sign-on failed"* or *"No account matches yo
 | `no_email_claim` | The ID token has no `email` claim. The entry lists the claims it had. | Add `email` to *Scopes*; for Entra ID also add the `email` optional claim. |
 | `idp_error` | The provider returned an error, for example `access_denied` when the user is not assigned to the application. | Check the error description and the user's assignment at the provider. |
 | `token_exchange_failed` | The code exchange or ID token validation failed. | Check the client secret and that the redirect URI registered at the provider matches exactly. |
-| `flow_expired` | The sign-in took longer than 10 minutes, or the redirect URI points to another host than the one the sign-in started on (`localhost` vs `127.0.0.1`), so the browser did not send the sign-in cookie back. | Open the admin panel on the same host as the redirect URI. |
+| `flow_expired` | The sign-in took longer than 10 minutes, or the redirect URI points to another host than the one the sign-in started on (`localhost` vs `127.0.0.1`), so the browser did not send the sign-in cookie back. The SSO button on the sign-in page always starts on the redirect URI's host, so a host mismatch comes from **Test sign-in** or a [confirmation](#confirming-sensitive-actions) started while the admin panel was open on another host. | Try again; open the admin panel on the same host as the redirect URI. |
 | `discovery_failed` | The server could not load `<issuer>/.well-known/openid-configuration`. | Check the issuer URL and the server's outbound network access. |
 | `confirmation_mismatch` | A [confirmation](#confirming-sensitive-actions) signed in at the provider as a different user than the one whose session was being confirmed. | Confirm with the provider account linked to your user. |
 

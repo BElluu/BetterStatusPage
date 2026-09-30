@@ -556,7 +556,7 @@ If the application container is not running, use the same persistent data volume
 docker compose run --rm app node apps/api/dist/cli/resetTwoFactor.js --email admin@example.com --confirm admin@example.com
 ```
 
-The confirmation must exactly match the email. A successful reset revokes every session for the account and records an `emergency_cli` entry in the audit log. Sign in with the existing password and configure 2FA again immediately.
+The confirmation must exactly match the email. A successful reset revokes every session for the account and records an `emergency_cli` entry in the audit log. Sign in again, with the existing password or single sign-on, and configure 2FA again immediately.
 
 ---
 
