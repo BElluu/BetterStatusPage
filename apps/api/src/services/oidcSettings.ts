@@ -42,3 +42,11 @@ export async function getOidcConfig(): Promise<{ config: OidcConfig | null; sour
   const config = oidcConfigFromRow(row)
   return { config: config && withPasswordOverride(config), source: config ? 'database' : 'none' }
 }
+
+/** Settings a test sign-in runs against: the environment, or the saved settings even while SSO is switched off. */
+export async function getOidcTestConfig(): Promise<OidcConfig | null> {
+  const fromEnv = resolveOidcConfigFromEnv()
+  if (fromEnv) return fromEnv
+  const row = await getOidcSettingsRow()
+  return row ? oidcConfigFromRow(row) : null
+}

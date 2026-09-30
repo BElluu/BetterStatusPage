@@ -129,10 +129,22 @@ export function SingleSignOnModal({ onClose }: { onClose: () => void }) {
           <button type="button" disabled={busy !== null || !form.issuer || !form.clientId} onClick={() => void test()} className="btn btn-secondary">
             {busy === 'test' ? 'Testing…' : 'Test connection'}
           </button>
+          <button
+            type="button" disabled={busy !== null || !data.settings.issuer || !data.settings.clientId}
+            onClick={() => window.open('/api/v1/admin/oidc/test-sign-in', '_blank', 'noopener')}
+            title="Signs in at the identity provider in a new tab with the saved settings and shows the claims and the outcome, without signing anyone in."
+            className="btn btn-secondary"
+          >
+            Test sign-in
+          </button>
           <button type="button" disabled={busy !== null} onClick={onClose} className="btn btn-secondary ml-auto">Close</button>
         </div>
       </>}
-      {locked && <button type="button" onClick={onClose} className="btn btn-secondary">Close</button>}
+      {!locked && <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>Test sign-in uses the saved settings, so save changes first.</p>}
+      {locked && <div className="flex flex-wrap gap-3">
+        <button type="button" onClick={() => window.open('/api/v1/admin/oidc/test-sign-in', '_blank', 'noopener')} className="btn btn-secondary">Test sign-in</button>
+        <button type="button" onClick={onClose} className="btn btn-secondary">Close</button>
+      </div>}
     </form>
     </div>
   </ModalShell>

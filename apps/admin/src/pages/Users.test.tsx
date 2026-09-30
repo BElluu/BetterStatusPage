@@ -20,8 +20,8 @@ describe('UsersPage 2FA recovery', () => {
     vi.clearAllMocks()
     vi.mocked(getCurrentUser).mockReturnValue({ userId: 1, email: 'admin@example.test', role: 'admin', mustChangePassword: false, twoFactorEnabled: true })
     vi.mocked(api.get).mockResolvedValue([
-      { id: 1, email: 'admin@example.test', role: 'admin', mustChangePassword: 0, twoFactorEnabled: 1, createdAt: 1 },
-      { id: 2, email: 'operator@example.test', role: 'operator', mustChangePassword: 0, twoFactorEnabled: 1, createdAt: 1 },
+      { id: 1, email: 'admin@example.test', role: 'admin', pendingTemporaryPassword: false, ssoLinked: false, twoFactorEnabled: 1, createdAt: 1 },
+      { id: 2, email: 'operator@example.test', role: 'operator', pendingTemporaryPassword: false, ssoLinked: false, twoFactorEnabled: 1, createdAt: 1 },
     ])
   })
 
@@ -47,8 +47,8 @@ describe('UsersPage confirmations and feedback', () => {
     vi.clearAllMocks()
     vi.mocked(getCurrentUser).mockReturnValue({ userId: 1, email: 'admin@example.test', role: 'admin', mustChangePassword: false, twoFactorEnabled: false })
     vi.mocked(api.get).mockResolvedValue([
-      { id: 1, email: 'admin@example.test', role: 'admin', mustChangePassword: 0, twoFactorEnabled: 0, createdAt: 1 },
-      { id: 2, email: 'operator@example.test', role: 'operator', mustChangePassword: 1, twoFactorEnabled: 0, createdAt: 1 },
+      { id: 1, email: 'admin@example.test', role: 'admin', pendingTemporaryPassword: false, ssoLinked: false, twoFactorEnabled: 0, createdAt: 1 },
+      { id: 2, email: 'operator@example.test', role: 'operator', pendingTemporaryPassword: true, ssoLinked: false, twoFactorEnabled: 0, createdAt: 1 },
     ])
   })
 

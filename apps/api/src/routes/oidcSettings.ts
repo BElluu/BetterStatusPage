@@ -8,8 +8,9 @@ import { SENSITIVE_ACTION_RATE_LIMIT } from '../config/rateLimits.js'
 import { buildOidcConfig, defaultOidcRedirectUri, type OidcConfig } from '../config/oidc.js'
 import { requestIdentity } from '../middleware/auth.js'
 import { auditActor, diffObjects, writeAudit } from '../services/audit.js'
-import { testOidcDiscovery } from '../services/oidc.js'
-import { getOidcConfig, getOidcSettingsRow, oidcConfigFromRow, type OidcSettingsRow } from '../services/oidcSettings.js'
+import { readOidcTestResult, storeOidcTestResult, testOidcDiscovery } from '../services/oidc.js'
+import { getOidcConfig, getOidcSettingsRow, getOidcTestConfig, oidcConfigFromRow, type OidcSettingsRow } from '../services/oidcSettings.js'
+import { startOidcFlow } from './auth.js'
 
 interface SettingsBody {
   enabled?: boolean
@@ -111,6 +112,27 @@ export async function oidcSettingsRoutes(app: FastifyInstance) {
     await writeAudit(auditActor(identity), previous ? 'update' : 'create', 'oidc_settings', 1, 'OIDC sign-in',
       diffObjects(auditView(previous), auditView(next, secretChanged)))
     return publicView(next)
+  })
+
+  // Opened in a new tab: runs the real sign-in with the saved settings and shows the outcome instead of signing in.
+  app.get('/test-sign-in', { config: { rateLimit: SENSITIVE_ACTION_RATE_LIMIT } }, async (req, reply) => {
+    const cfg = await getOidcTestConfig()
+    if (!cfg) return reply.code(400).send({ error: 'Save a valid issuer URL, client ID and redirect URI first' })
+    try {
+      return await startOidcFlow(app, reply, cfg, { purpose: 'oidc-test', adminUserId: requestIdentity(req).userId })
+    } catch (error) {
+      const result = {
+        issuer: cfg.issuer, testedAt: Date.now(), claims: null, outcome: 'deny' as const, user: null,
+        denial: { code: 'discovery_failed' as const, reason: `OIDC discovery against the issuer failed: ${error instanceof Error ? error.message : String(error)}` },
+      }
+      return reply.redirect(`/admin/sso-test?result=${storeOidcTestResult(requestIdentity(req).userId, result)}`)
+    }
+  })
+
+  app.get<{ Params: { id: string } }>('/test-sign-in/:id', async (req, reply) => {
+    const result = readOidcTestResult(req.params.id, requestIdentity(req).userId)
+    if (!result) return reply.code(404).send({ error: 'The test result has expired. Run the test sign-in again.' })
+    return result
   })
 
   app.post<{ Body: SettingsBody }>('/test', { config: { rateLimit: SENSITIVE_ACTION_RATE_LIMIT } }, async (req, reply) => {

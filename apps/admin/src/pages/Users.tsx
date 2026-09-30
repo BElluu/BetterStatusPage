@@ -11,7 +11,8 @@ interface User {
   id: number
   email: string
   role: string
-  mustChangePassword: number
+  pendingTemporaryPassword: boolean
+  ssoLinked: boolean
   twoFactorEnabled: number
   createdAt: number
 }
@@ -298,7 +299,7 @@ export default function UsersPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {user.mustChangePassword ? (
+                      {user.pendingTemporaryPassword ? (
                         <span className="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: 'var(--m3-degraded-bg)', color: 'var(--m3-degraded)' }}>
                           Temp password
                         </span>
@@ -309,6 +310,9 @@ export default function UsersPage() {
                       )}
                       {!!user.twoFactorEnabled && (
                         <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface)' }}>2FA</span>
+                      )}
+                      {user.ssoLinked && (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full" title="Signed in through single sign-on; matched by their identity-provider account" style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface)' }}>SSO</span>
                       )}
                     </div>
                   </td>

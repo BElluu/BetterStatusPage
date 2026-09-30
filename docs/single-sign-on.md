@@ -5,7 +5,8 @@ BetterStatusPage can sign administrators in through any OpenID Connect (OIDC) id
 ## How it works
 
 - SSO signs in **existing users only**. It never creates accounts. Create the user first in **Users → New User**, then they can use SSO.
-- The account is matched by the **email** claim from the identity provider, case-insensitively. The email must be verified: the provider must send `email_verified: true`, or, for Microsoft Entra ID, `xms_edov: true` (see [Microsoft Entra ID](#microsoft-entra-id)).
+- The **first** SSO sign-in matches the account by the **email** claim from the identity provider, case-insensitively. The email must be verified: the provider must send `email_verified: true`, or, for Microsoft Entra ID, `xms_edov: true` (see [Microsoft Entra ID](#microsoft-entra-id)).
+- That first sign-in links the provider account (issuer + `sub` claim) to the user, shown as **SSO** in **Users**. Later sign-ins match on this link, not on the email, so they keep working when the email changes at the provider. An email address that is later given to someone else at the provider cannot take over the account: that sign-in is refused with `subject_mismatch`. If the issuer URL is changed, the next sign-in links the account again by email.
 - The user keeps their BetterStatusPage role (`admin`, `operator`, `branding`). Roles are not read from the identity provider.
 - An SSO sign-in skips the local password and TOTP step, because the identity provider authenticates the user and enforces its own MFA. It never changes the stored password.
 - The temporary password given when the user was created is handled by whether password sign-in is enabled:
@@ -26,7 +27,7 @@ No restart or `.env` change is needed.
 
    | Field | Notes |
    |-------|-------|
-   | Issuer URL | The provider's issuer, for example `https://login.microsoftonline.com/<tenant-id>/v2.0` or `https://keycloak.example.com/realms/main`. `/.well-known/openid-configuration` must be reachable from the server. |
+   | Issuer URL | The provider's issuer, for example `https://login.microsoftonline.com/<tenant-id>/v2.0` or `https://keycloak.example.com/realms/main`. `/.well-known/openid-configuration` must be reachable from the server. Use `https`; plain `http` works only for a provider that is itself served over http, such as a local test Keycloak. |
    | Client ID / Client secret | The secret is stored encrypted with `VAULT_ENCRYPTION_KEY` and is never shown again. Leave the field empty to keep the stored one. |
    | Redirect URI | Optional. Defaults to `PUBLIC_URL` + `/api/v1/auth/oidc/callback`. Set it when the admin panel is served from another origin. |
    | Scopes | Defaults to `openid email profile`. |
@@ -35,6 +36,7 @@ No restart or `.env` change is needed.
    | Disable password sign-in | See [Password sign-in and lockout protection](#password-sign-in-and-lockout-protection). |
 
 3. Click **Test connection** to run OIDC discovery against the issuer, then **Save**. Saving requires your current password.
+4. Reopen the form and click **Test sign-in**. It opens the identity provider in a new tab with the saved settings, and after you sign in there it shows every claim of the ID token and what a real sign-in would do: which user it signs in as, whether it links the account, or why it is refused. Nobody is signed in, nothing is linked and nothing is saved. It works while SSO is switched off, so you can check the setup before enabling it.
 
 The sign-in page shows the SSO button as soon as the settings are saved.
 
@@ -86,6 +88,7 @@ The sign-in page shows only *"Single sign-on failed"* or *"No account matches yo
 | Code | Meaning | Fix |
 |------|---------|-----|
 | `no_matching_account` | No user has that email. | Create the user in **Users → New User**. |
+| `subject_mismatch` | The user with that email is linked to a different account at the same provider. The email address may have been given to someone else. | Check who owns the provider account. If the user's account at the provider was really replaced, delete and re-create the user. |
 | `email_not_verified` | The provider sent `email_verified` or `xms_edov` as `false`, or sent neither. | Verify the email at the provider. For Entra ID add the `xms_edov` claim. |
 | `no_email_claim` | The ID token has no `email` claim. The entry lists the claims it had. | Add `email` to *Scopes*; for Entra ID also add the `email` optional claim. |
 | `idp_error` | The provider returned an error, for example `access_denied` when the user is not assigned to the application. | Check the error description and the user's assignment at the provider. |
@@ -101,5 +104,6 @@ The actor of these entries is user 0 with the email from the provider, because n
 |---------|-------|
 | "Single sign-on failed" on the sign-in page | Discovery failed, the provider returned an error, the code exchange failed, or the login took longer than 10 minutes. The audit log has the reason, see [Why a sign-in was refused](#why-a-sign-in-was-refused). |
 | "No account matches your single sign-on identity" | No BetterStatusPage user has that email, or the provider did not send a verified email. The audit log has the reason. |
+| Test sign-in says the result expired | Results are kept in memory for 10 minutes and are lost when the server restarts. Run the test again. |
 | Test connection fails | The server cannot reach `<issuer>/.well-known/openid-configuration`, or the URL is not the issuer. |
 | The form is read-only | `OIDC_ISSUER` and `OIDC_CLIENT_ID` are set in the environment. |

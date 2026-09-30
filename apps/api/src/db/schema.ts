@@ -12,6 +12,9 @@ export const users = sqliteTable('users', {
   totpSecret: text('totp_secret'),
   totpEnabled: integer('totp_enabled').notNull().default(0),
   totpRecoveryCodes: text('totp_recovery_codes'),
+  // SSO identity bound on the first OIDC sign-in; later sign-ins match on it instead of the email.
+  oidcIssuer: text('oidc_issuer'),
+  oidcSubject: text('oidc_subject'),
 })
 
 export const authSessions = sqliteTable('auth_sessions', {
