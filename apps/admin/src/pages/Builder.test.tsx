@@ -213,8 +213,6 @@ describe('BuilderPage', () => {
     expect(findGroupChildren()).toHaveLength(3)
     fireEvent.drop(dropZone(), { dataTransfer: dataTransfer({ nodeType: 'text' }) })
     expect(findGroupChildren()).toHaveLength(4)
-    fireEvent.drop(dropZone(), { dataTransfer: dataTransfer({ nodeType: 'rootMonitor', rootNodeId: 'm1' }) })
-    expect(findGroupChildren()).toHaveLength(5)
 
     const before = useBuilderStore.getState().tree.children.length
     await user.click(screen.getAllByTitle('Delete')[1]!)

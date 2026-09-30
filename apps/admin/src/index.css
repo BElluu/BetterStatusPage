@@ -513,3 +513,8 @@ html.dark .card-hover:hover {
   position: absolute; inset: 0; border-radius: 50%;
   animation: dot-ping 2s ease-out infinite;
 }
+
+/* Page builder: while a canvas item is dragged onto a group, it joins the group instead of taking a grid cell. */
+[data-joining-group] .react-grid-placeholder {
+  display: none;
+}
