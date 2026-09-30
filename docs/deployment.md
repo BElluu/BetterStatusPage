@@ -461,7 +461,7 @@ Before exposing an instance publicly:
 | `PUBLIC_URL` | For email/webhook subscriptions | Public address of the status page, e.g. `https://status.example.com`. All links sent to subscribers are built from it; see [subscriptions](subscriptions.md#public-url). |
 | `OIDC_ISSUER` / `OIDC_CLIENT_ID` | No | Configure OpenID Connect single sign-on from the environment instead of **Users → Single sign-on**. When both are set they override the UI settings and lock that page. Register `<PUBLIC_URL>/api/v1/auth/oidc/callback` as the redirect URI. Users must already exist; they are matched by verified email. |
 | `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`, `OIDC_SCOPES`, `OIDC_BUTTON_LABEL` | No | Optional companions to the two variables above (defaults: none, derived from `PUBLIC_URL`, `openid email profile`, `Sign in with SSO`). |
-| `OIDC_DISABLE_PASSWORD_LOGIN`, `OIDC_ALLOW_UNVERIFIED_EMAIL` | No | `true` hides and rejects password sign-in while OIDC is active / accepts IdPs that omit `email_verified` (e.g. Entra ID). |
+| `OIDC_DISABLE_PASSWORD_LOGIN`, `OIDC_ALLOW_UNVERIFIED_EMAIL` | No | `true` hides and rejects password sign-in while OIDC is active / accepts IdPs that send neither `email_verified` nor `xms_edov` (for Entra ID add the `xms_edov` optional claim instead). |
 | `OIDC_FORCE_PASSWORD_LOGIN` | No | Break-glass: `true` re-enables password sign-in even if it was disabled, for when the identity provider is down. Restart required. |
 | `SCHEDULER_TICK_SECONDS` | No | How often the scheduler scans for due monitors. Default: `10`. Must be 1-59 seconds. |
 | `MONITOR_CHECK_CONCURRENCY` | No | Maximum number of due monitors checked concurrently. Default: `20`. |

@@ -17,6 +17,7 @@ const ACTION_COLORS: Record<AuditAction, { bg: string; color: string; label: str
   create: { bg: 'var(--audit-create-bg)', color: 'var(--audit-create-text)', label: 'Create' },
   update: { bg: 'var(--audit-update-bg)', color: 'var(--audit-update-text)', label: 'Update' },
   delete: { bg: 'var(--audit-delete-bg)', color: 'var(--audit-delete-text)', label: 'Delete' },
+  deny:   { bg: 'var(--audit-delete-bg)', color: 'var(--audit-delete-text)', label: 'Denied' },
 }
 
 const ENTITY_LABELS: Record<AuditEntityType, string> = {
@@ -31,6 +32,7 @@ const ENTITY_LABELS: Record<AuditEntityType, string> = {
   vault_secret:         'Vault Secret',
   user:                 'User',
   oidc_settings:        'OIDC Sign-in',
+  oidc_login:           'SSO Sign-in',
 }
 
 const ENTITY_ICONS: Record<AuditEntityType, string> = {
@@ -45,6 +47,7 @@ const ENTITY_ICONS: Record<AuditEntityType, string> = {
   vault_secret:         'key',
   user:                 'person',
   oidc_settings:        'login',
+  oidc_login:           'no_accounts',
 }
 
 function formatTs(ms: number) {
@@ -204,6 +207,7 @@ export default function AuditLogPage() {
             <option value="create">Create</option>
             <option value="update">Update</option>
             <option value="delete">Delete</option>
+            <option value="deny">Denied</option>
           </select>
         </div>
 
@@ -328,7 +332,7 @@ export default function AuditLogPage() {
                         className="focus-ring flex items-center justify-between gap-2 min-w-0 -mx-2 px-2 py-1.5 rounded-lg text-left transition-colors hover:bg-[var(--m3-surface-container-low)]"
                       >
                         <span className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
-                          {isExpanded ? 'Hide details' : `${fieldCount} field${fieldCount !== 1 ? 's' : ''} changed`}
+                          {isExpanded ? 'Hide details' : entry.action === 'deny' ? 'Show reason' : `${fieldCount} field${fieldCount !== 1 ? 's' : ''} changed`}
                         </span>
                         <span
                           className="material-symbols-outlined"
@@ -369,7 +373,7 @@ export default function AuditLogPage() {
                 title="No audit entries found."
                 description={filtered
                   ? <>Try widening the date range, or <EmptyStateLink onClick={clearFilters}>clear all filters</EmptyStateLink>.</>
-                  : 'Changes made in the admin panel are recorded here.'}
+                  : 'Changes made in the admin panel and refused SSO sign-ins are recorded here.'}
               />
             )}
           </div>
