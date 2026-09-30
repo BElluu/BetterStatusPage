@@ -30,6 +30,7 @@ const ENTITY_LABELS: Record<AuditEntityType, string> = {
   vault:                'Vault',
   vault_secret:         'Vault Secret',
   user:                 'User',
+  oidc_settings:        'OIDC Sign-in',
 }
 
 const ENTITY_ICONS: Record<AuditEntityType, string> = {
@@ -43,6 +44,7 @@ const ENTITY_ICONS: Record<AuditEntityType, string> = {
   vault:                'shield_lock',
   vault_secret:         'key',
   user:                 'person',
+  oidc_settings:        'login',
 }
 
 function formatTs(ms: number) {

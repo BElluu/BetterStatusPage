@@ -115,6 +115,18 @@ Storing passwords in environment variables is fine until it isn't. BetterStatusP
 
 Your secrets never appear in logs, API responses, or your `git diff`.
 
+### 🔑 Single sign-on with OpenID Connect
+
+Let your team sign in with the identity provider they already use — **Microsoft Entra ID, Keycloak, Okta, Google Workspace, Authentik, Auth0** or any other OIDC provider. Authorization Code flow with PKCE, `state` and `nonce`, ending in the same hardened server-side session as a password login.
+
+- **Configured in the UI, live immediately** — open **Users → Single sign-on**, paste issuer, client ID and secret, hit **Test connection**, save. No `.env` edit, no restart. The secret is stored encrypted and never shown again.
+- **Existing users only** — SSO never creates accounts. Users are matched by verified email and keep their BetterStatusPage role, so nobody gets in by accident.
+- **Password login stays as a safety net** — or switch it off once SSO works. It can only be switched off after a successful discovery check, and `OIDC_FORCE_PASSWORD_LOGIN=true` is the break-glass switch if your IdP goes down.
+- **Infrastructure-as-code friendly** — the same settings can come from `OIDC_*` environment variables, which then override and lock the UI form.
+- **Audited** — every SSO sign-in and every settings change lands in the audit log (the secret never does).
+
+> See **[docs/single-sign-on.md](docs/single-sign-on.md)** for setup, provider notes and troubleshooting.
+
 ### 🎨 A drag-and-drop page builder
 
 The public status page isn't just a list of green dots. It's a fully customizable grid layout you design yourself — drag in monitor cards, group them by service, add markdown text blocks, drop in an incident feed, resize everything, done. No CSS required.
@@ -162,6 +174,7 @@ Every mutation in the admin panel is recorded — who did it, when, and exactly 
 | Vaults & secrets | Create, update (name, value change flagged as `[redacted]`), delete |
 | Users | Create, role change, password reset, delete |
 | Account security | Enable or disable TOTP two-factor authentication |
+| Single sign-on | Configure or change OpenID Connect settings, SSO sign-ins |
 
 The audit log page (admin-only) lets you filter by **user**, **entity type**, **action** (create / update / delete), and **date range**. Click any row to expand the diff inline.
 
@@ -253,7 +266,7 @@ Status changes propagate to both the admin dashboard and the public page instant
 | Data fetching | TanStack Query | 5.x |
 | State | Zustand | 5.x |
 | Drag & drop | dnd-kit | 6.x |
-| Auth | Server-side sessions, HttpOnly JWT cookies, CSRF, TOTP, bcrypt | — |
+| Auth | Server-side sessions, HttpOnly JWT cookies, CSRF, TOTP, bcrypt, OpenID Connect (PKCE) | — |
 | Email | Nodemailer | 9.x |
 | SQL Server | mssql | 11.x |
 | Scheduler | node-cron | 3.x |
@@ -404,11 +417,11 @@ SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
 
 | Role | What they can do |
 |------|-----------------|
-| **admin** | Everything, including users, vaults, audit log, and backups |
+| **admin** | Everything, including users, single sign-on, vaults, audit log, and backups |
 | **operator** | Monitors, incidents, maintenance, notifications, page builder, branding, localization, and settings |
 | **branding** | Page builder, branding, localization, and account settings |
 
-Administrator sessions are stored server-side and authenticated with an `HttpOnly`, `SameSite=Strict` cookie. State-changing browser requests require a matching CSRF token. Users can enable TOTP two-factor authentication from **Settings** and receive eight single-use recovery codes.
+Administrator sessions are stored server-side and authenticated with an `HttpOnly`, `SameSite=Strict` cookie. State-changing browser requests require a matching CSRF token. Users can enable TOTP two-factor authentication from **Settings** and receive eight single-use recovery codes. Administrators can also enable [OpenID Connect single sign-on](docs/single-sign-on.md) from **Users → Single sign-on**.
 
 ---
 

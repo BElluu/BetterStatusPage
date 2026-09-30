@@ -6,7 +6,7 @@ import { api, setSession, type AuthUser } from '../api/client'
 import LoginPage from './Login'
 
 vi.mock('../api/client', () => ({
-  api: { post: vi.fn() },
+  api: { post: vi.fn(), get: vi.fn().mockResolvedValue({ passwordLogin: true, oidc: null }) },
   setSession: vi.fn(),
 }))
 

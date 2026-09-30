@@ -192,6 +192,21 @@ export const smtpSettings = sqliteTable('smtp_settings', {
   vaultConfig: text('vault_config'), // JSON VaultRef | null
 })
 
+export const oidcSettings = sqliteTable('oidc_settings', {
+  id: integer('id').primaryKey(),
+  enabled: integer('enabled').notNull().default(0),
+  issuer: text('issuer').notNull().default(''),
+  clientId: text('client_id').notNull().default(''),
+  /** AES-256-GCM encrypted via crypto/vault.ts; empty when no secret is set. */
+  clientSecret: text('client_secret').notNull().default(''),
+  scopes: text('scopes').notNull().default(''),
+  redirectUri: text('redirect_uri').notNull().default(''),
+  buttonLabel: text('button_label').notNull().default(''),
+  allowUnverifiedEmail: integer('allow_unverified_email').notNull().default(0),
+  disablePasswordLogin: integer('disable_password_login').notNull().default(0),
+  updatedAt: integer('updated_at').notNull(),
+})
+
 export const auditLog = sqliteTable('audit_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   userId: integer('user_id').notNull(),

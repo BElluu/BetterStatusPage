@@ -131,6 +131,20 @@ CREATE TABLE IF NOT EXISTS smtp_settings (
   updated_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS oidc_settings (
+  id INTEGER PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  issuer TEXT NOT NULL DEFAULT '',
+  client_id TEXT NOT NULL DEFAULT '',
+  client_secret TEXT NOT NULL DEFAULT '',
+  scopes TEXT NOT NULL DEFAULT '',
+  redirect_uri TEXT NOT NULL DEFAULT '',
+  button_label TEXT NOT NULL DEFAULT '',
+  allow_unverified_email INTEGER NOT NULL DEFAULT 0,
+  disable_password_login INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS locales (
   code               TEXT    PRIMARY KEY,
   name               TEXT    NOT NULL,

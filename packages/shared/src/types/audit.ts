@@ -11,6 +11,7 @@ export type AuditEntityType =
   | 'vault'
   | 'vault_secret'
   | 'user'
+  | 'oidc_settings'
 
 export interface AuditLogEntry {
   id: number
