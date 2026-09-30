@@ -194,6 +194,7 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
   created_at INTEGER NOT NULL,
   last_seen_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL,
+  auth_method TEXT NOT NULL DEFAULT 'password',
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
@@ -363,6 +364,7 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE branding ADD COLUMN show_hero INTEGER NOT NULL DEFAULT 1`, desc: 'branding.show_hero' },
   { sql: `ALTER TABLE branding ADD COLUMN show_footer INTEGER NOT NULL DEFAULT 1`, desc: 'branding.show_footer' },
   { sql: `ALTER TABLE branding ADD COLUMN show_project_link INTEGER NOT NULL DEFAULT 1`, desc: 'branding.show_project_link' },
+  { sql: `ALTER TABLE auth_sessions ADD COLUMN auth_method TEXT NOT NULL DEFAULT 'password'`, desc: 'auth_sessions.auth_method' },
 ]
 
 /**

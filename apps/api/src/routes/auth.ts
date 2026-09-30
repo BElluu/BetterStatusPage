@@ -20,6 +20,7 @@ import {
   revokeSession,
   revokeUserSessions,
   type AuthIdentity,
+  type AuthMethod,
 } from '../services/authSession.js'
 import { writeAudit } from '../services/audit.js'
 import { verifySecondFactor } from '../services/twoFactor.js'
@@ -44,8 +45,8 @@ async function verifyPassword(user: typeof users.$inferSelect, password: string)
   return bcrypt.compare(password, user.passwordHash)
 }
 
-async function finishLogin(app: FastifyInstance, reply: FastifyReply, user: typeof users.$inferSelect) {
-  const identity = await createAuthSession(app, reply, user)
+async function finishLogin(app: FastifyInstance, reply: FastifyReply, user: typeof users.$inferSelect, authMethod: AuthMethod = 'password') {
+  const identity = await createAuthSession(app, reply, user, authMethod)
   return publicSession(identity)
 }
 
@@ -108,7 +109,7 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.redirect(ACCOUNT_DENIALS.has(denial.code) ? '/admin/login?error=oidc_no_account' : OIDC_FAILED_REDIRECT)
       }
       // The IdP authenticated the user and enforces its own MFA, so no local password or TOTP step.
-      await createAuthSession(app, reply, { ...user, mustChangePassword: 0, totpEnabled: 0 })
+      await createAuthSession(app, reply, { ...user, totpEnabled: 0 }, 'oidc')
       await writeAudit(
         { userId: user.id, userEmail: user.email },
         'update', 'user-security', user.id, user.email,
@@ -200,7 +201,8 @@ export async function authRoutes(app: FastifyInstance) {
     )
     await revokeUserSessions(user.id)
     const updated = { ...user, passwordHash, mustChangePassword: 0 }
-    return finishLogin(app, reply, updated)
+    // An SSO user setting a password stays in an SSO session.
+    return finishLogin(app, reply, updated, identity.authMethod)
   })
 
   app.post<{ Body: { currentPassword: string } }>('/2fa/setup', { preHandler: requireAuth }, async (req, reply) => {

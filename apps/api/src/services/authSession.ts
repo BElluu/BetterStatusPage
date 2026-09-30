@@ -3,12 +3,16 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { and, eq, lt, ne } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { authSessions, users } from '../db/schema.js'
+import { passwordLoginEnabled } from '../config/oidc.js'
+import { getOidcConfig } from './oidcSettings.js'
 import { normalizeRole } from './roles.js'
 import { sseService } from './sse.service.js'
 
 export const SESSION_COOKIE = 'bsp_session'
 export const CSRF_COOKIE = 'bsp_csrf'
 const SESSION_SECONDS = 12 * 60 * 60
+
+export type AuthMethod = 'password' | 'oidc'
 
 export interface AuthIdentity {
   userId: number
@@ -17,6 +21,7 @@ export interface AuthIdentity {
   sessionId: string
   mustChangePassword: boolean
   twoFactorEnabled: boolean
+  authMethod: AuthMethod
 }
 
 interface SessionClaims {
@@ -50,6 +55,7 @@ export async function createAuthSession(
   app: FastifyInstance,
   reply: FastifyReply,
   user: { id: number; email: string; role: string; mustChangePassword: number; totpEnabled: number },
+  authMethod: AuthMethod = 'password',
 ): Promise<AuthIdentity> {
   const now = Date.now()
   const sessionId = randomUUID()
@@ -63,6 +69,7 @@ export async function createAuthSession(
     createdAt: now,
     lastSeenAt: now,
     expiresAt,
+    authMethod,
   })
 
   const role = normalizeRole(user.role)
@@ -74,9 +81,21 @@ export async function createAuthSession(
     email: user.email,
     role,
     sessionId,
-    mustChangePassword: !!user.mustChangePassword,
+    mustChangePassword: await mustChangePassword(user, authMethod),
     twoFactorEnabled: !!user.totpEnabled,
+    authMethod,
   }
+}
+
+/**
+ * A pending temporary password must be changed in every session while password sign-in is possible, so the
+ * password the administrator handed out stops working. With password sign-in disabled it cannot be used, so
+ * an SSO session skips the change. The OIDC settings are only read in that rare case.
+ */
+async function mustChangePassword(user: { mustChangePassword: number }, authMethod: string): Promise<boolean> {
+  if (!user.mustChangePassword) return false
+  if (authMethod !== 'oidc') return true
+  return passwordLoginEnabled((await getOidcConfig()).config)
 }
 
 export function clearAuthCookies(reply: FastifyReply): void {
@@ -114,8 +133,9 @@ export async function authenticateRequest(req: FastifyRequest): Promise<AuthIden
     email: user.email,
     role: normalizeRole(user.role),
     sessionId: session.id,
-    mustChangePassword: !!user.mustChangePassword,
+    mustChangePassword: await mustChangePassword(user, session.authMethod),
     twoFactorEnabled: !!user.totpEnabled,
+    authMethod: session.authMethod === 'oidc' ? 'oidc' : 'password',
   }
   req.user = identity
   return identity

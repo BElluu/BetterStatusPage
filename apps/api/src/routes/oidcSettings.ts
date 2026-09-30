@@ -17,7 +17,6 @@ interface SettingsBody {
   clientId?: string
   /** Non-empty replaces the stored secret; omitted or empty keeps it. */
   clientSecret?: string
-  clearClientSecret?: boolean
   scopes?: string
   redirectUri?: string
   buttonLabel?: string
@@ -78,10 +77,8 @@ export async function oidcSettingsRoutes(app: FastifyInstance) {
     }
 
     const previous = await getOidcSettingsRow()
-    const secretChanged = !!body.clearClientSecret || !!body.clientSecret?.trim()
-    const clientSecret = body.clearClientSecret
-      ? ''
-      : body.clientSecret?.trim() ? encrypt(body.clientSecret.trim()) : previous?.clientSecret ?? ''
+    const secretChanged = !!body.clientSecret?.trim()
+    const clientSecret = secretChanged ? encrypt(body.clientSecret!.trim()) : previous?.clientSecret ?? ''
     const next: OidcSettingsRow = {
       id: 1,
       enabled: body.enabled ? 1 : 0,
