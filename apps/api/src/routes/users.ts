@@ -10,6 +10,8 @@ import { revokeUserSessions } from '../services/authSession.js'
 import { normalizeRole, VALID_ROLES } from '../services/roles.js'
 import { resetTwoFactor } from '../services/twoFactor.js'
 import { SENSITIVE_ACTION_RATE_LIMIT } from '../config/rateLimits.js'
+import { passwordLoginEnabled } from '../config/oidc.js'
+import { getOidcConfig } from '../services/oidcSettings.js'
 
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
@@ -20,15 +22,23 @@ function generateTempPassword(): string {
 
 export async function userRoutes(app: FastifyInstance) {
   app.get('/', async () => {
-    const all = await db.select({
+    const [all, { config }] = await Promise.all([db.select({
       id: users.id,
       email: users.email,
       role: users.role,
       mustChangePassword: users.mustChangePassword,
       twoFactorEnabled: users.totpEnabled,
+      oidcIssuer: users.oidcIssuer,
       createdAt: users.createdAt,
-    }).from(users)
-    return all.map((u) => ({ ...u, role: normalizeRole(u.role) }))
+    }).from(users), getOidcConfig()])
+    const passwordLogin = passwordLoginEnabled(config)
+    return all.map(({ mustChangePassword, oidcIssuer, ...u }) => ({
+      ...u,
+      role: normalizeRole(u.role),
+      ssoLinked: !!oidcIssuer,
+      // A user who signed in through SSO has either replaced the temporary password or cannot use it.
+      pendingTemporaryPassword: !!mustChangePassword && (!oidcIssuer || passwordLogin),
+    }))
   })
 
   app.post<{ Body: { email: string } }>('/', async (req, reply) => {

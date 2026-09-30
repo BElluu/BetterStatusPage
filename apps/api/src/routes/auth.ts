@@ -24,17 +24,56 @@ import {
 } from '../services/authSession.js'
 import { writeAudit } from '../services/audit.js'
 import { verifySecondFactor } from '../services/twoFactor.js'
-import { passwordLoginEnabled } from '../config/oidc.js'
-import { getOidcConfig } from '../services/oidcSettings.js'
-import { auditOidcDenial, beginOidcLogin, completeOidcLogin, type OidcDenialCode, type OidcFlowState } from '../services/oidc.js'
+import { passwordLoginEnabled, type OidcConfig } from '../config/oidc.js'
+import { getOidcConfig, getOidcTestConfig } from '../services/oidcSettings.js'
+import {
+  auditOidcDenial,
+  beginOidcLogin,
+  evaluateOidcClaims,
+  exchangeOidcCode,
+  linkOidcIdentity,
+  runOidcTest,
+  storeOidcTestResult,
+  type OidcDenialCode,
+  type OidcFlowState,
+} from '../services/oidc.js'
 
 const OIDC_FLOW_COOKIE = 'bsp_oidc_flow'
 const OIDC_FLOW_PATH = '/api/v1/auth/oidc'
 const OIDC_FLOW_SECONDS = 10 * 60
 const OIDC_FAILED_REDIRECT = '/admin/login?error=oidc_failed'
 // Denials about the identity itself show "no account matches"; the rest show the generic failure.
-const ACCOUNT_DENIALS = new Set<OidcDenialCode>(['no_email_claim', 'email_not_verified', 'no_matching_account'])
+const ACCOUNT_DENIALS = new Set<OidcDenialCode>(['no_email_claim', 'email_not_verified', 'no_matching_account', 'subject_mismatch'])
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, 1000)
+
+interface OidcFlowClaims extends OidcFlowState {
+  /** 'oidc-flow' signs a user in; 'oidc-test' only reports the outcome to the administrator who started it. */
+  purpose?: 'oidc-flow' | 'oidc-test'
+  adminUserId?: number
+}
+
+/** Redirects to the provider, keeping the PKCE verifier, state and nonce in a short-lived signed cookie. */
+export async function startOidcFlow(
+  app: FastifyInstance, reply: FastifyReply, cfg: OidcConfig,
+  extra: Pick<OidcFlowClaims, 'purpose' | 'adminUserId'>,
+) {
+  const { url, flow } = await beginOidcLogin(cfg)
+  reply.setCookie(OIDC_FLOW_COOKIE, app.jwt.sign({ ...extra, ...flow }, { expiresIn: OIDC_FLOW_SECONDS }), {
+    path: OIDC_FLOW_PATH,
+    httpOnly: true,
+    secure: process.env['NODE_ENV'] === 'production',
+    // Lax, not Strict: the IdP redirects back from another site and Strict cookies are not sent then.
+    sameSite: 'lax',
+    maxAge: OIDC_FLOW_SECONDS,
+  })
+  return reply.redirect(url)
+}
+
+function callbackUrlFor(cfg: OidcConfig, query: URLSearchParams): URL {
+  const url = new URL(cfg.redirectUri)
+  url.search = query.toString()
+  return url
+}
 
 function publicSession(identity: AuthIdentity) {
   const { sessionId: _sessionId, ...safe } = identity
@@ -60,16 +99,7 @@ export async function authRoutes(app: FastifyInstance) {
     const { config: cfg } = await getOidcConfig()
     if (!cfg) return reply.code(404).send({ error: 'OIDC is not configured' })
     try {
-      const { url, flow } = await beginOidcLogin(cfg)
-      reply.setCookie(OIDC_FLOW_COOKIE, app.jwt.sign({ purpose: 'oidc-flow', ...flow }, { expiresIn: OIDC_FLOW_SECONDS }), {
-        path: OIDC_FLOW_PATH,
-        httpOnly: true,
-        secure: process.env['NODE_ENV'] === 'production',
-        // Lax, not Strict: the IdP redirects back from another site and Strict cookies are not sent then.
-        sameSite: 'lax',
-        maxAge: OIDC_FLOW_SECONDS,
-      })
-      return reply.redirect(url)
+      return await startOidcFlow(app, reply, cfg, { purpose: 'oidc-flow' })
     } catch (error) {
       req.log.error({ err: error }, 'OIDC discovery failed')
       await auditOidcDenial(cfg, { code: 'discovery_failed', reason: `OIDC discovery against the issuer failed: ${errorText(error)}` })
@@ -78,17 +108,24 @@ export async function authRoutes(app: FastifyInstance) {
   })
 
   app.get('/oidc/callback', { config: { rateLimit: LOGIN_RATE_LIMIT } }, async (req, reply) => {
-    const { config: cfg } = await getOidcConfig()
-    if (!cfg) return reply.code(404).send({ error: 'OIDC is not configured' })
     const token = req.cookies[OIDC_FLOW_COOKIE]
     reply.clearCookie(OIDC_FLOW_COOKIE, { path: OIDC_FLOW_PATH })
     const query = new URL(req.url, 'http://localhost').searchParams
-    let flow: OidcFlowState & { purpose?: string }
+    let flow: OidcFlowClaims | null = null
     try {
-      if (!token) throw new Error('missing')
-      flow = app.jwt.verify<OidcFlowState & { purpose?: string }>(token)
-      if (flow.purpose !== 'oidc-flow') throw new Error('wrong purpose')
-    } catch {
+      if (token) flow = app.jwt.verify<OidcFlowClaims>(token)
+    } catch { /* expired or tampered: handled as missing */ }
+
+    if (flow?.purpose === 'oidc-test' && Number.isInteger(flow.adminUserId)) {
+      const cfg = await getOidcTestConfig()
+      if (!cfg) return reply.code(404).send({ error: 'OIDC is not configured' })
+      const result = await runOidcTest(cfg, callbackUrlFor(cfg, query), flow)
+      return reply.redirect(`/admin/sso-test?result=${storeOidcTestResult(flow.adminUserId!, result)}`)
+    }
+
+    const { config: cfg } = await getOidcConfig()
+    if (!cfg) return reply.code(404).send({ error: 'OIDC is not configured' })
+    if (flow?.purpose !== 'oidc-flow') {
       // Only audited for what looks like a real provider redirect: anyone can open the callback URL.
       if (query.has('state')) {
         await auditOidcDenial(cfg, {
@@ -100,14 +137,16 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.redirect(OIDC_FAILED_REDIRECT)
     }
     try {
-      const callbackUrl = new URL(cfg.redirectUri)
-      callbackUrl.search = query.toString()
-      const { user, denial } = await completeOidcLogin(cfg, callbackUrl, flow)
-      if (!user) {
+      const exchanged = await exchangeOidcCode(cfg, callbackUrlFor(cfg, query), flow)
+      const decision = exchanged.denial ? { user: null, denial: exchanged.denial } as const : await evaluateOidcClaims(cfg, exchanged.claims)
+      if (!decision.user) {
+        const { denial } = decision
         req.log.warn({ code: denial.code, reason: denial.reason }, 'OIDC sign-in refused')
         await auditOidcDenial(cfg, denial)
         return reply.redirect(ACCOUNT_DENIALS.has(denial.code) ? '/admin/login?error=oidc_no_account' : OIDC_FAILED_REDIRECT)
       }
+      const { user } = decision
+      if (decision.link) await linkOidcIdentity(cfg, user, decision.subject)
       // The IdP authenticated the user and enforces its own MFA, so no local password or TOTP step.
       await createAuthSession(app, reply, { ...user, totpEnabled: 0 }, 'oidc')
       await writeAudit(

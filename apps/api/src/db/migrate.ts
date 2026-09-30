@@ -365,6 +365,8 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE branding ADD COLUMN show_footer INTEGER NOT NULL DEFAULT 1`, desc: 'branding.show_footer' },
   { sql: `ALTER TABLE branding ADD COLUMN show_project_link INTEGER NOT NULL DEFAULT 1`, desc: 'branding.show_project_link' },
   { sql: `ALTER TABLE auth_sessions ADD COLUMN auth_method TEXT NOT NULL DEFAULT 'password'`, desc: 'auth_sessions.auth_method' },
+  { sql: `ALTER TABLE users ADD COLUMN oidc_issuer TEXT`, desc: 'users.oidc_issuer' },
+  { sql: `ALTER TABLE users ADD COLUMN oidc_subject TEXT`, desc: 'users.oidc_subject' },
 ]
 
 /**
@@ -457,6 +459,8 @@ export function runMigrations(): void {
   for (const { sql, desc } of columnMigrations) {
     if (applyColumnMigration(sql)) console.log(`✓ Column migration: ${desc}`)
   }
+  // One IdP identity can be bound to one user only. Needs the columns added above.
+  sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oidc_identity ON users(oidc_issuer, oidc_subject)`)
   alignBrandingDefaultsWithLightMode()
   migrateLegacyLogoVariants()
   seedAlertConfirmedStatus()
