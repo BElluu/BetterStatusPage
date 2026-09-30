@@ -39,9 +39,9 @@ describe('SsoConfirmPage', () => {
 
     expect(screen.getByText('Confirmed. You can close this window.')).toBeInTheDocument()
     expect(channels).toHaveLength(1)
-    expect(channels[0].name).toBe(SSO_CONFIRM_CHANNEL)
-    expect(channels[0].postMessage).toHaveBeenCalledWith({ ok: true })
-    expect(channels[0].close).toHaveBeenCalled()
+    expect(channels[0]!.name).toBe(SSO_CONFIRM_CHANNEL)
+    expect(channels[0]!.postMessage).toHaveBeenCalledWith({ ok: true })
+    expect(channels[0]!.close).toHaveBeenCalled()
     expect(window.close).toHaveBeenCalled()
   })
 
@@ -49,8 +49,8 @@ describe('SsoConfirmPage', () => {
     renderPage('/admin/sso-confirm?status=error')
 
     expect(screen.getByText(/confirmation did not succeed/)).toBeInTheDocument()
-    expect(channels[0].postMessage).toHaveBeenCalledWith({ ok: false })
-    expect(channels[0].close).toHaveBeenCalled()
+    expect(channels[0]!.postMessage).toHaveBeenCalledWith({ ok: false })
+    expect(channels[0]!.close).toHaveBeenCalled()
     expect(window.close).not.toHaveBeenCalled()
   })
 })
