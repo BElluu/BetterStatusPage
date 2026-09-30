@@ -16,6 +16,7 @@ import { closeDb, initDb } from './db/client.js'
 import { runMigrations } from './db/migrate.js'
 import { setupRoutes } from './routes/setup.js'
 import { authRoutes } from './routes/auth.js'
+import { oidcSettingsRoutes } from './routes/oidcSettings.js'
 import { monitorRoutes } from './routes/monitors.js'
 import { incidentRoutes } from './routes/incidents.js'
 import { layoutRoutes } from './routes/layout.js'
@@ -212,6 +213,7 @@ await app.register(async (adminApp) => {
   await adminApp.register(async (sub) => {
     sub.addHook('preHandler', requireRole())  // only admin passes (no allowed list)
     await sub.register(userRoutes,   { prefix: '/users' })
+    await sub.register(oidcSettingsRoutes, { prefix: '/oidc' })
     await sub.register(vaultRoutes,  { prefix: '/vaults' })
     await sub.register(auditRoutes,  { prefix: '/audit' })
     await sub.register(backupRoutes, { prefix: '/backups' })

@@ -23,6 +23,14 @@ import {
 } from '../services/authSession.js'
 import { writeAudit } from '../services/audit.js'
 import { verifySecondFactor } from '../services/twoFactor.js'
+import { passwordLoginEnabled } from '../config/oidc.js'
+import { getOidcConfig } from '../services/oidcSettings.js'
+import { beginOidcLogin, completeOidcLogin, type OidcFlowState } from '../services/oidc.js'
+
+const OIDC_FLOW_COOKIE = 'bsp_oidc_flow'
+const OIDC_FLOW_PATH = '/api/v1/auth/oidc'
+const OIDC_FLOW_SECONDS = 10 * 60
+const OIDC_FAILED_REDIRECT = '/admin/login?error=oidc_failed'
 
 function publicSession(identity: AuthIdentity) {
   const { sessionId: _sessionId, ...safe } = identity
@@ -39,9 +47,62 @@ async function finishLogin(app: FastifyInstance, reply: FastifyReply, user: type
 }
 
 export async function authRoutes(app: FastifyInstance) {
+  app.get('/config', async () => {
+    const { config } = await getOidcConfig()
+    return { passwordLogin: passwordLoginEnabled(config), oidc: config ? { label: config.buttonLabel } : null }
+  })
+
+  app.get('/oidc/login', { config: { rateLimit: LOGIN_RATE_LIMIT } }, async (req, reply) => {
+    const { config: cfg } = await getOidcConfig()
+    if (!cfg) return reply.code(404).send({ error: 'OIDC is not configured' })
+    try {
+      const { url, flow } = await beginOidcLogin(cfg)
+      reply.setCookie(OIDC_FLOW_COOKIE, app.jwt.sign({ purpose: 'oidc-flow', ...flow }, { expiresIn: OIDC_FLOW_SECONDS }), {
+        path: OIDC_FLOW_PATH,
+        httpOnly: true,
+        secure: process.env['NODE_ENV'] === 'production',
+        // Lax, not Strict: the IdP redirects back from another site and Strict cookies are not sent then.
+        sameSite: 'lax',
+        maxAge: OIDC_FLOW_SECONDS,
+      })
+      return reply.redirect(url)
+    } catch (error) {
+      req.log.error({ err: error }, 'OIDC discovery failed')
+      return reply.redirect(OIDC_FAILED_REDIRECT)
+    }
+  })
+
+  app.get('/oidc/callback', { config: { rateLimit: LOGIN_RATE_LIMIT } }, async (req, reply) => {
+    const { config: cfg } = await getOidcConfig()
+    if (!cfg) return reply.code(404).send({ error: 'OIDC is not configured' })
+    const token = req.cookies[OIDC_FLOW_COOKIE]
+    reply.clearCookie(OIDC_FLOW_COOKIE, { path: OIDC_FLOW_PATH })
+    if (!token) return reply.redirect(OIDC_FAILED_REDIRECT)
+    try {
+      const flow = app.jwt.verify<OidcFlowState & { purpose?: string }>(token)
+      if (flow.purpose !== 'oidc-flow') return reply.redirect(OIDC_FAILED_REDIRECT)
+      const callbackUrl = new URL(cfg.redirectUri)
+      callbackUrl.search = new URL(req.url, 'http://localhost').search
+      const user = await completeOidcLogin(cfg, callbackUrl, flow)
+      if (!user) return reply.redirect('/admin/login?error=oidc_no_account')
+      // The IdP authenticated the user and enforces its own MFA, so no local password or TOTP step.
+      await createAuthSession(app, reply, { ...user, mustChangePassword: 0, totpEnabled: 0 })
+      await writeAudit(
+        { userId: user.id, userEmail: user.email },
+        'update', 'user-security', user.id, user.email,
+        { oidcLogin: true },
+      )
+      return reply.redirect('/admin/')
+    } catch (error) {
+      req.log.warn({ err: error }, 'OIDC callback failed')
+      return reply.redirect(OIDC_FAILED_REDIRECT)
+    }
+  })
+
   app.post<{ Body: { email: string; password: string } }>('/login', {
     config: { rateLimit: LOGIN_RATE_LIMIT },
   }, async (req, reply) => {
+    if (!passwordLoginEnabled((await getOidcConfig()).config)) return reply.code(403).send({ error: 'Password sign-in is disabled' })
     const { email, password } = req.body
     const user = (await db.select().from(users).where(eq(users.email, email)))[0]
     if (!user || !await verifyPassword(user, password)) {

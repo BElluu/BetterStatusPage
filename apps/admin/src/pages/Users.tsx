@@ -4,6 +4,7 @@ import { api, getCurrentUser } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { CopyButton } from '../components/CopyButton'
 import { ResetTwoFactorModal } from '../components/ResetTwoFactorModal'
+import { SingleSignOnModal } from '../components/SingleSignOnModal'
 import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
 
 interface User {
@@ -39,6 +40,7 @@ export default function UsersPage() {
   const toast = useToast()
   const emailInputId = useId()
   const [showCreate, setShowCreate] = useState(false)
+  const [showSso, setShowSso] = useState(false)
   const [newEmail, setNewEmail] = useState('')
   const [createdUser, setCreatedUser] = useState<{ email: string; temporaryPassword: string } | null>(null)
   const [resetResult, setResetResult] = useState<{ email: string; temporaryPassword: string } | null>(null)
@@ -137,12 +139,20 @@ export default function UsersPage() {
         title="Users"
         subtitle={isLoading || isError ? undefined : `${users.length} user${users.length !== 1 ? 's' : ''}`}
         actions={
-          <button type="button" onClick={() => { setShowCreate(true); setError('') }} className="btn btn-primary">
-            <span className="material-symbols-outlined" aria-hidden="true">person_add</span>
-            New User
-          </button>
+          <>
+            <button type="button" onClick={() => setShowSso(true)} className="btn btn-secondary">
+              <span className="material-symbols-outlined" aria-hidden="true">passkey</span>
+              Single sign-on
+            </button>
+            <button type="button" onClick={() => { setShowCreate(true); setError('') }} className="btn btn-primary">
+              <span className="material-symbols-outlined" aria-hidden="true">person_add</span>
+              New User
+            </button>
+          </>
         }
       />
+
+      {showSso && <SingleSignOnModal onClose={() => setShowSso(false)} />}
 
       {message && (
         <Alert tone="success" onDismiss={() => setMessage('')} className="max-w-2xl">{message}</Alert>

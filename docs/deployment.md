@@ -436,6 +436,7 @@ Before exposing an instance publicly:
 - Backups are configured, one backup was created, and verification passes.
 - A restore drill was completed on a non-production copy.
 - `/health` returns 200 and `/ready` returns 200 after setup.
+- If SSO is enabled, `PUBLIC_URL` is set, the same callback URL is registered at the identity provider, and you know the `OIDC_FORCE_PASSWORD_LOGIN` break-glass switch.
 - GitHub CI or equivalent release checks passed: lint, tests, build, Docker build, and E2E on Linux.
 
 ---
@@ -458,6 +459,10 @@ Before exposing an instance publicly:
 | `ALLOWED_ORIGINS` | No | Comma-separated CORS origins. Leave unset if Nginx handles CORS, or in single-domain setups. |
 | `TRUST_PROXY` | No | Trusted proxy setting: `1` trusts a proxy on loopback or a private network (Docker bridge included), or give a comma-separated list of addresses/CIDR ranges. Enable only when the app port is not directly exposed. |
 | `PUBLIC_URL` | For email/webhook subscriptions | Public address of the status page, e.g. `https://status.example.com`. All links sent to subscribers are built from it; see [subscriptions](subscriptions.md#public-url). |
+| `OIDC_ISSUER` / `OIDC_CLIENT_ID` | No | Configure OpenID Connect single sign-on from the environment instead of **Users → Single sign-on**. When both are set they override the UI settings and lock that page. Register `<PUBLIC_URL>/api/v1/auth/oidc/callback` as the redirect URI. Users must already exist; they are matched by verified email. |
+| `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`, `OIDC_SCOPES`, `OIDC_BUTTON_LABEL` | No | Optional companions to the two variables above (defaults: none, derived from `PUBLIC_URL`, `openid email profile`, `Sign in with SSO`). |
+| `OIDC_DISABLE_PASSWORD_LOGIN`, `OIDC_ALLOW_UNVERIFIED_EMAIL` | No | `true` hides and rejects password sign-in while OIDC is active / accepts IdPs that omit `email_verified` (e.g. Entra ID). |
+| `OIDC_FORCE_PASSWORD_LOGIN` | No | Break-glass: `true` re-enables password sign-in even if it was disabled, for when the identity provider is down. Restart required. |
 | `SCHEDULER_TICK_SECONDS` | No | How often the scheduler scans for due monitors. Default: `10`. Must be 1-59 seconds. |
 | `MONITOR_CHECK_CONCURRENCY` | No | Maximum number of due monitors checked concurrently. Default: `20`. |
 | `MONITOR_RESULT_RETENTION_DAYS` | No | Monitor result retention period. Default: `90`. |
@@ -521,6 +526,10 @@ docker compose up -d app
 `VAULT_ENCRYPTION_KEY` and `.env` are never included. Keep the key separately. Restore requires the key explicitly and rejects malformed or mismatched values.
 
 ---
+
+## Single sign-on
+
+Administrators can sign in through an OpenID Connect identity provider (Entra ID, Keycloak, Okta, Google and others). Set it up from **Users → Single sign-on** with no restart, or with the `OIDC_*` variables in the table above. `PUBLIC_URL` must be set (or `OIDC_REDIRECT_URI`) so the callback address can be built. See [single-sign-on.md](single-sign-on.md).
 
 ## Recover access when 2FA is lost
 
