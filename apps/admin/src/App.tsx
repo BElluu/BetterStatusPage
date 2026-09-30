@@ -12,6 +12,7 @@ import BrandingPage from './pages/Branding'
 import ChangePasswordPage from './pages/ChangePassword'
 import UsersPage from './pages/Users'
 import SsoTestResultPage from './pages/SsoTestResult'
+import SsoConfirmPage from './pages/SsoConfirm'
 import SettingsPage from './pages/Settings'
 import LocalizationPage from './pages/Localization'
 import VaultPage from './pages/Vault'
@@ -103,6 +104,8 @@ export default function App() {
       <Routes>
         {/* Setup wizard — only accessible when no users exist */}
         <Route path="/admin/setup" element={<SetupPage />} />
+        {/* SSO confirmation popup landing: outside the auth guards, it only reports the outcome and closes. */}
+        <Route path="/admin/sso-confirm" element={<SsoConfirmPage />} />
 
         {/* All other routes go through SetupGate first */}
         <Route

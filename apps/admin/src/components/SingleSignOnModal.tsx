@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { Alert, ErrorState, Field, LoadingState, Switch, useToast } from './ui'
 import { ModalShell } from './ModalShell'
+import { SsoConfirmationNote, isSsoSession, useSsoConfirmation } from './SsoConfirmation'
 
 interface OidcSettings {
   enabled: boolean
@@ -25,6 +26,8 @@ export function SingleSignOnModal({ onClose }: { onClose: () => void }) {
   const [form, setForm] = useState<OidcSettings | null>(null)
   const [clientSecret, setClientSecret] = useState('')
   const [currentPassword, setCurrentPassword] = useState('')
+  const sso = isSsoSession()
+  const confirmation = useSsoConfirmation()
   const [loadError, setLoadError] = useState('')
   const [busy, setBusy] = useState<'save' | 'test' | null>(null)
   const [message, setMessage] = useState<Message | null>(null)
@@ -56,13 +59,12 @@ export function SingleSignOnModal({ onClose }: { onClose: () => void }) {
     } catch (e) { setMessage({ tone: 'error', text: errorText(e) }) } finally { setBusy(null) }
   }
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault()
+  async function save() {
     setBusy('save'); setMessage(null)
     try {
-      const saved = await api.put<OidcSettings>('/admin/oidc', {
-        ...form, clientSecret, currentPassword,
-      })
+      const saved = await confirmation.run(() => api.put<OidcSettings>('/admin/oidc', {
+        ...form, clientSecret, ...(sso ? {} : { currentPassword }),
+      }))
       toast.success(saved.enabled ? 'Single sign-on settings saved. They apply immediately.' : 'Single sign-on settings saved.')
       onClose()
     } catch (err) { setMessage({ tone: 'error', text: errorText(err) }); setBusy(null) }
@@ -72,7 +74,7 @@ export function SingleSignOnModal({ onClose }: { onClose: () => void }) {
     <div className="w-full max-w-2xl space-y-3">
     {locked && <Alert tone="warning">Single sign-on is configured through OIDC_* environment variables on the server. Remove them to manage it here.</Alert>}
     {message && <Alert tone={message.tone} onDismiss={() => setMessage(null)}>{message.text}</Alert>}
-    <form onSubmit={save} className="rounded-2xl p-6 space-y-5 w-full" style={CARD}>
+    <form onSubmit={(e) => { e.preventDefault(); void save() }} className="rounded-2xl p-6 space-y-5 w-full" style={CARD}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="font-headline text-xl font-semibold">OpenID Connect</h2>
@@ -121,9 +123,11 @@ export function SingleSignOnModal({ onClose }: { onClose: () => void }) {
       </fieldset>
 
       {!locked && <>
-        <Field label="Your current password" hint="Required to change sign-in settings.">
-          <input className="input-m3" type="password" autoComplete="current-password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
-        </Field>
+        {sso
+          ? <SsoConfirmationNote confirmation={confirmation} />
+          : <Field label="Your current password" hint="Required to change sign-in settings.">
+            <input className="input-m3" type="password" autoComplete="current-password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+          </Field>}
         <div className="flex flex-wrap gap-3">
           <button type="submit" disabled={busy !== null} className="btn btn-primary">{busy === 'save' ? 'Saving…' : 'Save'}</button>
           <button type="button" disabled={busy !== null || !form.issuer || !form.clientId} onClick={() => void test()} className="btn btn-secondary">

@@ -139,6 +139,10 @@ describe('branding and layout', () => {
     assert.deepEqual((await app.inject({ url: '/layout' })).json(), tree)
     assert.equal((await db.select().from(auditLog)).some((entry) => entry.entityType === 'layout'), true)
   })
+
+  it('lists monitors for the builder without their configs', async () => {
+    assert.deepEqual((await app.inject({ url: '/layout/monitors' })).json(), [{ id: monitorId, name: 'API', type: 'webhook' }])
+  })
 })
 
 describe('notification configuration', () => {

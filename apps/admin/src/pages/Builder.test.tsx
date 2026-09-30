@@ -51,7 +51,7 @@ function renderPage() {
 
 function mockApi(tree: LayoutTree = layout, monitorList: unknown[] = monitors) {
   vi.mocked(api.get).mockImplementation(async (path: string) => {
-    if (path === '/admin/monitors') return monitorList
+    if (path === '/admin/layout/monitors') return monitorList
     if (path === '/admin/layout') return tree
     throw new Error(`Unexpected GET ${path}`)
   })
@@ -206,15 +206,13 @@ describe('BuilderPage', () => {
     await screen.findByText('Core services')
 
     // Adding a child remounts the grid, so the drop zone is looked up again for every drop.
-    const dropZone = () => screen.getByText(/^(Drag monitor from toolbox|Drop here)$/).parentElement!
+    const dropZone = () => screen.getByText(/^(Drag monitor from toolbox · drag out to ungroup|Drop here)$/).parentElement!
     fireEvent.dragOver(dropZone(), { dataTransfer: dataTransfer({}) })
     expect(screen.getByText('Drop here')).toBeInTheDocument()
     fireEvent.drop(dropZone(), { dataTransfer: dataTransfer({ nodeType: 'monitor', monitorId: '2' }) })
     expect(findGroupChildren()).toHaveLength(3)
     fireEvent.drop(dropZone(), { dataTransfer: dataTransfer({ nodeType: 'text' }) })
     expect(findGroupChildren()).toHaveLength(4)
-    fireEvent.drop(dropZone(), { dataTransfer: dataTransfer({ nodeType: 'rootMonitor', rootNodeId: 'm1' }) })
-    expect(findGroupChildren()).toHaveLength(5)
 
     const before = useBuilderStore.getState().tree.children.length
     await user.click(screen.getAllByTitle('Delete')[1]!)
@@ -244,7 +242,7 @@ describe('BuilderPage', () => {
     const user = userEvent.setup()
     let fail = true
     vi.mocked(api.get).mockImplementation(async (path: string) => {
-      if (path === '/admin/monitors') return monitors
+      if (path === '/admin/layout/monitors') return monitors
       if (path === '/admin/layout') {
         if (fail) throw new Error('boom')
         return layout

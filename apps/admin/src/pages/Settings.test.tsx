@@ -114,4 +114,27 @@ describe('SettingsPage security flows', () => {
     expect(clearSession).toHaveBeenCalled()
     expect(screen.getByText('Login screen')).toBeInTheDocument()
   })
+
+  it('opens the SSO confirmation from Set up 2FA in an SSO session', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getCurrentUser).mockReturnValue({ ...currentUser, authMethod: 'oidc' })
+    const open = vi.spyOn(window, 'open').mockReturnValue({ close: vi.fn() } as unknown as Window)
+    vi.mocked(api.post)
+      .mockRejectedValueOnce(Object.assign(new Error('Confirm your identity'), { code: 'SSO_CONFIRMATION_REQUIRED' }))
+      .mockResolvedValueOnce({ secret: 'SECRET', uri: 'otpauth://totp/x', qrDataUrl: 'data:image/png;base64,', setupToken: 'setup' })
+    renderSettings()
+    const twoFactor = section('Two-factor authentication')
+
+    expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument()
+    await user.click(twoFactor.getByRole('button', { name: 'Set up 2FA' }))
+    expect(api.post).toHaveBeenCalledWith('/auth/2fa/setup', {})
+    expect(await twoFactor.findByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+    expect(open).toHaveBeenCalledWith('/api/v1/auth/oidc/confirm', 'bsp-sso-confirm', expect.any(String))
+
+    const channel = new BroadcastChannel('bsp-sso-confirm')
+    channel.postMessage({ ok: true })
+    channel.close()
+    expect(await twoFactor.findByAltText('QR code for two-factor authentication setup')).toBeInTheDocument()
+    expect(api.post).toHaveBeenCalledTimes(2)
+  })
 })

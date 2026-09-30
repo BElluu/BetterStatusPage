@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
-import { layout } from '../db/schema.js'
+import { layout, monitors } from '../db/schema.js'
 import { auditActor, writeAudit } from '../services/audit.js'
 import { requestIdentity } from '../middleware/auth.js'
 import { refreshPublishedMonitorIds } from '../services/publishedMonitors.js'
@@ -11,6 +11,12 @@ export async function layoutRoutes(app: FastifyInstance) {
     if (!row) return { id: 'root', type: 'page', children: [] }
     return JSON.parse(row.tree)
   })
+
+  // The builder only names and places monitors, so branding users get this slim list
+  // instead of the full monitor configs behind /admin/monitors (operator+).
+  app.get('/monitors', async () =>
+    db.select({ id: monitors.id, name: monitors.name, type: monitors.type }).from(monitors),
+  )
 
   app.put<{ Body: { tree: unknown } }>('/', async (req) => {
     const now = Date.now()

@@ -39,6 +39,14 @@ export function mustChangePassword(): boolean {
   return !!getCurrentUser()?.mustChangePassword
 }
 
+/** A failed API call: `message` is the server's error text, `code` its machine-readable code when it sent one. */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number, readonly code?: string) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
 function cookie(name: string): string | null {
   const prefix = `${encodeURIComponent(name)}=`
   const part = document.cookie.split('; ').find((item) => item.startsWith(prefix))
@@ -82,7 +90,7 @@ async function request<T>(
         window.location.href = '/admin/login'
       }
     }
-    throw new Error(err.error ?? res.statusText)
+    throw new ApiError(err.error ?? res.statusText, res.status, err.code)
   }
 
   if (res.status === 204) return undefined as T
