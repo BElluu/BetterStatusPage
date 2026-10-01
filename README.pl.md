@@ -539,7 +539,6 @@ BetterStatusPage świetnie działa jako pojedynczy proces oparty na SQLite — a
 SQLite jest idealny na start, ale jeśli BetterStatusPage działa u Ciebie jako część większej infrastruktury, w której dane już żyją w zarządzanej bazie, nie ma powodu iść na kompromisy. Dodajemy natywną obsługę:
 
 - **PostgreSQL** — dla zespołów, które już używają Postgresa, lub dla każdego, kto chce odtwarzania do punktu w czasie, replik do odczytu i prawdziwie współbieżnych zapisów
-- **MariaDB / MySQL** — ten sam pomysł, inny smak
 
 Celem jest pojedynczy przełącznik konfiguracyjny `DATABASE_URL`. Bez zmian w kodzie, bez bólu głowy z migracją danych — po prostu wskaż istniejącą bazę i działaj.
 

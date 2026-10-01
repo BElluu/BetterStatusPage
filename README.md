@@ -539,7 +539,6 @@ BetterStatusPage works great as a single SQLite-backed process — but we know t
 SQLite is perfect for getting started, but if you're running BetterStatusPage as part of a larger infrastructure where your data already lives in a managed database, you shouldn't have to compromise. We're adding native support for:
 
 - **PostgreSQL** — for teams already running Postgres, or anyone who wants point-in-time recovery, read replicas, and proper concurrent writes
-- **MariaDB / MySQL** — same idea, different flavor
 
 The goal is a single `DATABASE_URL` config switch. No code changes, no data migration headaches — just point it at your existing database and go.
 
