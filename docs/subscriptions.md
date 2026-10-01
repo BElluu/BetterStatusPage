@@ -33,6 +33,8 @@ Without `PUBLIC_URL`, email and webhook are not offered (an email needs an absol
 
 Every method also needs the master switch. With the master switch off, the Subscribe button is hidden, the feeds and the status API answer `404`, and existing subscribers receive nothing (they are kept). Switching email or webhook off also stops deliveries to existing subscribers of that type.
 
+On a [private status page](private-status-page.md), Slack, the feeds and the status API are off, because nothing outside the page can sign in to them. Email and webhook subscriptions keep working, and signing up needs a signed-in user.
+
 ## What subscribers can receive
 
 | Setting | Effect |

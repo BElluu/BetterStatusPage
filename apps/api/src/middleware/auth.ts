@@ -39,29 +39,41 @@ function sendPasswordChangeRequired(reply: FastifyReply) {
   return reply.code(403).send({ error: 'Password change required', code: PASSWORD_CHANGE_REQUIRED })
 }
 
-export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
+/**
+ * Authenticates the request and checks its CSRF token. Answers 401 (with `unauthorized` as the body) or 403
+ * itself and returns null when either fails, or when the user still has to replace a temporary password.
+ * A hook that gets null must return the reply.
+ */
+export async function authenticateOrReject(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  unauthorized: Record<string, string> = { error: 'Unauthorized' },
+): Promise<AuthIdentity | null> {
   let identity: AuthIdentity
   try {
     identity = existingIdentity(req) ?? await authenticateRequest(req)
     await verifyCsrf(req, identity)
   } catch (error) {
     const csrf = error instanceof Error && error.message === 'Invalid CSRF token'
-    return reply.code(csrf ? 403 : 401).send({ error: csrf ? 'Invalid CSRF token' : 'Unauthorized' })
+    if (csrf) reply.code(403).send({ error: 'Invalid CSRF token' })
+    else reply.code(401).send(unauthorized)
+    return null
   }
-  if (passwordChangeBlocks(req, identity)) return sendPasswordChangeRequired(reply)
+  if (passwordChangeBlocks(req, identity)) {
+    sendPasswordChangeRequired(reply)
+    return null
+  }
+  return identity
+}
+
+export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
+  if (!await authenticateOrReject(req, reply)) return reply
 }
 
 export function requireRole(...allowed: string[]) {
   return async (req: FastifyRequest, reply: FastifyReply) => {
-    let identity: AuthIdentity
-    try {
-      identity = existingIdentity(req) ?? await authenticateRequest(req)
-      await verifyCsrf(req, identity)
-    } catch (error) {
-      const csrf = error instanceof Error && error.message === 'Invalid CSRF token'
-      return reply.code(csrf ? 403 : 401).send({ error: csrf ? 'Invalid CSRF token' : 'Unauthorized' })
-    }
-    if (passwordChangeBlocks(req, identity)) return sendPasswordChangeRequired(reply)
+    const identity = await authenticateOrReject(req, reply)
+    if (!identity) return reply
     const { role } = identity
     if (role !== 'admin' && !allowed.includes(role)) {
       return reply.code(403).send({ error: 'Forbidden' })

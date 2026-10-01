@@ -105,6 +105,7 @@ try {
   Write-Step 'Updating GHCR image versions in documentation'
   $documentationFiles = @(
     Get-Item -LiteralPath 'README.md'
+    Get-Item -LiteralPath 'README.pl.md'
     Get-ChildItem -LiteralPath 'docs' -Filter '*.md' -File -Recurse
   )
   $imagePattern = 'ghcr\.io/belluu/better-status-page:(?:v)?\d+\.\d+\.\d+'
@@ -136,6 +137,7 @@ try {
     'apps/status/package.json',
     'packages/shared/package.json',
     'README.md',
+    'README.pl.md',
     'docs'
   )
 

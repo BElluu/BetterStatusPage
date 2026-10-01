@@ -12,6 +12,8 @@ import { classifyUptimeDay, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 import { PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
 import { withIncidentDetails } from '../services/incidentDetails.js'
 import { parseStrictPagination } from '../lib/pagination.js'
+import { authenticateRequest, type AuthIdentity } from '../services/authSession.js'
+import { isStatusPagePrivate, protectStatusPage } from '../services/statusPageAccess.js'
 
 const STATUS_CACHE_TTL_MS = 2_000
 /** Daily uptime bars change slowly; a short cache absorbs bursts of page views per monitor. */
@@ -24,6 +26,7 @@ function parseInteger(value: string | undefined, fallback: number, min: number, 
 }
 
 export async function publicRoutes(app: FastifyInstance) {
+  protectStatusPage(app)
   let statusCache: { expiresAt: number; value: Promise<unknown> } | null = null
   // Keyed by `${monitorId}:${days}`.
   const uptimeCache = new Map<string, { expiresAt: number; value: Promise<unknown> }>()
@@ -268,9 +271,16 @@ export async function publicRoutes(app: FastifyInstance) {
   )
 
   // Visitors only hear about published monitors; the admin panel has its own authenticated stream.
+  // On a private page the stream belongs to a session: signing out ends it, and the keep-alive re-checks access.
   app.get('/events', async (req, reply) => {
     await getPublishedMonitorIds()
-    await serveEventStream(req, reply, { filter: publicEventFilter })
+    const identity = req.user as AuthIdentity | undefined
+    const session = identity?.sessionId ? { sessionId: identity.sessionId, userId: identity.userId } : undefined
+    await serveEventStream(req, reply, {
+      filter: publicEventFilter,
+      session,
+      stillAllowed: async () => !await isStatusPagePrivate() || (!!session && !!await authenticateRequest(req)),
+    })
   })
 }
 

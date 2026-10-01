@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { ApiError, getJSON } from './api'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ApiError, getJSON, jsonHeaders, postJSON } from './api'
 
 function respond(body: unknown, init?: ResponseInit) {
   return vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(typeof body === 'string' ? body : JSON.stringify(body), init))
@@ -38,5 +38,30 @@ describe('getJSON', () => {
 
     respond('not json', { status: 200 })
     await expect(getJSON('/x')).rejects.toMatchObject({ name: 'ApiError', message: 'Invalid JSON in response', status: 200 })
+  })
+})
+
+describe('postJSON', () => {
+  afterEach(() => { document.cookie = 'bsp_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/' })
+
+  it('posts JSON with the CSRF token of a signed-in session', async () => {
+    document.cookie = 'bsp_csrf=token%2Fvalue; path=/'
+    const fetchMock = respond({ ok: true })
+
+    await expect(postJSON('/api/v1/auth/logout', { a: 1 })).resolves.toEqual({ ok: true })
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/auth/logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': 'token/value' },
+      body: '{"a":1}',
+    })
+  })
+
+  it('sends no CSRF header without a session and rejects with the server error code', async () => {
+    expect(jsonHeaders()).toEqual({ 'Content-Type': 'application/json' })
+    respond({ error: 'Sign in to view this status page', code: 'STATUS_PAGE_PRIVATE' }, { status: 401 })
+    await expect(postJSON('/api/v1/public/subscriptions')).rejects.toMatchObject({ status: 401, code: 'STATUS_PAGE_PRIVATE' })
+
+    vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    await expect(postJSON('/x')).rejects.toMatchObject({ name: 'ApiError', status: 0 })
   })
 })

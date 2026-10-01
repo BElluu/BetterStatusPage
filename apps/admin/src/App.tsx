@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { api, clearSession, getCurrentUser, mustChangePassword, setSession, type AuthUser } from './api/client'
+import { api, clearSession, getCurrentUser, isViewer, mustChangePassword, setSession, type AuthUser } from './api/client'
+import { navigation, statusPageUrl } from './navigation'
 import Layout from './components/Layout'
 import LoginPage from './pages/Login'
 import SetupPage from './pages/Setup'
@@ -31,15 +32,20 @@ function roleHome(role?: string) {
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<'checking' | 'authenticated' | 'anonymous'>('checking')
+  const [state, setState] = useState<'checking' | 'authenticated' | 'anonymous' | 'viewer'>('checking')
 
   useEffect(() => {
     api.get<AuthUser>('/auth/session')
-      .then((user) => { setSession(user); setState('authenticated') })
+      .then((user) => { setSession(user); setState(isViewer(user) ? 'viewer' : 'authenticated') })
       .catch(() => { clearSession(); setState('anonymous') })
   }, [])
 
-  if (state === 'checking') return null
+  useEffect(() => {
+    // A viewer may only view the status page, so the console sends them there.
+    if (state === 'viewer') navigation.assign(statusPageUrl())
+  }, [state])
+
+  if (state === 'checking' || state === 'viewer') return null
   if (state === 'anonymous') return <Navigate to="/admin/login" replace />
   return <>{children}</>
 }

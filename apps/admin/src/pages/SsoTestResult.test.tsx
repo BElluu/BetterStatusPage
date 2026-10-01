@@ -70,6 +70,14 @@ describe('SsoTestResultPage', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
+  it('shows a viewer account the sign-in would create for the private status page', async () => {
+    vi.mocked(api.get).mockResolvedValue({ ...base, outcome: 'provision', user: 'viewer@example.test', claims: {} })
+    renderPage()
+
+    expect(await screen.findByText(/Creates the Viewer account/)).toBeInTheDocument()
+    expect(screen.getByText('viewer@example.test')).toBeInTheDocument()
+  })
+
   it('shows why sign-in would be refused', async () => {
     vi.mocked(api.get).mockResolvedValue({
       ...base,

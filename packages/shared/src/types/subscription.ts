@@ -64,7 +64,8 @@ export const DEFAULT_SUBSCRIPTION_SETTINGS: Omit<SubscriptionSettings, 'updatedA
 export type SubscriptionMethod = 'email' | 'webhook' | 'slack' | 'rss' | 'api'
 export const SUBSCRIPTION_METHODS: SubscriptionMethod[] = ['email', 'webhook', 'slack', 'rss', 'api']
 
-export type SubscriptionMethodProblem = 'disabled' | 'smtp' | 'publicUrl' | 'events'
+/** `private`: the status page is private, so nothing outside it (feed readers, Slack, scripts) can sign in to follow it. */
+export type SubscriptionMethodProblem = 'disabled' | 'smtp' | 'publicUrl' | 'events' | 'private'
 
 export interface SubscriptionMethodStatus {
   /** The method's own switch. */
@@ -81,7 +82,7 @@ export interface SubscriptionMethodStatus {
  */
 export function subscriptionMethodStatuses(
   settings: Omit<SubscriptionSettings, 'updatedAt'>,
-  environment: { smtpConfigured: boolean; publicUrl: string },
+  environment: { smtpConfigured: boolean; publicUrl: string; statusPagePrivate?: boolean },
 ): Record<SubscriptionMethod, SubscriptionMethodStatus> {
   const toggles: Record<SubscriptionMethod, boolean> = {
     email: settings.allowEmail,
@@ -100,6 +101,8 @@ export function subscriptionMethodStatuses(
     }
     // These three deliver notifications; feeds and the API only mirror the public page.
     if ((method === 'email' || method === 'webhook' || method === 'slack') && settings.allowedEvents.length === 0) problems.push('events')
+    // Email and webhook subscribers sign up on the page itself, so they have signed in.
+    if ((method === 'slack' || method === 'rss' || method === 'api') && environment.statusPagePrivate) problems.push('private')
     return problems
   }
   return Object.fromEntries(SUBSCRIPTION_METHODS.map((method) => {
@@ -113,6 +116,8 @@ export interface AdminSubscriptionSettings extends SubscriptionSettings {
   smtpConfigured: boolean
   /** From the PUBLIC_URL environment variable — deployment configuration, not editable here. Empty when unset. */
   publicUrl: string
+  /** Slack, feeds and the API are not offered while the status page is private. */
+  statusPagePrivate: boolean
   methods: Record<SubscriptionMethod, SubscriptionMethodStatus>
 }
 

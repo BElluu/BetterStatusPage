@@ -33,6 +33,7 @@ const ENTITY_LABELS: Record<AuditEntityType, string> = {
   vault_secret:         'Vault Secret',
   user:                 'User',
   oidc_settings:        'SSO Settings',
+  status_page_access:   'Status Page Access',
   sign_in:              'Sign-in',
 }
 
@@ -48,6 +49,7 @@ const ENTITY_ICONS: Record<AuditEntityType, string> = {
   vault_secret:         'key',
   user:                 'person',
   oidc_settings:        'admin_panel_settings',
+  status_page_access:   'lock',
   sign_in:              'login',
 }
 

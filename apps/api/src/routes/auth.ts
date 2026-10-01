@@ -29,6 +29,7 @@ import { confirmIdentity, markSessionVerified } from '../services/identityConfir
 import { auditSignIn, auditSignInDenial, type CredentialDenialCode, type SignInMethod } from '../services/signInAudit.js'
 import { passwordLoginEnabled, type OidcConfig } from '../config/oidc.js'
 import { getOidcConfig, getOidcTestConfig } from '../services/oidcSettings.js'
+import { resolvePublicUrl } from '../config/publicUrl.js'
 import {
   auditOidcDenial,
   beginOidcLogin,
@@ -36,8 +37,10 @@ import {
   exchangeOidcCode,
   linkOidcIdentity,
   OIDC_CONFIRMATION_MAX_AGE_SECONDS,
+  provisionViewer,
   runOidcTest,
   storeOidcTestResult,
+  type OidcDecision,
   type OidcDenialCode,
   type OidcFlowState,
 } from '../services/oidc.js'
@@ -65,6 +68,8 @@ interface OidcFlowClaims extends OidcFlowState {
   /** 'oidc-confirm': the session to mark as confirmed and its user. The callback has no session cookie (SameSite=Strict). */
   sessionId?: string
   userId?: number
+  /** 'oidc-flow' started on the status page's sign-in screen: go back there instead of to the admin console. */
+  returnTo?: 'status'
 }
 
 interface TwoFactorChallenge {
@@ -76,7 +81,7 @@ interface TwoFactorChallenge {
 /** Redirects to the provider, keeping the PKCE verifier, state and nonce in a short-lived signed cookie. */
 export async function startOidcFlow(
   app: FastifyInstance, reply: FastifyReply, cfg: OidcConfig,
-  extra: Pick<OidcFlowClaims, 'purpose' | 'adminUserId' | 'sessionId' | 'userId'>,
+  extra: Pick<OidcFlowClaims, 'purpose' | 'adminUserId' | 'sessionId' | 'userId' | 'returnTo'>,
 ) {
   const { url, flow } = await beginOidcLogin(cfg, { confirm: extra.purpose === 'oidc-confirm' })
   reply.setCookie(OIDC_FLOW_COOKIE, app.jwt.sign({ ...extra, ...flow }, { expiresIn: OIDC_FLOW_SECONDS }), {
@@ -122,6 +127,19 @@ async function revokeTemporaryPassword(user: typeof users.$inferSelect): Promise
   return { ...user, passwordHash, mustChangePassword: 0 }
 }
 
+/**
+ * Where a finished or failed sign-in goes. A viewer has nothing to do in the admin console, so they land on the
+ * status page wherever they started; sign-in errors are shown on the screen the sign-in started from.
+ */
+function signInRedirect(flow: Pick<OidcFlowClaims, 'returnTo'>, outcome: { role: string } | { error: string } | 'two-factor'): string {
+  // PUBLIC_URL, because the callback may run on another origin than the status page (the admin dev server).
+  const statusPage = `${resolvePublicUrl()}/`
+  const fromStatusPage = flow.returnTo === 'status'
+  if (outcome === 'two-factor') return fromStatusPage ? `${statusPage}?two-factor=sso` : '/admin/login?two-factor=sso'
+  if ('error' in outcome) return fromStatusPage ? `${statusPage}?sign-in-error=${outcome.error}` : `/admin/login?error=${outcome.error}`
+  return fromStatusPage || outcome.role === 'viewer' ? statusPage : '/admin/'
+}
+
 /** Ends the SSO confirmation popup; the page tells the opening window through a BroadcastChannel. */
 function confirmRedirect(reply: FastifyReply, ok: boolean) {
   return reply.redirect(`${SSO_CONFIRM_PAGE}?status=${ok ? 'ok' : 'failed'}`)
@@ -143,15 +161,18 @@ export async function authRoutes(app: FastifyInstance) {
     }
   })
 
-  app.get('/oidc/login', { config: { rateLimit: LOGIN_RATE_LIMIT } }, async (req, reply) => {
+  app.get<{ Querystring: { returnTo?: string } }>('/oidc/login', { config: { rateLimit: LOGIN_RATE_LIMIT } }, async (req, reply) => {
     const { config: cfg } = await getOidcConfig()
     if (!cfg) return reply.code(404).send({ error: 'OIDC is not configured' })
+    const flow: Pick<OidcFlowClaims, 'purpose' | 'returnTo'> = req.query.returnTo === 'status'
+      ? { purpose: 'oidc-flow', returnTo: 'status' }
+      : { purpose: 'oidc-flow' }
     try {
-      return await startOidcFlow(app, reply, cfg, { purpose: 'oidc-flow' })
+      return await startOidcFlow(app, reply, cfg, flow)
     } catch (error) {
       req.log.error({ err: error }, 'OIDC discovery failed')
       await auditOidcDenial(cfg, { code: 'discovery_failed', reason: `OIDC discovery against the issuer failed: ${errorText(error)}` })
-      return reply.redirect(OIDC_FAILED_REDIRECT)
+      return reply.redirect(signInRedirect(flow, { error: 'oidc_failed' }))
     }
   })
 
@@ -225,15 +246,19 @@ export async function authRoutes(app: FastifyInstance) {
     }
     try {
       const exchanged = await exchangeOidcCode(cfg, callbackUrlFor(cfg, query), flow)
-      const decision = exchanged.denial ? { user: null, denial: exchanged.denial } as const : await evaluateOidcClaims(cfg, exchanged.claims)
-      if (!decision.user) {
+      const decision: OidcDecision = exchanged.denial ? { user: null, denial: exchanged.denial } : await evaluateOidcClaims(cfg, exchanged.claims)
+      let user: typeof users.$inferSelect
+      if (decision.user) {
+        user = decision.user
+        if (decision.link) await linkOidcIdentity(cfg, user, decision.subject)
+      } else if (decision.provision) {
+        user = await provisionViewer(cfg, decision.provision)
+      } else {
         const { denial } = decision
         req.log.warn({ code: denial.code, reason: denial.reason }, 'OIDC sign-in refused')
         await auditOidcDenial(cfg, denial)
-        return reply.redirect(ACCOUNT_DENIALS.has(denial.code) ? '/admin/login?error=oidc_no_account' : OIDC_FAILED_REDIRECT)
+        return reply.redirect(signInRedirect(flow, { error: ACCOUNT_DENIALS.has(denial.code) ? 'oidc_no_account' : 'oidc_failed' }))
       }
-      const { user } = decision
-      if (decision.link) await linkOidcIdentity(cfg, user, decision.subject)
       // The IdP replaces the password. A user who enabled 2FA here still has to enter their code.
       if (user.totpEnabled) {
         const challenge: TwoFactorChallenge = { purpose: 'two-factor-login', userId: user.id, authMethod: 'oidc' }
@@ -244,15 +269,15 @@ export async function authRoutes(app: FastifyInstance) {
           sameSite: 'strict',
           maxAge: TWO_FACTOR_CHALLENGE_SECONDS,
         })
-        return reply.redirect('/admin/login?two-factor=sso')
+        return reply.redirect(signInRedirect(flow, 'two-factor'))
       }
-      await createAuthSession(app, reply, await revokeTemporaryPassword(user), 'oidc')
+      const identity = await createAuthSession(app, reply, await revokeTemporaryPassword(user), 'oidc')
       await auditSignIn(user, 'sso', false)
-      return reply.redirect('/admin/')
+      return reply.redirect(signInRedirect(flow, identity))
     } catch (error) {
       req.log.warn({ err: error }, 'OIDC callback failed')
       await auditOidcDenial(cfg, { code: 'token_exchange_failed', reason: `The sign-in could not be completed: ${errorText(error)}` })
-      return reply.redirect(OIDC_FAILED_REDIRECT)
+      return reply.redirect(signInRedirect(flow, { error: 'oidc_failed' }))
     }
   })
 
