@@ -21,6 +21,7 @@ const NAMED_GROUPS: Array<{ label: string; keys: TranslationKey[] }> = [
   { label: 'Incidents', keys: keysWithPrefix('incident.') },
   { label: 'Response Time Chart', keys: keysWithPrefix('chart.') },
   { label: 'Subscriptions', keys: keysWithPrefix('subscribe.') },
+  { label: 'Private Page Sign-in', keys: keysWithPrefix('signIn.') },
 ]
 
 const GROUPED_KEYS = new Set(NAMED_GROUPS.flatMap((group) => group.keys))

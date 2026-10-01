@@ -30,4 +30,18 @@ describe('SSE service', () => {
 
     assert.equal(sseService.clientCount(), initialCount)
   })
+
+  it('ends only the streams opened without signing in', () => {
+    const ended: string[] = []
+    const stream = (name: string) => ({ raw: { write: () => {}, end: () => { ended.push(name) }, destroy: () => {} } }) as unknown as FastifyReply
+    const anonymous = stream('anonymous')
+    const signedIn = stream('signed-in')
+    sseService.add(anonymous)
+    sseService.add(signedIn, { session: { sessionId: 's1', userId: 1 } })
+
+    sseService.disconnectAnonymous()
+    sseService.remove(signedIn)
+
+    assert.deepEqual(ended, ['anonymous'])
+  })
 })

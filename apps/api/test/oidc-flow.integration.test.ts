@@ -14,6 +14,7 @@ import { requireAuth, requireRole } from '../src/middleware/auth.js'
 import { authRoutes } from '../src/routes/auth.js'
 import { oidcSettingsRoutes } from '../src/routes/oidcSettings.js'
 import { userRoutes } from '../src/routes/users.js'
+import { saveStatusPageAccess } from '../src/services/statusPageAccess.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const testDb = createTestDb('bsp-oidc-flow-test-')
@@ -254,6 +255,72 @@ describe('Two-factor authentication after SSO', () => {
     const expired = await app.inject({ method: 'POST', url: '/auth/2fa/verify', payload: { code: generateTotpCode(secret) } })
     assert.equal(expired.statusCode, 401)
     assert.equal((await lastDenial()).code, 'two_factor_expired')
+  })
+})
+
+describe('SSO sign-in to a private status page', () => {
+  after(async () => { await saveStatusPageAccess({}) })
+
+  it('returns to the status page when the sign-in started there', async () => {
+    await db.insert(users).values({ email: 'returning@example.test', passwordHash: 'unused', role: 'operator', createdAt: Date.now() })
+    const response = await runFlow({ sub: 'returning-sub', email: 'returning@example.test', email_verified: true }, '/auth/oidc/login?returnTo=status')
+    assert.equal(response.headers.location, '/')
+    assert.ok(cookiesFrom(response).some((c) => c.startsWith('bsp_session=')))
+
+    const refused = await runFlow({ sub: 'stranger-sub', email: 'stranger@example.test', email_verified: true }, '/auth/oidc/login?returnTo=status')
+    assert.equal(refused.headers.location, '/?sign-in-error=oidc_no_account')
+  })
+
+  it('returns to the status page at PUBLIC_URL, which may be another origin than the callback', async () => {
+    process.env['PUBLIC_URL'] = 'https://status.example.test/'
+    try {
+      const refused = await runFlow({ sub: 'stranger-sub', email: 'stranger@example.test', email_verified: true }, '/auth/oidc/login?returnTo=status')
+      assert.equal(refused.headers.location, 'https://status.example.test/?sign-in-error=oidc_no_account')
+      const signedIn = await runFlow({ sub: 'returning-sub', email: 'returning@example.test', email_verified: true }, '/auth/oidc/login?returnTo=status')
+      assert.equal(signedIn.headers.location, 'https://status.example.test/')
+      // Without returnTo an operator still goes to the admin console.
+      assert.equal((await runFlow({ sub: 'returning-sub', email: 'returning@example.test', email_verified: true })).headers.location, '/admin/')
+    } finally {
+      delete process.env['PUBLIC_URL']
+    }
+  })
+
+  it('creates a viewer account for an allowed domain only while the page is private', async () => {
+    await saveStatusPageAccess({ private: false, ssoCreateViewers: true, ssoViewerDomains: ['viewers.test'] })
+    const whilePublic = await runFlow({ sub: 'early-sub', email: 'early@viewers.test', email_verified: true })
+    assert.equal(whilePublic.headers.location, '/admin/login?error=oidc_no_account')
+
+    await saveStatusPageAccess({ private: true, ssoCreateViewers: true, ssoViewerDomains: ['viewers.test'] })
+    const otherDomain = await runFlow({ sub: 'outsider-sub', email: 'outsider@elsewhere.test', email_verified: true })
+    assert.equal(otherDomain.headers.location, '/admin/login?error=oidc_no_account')
+    const unverified = await runFlow({ sub: 'unverified-sub', email: 'unverified@viewers.test', email_verified: false })
+    assert.equal(unverified.headers.location, '/admin/login?error=oidc_no_account')
+
+    // A viewer has nothing to do in the admin console, so they land on the status page wherever they started.
+    const created = await runFlow({ sub: 'viewer-sub', email: 'Viewer@Viewers.test', email_verified: true })
+    assert.equal(created.headers.location, '/')
+    assert.ok(cookiesFrom(created).some((c) => c.startsWith('bsp_session=')))
+    const viewer = await userByEmail('viewer@viewers.test')
+    assert.equal(viewer.role, 'viewer')
+    assert.equal(viewer.oidcIssuer, issuer)
+    assert.equal(viewer.oidcSubject, 'viewer-sub')
+    assert.equal(viewer.mustChangePassword, 0)
+    const audit = (await db.select().from(auditLog)).filter((entry) => entry.entityType === 'user' && entry.action === 'create')
+    assert.ok(audit.some((entry) => entry.userEmail === 'viewer@viewers.test' && (entry.diff ?? '').includes('"createdBy":"sso"')))
+
+    // The next sign-in matches the bound identity instead of creating another account.
+    assert.equal((await runFlow({ sub: 'viewer-sub', email: 'viewer@viewers.test', email_verified: true })).headers.location, '/')
+    assert.equal((await db.select().from(users).where(eq(users.email, 'viewer@viewers.test'))).length, 1)
+  })
+
+  it('reports a would-be viewer account in the test sign-in without creating it', async () => {
+    await saveStatusPageAccess({ private: true, ssoCreateViewers: true, ssoViewerDomains: ['viewers.test'] })
+    const response = await runFlow({ sub: 'tested-sub', email: 'tested@viewers.test', email_verified: true }, '/admin/oidc/test-sign-in', { cookie: admin['cookie']! })
+    const location = new URL(response.headers.location!, 'http://localhost')
+    const result = await app.inject({ url: `/admin/oidc/test-sign-in/${location.searchParams.get('result')}`, headers: admin })
+    assert.equal(result.json().outcome, 'provision')
+    assert.equal(result.json().user, 'tested@viewers.test')
+    assert.equal((await db.select().from(users).where(eq(users.email, 'tested@viewers.test'))).length, 0)
   })
 })
 

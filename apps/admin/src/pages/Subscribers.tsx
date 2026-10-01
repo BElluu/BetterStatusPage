@@ -26,7 +26,7 @@ const STATUS_STYLE: Record<SubscriberStatus, { bg: string; fg: string; label: st
 }
 
 type Filter = 'all' | SubscriberStatus
-type SettingsDraft = Omit<AdminSubscriptionSettings, 'updatedAt' | 'smtpConfigured' | 'publicUrl' | 'methods'>
+type SettingsDraft = Omit<AdminSubscriptionSettings, 'updatedAt' | 'smtpConfigured' | 'publicUrl' | 'statusPagePrivate' | 'methods'>
 type MethodToggle = 'allowEmail' | 'allowWebhook' | 'allowSlack' | 'rssEnabled' | 'apiEnabled'
 
 const cardStyle = { background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }
@@ -81,6 +81,7 @@ function ProblemText({ problem }: { problem: SubscriptionMethodProblem }) {
     case 'smtp': return <>SMTP is not configured — set it up in <Link to="/admin/notifications" className="underline">Notifications → SMTP Settings</Link>.</>
     case 'publicUrl': return <>Set <code>PUBLIC_URL</code> in the server environment and restart — confirmation links point to it.</>
     case 'events': return <>Allow at least one notification type below.</>
+    case 'private': return <>The status page is private, and feed readers, Slack and scripts cannot sign in. Make it public in <Link to="/admin/users" className="underline">Users → Status page access</Link>.</>
   }
 }
 
@@ -156,7 +157,7 @@ function SettingsCard({ settings }: { settings: AdminSubscriptionSettings }) {
   const publicUrl = settings.publicUrl
   const feedBase = publicUrl || window.location.origin
   // Same rule the server applies, evaluated on the unsaved draft so every change shows its effect.
-  const statuses = subscriptionMethodStatuses(draft, { smtpConfigured: settings.smtpConfigured, publicUrl })
+  const statuses = subscriptionMethodStatuses(draft, { smtpConfigured: settings.smtpConfigured, publicUrl, statusPagePrivate: settings.statusPagePrivate })
   const offered = SUBSCRIPTION_METHODS.filter((method) => statuses[method].available)
   const dirty = JSON.stringify(draft) !== JSON.stringify(pick(settings))
 

@@ -1,3 +1,5 @@
+import { navigation, statusPageUrl } from '../navigation'
+
 const BASE = '/api/v1'
 const USER_KEY = 'bsp-auth-user'
 
@@ -33,6 +35,21 @@ export function getCurrentUser(): AuthUser | null {
 
 export function isAuthenticated(): boolean {
   return getCurrentUser() !== null
+}
+
+/** A viewer may only view the status page; the admin console is closed to them. */
+export function isViewer(user: AuthUser | null): boolean {
+  return user?.role === 'viewer'
+}
+
+/**
+ * Where a signed-in user starts. A viewer goes to the status page, which also has them replace a temporary
+ * password; everyone else replaces it here first.
+ */
+export function enterAfterSignIn(user: AuthUser, navigate: (path: string) => void): void {
+  if (isViewer(user)) navigation.assign(statusPageUrl())
+  else if (user.mustChangePassword) navigate('/admin/change-password')
+  else navigate('/admin/')
 }
 
 export function mustChangePassword(): boolean {

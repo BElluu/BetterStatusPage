@@ -1,4 +1,5 @@
-export const VALID_ROLES = ['admin', 'operator', 'branding'] as const
+/** `viewer` may only view a private status page; it has no access to the admin console. */
+export const VALID_ROLES = ['admin', 'operator', 'branding', 'viewer'] as const
 
 export type UserRole = typeof VALID_ROLES[number]
 

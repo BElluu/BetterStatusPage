@@ -311,6 +311,17 @@ CREATE INDEX IF NOT EXISTS idx_subscriber_deliveries_status_next ON subscriber_d
 CREATE INDEX IF NOT EXISTS idx_subscriber_deliveries_created ON subscriber_deliveries(created_at);
 `
 
+// Column order must match schema.ts — sqlite-proxy maps result rows by position.
+const statusPageAccessMigration = `
+CREATE TABLE IF NOT EXISTS status_page_access (
+  id INTEGER PRIMARY KEY,
+  private INTEGER NOT NULL DEFAULT 0,
+  sso_create_viewers INTEGER NOT NULL DEFAULT 0,
+  sso_viewer_domains TEXT NOT NULL DEFAULT '[]',
+  updated_at INTEGER NOT NULL
+);
+`
+
 const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `DROP TABLE IF EXISTS monitor_groups`, desc: 'drop monitor_groups (unused)' },
   { sql: `ALTER TABLE monitors DROP COLUMN group_id`, desc: 'monitors: drop legacy group_id' },
@@ -472,6 +483,7 @@ export function runMigrations(): void {
   sqlite.exec(maintenanceMigration)
   sqlite.exec(dependenciesMigration)
   sqlite.exec(subscriptionsMigration)
+  sqlite.exec(statusPageAccessMigration)
   for (const { sql, desc } of columnMigrations) {
     if (applyColumnMigration(sql)) console.log(`✓ Column migration: ${desc}`)
   }

@@ -348,3 +348,14 @@ export const subscriberDeliveries = sqliteTable('subscriber_deliveries', {
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 })
+
+export const statusPageAccess = sqliteTable('status_page_access', {
+  id: integer('id').primaryKey(),
+  /** 1 = only signed-in users may view the status page, its feeds and its API. */
+  private: integer('private').notNull().default(0),
+  /** While private: an SSO sign-in without a matching account creates a viewer account. */
+  ssoCreateViewers: integer('sso_create_viewers').notNull().default(0),
+  /** JSON string[] of email domains an SSO sign-in may create a viewer account for. */
+  ssoViewerDomains: text('sso_viewer_domains').notNull().default('[]'),
+  updatedAt: integer('updated_at').notNull(),
+})

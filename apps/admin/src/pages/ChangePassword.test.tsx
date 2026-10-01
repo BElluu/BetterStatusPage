@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, setSession } from '../api/client'
 import ChangePasswordPage from './ChangePassword'
 
-vi.mock('../api/client', () => ({
+vi.mock('../api/client', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../api/client')>(),
   api: { post: vi.fn() },
   setSession: vi.fn(),
   getCurrentUser: vi.fn(() => null),

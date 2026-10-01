@@ -94,3 +94,46 @@ describe('UsersPage confirmations and feedback', () => {
     expect(await screen.findByText('operator@example.test')).toBeInTheDocument()
   })
 })
+
+describe('UsersPage roles', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(getCurrentUser).mockReturnValue({ userId: 1, email: 'admin@example.test', role: 'admin', mustChangePassword: false, twoFactorEnabled: false })
+    vi.mocked(api.get).mockResolvedValue([
+      { id: 1, email: 'admin@example.test', role: 'admin', pendingTemporaryPassword: false, ssoLinked: false, twoFactorEnabled: 0, createdAt: 1 },
+      { id: 3, email: 'viewer@example.test', role: 'viewer', pendingTemporaryPassword: false, ssoLinked: true, twoFactorEnabled: 0, createdAt: 1 },
+    ])
+  })
+
+  it('creates a user with the chosen role', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.post).mockResolvedValueOnce({ email: 'reader@example.test', temporaryPassword: 'tmp-456' })
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: /New User/ }))
+    await user.type(screen.getByLabelText('Email'), 'reader@example.test')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Role' }), 'viewer')
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/users', { email: 'reader@example.test', role: 'viewer' }))
+    expect(await screen.findByText('tmp-456')).toBeInTheDocument()
+  })
+
+  it('opens the status page access settings next to single sign-on', async () => {
+    const users = await vi.mocked(api.get)('/admin/users')
+    vi.mocked(api.get).mockImplementation(async (path: string) => (path === '/admin/status-page-access'
+      ? { private: true, ssoCreateViewers: false, ssoViewerDomains: [], ssoConfigured: true }
+      : users))
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: /Status page access/ }))
+    expect(await screen.findByRole('switch', { name: 'Private status page' })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('shows viewers with the Viewer role selected', async () => {
+    renderPage()
+    const group = await screen.findByRole('group', { name: 'Role for viewer@example.test' })
+    expect(group.querySelector('[aria-pressed="true"]')).toHaveTextContent('Viewer')
+  })
+})
