@@ -1,0 +1,26 @@
+---
+import type { NavSection } from '../nav'
+
+interface Props {
+  sections: NavSection[]
+  current?: string
+}
+
+const { sections, current } = Astro.props
+---
+
+<aside id="sidebar" class="sidebar" aria-label="Documentation">
+  <nav class="sidebar-inner">
+    <a class="nav-item" href="/" aria-current={current === undefined ? 'page' : undefined}>Overview</a>
+    {sections.map((section) => (
+      <div class="nav-section">
+        <p class="nav-label">{section.label}</p>
+        {section.links.map((link) => (
+          <a class="nav-item" href={link.href} aria-current={link.slug === current ? 'page' : undefined}>
+            {link.label}
+          </a>
+        ))}
+      </div>
+    ))}
+  </nav>
+</aside>

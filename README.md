@@ -46,7 +46,7 @@ BetterStatusPage is currently in its MVP phase. The current target is a practica
 
 Thank you in advance for your interest in the project and for every installation, test, bug report, and piece of feedback. Early real-world testing is especially valuable and will directly help shape BetterStatusPage beyond the MVP.
 
-Before exposing a production instance, read:
+Full documentation: **https://docs.betterstatuspage.dev**. Before exposing a production instance, read:
 
 - [Deployment guide](docs/deployment.md)
 - [Backup and restore guide](docs/backup-restore.md)

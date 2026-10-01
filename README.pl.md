@@ -46,7 +46,7 @@ BetterStatusPage jest obecnie w fazie MVP. Aktualnym celem jest praktyczne, samo
 
 Z góry dziękuję za zainteresowanie projektem oraz za każdą instalację, test, zgłoszenie błędu i opinię. Wczesne testy w realnych warunkach są szczególnie cenne i bezpośrednio pomogą ukształtować BetterStatusPage po etapie MVP.
 
-Zanim wystawisz instancję produkcyjną, przeczytaj:
+Pełna dokumentacja (EN): **https://docs.betterstatuspage.dev**. Zanim wystawisz instancję produkcyjną, przeczytaj:
 
 - [Przewodnik wdrożeniowy](docs/deployment.md) *(EN)*
 - [Przewodnik po kopiach zapasowych i przywracaniu](docs/backup-restore.md) *(EN)*
