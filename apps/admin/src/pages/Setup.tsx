@@ -34,7 +34,7 @@ export default function SetupPage() {
   const [confirm, setConfirm]       = useState('')
   const [error, setError]           = useState('')
   const [loading, setLoading]       = useState(false)
-  const [mariaTooltip, setMariaTooltip] = useState(false)
+  const [pgTooltip, setPgTooltip] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -230,7 +230,7 @@ export default function SetupPage() {
                   </p>
                 </div>
 
-                {/* MariaDB card — disabled */}
+                {/* PostgreSQL card — disabled */}
                 <div
                   className="relative rounded-2xl p-5"
                   style={{
@@ -239,8 +239,8 @@ export default function SetupPage() {
                     opacity: 0.45,
                     cursor: 'not-allowed',
                   }}
-                  onMouseEnter={() => setMariaTooltip(true)}
-                  onMouseLeave={() => setMariaTooltip(false)}
+                  onMouseEnter={() => setPgTooltip(true)}
+                  onMouseLeave={() => setPgTooltip(false)}
                 >
                   {/* Soon badge */}
                   <div
@@ -260,13 +260,13 @@ export default function SetupPage() {
                     </svg>
                   </div>
 
-                  <h3 className="font-headline font-bold text-base mb-1" style={{ color: 'var(--m3-on-surface)' }}>MariaDB / MySQL</h3>
+                  <h3 className="font-headline font-bold text-base mb-1" style={{ color: 'var(--m3-on-surface)' }}>PostgreSQL</h3>
                   <p className="font-sans text-xs leading-relaxed" style={{ color: 'var(--m3-secondary)' }}>
                     External database
                   </p>
 
                   {/* Tooltip */}
-                  {mariaTooltip && (
+                  {pgTooltip && (
                     <div
                       className="absolute -top-9 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg text-xs font-sans font-medium whitespace-nowrap pointer-events-none z-10"
                       style={{
