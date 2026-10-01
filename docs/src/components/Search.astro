@@ -1,0 +1,56 @@
+---
+// Pagefind indexes the built site (`npm run build`), so search only works on a build, not in `astro dev`.
+---
+
+<dialog class="search-dialog" aria-label="Search the docs">
+  <div class="search-panel">
+    <div id="search-ui"></div>
+    <p class="search-hint" hidden>Search is available after <code>npm run build</code>. Preview it with <code>npm run preview</code>.</p>
+    <button class="search-close" type="button" data-search-close>Close <kbd>Esc</kbd></button>
+  </div>
+</dialog>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>('.search-dialog')!
+  let loaded: Promise<void> | undefined
+
+  function load(): Promise<void> {
+    loaded ??= new Promise<void>((resolve, reject) => {
+      const css = document.createElement('link')
+      css.rel = 'stylesheet'
+      css.href = '/pagefind/pagefind-ui.css'
+      document.head.append(css)
+      const script = document.createElement('script')
+      script.src = '/pagefind/pagefind-ui.js'
+      script.onload = () => {
+        // @ts-expect-error PagefindUI is a global set by the script above
+        new PagefindUI({ element: '#search-ui', showSubResults: true, showImages: false, resetStyles: false })
+        resolve()
+      }
+      script.onerror = () => reject(new Error('Pagefind not built'))
+      document.head.append(script)
+    })
+    return loaded
+  }
+
+  async function open() {
+    dialog.showModal()
+    try {
+      await load()
+      dialog.querySelector<HTMLInputElement>('.pagefind-ui__search-input')?.focus()
+    } catch {
+      dialog.querySelector<HTMLElement>('.search-hint')!.hidden = false
+    }
+  }
+
+  document.querySelectorAll('[data-search-open]').forEach((button) => button.addEventListener('click', open))
+  dialog.querySelector('[data-search-close]')?.addEventListener('click', () => dialog.close())
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close() })
+  document.addEventListener('keydown', (event) => {
+    const typing = event.target instanceof HTMLElement && event.target.matches('input, textarea, [contenteditable]')
+    if ((event.key === 'k' && (event.ctrlKey || event.metaKey)) || (event.key === '/' && !typing)) {
+      event.preventDefault()
+      if (!dialog.open) open()
+    }
+  })
+</script>

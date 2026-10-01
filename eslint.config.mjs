@@ -11,6 +11,7 @@ export default tseslint.config(
       '**/data/**',
       'demo-output/**',
       'design/**',
+      'docs/.astro/**',
     ],
   },
   eslint.configs.recommended,
