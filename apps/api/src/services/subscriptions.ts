@@ -15,6 +15,7 @@ import { validateWebhookUrl } from './publicWebhook.js'
 import { decrypt, encrypt } from '../crypto/vault.js'
 import { resolvePublicUrl } from '../config/publicUrl.js'
 import { loadEmailBrand, renderEmail, toneColor } from './emailTemplate.js'
+import { isStatusPagePrivate } from './statusPageAccess.js'
 
 const CONFIRM_TOKEN_TTL_MS = 48 * 60 * 60 * 1000
 /** A destination gets at most one confirmation (or reminder) email per cooldown, however often it is submitted. */
@@ -153,12 +154,17 @@ export async function getPublicComponents(): Promise<PublicComponent[]> {
 
 export async function getMethodStatuses(settings?: SubscriptionSettings): Promise<Record<SubscriptionMethod, SubscriptionMethodStatus>> {
   const current = settings ?? await getSubscriptionSettings()
-  return subscriptionMethodStatuses(current, { smtpConfigured: await isSmtpConfigured(), publicUrl: resolvePublicUrl() })
+  return subscriptionMethodStatuses(current, {
+    smtpConfigured: await isSmtpConfigured(),
+    publicUrl: resolvePublicUrl(),
+    statusPagePrivate: await isStatusPagePrivate(),
+  })
 }
 
-/** Slack, feeds and the API depend on neither SMTP nor a public URL, so this needs no lookups. */
-export function feedMethodAvailable(settings: SubscriptionSettings, method: 'slack' | 'rss' | 'api'): boolean {
-  return subscriptionMethodStatuses(settings, { smtpConfigured: false, publicUrl: '' })[method].available
+/** Slack, feeds and the API depend on neither SMTP nor a public URL, only on the settings and the page being public. */
+export async function feedMethodAvailable(method: 'slack' | 'rss' | 'api'): Promise<boolean> {
+  const environment = { smtpConfigured: false, publicUrl: '', statusPagePrivate: await isStatusPagePrivate() }
+  return subscriptionMethodStatuses(await getSubscriptionSettings(), environment)[method].available
 }
 
 export async function getPublicSubscriptionOptions(): Promise<PublicSubscriptionOptions> {

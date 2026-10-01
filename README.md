@@ -52,6 +52,7 @@ Before exposing a production instance, read:
 - [Backup and restore guide](docs/backup-restore.md)
 - [Alert hygiene guide](docs/alert-hygiene.md)
 - [Status page subscriptions guide](docs/subscriptions.md)
+- [Private status page guide](docs/private-status-page.md)
 - [Security policy](SECURITY.md)
 
 ---
@@ -120,7 +121,7 @@ Your secrets never appear in logs, API responses, or your `git diff`.
 Let your team sign in with the identity provider they already use — **Microsoft Entra ID, Keycloak, Okta, Google Workspace, Authentik, Auth0** or any other OIDC provider. Authorization Code flow with PKCE, `state` and `nonce`, ending in the same hardened server-side session as a password login.
 
 - **Configured in the UI, live immediately** — open **Users → Single sign-on**, paste issuer, client ID and secret, hit **Test connection**, save. No `.env` edit, no restart. The secret is stored encrypted and never shown again.
-- **Existing users only** — SSO never creates accounts. Users are matched by verified email and keep their BetterStatusPage role, so nobody gets in by accident.
+- **Existing users only** — users are matched by verified email and keep their BetterStatusPage role, so nobody gets in by accident. The only accounts SSO can create are Viewer accounts for a private status page, and only for email domains you list.
 - **Password login stays as a safety net** — or switch it off once SSO works. It can only be switched off after a successful discovery check, and `OIDC_FORCE_PASSWORD_LOGIN=true` is the break-glass switch if your IdP goes down.
 - **Infrastructure-as-code friendly** — the same settings can come from `OIDC_*` environment variables, which then override and lock the UI form.
 - **Audited** — every sign-in, allowed or denied, and every settings change lands in the audit log (the secret never does).
@@ -147,6 +148,16 @@ Notification channels wake up your team; subscriptions keep **your users** in th
 
 > See **[docs/subscriptions.md](docs/subscriptions.md)** for setup, delivery rules and the webhook payload.
 
+### 🔒 Private status pages
+
+Not every status page is for the whole internet. Switch on **Users → Status page access → Private status page** and only signed-in users see it. Everyone else gets a sign-in screen in your page's branding, with password and SSO sign-in.
+
+- **A Viewer role** — for people who should only see the page; the admin console stays closed to them
+- **Viewer accounts from SSO** — optionally, anyone who signs in through your identity provider with a verified email from a domain you list gets a Viewer account on their first visit
+- **Nothing leaks** — status data, history and the live stream need a session; feeds and the JSON status API switch off; responses are marked `private` and `noindex`
+
+> See **[docs/private-status-page.md](docs/private-status-page.md)** for who can view a private page and what it switches off.
+
 ### 🔧 Maintenance windows
 
 Scheduled that 3 AM database migration? Let people know in advance instead of letting them think you're on fire.
@@ -171,10 +182,13 @@ Every mutation in the admin panel is recorded — who did it, when, and exactly 
 | Maintenance windows | Create, update, delete |
 | Notification channels | Create, update (name, type, enabled, config), delete |
 | SMTP settings | Configure / update |
+| Subscription settings | Configure or change methods, notification types and component scope |
+| Subscribers | Delete |
 | Vaults & secrets | Create, update (name, value change flagged as `[redacted]`), delete |
 | Users | Create, role change, password reset, delete |
 | Account security | Enable or disable TOTP two-factor authentication, password changes, SSO account linking, revoked temporary passwords |
 | SSO settings | Configure or change OpenID Connect settings |
+| Status page access | Make the status page private or public, viewer accounts from SSO and their email domains |
 | Sign-ins | Every sign-in with a password or SSO: allowed, or denied with the reason (unknown email, wrong password, wrong 2FA code, refused by SSO…) |
 
 The audit log page (admin-only) lets you filter by **user**, **entity type**, **action** (create / update / delete / allowed / denied), and **date range**. Click any row to expand the diff inline.
@@ -221,13 +235,13 @@ Status changes propagate to both the admin dashboard and the public page instant
 │                                                             │
 │   ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │   │  Admin API   │  │  Public API  │  │  Webhook API     │  │
-│   │ Session+RBAC │  │  open        │  │  token auth      │  │
+│   │ Session+RBAC │  │ open/session │  │  token auth      │  │
 │   └──────────────┘  └──────────────┘  └──────────────────┘  │
 │                                                             │
 │   ┌──────────────────────────────────────────────────────┐  │
 │   │               Background Workers                     │  │
 │   │                                                      │  │
-│   │  Scheduler                  Notifier
+│   │  Scheduler                  Notifier                 │  │
 │   │  ├── HTTPS checker          Vault resolver           │  │
 │   │  ├── Ping / TCP             Result purger (daily)    │  │
 │   │  ├── DNS resolver                                    │  │
@@ -280,8 +294,8 @@ Docker Compose with the published GHCR image is the recommended deployment path.
 
 ```bash
 mkdir -p /opt/bsp && cd /opt/bsp
-curl -fsSLO https://raw.githubusercontent.com/BElluu/BetterStatusPage/v0.1.5/docker-compose.yml
-curl -fsSL https://raw.githubusercontent.com/BElluu/BetterStatusPage/v0.1.5/.env.example -o .env
+curl -fsSLO https://raw.githubusercontent.com/BElluu/BetterStatusPage/main/docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/BElluu/BetterStatusPage/main/.env.example -o .env
 chmod 600 .env
 ```
 
@@ -359,7 +373,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The E2E suite starts from an empty instance every run (runtime data lives under `.e2e/` and is wiped first), walks through the setup wizard, and then covers monitors, incidents, maintenance, email subscriptions, the page builder's drag and drop and role-based access. GitHub Actions runs lint, tests, coverage, builds, Playwright E2E, and a production Docker smoke test on pull requests and pushes to `main`.
+The E2E suite starts from an empty instance every run (runtime data lives under `.e2e/` and is wiped first), walks through the setup wizard, and then covers monitors, incidents, maintenance, email subscriptions, the page builder's drag and drop, role-based access and a private status page with a viewer account. GitHub Actions runs lint, tests, coverage, builds, Playwright E2E, and a production Docker smoke test on pull requests and pushes to `main`.
 
 ### Production
 
@@ -400,7 +414,8 @@ MONITOR_CHECK_CONCURRENCY=20
 MONITOR_RESULT_RETENTION_DAYS=90
 MONITOR_RESULT_PURGE_CRON=0 2 * * *
 
-# Public URL of the status page — required for email and webhook subscriptions; all subscriber links use it
+# Public URL of the status page — required for email and webhook subscriptions; all subscriber links use it,
+# and SSO sign-ins started on a private page's sign-in screen return to it
 PUBLIC_URL=https://status.example.com
 # Optional: let subscriber webhooks reach internal addresses (intranet status pages only)
 SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
@@ -421,8 +436,9 @@ SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
 | **admin** | Everything, including users, single sign-on, vaults, audit log, and backups |
 | **operator** | Monitors, incidents, maintenance, notifications, page builder, branding, localization, and settings |
 | **branding** | Page builder, branding, localization, and account settings |
+| **viewer** | Views a [private status page](docs/private-status-page.md); no access to the admin console |
 
-Administrator sessions are stored server-side and authenticated with an `HttpOnly`, `SameSite=Strict` cookie. State-changing browser requests require a matching CSRF token. Users can enable TOTP two-factor authentication from **Settings** and receive eight single-use recovery codes; it applies to password and SSO sign-ins alike. Administrators can also enable [OpenID Connect single sign-on](docs/single-sign-on.md) from **Users → Single sign-on**. Sensitive actions (sign-in settings, 2FA, password changes) are confirmed the way the session signed in: with the current password, or by signing in again at the identity provider in a pop-up.
+Administrator sessions are stored server-side and authenticated with an `HttpOnly`, `SameSite=Strict` cookie. State-changing browser requests require a matching CSRF token. Users of the admin console can enable TOTP two-factor authentication from **Settings** and receive eight single-use recovery codes; it applies to password and SSO sign-ins alike. Administrators can also enable [OpenID Connect single sign-on](docs/single-sign-on.md) from **Users → Single sign-on**. Sensitive actions (sign-in settings, 2FA, password changes) are confirmed the way the session signed in: with the current password, or by signing in again at the identity provider in a pop-up.
 
 ---
 

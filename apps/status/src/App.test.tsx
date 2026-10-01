@@ -3,10 +3,10 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { LayoutTree } from '@bsp/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getJSON } from './api'
+import { ApiError, getJSON } from './api'
 import App from './App'
 
-vi.mock('./api', () => ({ getJSON: vi.fn() }))
+vi.mock('./api', async (importOriginal) => ({ ...await importOriginal<typeof import('./api')>(), getJSON: vi.fn() }))
 
 const { sse, dark, toggleDark, subscriptionOptions, subscriptionLink } = vi.hoisted(() => ({
   sse: { map: {} as Record<number, { status: string; responseMs: number | null; checkedAt: number }>, onChange: null as null | (() => void) },
@@ -41,6 +41,14 @@ vi.mock('./components/PageRenderer', () => ({
     </ul>
   ),
 }))
+vi.mock('./components/SignIn', () => ({
+  SignIn: ({ branding, passwordChangeRequired, onSignedIn }: { branding: { siteName: string } | null; passwordChangeRequired?: boolean; onSignedIn: () => void }) => (
+    <button onClick={onSignedIn}>{passwordChangeRequired ? 'Set the password for' : 'Sign in to'} {branding?.siteName}</button>
+  ),
+}))
+vi.mock('./components/AccountMenu', () => ({
+  AccountMenu: ({ email, role }: { email: string; role: string | null }) => <span>Account of {email} ({role})</span>,
+}))
 vi.mock('./components/Subscriptions', () => ({
   FEED_URL: '/api/v1/public/incidents.rss',
   useSubscriptionOptions: () => ({ data: subscriptionOptions.value }),
@@ -65,6 +73,7 @@ const layout = {
 } as unknown as LayoutTree
 
 interface Data {
+  access: unknown
   status: Record<string, unknown>
   layout: unknown
   incidents: unknown[]
@@ -72,12 +81,15 @@ interface Data {
 
 let data: Data
 
+const PUBLIC_ACCESS = { private: false, signedIn: false, email: null, passwordChangeRequired: false, branding: null }
+
 function baseStatus(overrides: Record<string, unknown> = {}) {
   return { branding: null, monitors, activeIncidents: [], activeMaintenanceWindows: [], monitorDependencies: [], ...overrides }
 }
 
 function mockApi() {
   vi.mocked(getJSON).mockImplementation(async (path: string) => {
+    if (path === '/api/v1/public/access') return data.access
     if (path === '/api/v1/public/status') return data.status
     if (path === '/api/v1/public/layout') {
       if (data.layout === 'pending') return new Promise(() => {})
@@ -100,7 +112,7 @@ describe('status App', () => {
     dark.value = false
     subscriptionOptions.value = { methods: [] }
     subscriptionLink.value = null
-    data = { status: baseStatus(), layout: { tree: layout, branding: null }, incidents: [] }
+    data = { access: PUBLIC_ACCESS, status: baseStatus(), layout: { tree: layout, branding: null }, incidents: [] }
     mockApi()
   })
 
@@ -289,5 +301,64 @@ describe('status App', () => {
     sse.onChange!()
 
     await waitFor(() => expect(vi.mocked(getJSON).mock.calls.length).toBeGreaterThanOrEqual(before + 2))
+  })
+})
+
+describe('private status page', () => {
+  const privateAccess = (overrides: Record<string, unknown> = {}) => ({
+    ...PUBLIC_ACCESS, private: true, branding: { siteName: 'Acme Status' }, ...overrides,
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sse.map = {}
+    subscriptionOptions.value = { methods: [] }
+    subscriptionLink.value = null
+    data = { access: privateAccess(), status: baseStatus(), layout: { tree: layout, branding: null }, incidents: [] }
+    mockApi()
+  })
+
+  it('shows the sign-in screen and loads nothing else until a session exists', async () => {
+    const user = userEvent.setup()
+    renderApp()
+
+    const signIn = await screen.findByRole('button', { name: 'Sign in to Acme Status' })
+    expect(getJSON).not.toHaveBeenCalledWith('/api/v1/public/status', expect.anything())
+
+    data.access = privateAccess({ signedIn: true, email: 'viewer@example.test', role: 'viewer' })
+    await user.click(signIn)
+
+    expect(await screen.findByRole('heading', { name: 'All systems operational.' })).toBeInTheDocument()
+    expect(screen.getByText('Account of viewer@example.test (viewer)')).toBeInTheDocument()
+  })
+
+  it('has a user with a temporary password replace it on the sign-in screen', async () => {
+    data.access = privateAccess({ signedIn: true, email: 'new@example.test', passwordChangeRequired: true })
+    renderApp()
+
+    expect(await screen.findByRole('button', { name: 'Set the password for Acme Status' })).toBeInTheDocument()
+  })
+
+  it('goes back to the sign-in screen once the session is gone', async () => {
+    data.access = privateAccess({ signedIn: true, email: 'viewer@example.test' })
+    vi.mocked(getJSON).mockImplementation(async (path: string) => {
+      if (path === '/api/v1/public/access') return data.access
+      if (path === '/api/v1/public/status' || path === '/api/v1/public/layout') {
+        data.access = privateAccess()
+        throw new ApiError('Sign in to view this status page', 401, 'STATUS_PAGE_PRIVATE')
+      }
+      return []
+    })
+    renderApp()
+
+    expect(await screen.findByRole('button', { name: 'Sign in to Acme Status' })).toBeInTheDocument()
+  })
+
+  it('loads the page anyway when the access check fails', async () => {
+    data.access = null
+    vi.mocked(getJSON).mockImplementationOnce(async () => { throw new ApiError('Bad gateway', 502) })
+    renderApp()
+
+    expect(await screen.findByRole('heading', { name: 'All systems operational.' })).toBeInTheDocument()
   })
 })

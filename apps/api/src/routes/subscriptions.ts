@@ -14,6 +14,7 @@ import { resolvePublicUrl } from '../config/publicUrl.js'
 import { auditActor, diffObjects, snapshot, writeAudit } from '../services/audit.js'
 import { requestIdentity } from '../middleware/auth.js'
 import { parsePagination } from '../lib/pagination.js'
+import { isStatusPagePrivate, protectStatusPage } from '../services/statusPageAccess.js'
 
 function sendError(reply: FastifyReply, error: unknown) {
   if (error instanceof SubscriptionError) return reply.code(error.statusCode).send({ error: error.message })
@@ -28,25 +29,30 @@ export async function publicSubscriptionRoutes(app: FastifyInstance) {
     done(null, Object.fromEntries(new URLSearchParams(body as string)))
   })
 
-  app.get('/options', async (_req, reply) => {
-    // Operators expect a settings change to show up on the next page load.
-    reply.header('Cache-Control', 'no-store')
-    return getPublicSubscriptionOptions()
-  })
+  // Signing up needs a session while the page is private; the links in subscriber emails keep working without one.
+  await app.register(async (signup) => {
+    protectStatusPage(signup)
 
-  app.post<{ Body: SubscriptionRequest }>('/', {
-    bodyLimit: 8 * 1024,
-    config: { rateLimit: SUBSCRIBE_RATE_LIMIT },
-  }, async (req, reply) => {
-    const body = (req.body ?? {}) as SubscriptionRequest
-    // Bots fill every field; answer exactly like a real signup so they learn nothing.
-    if (typeof body.website === 'string' && body.website.trim() !== '') return reply.code(202).send({ ok: true })
-    try {
-      await requestSubscription(body)
-    } catch (error) {
-      return sendError(reply, error)
-    }
-    return reply.code(202).send({ ok: true })
+    signup.get('/options', async (_req, reply) => {
+      // Operators expect a settings change to show up on the next page load.
+      reply.header('Cache-Control', 'no-store')
+      return getPublicSubscriptionOptions()
+    })
+
+    signup.post<{ Body: SubscriptionRequest }>('/', {
+      bodyLimit: 8 * 1024,
+      config: { rateLimit: SUBSCRIBE_RATE_LIMIT },
+    }, async (req, reply) => {
+      const body = (req.body ?? {}) as SubscriptionRequest
+      // Bots fill every field; answer exactly like a real signup so they learn nothing.
+      if (typeof body.website === 'string' && body.website.trim() !== '') return reply.code(202).send({ ok: true })
+      try {
+        await requestSubscription(body)
+      } catch (error) {
+        return sendError(reply, error)
+      }
+      return reply.code(202).send({ ok: true })
+    })
   })
 
   const tokenRoute = { bodyLimit: 8 * 1024, config: { rateLimit: SUBSCRIPTION_TOKEN_RATE_LIMIT } }
@@ -95,6 +101,7 @@ export async function adminSubscriberRoutes(app: FastifyInstance) {
       ...current,
       smtpConfigured: await isSmtpConfigured(),
       publicUrl: resolvePublicUrl(),
+      statusPagePrivate: await isStatusPagePrivate(),
       methods: await getMethodStatuses(current),
     }
   }

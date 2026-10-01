@@ -4,10 +4,10 @@ BetterStatusPage can sign administrators in through any OpenID Connect (OIDC) id
 
 ## How it works
 
-- SSO signs in **existing users only**. It never creates accounts. Create the user first in **Users → New User**, then they can use SSO.
+- SSO signs in **existing users only**. Create the user first in **Users → New User**, then they can use SSO. The one exception is a [private status page](private-status-page.md#viewer-accounts-through-single-sign-on): it can let SSO create **Viewer** accounts for email domains you list.
 - The **first** SSO sign-in matches the account by the **email** claim from the identity provider, case-insensitively. The email must be verified: the provider must send `email_verified: true`, or, for Microsoft Entra ID, `xms_edov: true` (see [Microsoft Entra ID](#microsoft-entra-id)).
 - That first sign-in links the provider account (issuer + `sub` claim) to the user, shown as **SSO** in **Users**. Later sign-ins match on this link, not on the email, so they keep working when the email changes at the provider. An email address that is later given to someone else at the provider cannot take over the account: that sign-in is refused with `subject_mismatch`. If the issuer URL is changed, the next sign-in links the account again by email.
-- The user keeps their BetterStatusPage role (`admin`, `operator`, `branding`). Roles are not read from the identity provider.
+- The user keeps their BetterStatusPage role (`admin`, `operator`, `branding`, `viewer`). Roles are not read from the identity provider.
 - An SSO sign-in replaces the local password, because the identity provider authenticates the user. It never changes the stored password.
 - A user who turned on two-factor authentication in **Settings** still enters their code after an SSO sign-in, the same as after a password sign-in. Users without 2FA go straight in, so the identity provider's own MFA applies to them.
 - An SSO sign-in revokes a temporary password that was never replaced: it stops working, and the user is not asked to change it. The temporary password therefore never has to be handed to an SSO user, and the one the administrator knows cannot be used. A user who also wants to sign in with a password sets one in **Settings**, confirming with SSO. If an administrator resets the password of an SSO user, for example while the identity provider is down, the new temporary password works until that user's next SSO sign-in.

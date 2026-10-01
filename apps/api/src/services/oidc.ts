@@ -1,4 +1,5 @@
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
+import bcrypt from 'bcryptjs'
 import * as client from 'openid-client'
 import { and, eq, sql } from 'drizzle-orm'
 import { db } from '../db/client.js'
@@ -6,6 +7,7 @@ import { users } from '../db/schema.js'
 import type { OidcConfig } from '../config/oidc.js'
 import { writeAudit } from './audit.js'
 import { auditSignInDenial } from './signInAudit.js'
+import { getStatusPageAccess, viewerProvisioningAllowed } from './statusPageAccess.js'
 
 type User = typeof users.$inferSelect
 
@@ -78,13 +80,20 @@ export interface OidcDenial {
   email?: string
 }
 
+/** A viewer account an SSO sign-in to the private status page may create, bound to this identity. */
+export interface ViewerProvisioning {
+  email: string
+  subject: string
+}
+
 /**
  * The outcome for a set of validated ID token claims. `link` means the user was matched by email and the
  * identity (issuer + subject) should now be bound to them, so later sign-ins no longer depend on the email.
+ * A denial for an unknown email carries `provision` when a sign-in may create a viewer account instead.
  */
 export type OidcDecision =
-  | { user: User; link: boolean; subject: string; denial?: undefined }
-  | { user: null; denial: OidcDenial }
+  | { user: User; link: boolean; subject: string; denial?: undefined; provision?: undefined }
+  | { user: null; denial: OidcDenial; provision?: ViewerProvisioning | undefined }
 
 // Some providers send booleans as strings ("true").
 const isTrue = (value: unknown) => value === true || value === 'true'
@@ -155,7 +164,8 @@ export async function evaluateOidcClaims(cfg: OidcConfig, claims: Record<string,
   if (unverified) return { user: null, denial: { code: 'email_not_verified', reason: unverified, email } }
   const user = (await db.select().from(users).where(sql`lower(${users.email}) = ${email}`))[0]
   if (!user) {
-    return { user: null, denial: { code: 'no_matching_account', reason: `No user has the email ${email}. Create the user first.`, email } }
+    const provision = subject && viewerProvisioningAllowed(await getStatusPageAccess(), email) ? { email, subject } : undefined
+    return { user: null, denial: { code: 'no_matching_account', reason: `No user has the email ${email}. Create the user first.`, email }, provision }
   }
   if (user.oidcSubject && user.oidcIssuer === cfg.issuer) {
     return {
@@ -179,6 +189,28 @@ export async function linkOidcIdentity(cfg: OidcConfig, user: User, subject: str
     'update', 'user-security', user.id, user.email,
     { ssoLinked: { from: user.oidcIssuer, to: cfg.issuer }, subject },
   )
+}
+
+/**
+ * Creates the viewer account of a first SSO sign-in to the private status page, already bound to the identity.
+ * Its password is random and never handed out: the account signs in through SSO only.
+ */
+export async function provisionViewer(cfg: OidcConfig, provision: ViewerProvisioning): Promise<User> {
+  const passwordHash = await bcrypt.hash(randomBytes(32).toString('base64url'), 10)
+  const [user] = await db.insert(users).values({
+    email: provision.email,
+    passwordHash,
+    role: 'viewer',
+    createdAt: Date.now(),
+    oidcIssuer: cfg.issuer,
+    oidcSubject: provision.subject,
+  }).returning()
+  await writeAudit(
+    { userId: user!.id, userEmail: user!.email },
+    'create', 'user', user!.id, user!.email,
+    { email: user!.email, role: 'viewer', createdBy: 'sso', issuer: cfg.issuer },
+  )
+  return user!
 }
 
 /** Records a refused SSO sign-in or confirmation as a 'sign_in' denial, with the issuer. */
@@ -209,7 +241,8 @@ export interface OidcTestResult {
   issuer: string
   testedAt: number
   claims: Record<string, unknown> | null
-  outcome: 'sign_in' | 'link' | 'deny'
+  /** `provision`: the sign-in would create a viewer account for the private status page. */
+  outcome: 'sign_in' | 'link' | 'provision' | 'deny'
   user: string | null
   denial: OidcDenial | null
 }
@@ -238,6 +271,7 @@ export async function runOidcTest(cfg: OidcConfig, callbackUrl: URL, flow: OidcF
     .catch((error: unknown) => ({ claims: undefined, denial: describeExchangeError(error) }))
   if (exchanged.denial) return { ...base, claims: null, outcome: 'deny', user: null, denial: exchanged.denial }
   const decision = await evaluateOidcClaims(cfg, exchanged.claims)
+  if (decision.provision) return { ...base, claims: exchanged.claims, outcome: 'provision', user: decision.provision.email, denial: null }
   if (decision.denial) return { ...base, claims: exchanged.claims, outcome: 'deny', user: null, denial: decision.denial }
   return { ...base, claims: exchanged.claims, outcome: decision.link ? 'link' : 'sign_in', user: decision.user.email, denial: null }
 }

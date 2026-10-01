@@ -32,6 +32,7 @@ import { webhookRoutes } from './routes/webhook.js'
 import { adminSubscriberRoutes, publicSubscriptionRoutes } from './routes/subscriptions.js'
 import { feedRoutes } from './routes/feeds.js'
 import { statusApiRoutes } from './routes/statusApi.js'
+import { adminStatusPageAccessRoutes, publicStatusPageAccessRoutes } from './routes/statusPageAccess.js'
 import { requireAuth, requireRole } from './middleware/auth.js'
 import { uploadDir } from './config.js'
 import { backupRoutes } from './routes/backups.js'
@@ -161,6 +162,7 @@ await app.register(healthRoutes)
 await app.register(setupRoutes, { prefix: '/api/v1/setup' })
 await app.register(authRoutes, { prefix: '/api/v1/auth' })
 await app.register(publicRoutes, { prefix: '/api/v1/public' })
+await app.register(publicStatusPageAccessRoutes, { prefix: '/api/v1/public' })
 await app.register(publicLocaleRoutes, { prefix: '/api/v1/public/locales' })
 await app.register(webhookRoutes, { prefix: '/api/v1/hook' })
 await app.register(feedRoutes, { prefix: '/api/v1/public' })
@@ -209,11 +211,12 @@ await app.register(async (adminApp) => {
     await sub.register(vaultCatalogRoutes, { prefix: '/vaults' })
   })
 
-  // users, vault management & audit log: admin only
+  // users, sign-in & status page access, vault management & audit log: admin only
   await adminApp.register(async (sub) => {
     sub.addHook('preHandler', requireRole())  // only admin passes (no allowed list)
     await sub.register(userRoutes,   { prefix: '/users' })
     await sub.register(oidcSettingsRoutes, { prefix: '/oidc' })
+    await sub.register(adminStatusPageAccessRoutes, { prefix: '/status-page-access' })
     await sub.register(vaultRoutes,  { prefix: '/vaults' })
     await sub.register(auditRoutes,  { prefix: '/audit' })
     await sub.register(backupRoutes, { prefix: '/backups' })

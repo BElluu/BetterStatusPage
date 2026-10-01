@@ -6,6 +6,7 @@ import type {
   WebhookHeader, WebhookMethod,
 } from '@bsp/shared'
 import { useLocale } from '../i18n/LocaleContext'
+import { jsonHeaders } from '../api'
 
 const API = '/api/v1/public/subscriptions'
 
@@ -34,7 +35,8 @@ export function useSubscriptionOptions() {
 async function send<T>(method: string, path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    // On a private page the visitor signs up from their session, which needs its CSRF token.
+    headers: jsonHeaders(),
     body: JSON.stringify(body),
   })
   const data = await res.json().catch(() => ({})) as T & { error?: string }
