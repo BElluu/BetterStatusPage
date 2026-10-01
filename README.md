@@ -182,10 +182,13 @@ Every mutation in the admin panel is recorded — who did it, when, and exactly 
 | Maintenance windows | Create, update, delete |
 | Notification channels | Create, update (name, type, enabled, config), delete |
 | SMTP settings | Configure / update |
+| Subscription settings | Configure or change methods, notification types and component scope |
+| Subscribers | Delete |
 | Vaults & secrets | Create, update (name, value change flagged as `[redacted]`), delete |
 | Users | Create, role change, password reset, delete |
 | Account security | Enable or disable TOTP two-factor authentication, password changes, SSO account linking, revoked temporary passwords |
 | SSO settings | Configure or change OpenID Connect settings |
+| Status page access | Make the status page private or public, viewer accounts from SSO and their email domains |
 | Sign-ins | Every sign-in with a password or SSO: allowed, or denied with the reason (unknown email, wrong password, wrong 2FA code, refused by SSO…) |
 
 The audit log page (admin-only) lets you filter by **user**, **entity type**, **action** (create / update / delete / allowed / denied), and **date range**. Click any row to expand the diff inline.
@@ -232,13 +235,13 @@ Status changes propagate to both the admin dashboard and the public page instant
 │                                                             │
 │   ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │   │  Admin API   │  │  Public API  │  │  Webhook API     │  │
-│   │ Session+RBAC │  │  open        │  │  token auth      │  │
+│   │ Session+RBAC │  │ open/session │  │  token auth      │  │
 │   └──────────────┘  └──────────────┘  └──────────────────┘  │
 │                                                             │
 │   ┌──────────────────────────────────────────────────────┐  │
 │   │               Background Workers                     │  │
 │   │                                                      │  │
-│   │  Scheduler                  Notifier
+│   │  Scheduler                  Notifier                 │  │
 │   │  ├── HTTPS checker          Vault resolver           │  │
 │   │  ├── Ping / TCP             Result purger (daily)    │  │
 │   │  ├── DNS resolver                                    │  │
@@ -370,7 +373,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The E2E suite starts from an empty instance every run (runtime data lives under `.e2e/` and is wiped first), walks through the setup wizard, and then covers monitors, incidents, maintenance, email subscriptions, the page builder's drag and drop and role-based access. GitHub Actions runs lint, tests, coverage, builds, Playwright E2E, and a production Docker smoke test on pull requests and pushes to `main`.
+The E2E suite starts from an empty instance every run (runtime data lives under `.e2e/` and is wiped first), walks through the setup wizard, and then covers monitors, incidents, maintenance, email subscriptions, the page builder's drag and drop, role-based access and a private status page with a viewer account. GitHub Actions runs lint, tests, coverage, builds, Playwright E2E, and a production Docker smoke test on pull requests and pushes to `main`.
 
 ### Production
 

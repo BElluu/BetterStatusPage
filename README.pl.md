@@ -182,10 +182,13 @@ Każda zmiana w panelu admina jest rejestrowana — kto, kiedy i co dokładnie z
 | Okna serwisowe | Tworzenie, aktualizacja, usuwanie |
 | Kanały powiadomień | Tworzenie, aktualizacja (nazwa, typ, włączony, konfiguracja), usuwanie |
 | Ustawienia SMTP | Konfiguracja / aktualizacja |
+| Ustawienia subskrypcji | Konfiguracja lub zmiana metod, typów powiadomień i zakresu komponentów |
+| Subskrybenci | Usuwanie |
 | Sejfy i sekrety | Tworzenie, aktualizacja (nazwa, zmiana wartości oznaczona jako `[redacted]`), usuwanie |
 | Użytkownicy | Tworzenie, zmiana roli, reset hasła, usuwanie |
 | Bezpieczeństwo konta | Włączenie lub wyłączenie uwierzytelniania dwuskładnikowego TOTP, zmiana hasła, powiązanie konta z SSO, unieważnienie hasła tymczasowego |
 | Ustawienia SSO | Konfiguracja lub zmiana ustawień OpenID Connect |
+| Dostęp do strony statusu | Przełączenie strony na prywatną lub publiczną, konta Viewer z SSO i ich domeny email |
 | Logowania | Każde logowanie hasłem lub przez SSO: udane albo odrzucone z powodem (nieznany email, błędne hasło, błędny kod 2FA, odmowa SSO…) |
 
 Strona dziennika audytu (tylko dla adminów) pozwala filtrować po **użytkowniku**, **typie encji**, **akcji** (create / update / delete / allowed / denied) i **zakresie dat**. Kliknij dowolny wiersz, by rozwinąć różnice.
@@ -232,13 +235,13 @@ Zmiany statusu docierają zarówno do panelu admina, jak i do strony publicznej 
 │                                                             │
 │   ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │   │  Admin API   │  │  Public API  │  │  Webhook API     │  │
-│   │ Session+RBAC │  │  open        │  │  token auth      │  │
+│   │ Session+RBAC │  │ open/session │  │  token auth      │  │
 │   └──────────────┘  └──────────────┘  └──────────────────┘  │
 │                                                             │
 │   ┌──────────────────────────────────────────────────────┐  │
 │   │               Background Workers                     │  │
 │   │                                                      │  │
-│   │  Scheduler                  Notifier
+│   │  Scheduler                  Notifier                 │  │
 │   │  ├── HTTPS checker          Vault resolver           │  │
 │   │  ├── Ping / TCP             Result purger (daily)    │  │
 │   │  ├── DNS resolver                                    │  │
@@ -370,7 +373,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Zestaw E2E przy każdym uruchomieniu startuje od pustej instancji (dane robocze w `.e2e/` są najpierw czyszczone), przechodzi kreator konfiguracji, a potem obejmuje monitory, incydenty, okna serwisowe, subskrypcje e-mail, przeciąganie w kreatorze stron i dostęp oparty na rolach. GitHub Actions uruchamia lint, testy, pokrycie, buildy, Playwright E2E i produkcyjny test dymny Dockera dla pull requestów i pushy do `main`.
+Zestaw E2E przy każdym uruchomieniu startuje od pustej instancji (dane robocze w `.e2e/` są najpierw czyszczone), przechodzi kreator konfiguracji, a potem obejmuje monitory, incydenty, okna serwisowe, subskrypcje e-mail, przeciąganie w kreatorze stron, dostęp oparty na rolach oraz prywatną stronę statusu z kontem viewer. GitHub Actions uruchamia lint, testy, pokrycie, buildy, Playwright E2E i produkcyjny test dymny Dockera dla pull requestów i pushy do `main`.
 
 ### Produkcja
 
