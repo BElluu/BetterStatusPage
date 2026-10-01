@@ -1,13 +1,16 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getJSON } from './api'
+import { ApiError, getJSON } from './api'
 import { useSSE } from './hooks/useSSE'
 import { useDarkMode } from './hooks/useDarkMode'
 import { useLocale } from './i18n/LocaleContext'
-import type { Branding, Incident, PublicMonitor, MaintenanceWindow, LayoutTree, LayoutNode, GroupNode, MonitorNode } from '@bsp/shared'
+import { STATUS_PAGE_PRIVATE } from '@bsp/shared'
+import type { Branding, Incident, PublicMonitor, MaintenanceWindow, LayoutTree, LayoutNode, GroupNode, MonitorNode, PublicStatusPageAccess } from '@bsp/shared'
 import { PageRenderer } from './components/PageRenderer'
 import { IncidentCard } from './components/IncidentCard'
 import { LanguageSwitcher } from './components/LanguageSwitcher'
+import { AccountMenu } from './components/AccountMenu'
+import { SignIn } from './components/SignIn'
 import { FEED_URL, SubscribeDialog, SubscriptionLinkDialog, clearSubscriptionLink, readSubscriptionLink, useSubscriptionOptions } from './components/Subscriptions'
 import { applyIncidentStatus } from './utils/incidentStatus'
 import { resolveBrandingCssVariables, resolveBrandingCustomCss, resolveBrandingLogoUrl } from './branding'
@@ -49,7 +52,41 @@ function hasIncidentsBlock(nodes: LayoutNode[]): boolean {
   return nodes.some((node) => node.type === 'incidents')
 }
 
+const ACCESS_QUERY_KEY = ['public-access']
+
+/**
+ * Asks first whether the page is private. A private page shows its sign-in screen until a session exists, and
+ * nothing else is requested before that. Should the check itself fail, the page loads and reports its own errors.
+ */
 export default function App() {
+  const qc = useQueryClient()
+  const accessQuery = useQuery<PublicStatusPageAccess>({
+    queryKey: ACCESS_QUERY_KEY,
+    queryFn: () => getJSON<PublicStatusPageAccess>('/api/v1/public/access', { cache: 'no-store' }),
+    staleTime: Infinity,
+  })
+  const access = accessQuery.data
+
+  if (accessQuery.isPending) return null
+  // A session with a temporary password replaces it on the sign-in screen first.
+  if (access?.private && (!access.signedIn || access.passwordChangeRequired)) {
+    return (
+      <SignIn
+        branding={access.branding}
+        passwordChangeRequired={access.signedIn && access.passwordChangeRequired}
+        onSignedIn={() => void qc.invalidateQueries({ queryKey: ACCESS_QUERY_KEY })}
+      />
+    )
+  }
+  return <StatusPage account={access?.private && access.email ? { email: access.email, role: access.role } : null} />
+}
+
+/** A request refused because the page is (now) private and the session is gone: back to the sign-in screen. */
+function isSignInRequired(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401 && error.code === STATUS_PAGE_PRIVATE
+}
+
+function StatusPage({ account }: { account: { email: string; role: string | null } | null }) {
   const qc = useQueryClient()
   const [savedDarkMode, toggleDark] = useDarkMode()
   const previewMode = new URLSearchParams(window.location.search).get('branding-preview') === '1'
@@ -120,6 +157,11 @@ export default function App() {
     queryKey: ['public-incidents'],
     queryFn: () => getJSON<Incident[]>('/api/v1/public/incidents?limit=10'),
   })
+
+  const signInRequired = isSignInRequired(statusQuery.error) || isSignInRequired(layoutQuery.error)
+  useEffect(() => {
+    if (signInRequired) void qc.invalidateQueries({ queryKey: ACCESS_QUERY_KEY })
+  }, [signInRequired, qc])
 
   const branding = brandingPreview ?? layoutData?.branding ?? status?.branding
   const tree = layoutData?.tree
@@ -277,6 +319,7 @@ export default function App() {
               </button>
             )}
             <LanguageSwitcher />
+            {account && !previewMode && <AccountMenu email={account.email} role={account.role} />}
             {!brandingEnabled && (
               <button
                 type="button"

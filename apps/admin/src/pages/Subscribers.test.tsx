@@ -27,6 +27,7 @@ function settings(overrides: Partial<AdminSubscriptionSettings> = {}): AdminSubs
     updatedAt: 1,
     smtpConfigured: false,
     publicUrl: '',
+    statusPagePrivate: false,
     methods: subscriptionMethodStatuses(merged, { smtpConfigured: false, publicUrl: '' }),
     ...overrides,
   }

@@ -7,7 +7,7 @@ interface TestResult {
   issuer: string
   testedAt: number
   claims: Record<string, unknown> | null
-  outcome: 'sign_in' | 'link' | 'deny'
+  outcome: 'sign_in' | 'link' | 'provision' | 'deny'
   user: string | null
   denial: { code: string; reason: string; email?: string } | null
 }
@@ -25,6 +25,9 @@ function Outcome({ result }: { result: TestResult }) {
   }
   if (result.outcome === 'link') {
     return <Alert tone="success" title="Sign-in would succeed">Signs in as <strong>{result.user}</strong>, matched by email. The first real sign-in links this identity-provider account to the user.</Alert>
+  }
+  if (result.outcome === 'provision') {
+    return <Alert tone="success" title="Sign-in would succeed">Creates the Viewer account <strong>{result.user}</strong> for the private status page and links this identity-provider account to it.</Alert>
   }
   return (
     <Alert tone="error" title={`Sign-in would be refused (${result.denial?.code})`}>

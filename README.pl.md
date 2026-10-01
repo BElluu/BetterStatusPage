@@ -52,6 +52,7 @@ Zanim wystawisz instancję produkcyjną, przeczytaj:
 - [Przewodnik po kopiach zapasowych i przywracaniu](docs/backup-restore.md) *(EN)*
 - [Przewodnik po higienie alertów](docs/alert-hygiene.md) *(EN)*
 - [Przewodnik po subskrypcjach strony statusu](docs/subscriptions.md) *(EN)*
+- [Przewodnik po prywatnej stronie statusu](docs/private-status-page.md) *(EN)*
 - [Polityka bezpieczeństwa](SECURITY.md) *(EN)*
 
 ---
@@ -120,7 +121,7 @@ Twoje sekrety nigdy nie pojawiają się w logach, odpowiedziach API ani w `git d
 Pozwól zespołowi logować się dostawcą tożsamości, którego już używa — **Microsoft Entra ID, Keycloak, Okta, Google Workspace, Authentik, Auth0** albo dowolnym innym dostawcą OIDC. Przepływ Authorization Code z PKCE, `state` i `nonce`, kończący się tą samą utwardzoną sesją po stronie serwera co logowanie hasłem.
 
 - **Konfiguracja w interfejsie, od razu w mocy** — wejdź w **Użytkownicy → Single sign-on**, wklej issuera, client ID i sekret, kliknij **Test connection** i zapisz. Bez edycji `.env` i bez restartu. Sekret jest przechowywany zaszyfrowany i nigdy nie jest pokazywany ponownie.
-- **Tylko istniejący użytkownicy** — SSO nigdy nie tworzy kont. Użytkownicy są dopasowywani po zweryfikowanym adresie email i zachowują swoją rolę w BetterStatusPage, więc nikt nie wejdzie przypadkiem.
+- **Tylko istniejący użytkownicy** — użytkownicy są dopasowywani po zweryfikowanym adresie email i zachowują swoją rolę w BetterStatusPage, więc nikt nie wejdzie przypadkiem. Jedyne konta, jakie SSO może założyć, to konta Viewer dla prywatnej strony statusu, i tylko dla wskazanych domen email.
 - **Logowanie hasłem zostaje jako zabezpieczenie** — albo wyłącz je, gdy SSO już działa. Da się je wyłączyć dopiero po udanym teście połączenia z dostawcą, a `OIDC_FORCE_PASSWORD_LOGIN=true` to przełącznik awaryjny na wypadek awarii dostawcy.
 - **Przyjazne dla infrastruktury jako kod** — te same ustawienia mogą pochodzić ze zmiennych `OIDC_*`, które wtedy nadpisują formularz i go blokują.
 - **Audytowane** — każde logowanie, udane czy odrzucone, i każda zmiana ustawień trafia do dziennika audytu (sekret nigdy).
@@ -146,6 +147,16 @@ Kanały powiadomień budzą Twój zespół, a subskrypcje informują **Twoich u�
 - **Bezpieczny publiczny formularz** — limit żądań, honeypot, brak możliwości sprawdzenia, kto jest zapisany, i adresy webhooków, które nigdy nie wskażą Twojej sieci wewnętrznej
 
 > Zobacz **[docs/subscriptions.md](docs/subscriptions.md)** — konfiguracja, zasady dostarczania i format webhooka *(EN)*.
+
+### 🔒 Prywatne strony statusu
+
+Nie każda strona statusu jest dla całego internetu. Włącz **Users → Status page access → Private status page**, a stronę zobaczą tylko zalogowani użytkownicy. Pozostali dostaną ekran logowania w brandingu Twojej strony, z logowaniem hasłem i przez SSO.
+
+- **Rola Viewer** — dla osób, które mają tylko oglądać stronę; panel administracyjny jest dla nich zamknięty
+- **Konta Viewer z SSO** — opcjonalnie każdy, kto zaloguje się przez Twojego dostawcę tożsamości ze zweryfikowanym adresem email z domeny z listy, dostaje konto Viewer przy pierwszej wizycie
+- **Nic nie wycieka** — dane statusu, historia i strumień na żywo wymagają sesji; kanały RSS/Atom i JSON API statusu są wyłączone; odpowiedzi są oznaczone jako `private` i `noindex`
+
+> Zobacz **[docs/private-status-page.md](docs/private-status-page.md)** — kto może oglądać prywatną stronę i co jest wtedy wyłączone *(EN)*.
 
 ### 🔧 Okna serwisowe
 
@@ -276,32 +287,33 @@ Zmiany statusu docierają zarówno do panelu admina, jak i do strony publicznej 
 
 ## Szybki start produkcyjny
 
-Zalecaną ścieżką wdrożenia jest Docker Compose:
+Zalecaną ścieżką wdrożenia jest Docker Compose z opublikowanym obrazem z GHCR. Klonowanie repozytorium nie jest potrzebne — serwer potrzebuje tylko plików `docker-compose.yml` i `.env`:
 
 ```bash
-git clone https://github.com/BElluu/BetterStatusPage.git
-cd BetterStatusPage
-cp .env.example .env
+mkdir -p /opt/bsp && cd /opt/bsp
+curl -fsSLO https://raw.githubusercontent.com/BElluu/BetterStatusPage/main/docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/BElluu/BetterStatusPage/main/.env.example -o .env
+chmod 600 .env
 ```
 
 Edytuj `.env` i ustaw co najmniej:
 
 ```env
-NODE_ENV=production
+BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.6
 JWT_SECRET=<losowy sekret, min. 32 znaki>
 VAULT_ENCRYPTION_KEY=<64-znakowy klucz hex>
 ```
 
-Wygeneruj bezpieczne wartości:
+Wygeneruj bezpieczne wartości (uruchom dwa razy, po jednym dla każdego sekretu):
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+openssl rand -hex 32
 ```
 
 Uruchom aplikację:
 
 ```bash
-export BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.4
+docker compose pull
 docker compose up -d
 ```
 
@@ -378,7 +390,7 @@ Skopiuj `.env.example` do `.env`:
 ```env
 PORT=3000
 NODE_ENV=production
-BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.4
+BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.6
 BSP_BIND_ADDRESS=127.0.0.1
 
 JWT_SECRET=something-long-random-and-secret
@@ -398,6 +410,12 @@ SCHEDULER_TICK_SECONDS=10
 MONITOR_CHECK_CONCURRENCY=20
 MONITOR_RESULT_RETENTION_DAYS=90
 MONITOR_RESULT_PURGE_CRON=0 2 * * *
+
+# Publiczny adres strony statusu — wymagany dla subskrypcji email i webhook; z niego budowane są wszystkie
+# linki dla subskrybentów, a logowanie SSO rozpoczęte na ekranie logowania prywatnej strony wraca pod ten adres
+PUBLIC_URL=https://status.example.com
+# Opcjonalnie: pozwól webhookom subskrybentów łączyć się z adresami wewnętrznymi (tylko strony w intranecie)
+SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
 ```
 
 > 🔑 **Wygeneruj klucz szyfrowania sejfu:**
@@ -415,8 +433,9 @@ MONITOR_RESULT_PURGE_CRON=0 2 * * *
 | **admin** | Wszystko, łącznie z użytkownikami, SSO, sejfami, dziennikiem audytu i kopiami zapasowymi |
 | **operator** | Monitory, incydenty, okna serwisowe, powiadomienia, kreator stron, branding, lokalizacja i ustawienia |
 | **branding** | Kreator stron, branding, lokalizacja i ustawienia konta |
+| **viewer** | Ogląda [prywatną stronę statusu](docs/private-status-page.md); bez dostępu do panelu administracyjnego |
 
-Sesje administratorów są przechowywane po stronie serwera i uwierzytelniane ciasteczkiem `HttpOnly`, `SameSite=Strict`. Żądania przeglądarki zmieniające stan wymagają pasującego tokena CSRF. Użytkownicy mogą włączyć uwierzytelnianie dwuskładnikowe TOTP w **Ustawieniach** i otrzymać osiem jednorazowych kodów odzyskiwania; działa ono zarówno przy logowaniu hasłem, jak i przez SSO. Administratorzy mogą też włączyć [jednokrotne logowanie OpenID Connect](docs/single-sign-on.md) w **Użytkownicy → Single sign-on**. Wrażliwe akcje (ustawienia logowania, 2FA, zmiana hasła) potwierdza się tak, jak zalogowała się sesja: aktualnym hasłem albo ponownym zalogowaniem u dostawcy tożsamości w okienku pop-up.
+Sesje administratorów są przechowywane po stronie serwera i uwierzytelniane ciasteczkiem `HttpOnly`, `SameSite=Strict`. Żądania przeglądarki zmieniające stan wymagają pasującego tokena CSRF. Użytkownicy panelu administracyjnego mogą włączyć uwierzytelnianie dwuskładnikowe TOTP w **Ustawieniach** i otrzymać osiem jednorazowych kodów odzyskiwania; działa ono zarówno przy logowaniu hasłem, jak i przez SSO. Administratorzy mogą też włączyć [jednokrotne logowanie OpenID Connect](docs/single-sign-on.md) w **Użytkownicy → Single sign-on**. Wrażliwe akcje (ustawienia logowania, 2FA, zmiana hasła) potwierdza się tak, jak zalogowała się sesja: aktualnym hasłem albo ponownym zalogowaniem u dostawcy tożsamości w okienku pop-up.
 
 ---
 
@@ -453,15 +472,16 @@ pm2 save && pm2 startup
 
 ### Z Docker Compose (zalecane)
 
+Pobierz `docker-compose.yml` i `.env.example` (zapisany jako `.env`) tak jak w [szybkim starcie produkcyjnym](#szybki-start-produkcyjny), ustaw w `.env` `BSP_IMAGE`, `JWT_SECRET` i `VAULT_ENCRYPTION_KEY`, a następnie:
+
 ```bash
-cp .env.example .env   # uzupełnij JWT_SECRET i VAULT_ENCRYPTION_KEY
-export BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.4
+docker compose pull
 docker compose up -d
 ```
 
 Dane (baza SQLite + uploady) są przechowywane w nazwanym wolumenie Dockera (`bsp_data`) i przetrwają przebudowę kontenera, restarty i aktualizacje obrazu. Zostaną usunięte tylko wtedy, gdy jawnie uruchomisz `docker compose down -v`.
 
-Przy lokalnym rozwijaniu obrazu użyj lokalnego nadpisania, aby produkcyjny plik Compose nadal korzystał z GHCR:
+Aby zbudować obraz ze źródeł, sklonuj repozytorium i użyj lokalnego nadpisania, aby produkcyjny plik Compose nadal korzystał z GHCR:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build

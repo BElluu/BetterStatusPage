@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api, clearSession, getCurrentUser, setSession, type AuthUser } from './client'
+import { api, clearSession, enterAfterSignIn, getCurrentUser, setSession, type AuthUser } from './client'
+import { navigation } from '../navigation'
 
 const user: AuthUser = {
   userId: 1,
@@ -46,5 +47,27 @@ describe('admin API session client', () => {
 
     await expect(api.get('/admin/monitors')).rejects.toThrow('Password change required')
     expect(getCurrentUser()?.mustChangePassword).toBe(true)
+  })
+})
+
+describe('enterAfterSignIn', () => {
+  it('sends a viewer to the status page and everyone else into the console', () => {
+    const navigate = vi.fn()
+    const assign = vi.spyOn(navigation, 'assign').mockImplementation(() => {})
+
+    enterAfterSignIn({ ...user, role: 'viewer' }, navigate)
+    expect(assign).toHaveBeenCalledWith('/')
+    expect(navigate).not.toHaveBeenCalled()
+
+    // The status page has them replace a temporary password; the console stays closed to them.
+    enterAfterSignIn({ ...user, role: 'viewer', mustChangePassword: true }, navigate)
+    expect(assign).toHaveBeenCalledTimes(2)
+    expect(navigate).not.toHaveBeenCalled()
+
+    enterAfterSignIn({ ...user, mustChangePassword: true }, navigate)
+    expect(navigate).toHaveBeenLastCalledWith('/admin/change-password')
+    enterAfterSignIn(user, navigate)
+    expect(navigate).toHaveBeenLastCalledWith('/admin/')
+    assign.mockRestore()
   })
 })

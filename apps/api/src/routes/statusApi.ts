@@ -7,7 +7,7 @@ import type {
   ApiPageStatus, ApiSummary, LayoutNode, LayoutTree,
 } from '@bsp/shared'
 import { PUBLIC_API_RATE_LIMIT } from '../config/rateLimits.js'
-import { feedMethodAvailable, getSubscriptionSettings } from '../services/subscriptions.js'
+import { feedMethodAvailable } from '../services/subscriptions.js'
 import { resolvePublicUrl } from '../config/publicUrl.js'
 
 const SEVERITY: Record<Exclude<ApiComponentStatus, 'under_maintenance'>, number> = {
@@ -164,7 +164,7 @@ export async function statusApiRoutes(app: FastifyInstance) {
   }
 
   app.get('/summary.json', route, async (req, reply): Promise<ApiSummary | void> => {
-    if (!feedMethodAvailable(await getSubscriptionSettings(), 'api')) return reply.code(404).send({ error: 'Not found' })
+    if (!await feedMethodAvailable('api')) return reply.code(404).send({ error: 'Not found' })
     const state = await loadState(await baseUrl(req))
     const name = (await db.select({ siteName: branding.siteName }).from(branding))[0]?.siteName || 'Status Page'
     apiHeaders(reply)
@@ -176,7 +176,7 @@ export async function statusApiRoutes(app: FastifyInstance) {
   })
 
   app.get('/components.json', route, async (req, reply): Promise<ApiComponents | void> => {
-    if (!feedMethodAvailable(await getSubscriptionSettings(), 'api')) return reply.code(404).send({ error: 'Not found' })
+    if (!await feedMethodAvailable('api')) return reply.code(404).send({ error: 'Not found' })
     const state = await loadState(await baseUrl(req))
     apiHeaders(reply)
     return { components: state.components }

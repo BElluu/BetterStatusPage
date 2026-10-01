@@ -63,7 +63,7 @@ export async function feedRoutes(app: FastifyInstance) {
   const feedRoute = { config: { rateLimit: PUBLIC_FEED_RATE_LIMIT } }
 
   app.get('/incidents.rss', feedRoute, async (req, reply) => {
-    if (!feedMethodAvailable(await getSubscriptionSettings(), 'rss')) return reply.code(404).send({ error: 'Not found' })
+    if (!await feedMethodAvailable('rss')) return reply.code(404).send({ error: 'Not found' })
     const { base, site, entries } = await loadFeed(req)
     const items = entries.map((entry) => `
     <item>
@@ -88,7 +88,7 @@ export async function feedRoutes(app: FastifyInstance) {
   })
 
   app.get('/incidents.atom', feedRoute, async (req, reply) => {
-    if (!feedMethodAvailable(await getSubscriptionSettings(), 'rss')) return reply.code(404).send({ error: 'Not found' })
+    if (!await feedMethodAvailable('rss')) return reply.code(404).send({ error: 'Not found' })
     const { base, site, entries } = await loadFeed(req)
     const items = entries.map((entry) => `
   <entry>
@@ -187,7 +187,7 @@ async function loadSlackFeed(req: FastifyRequest) {
 
 export async function slackFeedRoutes(app: FastifyInstance) {
   app.get('/slack.rss', { config: { rateLimit: PUBLIC_FEED_RATE_LIMIT } }, async (req, reply) => {
-    if (!feedMethodAvailable(await getSubscriptionSettings(), 'slack')) return reply.code(404).send({ error: 'Not found' })
+    if (!await feedMethodAvailable('slack')) return reply.code(404).send({ error: 'Not found' })
     const { base, site, items } = await loadSlackFeed(req)
     const body = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">

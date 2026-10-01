@@ -5,6 +5,7 @@ import { ConfirmModal } from '../components/ConfirmModal'
 import { CopyButton } from '../components/CopyButton'
 import { ResetTwoFactorModal } from '../components/ResetTwoFactorModal'
 import { SingleSignOnModal } from '../components/SingleSignOnModal'
+import { StatusPageAccessModal } from '../components/StatusPageAccessModal'
 import { useSsoConfirmation } from '../components/SsoConfirmation'
 import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
 
@@ -22,10 +23,11 @@ const ROLES = [
   { value: 'admin',    label: 'Admin',    desc: 'Full access' },
   { value: 'operator', label: 'Operator', desc: 'Everything except Users' },
   { value: 'branding', label: 'Branding', desc: 'Branding & Builder' },
+  { value: 'viewer',   label: 'Viewer',   desc: 'Views a private status page, no admin console' },
 ]
 
 /** Higher number = more access; moving a user to a lower rank is a demotion and needs confirmation. */
-const ROLE_RANK: Record<string, number> = { admin: 3, operator: 2, branding: 1 }
+const ROLE_RANK: Record<string, number> = { admin: 3, operator: 2, branding: 1, viewer: 0 }
 
 function roleLabel(role: string) {
   return ROLES.find((r) => r.value === role)?.label ?? role
@@ -44,7 +46,9 @@ export default function UsersPage() {
   const emailInputId = useId()
   const [showCreate, setShowCreate] = useState(false)
   const [showSso, setShowSso] = useState(false)
+  const [showAccess, setShowAccess] = useState(false)
   const [newEmail, setNewEmail] = useState('')
+  const [newRole, setNewRole] = useState('branding')
   const [createdUser, setCreatedUser] = useState<{ email: string; temporaryPassword: string } | null>(null)
   const [resetResult, setResetResult] = useState<{ email: string; temporaryPassword: string } | null>(null)
   const [resetTarget, setResetTarget] = useState<User | null>(null)
@@ -60,7 +64,7 @@ export default function UsersPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: (email: string) => api.post<{ email: string; temporaryPassword: string }>('/admin/users', { email }),
+    mutationFn: (email: string) => api.post<{ email: string; temporaryPassword: string }>('/admin/users', { email, role: newRole }),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['users'] })
       setCreatedUser(data)
@@ -143,6 +147,10 @@ export default function UsersPage() {
         subtitle={isLoading || isError ? undefined : `${users.length} user${users.length !== 1 ? 's' : ''}`}
         actions={
           <>
+            <button type="button" onClick={() => setShowAccess(true)} className="btn btn-secondary">
+              <span className="material-symbols-outlined" aria-hidden="true">lock</span>
+              Status page access
+            </button>
             <button type="button" onClick={() => setShowSso(true)} className="btn btn-secondary">
               <span className="material-symbols-outlined" aria-hidden="true">passkey</span>
               Single sign-on
@@ -156,6 +164,7 @@ export default function UsersPage() {
       />
 
       {showSso && <SingleSignOnModal onClose={() => setShowSso(false)} />}
+      {showAccess && <StatusPageAccessModal onClose={() => setShowAccess(false)} />}
 
       {message && (
         <Alert tone="success" onDismiss={() => setMessage('')} className="max-w-2xl">{message}</Alert>
@@ -177,6 +186,9 @@ export default function UsersPage() {
               className="input-sig flex-1 min-w-[200px]"
               onKeyDown={(e) => e.key === 'Enter' && newEmail && createMutation.mutate(newEmail)}
             />
+            <select aria-label="Role" value={newRole} onChange={(e) => setNewRole(e.target.value)} className="input-sig w-auto">
+              {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
             <button
               type="button"
               onClick={() => newEmail && createMutation.mutate(newEmail)}

@@ -39,19 +39,20 @@ export async function userRoutes(app: FastifyInstance) {
     }))
   })
 
-  app.post<{ Body: { email: string } }>('/', async (req, reply) => {
-    const { email } = req.body
+  app.post<{ Body: { email: string; role?: string } }>('/', async (req, reply) => {
+    const { email, role = 'branding' } = req.body
     if (!email) return reply.code(400).send({ error: 'Email is required' })
+    if (!(VALID_ROLES as readonly string[]).includes(role)) return reply.code(400).send({ error: 'Invalid role' })
     const existing = await db.select().from(users).where(eq(users.email, email))
     if (existing.length > 0) return reply.code(409).send({ error: 'User with this email already exists' })
     const temporaryPassword = generateTempPassword()
     const hash = await bcrypt.hash(temporaryPassword, 10)
     const result = await db.insert(users).values({
-      email, passwordHash: hash, role: 'branding', mustChangePassword: 1, createdAt: Date.now(),
+      email, passwordHash: hash, role, mustChangePassword: 1, createdAt: Date.now(),
     }).returning({ id: users.id, email: users.email, role: users.role, createdAt: users.createdAt })
     const actor = requestIdentity(req)
     writeAudit(auditActor(actor), 'create', 'user', result[0]!.id, email,
-      snapshot({ email, role: 'branding' }))
+      snapshot({ email, role }))
     return { ...result[0], temporaryPassword }
   })
 

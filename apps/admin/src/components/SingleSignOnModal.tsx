@@ -79,7 +79,7 @@ export function SingleSignOnModal({ onClose }: { onClose: () => void }) {
         <div>
           <h2 className="font-headline text-xl font-semibold">OpenID Connect</h2>
           <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
-            Users must already exist; they are matched by the verified email from the identity provider.
+            Users must already exist; they are matched by the verified email from the identity provider. A private status page can let SSO create Viewer accounts, see Status page access.
           </p>
         </div>
         <Switch checked={form.enabled} disabled={locked} onChange={(enabled) => update({ enabled })} aria-label="Enable single sign-on" />

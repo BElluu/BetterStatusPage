@@ -17,8 +17,8 @@ The published image on GHCR contains the compiled API and both built frontends, 
 
 ```bash
 mkdir -p /opt/bsp && cd /opt/bsp
-curl -fsSLO https://raw.githubusercontent.com/BElluu/BetterStatusPage/v0.1.5/docker-compose.yml
-curl -fsSL https://raw.githubusercontent.com/BElluu/BetterStatusPage/v0.1.5/.env.example -o .env
+curl -fsSLO https://raw.githubusercontent.com/BElluu/BetterStatusPage/main/docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/BElluu/BetterStatusPage/main/.env.example -o .env
 chmod 600 .env
 ```
 
@@ -458,8 +458,8 @@ Before exposing an instance publicly:
 | `BACKUP_DIR` | No | Directory for generated backup archives. Default: `./data/backups` |
 | `ALLOWED_ORIGINS` | No | Comma-separated CORS origins. Leave unset if Nginx handles CORS, or in single-domain setups. |
 | `TRUST_PROXY` | No | Trusted proxy setting: `1` trusts a proxy on loopback or a private network (Docker bridge included), or give a comma-separated list of addresses/CIDR ranges. Enable only when the app port is not directly exposed. |
-| `PUBLIC_URL` | For email/webhook subscriptions | Public address of the status page, e.g. `https://status.example.com`. All links sent to subscribers are built from it; see [subscriptions](subscriptions.md#public-url). |
-| `OIDC_ISSUER` / `OIDC_CLIENT_ID` | No | Configure OpenID Connect single sign-on from the environment instead of **Users → Single sign-on**. When both are set they override the UI settings and lock that page. Register `<PUBLIC_URL>/api/v1/auth/oidc/callback` as the redirect URI. Users must already exist; they are matched by verified email. |
+| `PUBLIC_URL` | For email/webhook subscriptions | Public address of the status page, e.g. `https://status.example.com`. All links sent to subscribers are built from it; see [subscriptions](subscriptions.md#public-url). An SSO sign-in started on the sign-in screen of a [private status page](private-status-page.md) also returns to it. |
+| `OIDC_ISSUER` / `OIDC_CLIENT_ID` | No | Configure OpenID Connect single sign-on from the environment instead of **Users → Single sign-on**. When both are set they override the UI settings and lock that page. Register `<PUBLIC_URL>/api/v1/auth/oidc/callback` as the redirect URI. Users must already exist; they are matched by verified email. A [private status page](private-status-page.md) can let SSO create Viewer accounts. |
 | `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`, `OIDC_SCOPES`, `OIDC_BUTTON_LABEL` | No | Optional companions to the two variables above (defaults: none, derived from `PUBLIC_URL`, `openid email profile`, `Sign in with SSO`). |
 | `OIDC_DISABLE_PASSWORD_LOGIN`, `OIDC_ALLOW_UNVERIFIED_EMAIL` | No | `true` hides and rejects password sign-in while OIDC is active / accepts IdPs that send neither `email_verified` nor `xms_edov` (for Entra ID add the `xms_edov` optional claim instead). |
 | `OIDC_FORCE_PASSWORD_LOGIN` | No | Break-glass: `true` re-enables password sign-in even if it was disabled, for when the identity provider is down. Restart required. |

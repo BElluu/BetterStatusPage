@@ -59,6 +59,13 @@ export const sseService = {
     }
   },
 
+  /** Ends every stream opened without signing in, e.g. once the status page becomes private. */
+  disconnectAnonymous() {
+    for (const [client, { session }] of clients) {
+      if (!session) end(client)
+    }
+  },
+
   closeAll() {
     for (const client of clients.keys()) end(client)
   },
@@ -70,7 +77,7 @@ export const sseService = {
 
 export interface EventStreamOptions {
   filter?: SseFilter
-  session?: { sessionId: string; userId: number }
+  session?: { sessionId: string; userId: number } | undefined
   /** Re-checked with every keep-alive ping; the stream ends once it resolves to false. */
   stillAllowed?: () => Promise<boolean>
   pingIntervalMs?: number
