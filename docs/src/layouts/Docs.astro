@@ -1,0 +1,181 @@
+---
+import '../styles/global.css'
+import Header from '../components/Header.astro'
+import Sidebar from '../components/Sidebar.astro'
+import Toc from '../components/Toc.astro'
+import Search from '../components/Search.astro'
+import { getNav, type NavLink } from '../nav'
+
+interface Props {
+  title: string
+  description?: string
+  /** Slug of the current guide; omitted on the index page. */
+  slug?: string
+  headings?: { depth: number; slug: string; text: string }[]
+  /** File in docs/ for the "Edit this page" link. */
+  editPath?: string
+  /** Leave the page out of the search index. */
+  unlisted?: boolean
+}
+
+const { title, description = 'Documentation for Better Status Page, the self-hosted status page and uptime monitor.', slug, headings = [], editPath, unlisted = false } = Astro.props
+const nav = await getNav()
+
+const flat: NavLink[] = nav.flatMap((section) => section.links)
+const index = slug ? flat.findIndex((link) => link.slug === slug) : -1
+const prev = index > 0 ? flat[index - 1] : undefined
+const next = slug ? (index >= 0 ? flat[index + 1] : undefined) : flat[0]
+
+const pageTitle = slug ? `${title} · Better Status Page Docs` : 'Better Status Page Docs'
+const canonical = new URL(Astro.url.pathname, Astro.site)
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Better Status Page Docs" />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta name="theme-color" content="#f5f6f9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#20232a" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/mark.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!-- Same rule and storage key as the admin console: a saved choice wins, otherwise follow the OS. -->
+    <script is:inline>
+      try {
+        const saved = localStorage.getItem('bsp-dark-mode')
+        if (saved === 'true' || (saved === null && matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark')
+        }
+      } catch {
+        if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark')
+      }
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#content">Skip to content</a>
+    <Header />
+    <div class="shell">
+      <Sidebar sections={nav} current={slug} />
+      <div class="drawer-overlay" data-drawer-close hidden></div>
+      <main id="content" class="main">
+        <article class="article" data-pagefind-body={unlisted ? undefined : true}>
+          <slot name="header">
+            <header class="article-header">
+              <h1>{title}</h1>
+            </header>
+          </slot>
+          <div class="prose">
+            <slot />
+          </div>
+        </article>
+
+        {(prev || next || editPath) && (
+          <footer class="article-footer">
+            {editPath && (
+              <a class="edit-link" href={`https://github.com/BElluu/BetterStatusPage/edit/main/docs/${editPath}`}>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L18.5 9.5a2.83 2.83 0 0 0-4-4L4 16v4Z" /><path d="m13.5 6.5 4 4" /></svg>
+                Edit this page on GitHub
+              </a>
+            )}
+            <nav class="pager" aria-label="Previous and next page">
+              {prev ? (
+                <a class="pager-link" href={prev.href} rel="prev">
+                  <span class="pager-dir">Previous</span>
+                  <span class="pager-title">{prev.label}</span>
+                </a>
+              ) : <span />}
+              {next && (
+                <a class="pager-link pager-next" href={next.href} rel="next">
+                  <span class="pager-dir">Next</span>
+                  <span class="pager-title">{next.label}</span>
+                </a>
+              )}
+            </nav>
+          </footer>
+        )}
+      </main>
+      <Toc headings={headings} />
+    </div>
+    <Search />
+
+    <script>
+      const root = document.documentElement
+
+      // Theme toggle
+      document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const dark = root.classList.toggle('dark')
+          try { localStorage.setItem('bsp-dark-mode', String(dark)) } catch { /* private mode */ }
+        })
+      })
+
+      // Mobile drawer
+      const menuButton = document.querySelector<HTMLButtonElement>('[data-drawer-open]')
+      const overlay = document.querySelector<HTMLElement>('.drawer-overlay')
+      const setDrawer = (open: boolean) => {
+        document.body.toggleAttribute('data-drawer', open)
+        menuButton?.setAttribute('aria-expanded', String(open))
+        if (overlay) overlay.hidden = !open
+      }
+      menuButton?.addEventListener('click', () => setDrawer(!document.body.hasAttribute('data-drawer')))
+      overlay?.addEventListener('click', () => setDrawer(false))
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && document.body.hasAttribute('data-drawer')) {
+          setDrawer(false)
+          menuButton?.focus()
+        }
+      })
+
+      // Copy buttons on code blocks
+      document.querySelectorAll<HTMLPreElement>('.prose pre').forEach((pre) => {
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.className = 'copy'
+        button.textContent = 'Copy'
+        button.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(pre.querySelector('code')?.innerText ?? pre.innerText)
+            button.textContent = 'Copied'
+            button.dataset.state = 'copied'
+          } catch {
+            button.textContent = 'Failed'
+            button.dataset.state = 'failed'
+          }
+          setTimeout(() => { button.textContent = 'Copy'; delete button.dataset.state }, 1600)
+        })
+        const wrap = document.createElement('div')
+        wrap.className = 'code'
+        pre.replaceWith(wrap)
+        wrap.append(pre, button)
+      })
+
+      // Highlight the TOC entry for the section in view
+      const tocLinks = new Map(
+        [...document.querySelectorAll<HTMLAnchorElement>('.toc a')].map((link) => [decodeURIComponent(link.hash.slice(1)), link]),
+      )
+      if (tocLinks.size > 0) {
+        const observer = new IntersectionObserver((entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue
+            tocLinks.forEach((link) => link.removeAttribute('aria-current'))
+            tocLinks.get(entry.target.id)?.setAttribute('aria-current', 'true')
+          }
+        }, { rootMargin: '-72px 0px -70% 0px' })
+        tocLinks.forEach((_, id) => {
+          const target = document.getElementById(id)
+          if (target) observer.observe(target)
+        })
+      }
+    </script>
+  </body>
+</html>

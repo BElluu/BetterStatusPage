@@ -1,0 +1,23 @@
+---
+import { render } from 'astro:content'
+import Docs from '../layouts/Docs.astro'
+import { descriptionOf, getGuides, titleOf, type Guide } from '../nav'
+
+export async function getStaticPaths() {
+  const guides = await getGuides()
+  return guides.map((guide) => ({ params: { slug: guide.id }, props: { guide } }))
+}
+
+const { guide } = Astro.props as { guide: Guide }
+const { Content, headings } = await render(guide)
+---
+
+<Docs
+  title={titleOf(guide)}
+  description={descriptionOf(guide)}
+  slug={guide.id}
+  headings={headings}
+  editPath={guide.filePath?.replace(/^(\.\/)?/, '')}
+>
+  <Content />
+</Docs>

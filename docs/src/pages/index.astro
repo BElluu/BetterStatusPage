@@ -1,0 +1,37 @@
+---
+import Docs from '../layouts/Docs.astro'
+import { descriptionOf, getGuides, getNav, REPO_URL } from '../nav'
+
+const nav = await getNav()
+const descriptions = new Map((await getGuides()).map((guide) => [guide.id, descriptionOf(guide)]))
+---
+
+<Docs title="Better Status Page documentation">
+  <header class="article-header hero" slot="header">
+    <p class="eyebrow">Documentation</p>
+    <h1>Run your own status page</h1>
+    <p class="lede">
+      Better Status Page is a self-hosted status page and uptime monitor. These guides cover installing it,
+      keeping it running, and connecting it to the tools your team already uses.
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="/deployment/">Deploy it</a>
+      <a class="btn btn-outline" href="https://demo.betterstatuspage.dev/">Try the demo</a>
+      <a class="btn btn-ghost" href={REPO_URL}>GitHub</a>
+    </div>
+  </header>
+
+  {nav.map((section) => (
+    <section class="card-section">
+      <h2 class="nav-label">{section.label}</h2>
+      <div class="cards">
+        {section.links.map((link) => (
+          <a class="card" href={link.href}>
+            <span class="card-title">{link.label}</span>
+            <span class="card-text">{descriptions.get(link.slug)}</span>
+          </a>
+        ))}
+      </div>
+    </section>
+  ))}
+</Docs>
