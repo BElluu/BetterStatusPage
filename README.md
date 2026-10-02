@@ -15,6 +15,8 @@
 *Monitor your services. Alert your team. Keep your users in the loop.*
 *No cloud. No subscription. No drama.*
 
+**[🌐 Website](https://betterstatuspage.dev)** · **[🚀 Live demo](https://demo.betterstatuspage.dev/)** · **[📖 Documentation](https://docs.betterstatuspage.dev)**
+
 [![Node.js](https://img.shields.io/badge/Node.js-26+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev)
@@ -48,12 +50,12 @@ Thank you in advance for your interest in the project and for every installation
 
 Full documentation: **https://docs.betterstatuspage.dev**. Before exposing a production instance, read:
 
-- [Deployment guide](docs/deployment.md)
-- [Backup and restore guide](docs/backup-restore.md)
-- [Alert hygiene guide](docs/alert-hygiene.md)
-- [Status page subscriptions guide](docs/subscriptions.md)
-- [Private status page guide](docs/private-status-page.md)
-- [Security policy](SECURITY.md)
+- [Deployment guide](https://docs.betterstatuspage.dev/deployment/)
+- [Backup and restore guide](https://docs.betterstatuspage.dev/backup-restore/)
+- [Alert hygiene guide](https://docs.betterstatuspage.dev/alert-hygiene/)
+- [Status page subscriptions guide](https://docs.betterstatuspage.dev/subscriptions/)
+- [Private status page guide](https://docs.betterstatuspage.dev/private-status-page/)
+- [Security policy](https://github.com/BElluu/BetterStatusPage/security/policy)
 
 ---
 
@@ -89,9 +91,9 @@ Recovery notifications are optional per channel — because sometimes you want t
 
 Every delivery is persisted with its individual attempts. Failed sends retry automatically after 1 and 5 minutes, then remain visible in the admin delivery history for manual retry. Delivery history is retained for 180 days.
 
-> See **[docs/discord-integration.md](docs/discord-integration.md)** for a step-by-step Discord setup guide.
-> See **[docs/teams-integration.md](docs/teams-integration.md)** for a step-by-step Microsoft Teams setup guide.
-> See **[docs/slack-integration.md](docs/slack-integration.md)** for a step-by-step Slack setup guide.
+> See **[docs.betterstatuspage.dev/discord-integration](https://docs.betterstatuspage.dev/discord-integration/)** for a step-by-step Discord setup guide.
+> See **[docs.betterstatuspage.dev/teams-integration](https://docs.betterstatuspage.dev/teams-integration/)** for a step-by-step Microsoft Teams setup guide.
+> See **[docs.betterstatuspage.dev/slack-integration](https://docs.betterstatuspage.dev/slack-integration/)** for a step-by-step Slack setup guide.
 
 ### 🤫 Alert hygiene — the reason people keep alerts switched on
 
@@ -104,7 +106,7 @@ An alerting system you had to mute is worse than no alerting system. Four contro
 
 Everything the rules stop is still recorded in the delivery history with the reason — so you can check what was *not* sent and loosen the rule if it was too strict.
 
-> See **[docs/alert-hygiene.md](docs/alert-hygiene.md)** for how the rules combine, how to pick values, and the API shape.
+> See **[docs.betterstatuspage.dev/alert-hygiene](https://docs.betterstatuspage.dev/alert-hygiene/)** for how the rules combine, how to pick values, and the API shape.
 
 ### 🔐 A vault for your secrets
 
@@ -126,7 +128,7 @@ Let your team sign in with the identity provider they already use — **Microsof
 - **Infrastructure-as-code friendly** — the same settings can come from `OIDC_*` environment variables, which then override and lock the UI form.
 - **Audited** — every sign-in, allowed or denied, and every settings change lands in the audit log (the secret never does).
 
-> See **[docs/single-sign-on.md](docs/single-sign-on.md)** for setup, provider notes and troubleshooting.
+> See **[docs.betterstatuspage.dev/single-sign-on](https://docs.betterstatuspage.dev/single-sign-on/)** for setup, provider notes and troubleshooting.
 
 ### 🎨 A drag-and-drop page builder
 
@@ -146,7 +148,7 @@ Notification channels wake up your team; subscriptions keep **your users** in th
 - **Configurable webhooks** — subscribers pick the HTTP method and custom headers, can be emailed when their endpoint stops responding, and failing endpoints are paused automatically
 - **A safe public form** — rate limit, honeypot, no way to discover who is subscribed, and webhook URLs that can never point into your own network
 
-> See **[docs/subscriptions.md](docs/subscriptions.md)** for setup, delivery rules and the webhook payload.
+> See **[docs.betterstatuspage.dev/subscriptions](https://docs.betterstatuspage.dev/subscriptions/)** for setup, delivery rules and the webhook payload.
 
 ### 🔒 Private status pages
 
@@ -156,7 +158,7 @@ Not every status page is for the whole internet. Switch on **Users → Status pa
 - **Viewer accounts from SSO** — optionally, anyone who signs in through your identity provider with a verified email from a domain you list gets a Viewer account on their first visit
 - **Nothing leaks** — status data, history and the live stream need a session; feeds and the JSON status API switch off; responses are marked `private` and `noindex`
 
-> See **[docs/private-status-page.md](docs/private-status-page.md)** for who can view a private page and what it switches off.
+> See **[docs.betterstatuspage.dev/private-status-page](https://docs.betterstatuspage.dev/private-status-page/)** for who can view a private page and what it switches off.
 
 ### 🔧 Maintenance windows
 
@@ -302,7 +304,7 @@ chmod 600 .env
 Edit `.env` and set at least:
 
 ```env
-BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.6
+BSP_IMAGE=ghcr.io/belluu/better-status-page:0.2.0
 JWT_SECRET=<random 32+ char secret>
 VAULT_ENCRYPTION_KEY=<64-char hex key>
 ```
@@ -320,7 +322,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Open `http://your-server:3000/admin` for first-run setup. For internet-facing deployments, put Nginx/SSL in front and keep the application port private. See [docs/deployment.md](docs/deployment.md).
+Open `http://your-server:3000/admin` for first-run setup. For internet-facing deployments, put Nginx/SSL in front and keep the application port private. See [docs.betterstatuspage.dev/deployment](https://docs.betterstatuspage.dev/deployment/).
 
 ---
 
@@ -393,7 +395,7 @@ Copy `.env.example` to `.env`:
 ```env
 PORT=3000
 NODE_ENV=production
-BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.6
+BSP_IMAGE=ghcr.io/belluu/better-status-page:0.2.0
 BSP_BIND_ADDRESS=127.0.0.1
 
 JWT_SECRET=something-long-random-and-secret
@@ -436,9 +438,9 @@ SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
 | **admin** | Everything, including users, single sign-on, vaults, audit log, and backups |
 | **operator** | Monitors, incidents, maintenance, notifications, page builder, branding, localization, and settings |
 | **branding** | Page builder, branding, localization, and account settings |
-| **viewer** | Views a [private status page](docs/private-status-page.md); no access to the admin console |
+| **viewer** | Views a [private status page](https://docs.betterstatuspage.dev/private-status-page/); no access to the admin console |
 
-Administrator sessions are stored server-side and authenticated with an `HttpOnly`, `SameSite=Strict` cookie. State-changing browser requests require a matching CSRF token. Users of the admin console can enable TOTP two-factor authentication from **Settings** and receive eight single-use recovery codes; it applies to password and SSO sign-ins alike. Administrators can also enable [OpenID Connect single sign-on](docs/single-sign-on.md) from **Users → Single sign-on**. Sensitive actions (sign-in settings, 2FA, password changes) are confirmed the way the session signed in: with the current password, or by signing in again at the identity provider in a pop-up.
+Administrator sessions are stored server-side and authenticated with an `HttpOnly`, `SameSite=Strict` cookie. State-changing browser requests require a matching CSRF token. Users of the admin console can enable TOTP two-factor authentication from **Settings** and receive eight single-use recovery codes; it applies to password and SSO sign-ins alike. Administrators can also enable [OpenID Connect single sign-on](https://docs.betterstatuspage.dev/single-sign-on/) from **Users → Single sign-on**. Sensitive actions (sign-in settings, 2FA, password changes) are confirmed the way the session signed in: with the current password, or by signing in again at the identity provider in a pop-up.
 
 ---
 
@@ -490,7 +492,7 @@ To build the image from source instead, clone the repository and use the local o
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 ```
 
-See **[docs/deployment.md](docs/deployment.md)** for the full deployment guide, including Nginx + SSL setup, bare-metal install, PM2, backups, and firewall configuration.
+See **[docs.betterstatuspage.dev/deployment](https://docs.betterstatuspage.dev/deployment/)** for the full deployment guide, including Nginx + SSL setup, bare-metal install, PM2, backups, and firewall configuration.
 
 ---
 
@@ -506,7 +508,7 @@ Before making an instance public:
 - Create a backup and verify it.
 - Perform a test restore on a non-production copy.
 - Confirm release checks are green: lint, tests, build, Docker build, and E2E on Linux CI.
-- Review [SECURITY.md](SECURITY.md) before opening public issue reporting.
+- Review the [security policy](https://github.com/BElluu/BetterStatusPage/security/policy) before opening public issue reporting.
 
 ---
 

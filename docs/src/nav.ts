@@ -40,6 +40,10 @@ const SECTIONS: { label: string; items: { slug: string; label?: string }[] }[] =
     label: 'Security',
     items: [{ slug: 'single-sign-on' }],
   },
+  {
+    label: 'Releases',
+    items: [{ slug: 'changelog' }],
+  },
 ]
 
 export interface NavLink {
