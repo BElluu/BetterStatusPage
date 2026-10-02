@@ -15,6 +15,8 @@
 *Monitoruj swoje usługi. Powiadamiaj zespół. Informuj użytkowników na bieżąco.*
 *Bez chmury. Bez abonamentu. Bez dramy.*
 
+**[🌐 Strona projektu](https://betterstatuspage.dev)** · **[🚀 Demo na żywo](https://demo.betterstatuspage.dev/)** · **[📖 Dokumentacja](https://docs.betterstatuspage.dev)**
+
 [![Node.js](https://img.shields.io/badge/Node.js-26+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev)
@@ -48,12 +50,12 @@ Z góry dziękuję za zainteresowanie projektem oraz za każdą instalację, tes
 
 Pełna dokumentacja (EN): **https://docs.betterstatuspage.dev**. Zanim wystawisz instancję produkcyjną, przeczytaj:
 
-- [Przewodnik wdrożeniowy](docs/deployment.md) *(EN)*
-- [Przewodnik po kopiach zapasowych i przywracaniu](docs/backup-restore.md) *(EN)*
-- [Przewodnik po higienie alertów](docs/alert-hygiene.md) *(EN)*
-- [Przewodnik po subskrypcjach strony statusu](docs/subscriptions.md) *(EN)*
-- [Przewodnik po prywatnej stronie statusu](docs/private-status-page.md) *(EN)*
-- [Polityka bezpieczeństwa](SECURITY.md) *(EN)*
+- [Przewodnik wdrożeniowy](https://docs.betterstatuspage.dev/deployment/) *(EN)*
+- [Przewodnik po kopiach zapasowych i przywracaniu](https://docs.betterstatuspage.dev/backup-restore/) *(EN)*
+- [Przewodnik po higienie alertów](https://docs.betterstatuspage.dev/alert-hygiene/) *(EN)*
+- [Przewodnik po subskrypcjach strony statusu](https://docs.betterstatuspage.dev/subscriptions/) *(EN)*
+- [Przewodnik po prywatnej stronie statusu](https://docs.betterstatuspage.dev/private-status-page/) *(EN)*
+- [Polityka bezpieczeństwa](https://github.com/BElluu/BetterStatusPage/security/policy) *(EN)*
 
 ---
 
@@ -89,9 +91,9 @@ Powiadomienia o przywróceniu są opcjonalne dla każdego kanału — bo czasem 
 
 Każda wysyłka jest zapisywana wraz z poszczególnymi próbami. Nieudane wysyłki są automatycznie ponawiane po 1 i 5 minutach, a potem pozostają widoczne w historii dostarczeń w panelu admina do ręcznego ponowienia. Historia dostarczeń jest przechowywana przez 180 dni.
 
-> Zobacz **[docs/discord-integration.md](docs/discord-integration.md)** — konfiguracja Discorda krok po kroku *(EN)*.
-> Zobacz **[docs/teams-integration.md](docs/teams-integration.md)** — konfiguracja Microsoft Teams krok po kroku *(EN)*.
-> Zobacz **[docs/slack-integration.md](docs/slack-integration.md)** — konfiguracja Slacka krok po kroku *(EN)*.
+> Zobacz **[docs.betterstatuspage.dev/discord-integration](https://docs.betterstatuspage.dev/discord-integration/)** — konfiguracja Discorda krok po kroku *(EN)*.
+> Zobacz **[docs.betterstatuspage.dev/teams-integration](https://docs.betterstatuspage.dev/teams-integration/)** — konfiguracja Microsoft Teams krok po kroku *(EN)*.
+> Zobacz **[docs.betterstatuspage.dev/slack-integration](https://docs.betterstatuspage.dev/slack-integration/)** — konfiguracja Slacka krok po kroku *(EN)*.
 
 ### 🤫 Higiena alertów — powód, dla którego ludzie nie wyłączają powiadomień
 
@@ -104,7 +106,7 @@ System alertów, który musisz wyciszyć, jest gorszy niż brak systemu alertów
 
 Wszystko, co zatrzymają reguły, i tak trafia do historii dostarczeń wraz z powodem — możesz więc sprawdzić, co *nie* zostało wysłane, i poluzować regułę, jeśli była zbyt restrykcyjna.
 
-> Zobacz **[docs/alert-hygiene.md](docs/alert-hygiene.md)** — jak reguły się łączą, jak dobrać wartości i jak wygląda API *(EN)*.
+> Zobacz **[docs.betterstatuspage.dev/alert-hygiene](https://docs.betterstatuspage.dev/alert-hygiene/)** — jak reguły się łączą, jak dobrać wartości i jak wygląda API *(EN)*.
 
 ### 🔐 Sejf na Twoje sekrety
 
@@ -126,7 +128,7 @@ Pozwól zespołowi logować się dostawcą tożsamości, którego już używa �
 - **Przyjazne dla infrastruktury jako kod** — te same ustawienia mogą pochodzić ze zmiennych `OIDC_*`, które wtedy nadpisują formularz i go blokują.
 - **Audytowane** — każde logowanie, udane czy odrzucone, i każda zmiana ustawień trafia do dziennika audytu (sekret nigdy).
 
-> Zobacz **[docs/single-sign-on.md](docs/single-sign-on.md)** — konfiguracja, uwagi o dostawcach i rozwiązywanie problemów (po angielsku).
+> Zobacz **[docs.betterstatuspage.dev/single-sign-on](https://docs.betterstatuspage.dev/single-sign-on/)** — konfiguracja, uwagi o dostawcach i rozwiązywanie problemów *(EN)*.
 
 ### 🎨 Kreator stron metodą przeciągnij i upuść
 
@@ -146,7 +148,7 @@ Kanały powiadomień budzą Twój zespół, a subskrypcje informują **Twoich u�
 - **Konfigurowalne webhooki** — subskrybent wybiera metodę HTTP i własne nagłówki, może dostać maila, gdy jego endpoint przestanie odpowiadać, a stale zawodzące endpointy są automatycznie wstrzymywane
 - **Bezpieczny publiczny formularz** — limit żądań, honeypot, brak możliwości sprawdzenia, kto jest zapisany, i adresy webhooków, które nigdy nie wskażą Twojej sieci wewnętrznej
 
-> Zobacz **[docs/subscriptions.md](docs/subscriptions.md)** — konfiguracja, zasady dostarczania i format webhooka *(EN)*.
+> Zobacz **[docs.betterstatuspage.dev/subscriptions](https://docs.betterstatuspage.dev/subscriptions/)** — konfiguracja, zasady dostarczania i format webhooka *(EN)*.
 
 ### 🔒 Prywatne strony statusu
 
@@ -156,7 +158,7 @@ Nie każda strona statusu jest dla całego internetu. Włącz **Users → Status
 - **Konta Viewer z SSO** — opcjonalnie każdy, kto zaloguje się przez Twojego dostawcę tożsamości ze zweryfikowanym adresem email z domeny z listy, dostaje konto Viewer przy pierwszej wizycie
 - **Nic nie wycieka** — dane statusu, historia i strumień na żywo wymagają sesji; kanały RSS/Atom i JSON API statusu są wyłączone; odpowiedzi są oznaczone jako `private` i `noindex`
 
-> Zobacz **[docs/private-status-page.md](docs/private-status-page.md)** — kto może oglądać prywatną stronę i co jest wtedy wyłączone *(EN)*.
+> Zobacz **[docs.betterstatuspage.dev/private-status-page](https://docs.betterstatuspage.dev/private-status-page/)** — kto może oglądać prywatną stronę i co jest wtedy wyłączone *(EN)*.
 
 ### 🔧 Okna serwisowe
 
@@ -302,7 +304,7 @@ chmod 600 .env
 Edytuj `.env` i ustaw co najmniej:
 
 ```env
-BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.6
+BSP_IMAGE=ghcr.io/belluu/better-status-page:0.2.0
 JWT_SECRET=<losowy sekret, min. 32 znaki>
 VAULT_ENCRYPTION_KEY=<64-znakowy klucz hex>
 ```
@@ -320,7 +322,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Otwórz `http://your-server:3000/admin`, by przejść konfigurację początkową. Przy wdrożeniach wystawionych do internetu postaw przed aplikacją Nginx/SSL i nie wystawiaj publicznie portu aplikacji. Zobacz [docs/deployment.md](docs/deployment.md) *(EN)*.
+Otwórz `http://your-server:3000/admin`, by przejść konfigurację początkową. Przy wdrożeniach wystawionych do internetu postaw przed aplikacją Nginx/SSL i nie wystawiaj publicznie portu aplikacji. Zobacz [docs.betterstatuspage.dev/deployment](https://docs.betterstatuspage.dev/deployment/) *(EN)*.
 
 ---
 
@@ -393,7 +395,7 @@ Skopiuj `.env.example` do `.env`:
 ```env
 PORT=3000
 NODE_ENV=production
-BSP_IMAGE=ghcr.io/belluu/better-status-page:0.1.6
+BSP_IMAGE=ghcr.io/belluu/better-status-page:0.2.0
 BSP_BIND_ADDRESS=127.0.0.1
 
 JWT_SECRET=something-long-random-and-secret
@@ -436,9 +438,9 @@ SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
 | **admin** | Wszystko, łącznie z użytkownikami, SSO, sejfami, dziennikiem audytu i kopiami zapasowymi |
 | **operator** | Monitory, incydenty, okna serwisowe, powiadomienia, kreator stron, branding, lokalizacja i ustawienia |
 | **branding** | Kreator stron, branding, lokalizacja i ustawienia konta |
-| **viewer** | Ogląda [prywatną stronę statusu](docs/private-status-page.md); bez dostępu do panelu administracyjnego |
+| **viewer** | Ogląda [prywatną stronę statusu](https://docs.betterstatuspage.dev/private-status-page/); bez dostępu do panelu administracyjnego |
 
-Sesje administratorów są przechowywane po stronie serwera i uwierzytelniane ciasteczkiem `HttpOnly`, `SameSite=Strict`. Żądania przeglądarki zmieniające stan wymagają pasującego tokena CSRF. Użytkownicy panelu administracyjnego mogą włączyć uwierzytelnianie dwuskładnikowe TOTP w **Ustawieniach** i otrzymać osiem jednorazowych kodów odzyskiwania; działa ono zarówno przy logowaniu hasłem, jak i przez SSO. Administratorzy mogą też włączyć [jednokrotne logowanie OpenID Connect](docs/single-sign-on.md) w **Użytkownicy → Single sign-on**. Wrażliwe akcje (ustawienia logowania, 2FA, zmiana hasła) potwierdza się tak, jak zalogowała się sesja: aktualnym hasłem albo ponownym zalogowaniem u dostawcy tożsamości w okienku pop-up.
+Sesje administratorów są przechowywane po stronie serwera i uwierzytelniane ciasteczkiem `HttpOnly`, `SameSite=Strict`. Żądania przeglądarki zmieniające stan wymagają pasującego tokena CSRF. Użytkownicy panelu administracyjnego mogą włączyć uwierzytelnianie dwuskładnikowe TOTP w **Ustawieniach** i otrzymać osiem jednorazowych kodów odzyskiwania; działa ono zarówno przy logowaniu hasłem, jak i przez SSO. Administratorzy mogą też włączyć [jednokrotne logowanie OpenID Connect](https://docs.betterstatuspage.dev/single-sign-on/) w **Użytkownicy → Single sign-on**. Wrażliwe akcje (ustawienia logowania, 2FA, zmiana hasła) potwierdza się tak, jak zalogowała się sesja: aktualnym hasłem albo ponownym zalogowaniem u dostawcy tożsamości w okienku pop-up.
 
 ---
 
@@ -490,7 +492,7 @@ Aby zbudować obraz ze źródeł, sklonuj repozytorium i użyj lokalnego nadpisa
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 ```
 
-Zobacz **[docs/deployment.md](docs/deployment.md)** — pełny przewodnik wdrożeniowy, w tym konfiguracja Nginx + SSL, instalacja bare-metal, PM2, kopie zapasowe i konfiguracja firewalla *(EN)*.
+Zobacz **[docs.betterstatuspage.dev/deployment](https://docs.betterstatuspage.dev/deployment/)** — pełny przewodnik wdrożeniowy, w tym konfiguracja Nginx + SSL, instalacja bare-metal, PM2, kopie zapasowe i konfiguracja firewalla *(EN)*.
 
 ---
 
@@ -506,7 +508,7 @@ Zanim udostępnisz instancję publicznie:
 - Utwórz kopię zapasową i ją zweryfikuj.
 - Wykonaj testowe przywrócenie na nieprodukcyjnej kopii.
 - Upewnij się, że kontrole wydania są zielone: lint, testy, build, build Dockera i E2E na linuksowym CI.
-- Przejrzyj [SECURITY.md](SECURITY.md), zanim otworzysz publiczne zgłaszanie problemów.
+- Przejrzyj [politykę bezpieczeństwa](https://github.com/BElluu/BetterStatusPage/security/policy), zanim otworzysz publiczne zgłaszanie problemów.
 
 ---
 
