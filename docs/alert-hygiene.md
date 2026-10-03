@@ -53,7 +53,7 @@ The colour of each day of the uptime bar comes from global thresholds under
 from 95 %, down below that (defaults). They apply to every monitor.
 
 Do not confuse thresholds with **Attempts** (`retries`). Attempts are retries *inside one check*,
-seconds apart, to ride out a single dropped packet. Thresholds span *whole check intervals*. They
+run back to back after a **Down** result, to ride out a single dropped packet. Thresholds span *whole check intervals*. They
 compose: `Attempts = 2, Alert after = 3` means six probes across three intervals before anyone is
 told.
 

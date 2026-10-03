@@ -70,6 +70,14 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 
 Navigate to `http://your-server:3000/admin` — you'll be greeted by the setup wizard. Create the first administrator account there; the web setup wizard does not read administrator credentials from `.env`.
 
+The wizard has three steps:
+
+1. **Database** — SQLite is the only option and is already selected.
+2. **Admin Account** — email and password (8 to 128 characters). This account gets the `admin` role.
+3. **Done** — the database is created, default branding (site name *My Status Page*) and an empty page layout are added, monitoring starts, and you are signed in.
+
+Setup runs only once. When it finishes, `setup.json` is written to the data directory and the wizard closes. Until then `/ready` returns 503. Further administrators and the other roles are added later under **Users**, see [users and roles](users-and-roles.md).
+
 The status page is at `http://your-server:3000`.
 
 ### Useful commands
@@ -453,9 +461,11 @@ Before exposing an instance publicly:
 | `VAULT_ENCRYPTION_KEY` | Yes (prod) | 64-char hex string (32 bytes) for AES-256-GCM vault encryption. **Changing it makes all stored secrets unreadable.** |
 | `ADMIN_EMAIL` | `db:seed` only | Required only when intentionally running `npm run db:seed`. The web setup wizard does not read it. |
 | `ADMIN_PASSWORD` | `db:seed` only | Required only when intentionally running `npm run db:seed`; minimum 8 characters. |
-| `DATABASE_PATH` | No | Path to the SQLite file. Default: `./data/db.sqlite` |
-| `UPLOAD_DIR` | No | Directory for uploaded files (logos, favicons). Default: `./data/uploads` |
-| `BACKUP_DIR` | No | Directory for generated backup archives. Default: `./data/backups` |
+| `DATA_DIR` | No | Base directory for application data; the four paths below default to locations inside it. Default: `./data` (relative to the working directory) |
+| `DATABASE_PATH` | No | Path to the SQLite file. Default: `<DATA_DIR>/db.sqlite` |
+| `UPLOAD_DIR` | No | Directory for uploaded files (logos, favicons). Default: `<DATA_DIR>/uploads` |
+| `BACKUP_DIR` | No | Directory for generated backup archives. Default: `<DATA_DIR>/backups` (the Docker image sets `/app/backups`) |
+| `SETUP_CONFIG_PATH` | No | Marker file written when the setup wizard finishes. Default: `<DATA_DIR>/setup.json` |
 | `ALLOWED_ORIGINS` | No | Comma-separated CORS origins. Leave unset if Nginx handles CORS, or in single-domain setups. |
 | `TRUST_PROXY` | No | Trusted proxy setting: `1` trusts a proxy on loopback or a private network (Docker bridge included), or give a comma-separated list of addresses/CIDR ranges. Enable only when the app port is not directly exposed. |
 | `PUBLIC_URL` | For email/webhook subscriptions | Public address of the status page, e.g. `https://status.example.com`. All links sent to subscribers are built from it; see [subscriptions](subscriptions.md#public-url). An SSO sign-in started on the sign-in screen of a [private status page](private-status-page.md) also returns to it. |

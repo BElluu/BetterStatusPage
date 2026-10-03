@@ -15,15 +15,18 @@ const SECTIONS: { label: string; items: { slug: string; label?: string }[] }[] =
     items: [{ slug: 'deployment', label: 'Deployment' }],
   },
   {
-    label: 'Operate',
+    label: 'Monitoring',
     items: [
-      { slug: 'backup-restore', label: 'Backup and restore' },
+      { slug: 'monitors', label: 'Monitors' },
+      { slug: 'notification-channels', label: 'Notification channels' },
       { slug: 'alert-hygiene' },
     ],
   },
   {
     label: 'Status page',
     items: [
+      { slug: 'incidents-and-maintenance', label: 'Incidents and maintenance' },
+      { slug: 'customizing-the-status-page', label: 'Customizing the page' },
       { slug: 'subscriptions', label: 'Subscriptions' },
       { slug: 'private-status-page' },
     ],
@@ -38,7 +41,15 @@ const SECTIONS: { label: string; items: { slug: string; label?: string }[] }[] =
   },
   {
     label: 'Security',
-    items: [{ slug: 'single-sign-on' }],
+    items: [
+      { slug: 'users-and-roles', label: 'Users and roles' },
+      { slug: 'single-sign-on' },
+      { slug: 'vault', label: 'Secrets vault' },
+    ],
+  },
+  {
+    label: 'Operate',
+    items: [{ slug: 'backup-restore', label: 'Backup and restore' }],
   },
   {
     label: 'Releases',
