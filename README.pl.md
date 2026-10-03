@@ -55,6 +55,7 @@ Pełna dokumentacja (EN): **https://docs.betterstatuspage.dev**. Zanim wystawisz
 - [Przewodnik po higienie alertów](https://docs.betterstatuspage.dev/alert-hygiene/) *(EN)*
 - [Przewodnik po subskrypcjach strony statusu](https://docs.betterstatuspage.dev/subscriptions/) *(EN)*
 - [Przewodnik po prywatnej stronie statusu](https://docs.betterstatuspage.dev/private-status-page/) *(EN)*
+- [Przewodnik po użytkownikach i rolach](https://docs.betterstatuspage.dev/users-and-roles/) *(EN)*
 - [Polityka bezpieczeństwa](https://github.com/BElluu/BetterStatusPage/security/policy) *(EN)*
 
 ---
@@ -71,7 +72,9 @@ Pełna dokumentacja (EN): **https://docs.betterstatuspage.dev**. Zanim wystawisz
 | **SQL Server** | Wykonuje zapytanie testowe na MSSQL i weryfikuje wynik |
 | **Webhook** *(pasywny)* | Pozwala zewnętrznym usługom pingować *Ciebie*, by zasygnalizować, że żyją — cisza oznacza kłopoty |
 
-Każdy monitor ma: konfigurowalne interwały, timeouty, ponowienia, **kolorowe tagi** do grupowania i **30-dniową historię dostępności**. A, i jest wbudowany tester, więc możesz sprawdzić konfigurację, zanim klikniesz Zapisz i natychmiast tego pożałujesz.
+Każdy monitor ma: konfigurowalne interwały, timeouty, ponowienia, **kolorowe tagi** do grupowania **30-dniowy pasek dostępności** na stronie statusu, a wyniki sprawdzeń są domyślnie przechowywane przez 90 dni. A, i jest wbudowany tester, więc możesz sprawdzić konfigurację, zanim klikniesz Zapisz i natychmiast tego pożałujesz.
+
+> Zobacz **[docs.betterstatuspage.dev/monitors](https://docs.betterstatuspage.dev/monitors/)** — wszystkie typy monitorów, uwierzytelnianie, adresy heartbeat, ostrzeżenia o certyfikatach i zależności *(EN)*.
 
 ### 🔔 Powiadomienia, które faktycznie docierają do ludzi
 
@@ -91,6 +94,7 @@ Powiadomienia o przywróceniu są opcjonalne dla każdego kanału — bo czasem 
 
 Każda wysyłka jest zapisywana wraz z poszczególnymi próbami. Nieudane wysyłki są automatycznie ponawiane po 1 i 5 minutach, a potem pozostają widoczne w historii dostarczeń w panelu admina do ręcznego ponowienia. Historia dostarczeń jest przechowywana przez 180 dni.
 
+> Zobacz **[docs.betterstatuspage.dev/notification-channels](https://docs.betterstatuspage.dev/notification-channels/)** — email, webhook, zmienne szablonu i ponawianie dostarczeń *(EN)*.
 > Zobacz **[docs.betterstatuspage.dev/discord-integration](https://docs.betterstatuspage.dev/discord-integration/)** — konfiguracja Discorda krok po kroku *(EN)*.
 > Zobacz **[docs.betterstatuspage.dev/teams-integration](https://docs.betterstatuspage.dev/teams-integration/)** — konfiguracja Microsoft Teams krok po kroku *(EN)*.
 > Zobacz **[docs.betterstatuspage.dev/slack-integration](https://docs.betterstatuspage.dev/slack-integration/)** — konfiguracja Slacka krok po kroku *(EN)*.
@@ -116,7 +120,9 @@ Trzymanie haseł w zmiennych środowiskowych jest w porządku — do czasu. Bett
 - **value** — pojedynczy sekret (token API, connection string)
 - **json** — pełny obiekt JSON z **mapowaniem pól**, by wybrać dokładnie te klucze, których potrzebujesz
 
-Twoje sekrety nigdy nie pojawiają się w logach, odpowiedziach API ani w `git diff`.
+Twoje sekrety nigdy nie pojawiają się w logach, listach zwracanych przez API, dzienniku audytu ani w `git diff` — wartość widzi tylko administrator, który kliknie **Reveal**.
+
+> Zobacz **[docs.betterstatuspage.dev/vault](https://docs.betterstatuspage.dev/vault/)** — typy sekretów, mapowanie pól i gdzie można ich używać *(EN)*.
 
 ### 🔑 Jednokrotne logowanie (SSO) przez OpenID Connect
 
@@ -133,6 +139,8 @@ Pozwól zespołowi logować się dostawcą tożsamości, którego już używa �
 ### 🎨 Kreator stron metodą przeciągnij i upuść
 
 Publiczna strona statusu to nie tylko lista zielonych kropek. To w pełni konfigurowalny układ siatki, który projektujesz samodzielnie — przeciągnij karty monitorów, pogrupuj je według usług (i przeciągaj je do grup i z grup), dodaj bloki tekstu w markdownie, wrzuć kanał incydentów, zmień rozmiary, gotowe. Bez CSS.
+
+> Zobacz **[docs.betterstatuspage.dev/customizing-the-status-page](https://docs.betterstatuspage.dev/customizing-the-status-page/)** — bloki kreatora, branding, tryb ciemny i tłumaczenia *(EN)*.
 
 ### 📢 Zarządzanie incydentami
 
@@ -167,9 +175,11 @@ Masz zaplanowaną migrację bazy na 3 w nocy? Daj ludziom znać wcześniej, zami
 Okna serwisowe wyciszają szum alertów na czas planowanej niedostępności — koniec z budzeniem dyżurnych z powodu prac, które robisz celowo. Utwórz okno z nazwą, opisem, czasem rozpoczęcia i zakończenia, i opcjonalnie ogranicz je do wybranych monitorów (albo przełącz na „wszystkie monitory"). Gdy okno jest aktywne:
 
 - Kanały powiadomień milczą dla objętych monitorów — zmiany statusu są nadal śledzone, tylko nikt o nich nie krzyczy
-- Publiczna strona statusu wyświetla bursztynowy baner z nazwą okna i czasem zakończenia
+- Publiczna strona statusu wyświetla baner prac serwisowych z nazwą okna i czasem zakończenia
 - Karty poszczególnych monitorów pokazują znacznik **MAINTENANCE**, żeby odwiedzający wiedzieli, co się dzieje
 - Panel admina dzieli okna na **Aktywne / Nadchodzące / Minione**, więc zawsze wiesz, co jest zaplanowane
+
+> Zobacz **[docs.betterstatuspage.dev/incidents-and-maintenance](https://docs.betterstatuspage.dev/incidents-and-maintenance/)** — statusy i wpływ incydentów oraz co dokładnie wycisza okno serwisowe *(EN)*.
 
 ### 🕵️ Dziennik audytu
 
@@ -190,6 +200,9 @@ Każda zmiana w panelu admina jest rejestrowana — kto, kiedy i co dokładnie z
 | Użytkownicy | Tworzenie, zmiana roli, reset hasła, usuwanie |
 | Bezpieczeństwo konta | Włączenie lub wyłączenie uwierzytelniania dwuskładnikowego TOTP, zmiana hasła, powiązanie konta z SSO, unieważnienie hasła tymczasowego |
 | Ustawienia SSO | Konfiguracja lub zmiana ustawień OpenID Connect |
+| Branding, kreator strony, tłumaczenia | Zapis brandingu i układu, zmiany lokalizacji i tłumaczeń |
+| Kopie zapasowe | Utworzenie lub usunięcie kopii, zmiany harmonogramu automatycznych kopii |
+| Dostarczenia powiadomień | Ręczne ponowienie nieudanego dostarczenia |
 | Dostęp do strony statusu | Przełączenie strony na prywatną lub publiczną, konta Viewer z SSO i ich domeny email |
 | Logowania | Każde logowanie hasłem lub przez SSO: udane albo odrzucone z powodem (nieznany email, błędne hasło, błędny kod 2FA, odmowa SSO…) |
 
@@ -198,10 +211,10 @@ Strona dziennika audytu (tylko dla adminów) pozwala filtrować po **użytkownik
 ### 🌍 i18n, branding i cała reszta
 
 - **Obsługa wielu języków** — dodaj własną lokalizację, przetłumacz każdy tekst, ustaw domyślny; angielski i polski (`pl`) mają kompletne wbudowane tłumaczenia
-- **Pełny branding** — nazwa strony, logo (warianty jasne/ciemne lub tekstowe), favicon, 14 kolorów motywu i pole na własny CSS, gdy naprawdę chcesz poszaleć
+- **Pełny branding** — nazwa strony, logo (warianty jasne/ciemne lub tekstowe), 14 kolorów motywu i pole na własny CSS, gdy naprawdę chcesz poszaleć
 - **Progi paska uptime** — ustaw dzienne progi dostępności (domyślnie 99,9 / 99 / 95), przy których 30-dniowy pasek robi się zielony, żółty, pomarańczowy lub czerwony
 - **Przełączniki układu** — ukryj nagłówek ze statusem, stopkę albo mały link BetterStatusPage w prawym dolnym rogu
-- **Tryb ciemny** — bo dziś to obowiązek, a nie opcja
+- **Tryb ciemny** — bo dziś to obowiązek, a nie opcja. Odwiedzający przełączają się między jasnym a ciemnym; po włączeniu własnego brandingu strona dostaje zamiast tego jeden uniwersalny motyw w Twoich kolorach
 
 ### 🔗 Zależności między monitorami
 
@@ -260,11 +273,11 @@ Zmiany statusu docierają zarówno do panelu admina, jak i do strony publicznej 
 
 **SQLite zamiast Postgresa** — Strona statusu dla większości zespołów nie potrzebuje serwera bazy danych. SQLite w trybie WAL bez wysiłku obsługuje współbieżne odczyty i zapisy, nie wymaga żadnej administracji, a cała baza to jeden plik, który możesz zarchiwizować przez `cp`. Jeśli Twoja strona statusu urośnie do momentu, w którym SQLite stanie się wąskim gardłem, masz znacznie większe problemy (i pewnie dedykowany zespół ops).
 
-**SSE zamiast WebSocketów** — Aktualizacje statusu płyną wyłącznie w kierunku serwer → klient. SSE radzi sobie z tym idealnie, używa zwykłego HTTP, działa przez proxy bez zmian w konfiguracji i sam się ponownie łączy. Po co strzelać z armaty do wróbla?
+**SSE zamiast WebSocketów** — Aktualizacje statusu płyną wyłącznie w kierunku serwer → klient. SSE radzi sobie z tym idealnie, używa zwykłego HTTP, od reverse proxy wymaga jedynie wyłączenia buforowania i sam się ponownie łączy. Po co strzelać z armaty do wróbla?
 
 **Monorepo z `@bsp/shared`** — API i oba frontendy współdzielą jeden pakiet TypeScript ze wszystkimi typami domenowymi. Zmieniasz typ w jednym miejscu, a kompilator krzyczy wszędzie tam, gdzie to ma znaczenie. Żadnych post-mortemów w stylu „zapomnieliśmy zaktualizować typy na froncie".
 
-**Sejf AES-256-GCM w procesie** — Losowy 12-bajtowy IV dla każdego sekretu, weryfikacja tagu uwierzytelniającego przy odszyfrowaniu, sekrety nigdy nie trafiają do logów. To nie zamiennik HashiCorp Vault dla 500-osobowego działu inżynierii, ale wszystko, czego potrzebują zespoły chcące mieć szyfrowane sekrety bez stawiania kolejnej usługi.
+**Sejf AES-256-GCM w procesie** — Losowy 12-bajtowy IV dla każdego sekretu, weryfikacja tagu uwierzytelniającego przy odszyfrowaniu, sekrety nigdy nie trafiają do logów. Wszystko, czego potrzebuje mały zespół, by mieć szyfrowane sekrety bez stawiania kolejnej usługi.
 
 ---
 
