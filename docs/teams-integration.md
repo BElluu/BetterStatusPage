@@ -114,7 +114,7 @@ Repeat for any other monitors you want covered.
 
 1. Go back to **Notifications**.
 2. Click the edit icon on your Teams channel.
-3. Click **Send Test** at the bottom of the form.
+3. Click **Send test (saved settings)** at the bottom of the form. The button sends the saved channel, so save any changes first.
 4. Check your Teams channel — a test card should appear within a few seconds.
 
 If the card does not arrive, verify the webhook URL. A deleted or expired workflow will return HTTP 404 or 410, which BSP will log as a channel error.

@@ -55,6 +55,7 @@ Full documentation: **https://docs.betterstatuspage.dev**. Before exposing a pro
 - [Alert hygiene guide](https://docs.betterstatuspage.dev/alert-hygiene/)
 - [Status page subscriptions guide](https://docs.betterstatuspage.dev/subscriptions/)
 - [Private status page guide](https://docs.betterstatuspage.dev/private-status-page/)
+- [Users and roles guide](https://docs.betterstatuspage.dev/users-and-roles/)
 - [Security policy](https://github.com/BElluu/BetterStatusPage/security/policy)
 
 ---
@@ -71,7 +72,9 @@ Full documentation: **https://docs.betterstatuspage.dev**. Before exposing a pro
 | **SQL Server** | Runs a test query against MSSQL and validates the result |
 | **Webhook** *(passive)* | Lets external services ping *you* to signal they're alive — silence means trouble |
 
-Every monitor gets: configurable intervals, timeouts, retries, **color-coded tags** for grouping, and a **30-day uptime history**. Oh, and there's a built-in test runner so you can validate your config before hitting Save and immediately regretting it.
+Every monitor gets: configurable intervals, timeouts, retries, **color-coded tags** for grouping, a **30-day uptime bar** on the status page, and 90 days of check results kept by default. Oh, and there's a built-in test runner so you can validate your config before hitting Save and immediately regretting it.
+
+> See **[docs.betterstatuspage.dev/monitors](https://docs.betterstatuspage.dev/monitors/)** for every monitor type, auth flows, heartbeat URLs, certificate warnings and dependencies.
 
 ### 🔔 Notifications that actually reach people
 
@@ -91,6 +94,7 @@ Recovery notifications are optional per channel — because sometimes you want t
 
 Every delivery is persisted with its individual attempts. Failed sends retry automatically after 1 and 5 minutes, then remain visible in the admin delivery history for manual retry. Delivery history is retained for 180 days.
 
+> See **[docs.betterstatuspage.dev/notification-channels](https://docs.betterstatuspage.dev/notification-channels/)** for email, webhook, template variables and delivery retries.
 > See **[docs.betterstatuspage.dev/discord-integration](https://docs.betterstatuspage.dev/discord-integration/)** for a step-by-step Discord setup guide.
 > See **[docs.betterstatuspage.dev/teams-integration](https://docs.betterstatuspage.dev/teams-integration/)** for a step-by-step Microsoft Teams setup guide.
 > See **[docs.betterstatuspage.dev/slack-integration](https://docs.betterstatuspage.dev/slack-integration/)** for a step-by-step Slack setup guide.
@@ -116,7 +120,9 @@ Storing passwords in environment variables is fine until it isn't. BetterStatusP
 - **value** — a single secret string (API token, connection string)
 - **json** — a full JSON object, with **field mapping** to pick out exactly the keys you need
 
-Your secrets never appear in logs, API responses, or your `git diff`.
+Your secrets never appear in logs, list responses, the audit log, or your `git diff` — only an administrator who clicks **Reveal** sees a value.
+
+> See **[docs.betterstatuspage.dev/vault](https://docs.betterstatuspage.dev/vault/)** for secret types, field mapping and where secrets can be used.
 
 ### 🔑 Single sign-on with OpenID Connect
 
@@ -133,6 +139,8 @@ Let your team sign in with the identity provider they already use — **Microsof
 ### 🎨 A drag-and-drop page builder
 
 The public status page isn't just a list of green dots. It's a fully customizable grid layout you design yourself — drag in monitor cards, group them by service (and drag them into or out of groups), add markdown text blocks, drop in an incident feed, resize everything, done. No CSS required.
+
+> See **[docs.betterstatuspage.dev/customizing-the-status-page](https://docs.betterstatuspage.dev/customizing-the-status-page/)** for the builder blocks, branding, dark mode and translations.
 
 ### 📢 Incident management
 
@@ -167,9 +175,11 @@ Scheduled that 3 AM database migration? Let people know in advance instead of le
 Maintenance windows suppress alert noise for the duration of planned downtime — no more on-call pages for work you're doing on purpose. Create a window with a name, description, start/end time, and optionally scope it to specific monitors (or flip the switch for "all monitors"). While a window is active:
 
 - Notification channels stay quiet for affected monitors — status changes are still tracked, just not shouted
-- The public status page shows an amber banner with the window name and end time
+- The public status page shows a maintenance banner with the window name and end time
 - Individual monitor cards display a **MAINTENANCE** chip so visitors know what's happening
 - The admin dashboard sorts windows into **Active / Upcoming / Past** so you always know what's scheduled
+
+> See **[docs.betterstatuspage.dev/incidents-and-maintenance](https://docs.betterstatuspage.dev/incidents-and-maintenance/)** for incident statuses, impact and exactly what a maintenance window silences.
 
 ### 🕵️ Audit log
 
@@ -190,6 +200,9 @@ Every mutation in the admin panel is recorded — who did it, when, and exactly 
 | Users | Create, role change, password reset, delete |
 | Account security | Enable or disable TOTP two-factor authentication, password changes, SSO account linking, revoked temporary passwords |
 | SSO settings | Configure or change OpenID Connect settings |
+| Branding, page builder, translations | Branding saves, layout saves, locale and translation changes |
+| Backups | Backup created or deleted, automatic backup schedule changes |
+| Notification deliveries | Manual retry of a failed delivery |
 | Status page access | Make the status page private or public, viewer accounts from SSO and their email domains |
 | Sign-ins | Every sign-in with a password or SSO: allowed, or denied with the reason (unknown email, wrong password, wrong 2FA code, refused by SSO…) |
 
@@ -198,10 +211,10 @@ The audit log page (admin-only) lets you filter by **user**, **entity type**, **
 ### 🌍 i18n, branding, the works
 
 - **Multi-language support** — add your own locale, translate every string, set a default; English and Polish (`pl`) ship with complete built-in copy
-- **Full branding** — site name, logo (light/dark variants or text), favicon, 14 theme colors, and a custom CSS field for when you really want to go wild
+- **Full branding** — site name, logo (light/dark variants or text), 14 theme colors, and a custom CSS field for when you really want to go wild
 - **Uptime bar thresholds** — choose the daily uptime percentages (defaults 99.9 / 99 / 95) at which the 30-day bar turns green, yellow, orange or red
 - **Layout toggles** — hide the status headline, the footer, or the small BetterStatusPage link in the bottom-right corner
-- **Dark mode** — because it's not optional anymore
+- **Dark mode** — because it's not optional anymore. Visitors switch between light and dark; with custom branding on, the page gets one universal theme in your own colours instead
 
 ### 🔗 Monitor dependencies
 
@@ -260,11 +273,11 @@ Status changes propagate to both the admin dashboard and the public page instant
 
 **SQLite instead of Postgres** — A status page for most teams doesn't need a database server. SQLite in WAL mode handles concurrent reads and writes without breaking a sweat, has zero ops overhead, and your entire database is a single file you can back up with `cp`. If your status page grows to the point where SQLite is a bottleneck, you have much bigger problems (and probably a dedicated ops team).
 
-**SSE instead of WebSockets** — Status updates only ever flow server → client. SSE handles that perfectly, uses plain HTTP, works through proxies without config changes, and auto-reconnects. Why bring a bazooka to a knife fight?
+**SSE instead of WebSockets** — Status updates only ever flow server → client. SSE handles that perfectly, uses plain HTTP, needs nothing from a reverse proxy beyond turning buffering off, and auto-reconnects. Why bring a bazooka to a knife fight?
 
 **Monorepo with `@bsp/shared`** — The API and both frontends share one TypeScript package for all domain types. Change a type in one place, the compiler yells at you everywhere it matters. No "oh we forgot to update the frontend types" post-mortems.
 
-**AES-256-GCM vault in-process** — A random 12-byte IV per secret, authentication tag verification on decrypt, secrets never logged. Not a replacement for HashiCorp Vault on a 500-person engineering team, but everything you need for teams who want encrypted secrets without standing up another service.
+**AES-256-GCM vault in-process** — A random 12-byte IV per secret, authentication tag verification on decrypt, secrets never logged. Everything a small team needs for encrypted secrets without standing up another service.
 
 ---
 

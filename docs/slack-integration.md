@@ -87,7 +87,7 @@ Repeat for any other monitors you want covered.
 
 1. Go back to **Notifications**.
 2. Click the edit icon on your Slack channel.
-3. Click **Send Test** at the bottom of the form.
+3. Click **Send test (saved settings)** at the bottom of the form. The button sends the saved channel, so save any changes first.
 4. Check Slack — a test message should appear within a few seconds.
 
 If the message does not arrive, verify the webhook URL. A deleted or revoked webhook will return `HTTP 403`, which BSP logs as a channel error.

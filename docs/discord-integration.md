@@ -84,7 +84,7 @@ The channel is now active for that monitor. Repeat for any other monitors you wa
 
 1. Go back to **Notifications**.
 2. Click the edit icon on your Discord channel.
-3. Click **Send Test** at the bottom of the form.
+3. Click **Send test (saved settings)** at the bottom of the form. The button sends the saved channel, so save any changes first.
 4. Check Discord — a test embed should appear within a few seconds.
 
 If the test does not arrive, double-check the webhook URL. A deleted or disabled webhook in Discord will return HTTP 404, which BSP will log as a channel error.
