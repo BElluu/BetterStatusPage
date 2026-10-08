@@ -144,7 +144,7 @@ The public status page isn't just a list of green dots. It's a fully customizabl
 
 ### 📢 Incident management
 
-Create incidents, set severity (none → minor → major → critical), link affected monitors, post real-time updates as the situation unfolds, and mark resolved when the dust settles. On the public page, an active minor incident marks its linked monitors as degraded, while major and critical incidents mark them as down. Resolving the incident restores the status reported by monitoring checks.
+Create incidents, set severity (minor → major → critical), link affected monitors, post real-time updates as the situation unfolds, and mark resolved when the dust settles. On the public page, an active minor incident marks its linked monitors as degraded, while major and critical incidents mark them as down. Resolving the incident restores the status reported by monitoring checks.
 
 ### 📬 Subscriptions for your audience
 

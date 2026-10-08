@@ -24,10 +24,9 @@ describe('public monitor incident status', () => {
     expect(applyIncidentStatus('up', 7, [incident({ impact: 'critical' })])).toBe('down')
   })
 
-  it('does not affect unrelated, resolved, or no-impact incidents', () => {
+  it('does not affect unrelated or resolved incidents', () => {
     expect(applyIncidentStatus('up', 8, [incident({ impact: 'critical' })])).toBe('up')
     expect(applyIncidentStatus('up', 7, [incident({ status: 'resolved', impact: 'critical' })])).toBe('up')
-    expect(applyIncidentStatus('up', 7, [incident({ impact: 'none' })])).toBe('up')
   })
 
   it('never hides a more severe technical status', () => {

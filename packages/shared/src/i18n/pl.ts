@@ -59,7 +59,6 @@ export const PL_DEFAULTS: Record<TranslationKey, string> = {
   'incident.monitoring':    'Monitorowanie',
   'incident.resolved':      'Rozwiązano',
   'incident.impactLine':     'Wpływ: {impact}',
-  'incident.impact.none':    'brak',
   'incident.impact.minor':   'niewielki',
   'incident.impact.major':   'poważny',
   'incident.impact.critical':'krytyczny',

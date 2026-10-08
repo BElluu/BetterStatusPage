@@ -47,7 +47,6 @@ export type TranslationKey =
   | 'incident.monitoring'
   | 'incident.resolved'
   | 'incident.impactLine'
-  | 'incident.impact.none'
   | 'incident.impact.minor'
   | 'incident.impact.major'
   | 'incident.impact.critical'

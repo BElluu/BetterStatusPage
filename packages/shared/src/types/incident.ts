@@ -1,5 +1,5 @@
 export type IncidentStatus = 'investigating' | 'identified' | 'monitoring' | 'resolved'
-export type IncidentImpact = 'none' | 'minor' | 'major' | 'critical'
+export type IncidentImpact = 'minor' | 'major' | 'critical'
 
 export interface IncidentUpdate {
   id: number
