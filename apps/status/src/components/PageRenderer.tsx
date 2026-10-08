@@ -226,13 +226,15 @@ function ChartBlock({ node: n, monitors }: { node: ChartNode; monitors: PublicMo
         </div>
       </div>
       <div style={{ height: heightPx - 52 }}>
-        <ResponseTimeChart
-          monitorId={n.monitorId}
-          hours={n.hours}
-          buckets={n.buckets}
-          aggregation={n.aggregation}
-          showArea={n.showArea ?? true}
-        />
+        <Suspense fallback={null}>
+          <ResponseTimeChart
+            monitorId={n.monitorId}
+            hours={n.hours}
+            buckets={n.buckets}
+            aggregation={n.aggregation}
+            showArea={n.showArea ?? true}
+          />
+        </Suspense>
       </div>
     </div>
   )
