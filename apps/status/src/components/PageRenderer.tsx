@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { lazy, Suspense, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode,
@@ -7,7 +7,7 @@ import type {
 import Markdown from 'react-markdown'
 import { IncidentCard } from './IncidentCard'
 import { useLocale } from '../i18n/LocaleContext'
-import { ResponseTimeChart } from './ResponseTimeChart'
+const ResponseTimeChart = lazy(() => import('./ResponseTimeChart').then((m) => ({ default: m.ResponseTimeChart })))
 import { applyIncidentStatus } from '../utils/incidentStatus'
 import { useMonitorUptime, type UptimeDay } from '../hooks/useMonitorUptime'
 
@@ -226,13 +226,15 @@ function ChartBlock({ node: n, monitors }: { node: ChartNode; monitors: PublicMo
         </div>
       </div>
       <div style={{ height: heightPx - 52 }}>
-        <ResponseTimeChart
-          monitorId={n.monitorId}
-          hours={n.hours}
-          buckets={n.buckets}
-          aggregation={n.aggregation}
-          showArea={n.showArea ?? true}
-        />
+        <Suspense fallback={null}>
+          <ResponseTimeChart
+            monitorId={n.monitorId}
+            hours={n.hours}
+            buckets={n.buckets}
+            aggregation={n.aggregation}
+            showArea={n.showArea ?? true}
+          />
+        </Suspense>
       </div>
     </div>
   )
