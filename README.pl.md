@@ -70,6 +70,9 @@ Pełna dokumentacja (EN): **https://docs.betterstatuspage.dev**. Zanim wystawisz
 | **Ping / TCP** | Czy host żyje — przez ICMP lub sprawdzenie portu TCP |
 | **DNS** | Czy rekordy rozwiązują się poprawnie — A, AAAA, MX, CNAME, TXT, z obsługą własnego resolvera |
 | **SQL Server** | Wykonuje zapytanie testowe na MSSQL i weryfikuje wynik |
+| **PostgreSQL** | Wykonuje zapytanie testowe na PostgreSQL i weryfikuje wynik |
+| **MySQL / MariaDB** | Wykonuje zapytanie testowe na MySQL lub MariaDB i weryfikuje wynik |
+| **MongoDB** | Wykonuje komendę testową na MongoDB i weryfikuje wynik |
 | **Webhook** *(pasywny)* | Pozwala zewnętrznym usługom pingować *Ciebie*, by zasygnalizować, że żyją — cisza oznacza kłopoty |
 
 Każdy monitor ma: konfigurowalne interwały, timeouty, ponowienia, **kolorowe tagi** do grupowania **30-dniowy pasek dostępności** na stronie statusu, a wyniki sprawdzeń są domyślnie przechowywane przez 90 dni. A, i jest wbudowany tester, więc możesz sprawdzić konfigurację, zanim klikniesz Zapisz i natychmiast tego pożałujesz.
@@ -260,7 +263,7 @@ Zmiany statusu docierają zarówno do panelu admina, jak i do strony publicznej 
 │   │  ├── HTTPS checker          Vault resolver           │  │
 │   │  ├── Ping / TCP             Result purger (daily)    │  │
 │   │  ├── DNS resolver                                    │  │
-│   │  └── SQL Server checker                              │  │
+│   │  └── DB checkers (SQL, PostgreSQL, MySQL, Mongo)    │  │
 │   └──────────────────────────────────────────────────────┘  │
 │                                                             │
 │   ┌──────────────────────────────────────────────────────┐  │
@@ -299,6 +302,9 @@ Zmiany statusu docierają zarówno do panelu admina, jak i do strony publicznej 
 | Uwierzytelnianie | Sesje po stronie serwera, ciasteczka HttpOnly JWT, CSRF, TOTP, bcrypt, OpenID Connect (PKCE) | — |
 | E-mail | Nodemailer | 9.x |
 | SQL Server | mssql | 11.x |
+| PostgreSQL | pg | 8.x |
+| MySQL / MariaDB | mysql2 | 3.x |
+| MongoDB | mongodb | 7.x |
 | Harmonogram | node-cron | 3.x |
 
 ---

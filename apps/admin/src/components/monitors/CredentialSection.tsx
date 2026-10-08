@@ -171,7 +171,7 @@ interface ConnectionStringSectionProps extends VaultPickerProps {
 }
 
 /**
- * Vault-only picker for SQL Server connection strings.
+ * Vault-only picker for SQL database connection strings.
  * Direct input is intentionally not available — a connection string contains credentials.
  */
 export function ConnectionStringSection({

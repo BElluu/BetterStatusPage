@@ -190,7 +190,7 @@ describe('MonitorsPage', () => {
     const panel = await screen.findByRole('region', { name: 'What should we check first?' })
     expect(within(panel).getAllByRole('button').map((tile) => tile.textContent)).toEqual([
       expect.stringContaining('HTTPS'), expect.stringContaining('Ping / TCP'), expect.stringContaining('DNS'),
-      expect.stringContaining('SQL Server'), expect.stringContaining('Docker'), expect.stringContaining('Webhook'),
+      expect.stringContaining('Database'), expect.stringContaining('Docker'), expect.stringContaining('Webhook'),
     ])
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
 

@@ -7,7 +7,7 @@ import { SidePanelFrame, SideTabStrip, type SideTab } from '../SidePanel'
 import { ChannelsSection, DependenciesSection, PANEL_META, RequestSection, type SidePanelKey } from './MonitorSidePanel'
 import { MonitorTypeConfigFields } from './MonitorTypeConfigFields'
 import { Field, type SecretSummary, type VaultSummary } from './monitorFormParts'
-import { MONITOR_TYPES } from './monitorTypes'
+import { MONITOR_TYPES, DATABASE_DEFAULT_PORTS, DATABASE_DEFAULT_QUERIES, isDatabaseType } from './monitorTypes'
 import { TagsSection } from './TagsSection'
 import { TestResultPanel, type TestResult } from './TestResultPanel'
 import { Alert } from '../ui'
@@ -26,6 +26,9 @@ const defaultConfigs: Record<MonitorType, Record<string, unknown>> = {
   ping:      { host: '', mode: 'tcp', port: 80 },
   dns:       { hostname: '', recordType: 'A' },
   sqlserver: { host: '', port: 1433, database: '', user: '', password: '', query: 'SELECT 1' },
+  postgresql: { host: '', port: 5432, database: '', user: '', password: '', query: 'SELECT 1' },
+  mysql:     { host: '', port: 3306, database: '', user: '', password: '', query: 'SELECT 1' },
+  mongodb:   { host: '', port: 27017, database: '', user: '', password: '', query: '{"ping":1}' },
   docker:    { endpoint: 'unix:///var/run/docker.sock', container: '' },
   webhook:   {},
 }
@@ -105,6 +108,18 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     if (newType !== 'https' && (sidePanel === 'auth' || sidePanel === 'request')) setSidePanel(null)
   }
 
+  /** Switches the engine of a Database monitor, keeping what was typed; only a default port and test query follow the engine. */
+  function handleEngineChange(engine: MonitorType) {
+    const oldPort = DATABASE_DEFAULT_PORTS[type]
+    const oldQuery = DATABASE_DEFAULT_QUERIES[type]
+    setType(engine)
+    setConfig((prev) => ({
+      ...prev,
+      ...(prev['port'] === oldPort ? { port: DATABASE_DEFAULT_PORTS[engine] } : {}),
+      ...(prev['query'] === oldQuery ? { query: DATABASE_DEFAULT_QUERIES[engine] } : {}),
+    }))
+  }
+
   function updateConfig(key: string, value: unknown) {
     setConfig((prev) => ({ ...prev, [key]: value }))
   }
@@ -122,7 +137,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
   }
 
   async function handleTest() {
-    if (type !== 'https' && type !== 'sqlserver' && type !== 'ping' && type !== 'dns' && type !== 'docker') return
+    if (type !== 'https' && !isDatabaseType(type) && type !== 'ping' && type !== 'dns' && type !== 'docker') return
     setTesting(true)
     setTestResult(null)
     try {
@@ -170,7 +185,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
   const authType = auth.type ?? 'none'
   const headerCount = Object.keys((config['headers'] as Record<string, string> | undefined) ?? {}).length
   const vaultPicker = { vaults, secretsByVault, onLoadSecrets: loadSecrets }
-  const isTestable = type === 'https' || type === 'sqlserver' || type === 'ping' || type === 'dns' || type === 'docker'
+  const isTestable = type === 'https' || isDatabaseType(type) || type === 'ping' || type === 'dns' || type === 'docker'
   const webhookCreated = type === 'webhook' && !isEdit && !!webhookToken
 
   const sideTabs: SideTab<SidePanelKey>[] = [
@@ -209,17 +224,20 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
           <div role="group" aria-labelledby="monitor-type-label">
             <span id="monitor-type-label" className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Type</span>
             <div className="flex flex-wrap rounded-lg p-1 gap-1" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}>
-              {MONITOR_TYPES.map((t) => (
-                <button key={t.value} type="button" onClick={() => handleTypeChange(t.value)} aria-pressed={type === t.value}
-                  className={`flex-1 text-xs font-medium py-1.5 px-2 rounded-md transition-all whitespace-nowrap focus-ring ${type === t.value ? 'selection-active' : ''}`}
-                  style={type === t.value
+              {MONITOR_TYPES.map((t) => {
+                const selected = (t.types ?? [t.value]).includes(type)
+                return (
+                <button key={t.value} type="button" onClick={() => !selected && handleTypeChange(t.value)} aria-pressed={selected}
+                  className={`flex-1 text-xs font-medium py-1.5 px-2 rounded-md transition-all whitespace-nowrap focus-ring ${selected ? 'selection-active' : ''}`}
+                  style={selected
                     ? { background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 25%, transparent)' }
                     : { color: 'var(--m3-secondary)', border: '1px solid transparent' }
                   }
                 >
                   {t.label}
                 </button>
-              ))}
+                )
+              })}
             </div>
           </div>
 
@@ -255,6 +273,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
             type={type}
             config={config}
             updateConfig={updateConfig}
+            onEngineChange={handleEngineChange}
             vaultPicker={vaultPicker}
             webhook={{ token: webhookToken, canReset: isEdit, resetting: resettingToken, onReset: handleResetToken }}
           />

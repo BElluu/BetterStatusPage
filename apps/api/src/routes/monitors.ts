@@ -6,15 +6,15 @@ import { eq, desc, gte, and, inArray } from 'drizzle-orm'
 import { withImmediateTransaction } from '../db/transaction.js'
 import { runCheck } from '../workers/scheduler.js'
 import { validateDockerConfig } from '../workers/docker.js'
-import { testHttps, testSqlServer, testPing, testDns, testDocker } from '../workers/testRunner.js'
+import { testHttps, testSqlServer, testPostgres, testMysql, testMongo, testPing, testDns, testDocker } from '../workers/testRunner.js'
 import { auditActor, writeAudit, diffObjects, snapshot } from '../services/audit.js'
 import { requestIdentity } from '../middleware/auth.js'
 import { refreshPublishedMonitorIds } from '../services/publishedMonitors.js'
 import { serveEventStream } from '../services/sse.service.js'
 import { authenticateRequest } from '../services/authSession.js'
-import type { HttpsConfig, SqlServerConfig, PingConfig, DnsConfig, DockerConfig, MonitorType } from '@bsp/shared'
+import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig, MonitorType } from '@bsp/shared'
 
-const MONITOR_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'docker', 'webhook']
+const MONITOR_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'postgresql', 'mysql', 'mongodb', 'docker', 'webhook']
 const MIN_TEST_TIMEOUT_MS = 500
 const MAX_TEST_TIMEOUT_MS = 60_000
 
@@ -206,7 +206,10 @@ export async function monitorRoutes(app: FastifyInstance) {
     }
     const timeoutMs = Math.min(MAX_TEST_TIMEOUT_MS, Math.max(MIN_TEST_TIMEOUT_MS, requestedTimeout ?? 10000))
     if (type === 'https') return testHttps(config as HttpsConfig, timeoutMs)
-    if (type === 'sqlserver') return testSqlServer(config as SqlServerConfig, timeoutMs)
+    if (type === 'sqlserver') return testSqlServer(config as DatabaseConfig, timeoutMs)
+    if (type === 'postgresql') return testPostgres(config as DatabaseConfig, timeoutMs)
+    if (type === 'mysql') return testMysql(config as DatabaseConfig, timeoutMs)
+    if (type === 'mongodb') return testMongo(config as DatabaseConfig, timeoutMs)
     if (type === 'docker') return testDocker(config as DockerConfig, timeoutMs)
     if (type === 'ping') return testPing(config as PingConfig, timeoutMs)
     if (type === 'dns') return testDns(config as DnsConfig, timeoutMs)

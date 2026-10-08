@@ -5,7 +5,7 @@ import { createServer as createTcpServer } from 'node:net'
 import { after, before, describe, it } from 'node:test'
 import type { HttpsConfig } from '@bsp/shared'
 import { checkHttps } from '../src/workers/https.js'
-import { testDns, testHttps, testPing, testSqlServer, type TestResult } from '../src/workers/testRunner.js'
+import { testDns, testHttps, testPing, testSqlServer, testPostgres, testMysql, testMongo, type TestResult } from '../src/workers/testRunner.js'
 
 const SESSION_SECRET = 'session-cookie-value-never-shown'
 const casServiceRequests: string[] = []
@@ -553,3 +553,25 @@ describe('monitor test runner: SQL Server', () => {
     assert.equal(lastStep(result).label, 'Connection string: no Vault secret configured')
   })
 })
+
+for (const [label, run] of [['PostgreSQL', testPostgres], ['MySQL / MariaDB', testMysql], ['MongoDB', testMongo]] as const) {
+  describe(`monitor test runner: ${label}`, () => {
+    it('reports a connection failure for an unreachable server', async () => {
+      const result = await run({
+        host: '127.0.0.1', port: closedPort, database: 'missing', user: 'u', password: 'secret-password', query: 'SELECT 1',
+      }, 500)
+      assert.equal(result.overall, 'error')
+      assert.equal(step(result, /^Using direct credentials$/).detail, 'User: u')
+      assert.equal(lastStep(result).label, `Connection to 127.0.0.1:${closedPort} failed`)
+      assert.doesNotMatch(JSON.stringify(result), /secret-password/)
+    })
+
+    it('requires a Vault secret in connection-string mode', async () => {
+      const result = await run({
+        mode: 'connectionString', host: '', port: 0, database: '', user: '', password: '', query: 'SELECT 1',
+      }, 500)
+      assert.equal(result.overall, 'error')
+      assert.equal(lastStep(result).label, 'Connection string: no Vault secret configured')
+    })
+  })
+}

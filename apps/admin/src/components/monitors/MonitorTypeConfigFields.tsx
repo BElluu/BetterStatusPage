@@ -6,6 +6,7 @@ import { CopyButton } from '../CopyButton'
 import { Alert } from '../ui'
 import { ConnectionStringSection, CredentialSection } from './CredentialSection'
 import { Field, JSON_MAPPING_FIELDS, Note, SectionDivider, type VaultPickerProps } from './monitorFormParts'
+import { DATABASE_ENGINES, DATABASE_DEFAULT_PORTS, DATABASE_DEFAULT_QUERIES } from './monitorTypes'
 
 type Config = Record<string, unknown>
 
@@ -13,17 +14,21 @@ interface Props {
   type: MonitorType
   config: Config
   updateConfig: (key: string, value: unknown) => void
+  onEngineChange: (engine: MonitorType) => void
   vaultPicker: VaultPickerProps
   webhook: WebhookSectionProps
 }
 
 /** The check-specific settings of a monitor, switched on its type. */
-export function MonitorTypeConfigFields({ type, config, updateConfig, vaultPicker, webhook }: Props) {
+export function MonitorTypeConfigFields({ type, config, updateConfig, onEngineChange, vaultPicker, webhook }: Props) {
   switch (type) {
     case 'https':     return <HttpsFields config={config} updateConfig={updateConfig} />
     case 'ping':      return <PingFields config={config} updateConfig={updateConfig} />
     case 'dns':       return <DnsFields config={config} updateConfig={updateConfig} />
-    case 'sqlserver': return <SqlServerFields config={config} updateConfig={updateConfig} vaultPicker={vaultPicker} />
+    case 'sqlserver':
+    case 'postgresql':
+    case 'mysql':
+    case 'mongodb':   return <DatabaseFields type={type} config={config} updateConfig={updateConfig} onEngineChange={onEngineChange} vaultPicker={vaultPicker} />
     case 'docker':    return <DockerFields config={config} updateConfig={updateConfig} />
     case 'webhook':   return <WebhookSection {...webhook} />
     default:          return null
@@ -145,11 +150,17 @@ function DnsFields({ config, updateConfig }: ConfigProps) {
   )
 }
 
-function SqlServerFields({ config, updateConfig, vaultPicker }: ConfigProps & { vaultPicker: VaultPickerProps }) {
+function DatabaseFields({ type, config, updateConfig, onEngineChange, vaultPicker }: ConfigProps & { type: MonitorType; onEngineChange: (engine: MonitorType) => void; vaultPicker: VaultPickerProps }) {
   const sqlMode = (config['mode'] as string) ?? 'fields'
   const sqlVault = config['vault'] as VaultRef | undefined
   return (
     <>
+      <Field label="Engine">
+        <select value={type} onChange={(e) => onEngineChange(e.target.value as MonitorType)} className="input-sig">
+          {DATABASE_ENGINES.map((e) => <option key={e.value} value={e.value}>{e.label}</option>)}
+        </select>
+      </Field>
+
       {/* Connection mode toggle */}
       <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--m3-outline-variant)', width: 'fit-content' }}>
         {(['fields', 'connectionString'] as const).map((m) => (
@@ -173,7 +184,7 @@ function SqlServerFields({ config, updateConfig, vaultPicker }: ConfigProps & { 
               <input value={(config['host'] as string) ?? ''} onChange={(e) => updateConfig('host', e.target.value)} required className="input-sig" placeholder="localhost" />
             </Field>
             <Field label="Port">
-              <input type="number" value={(config['port'] as number) ?? 1433} onChange={(e) => updateConfig('port', Number(e.target.value))} className="input-sig" />
+              <input type="number" value={(config['port'] as number) ?? DATABASE_DEFAULT_PORTS[type]} onChange={(e) => updateConfig('port', Number(e.target.value))} className="input-sig" />
             </Field>
           </div>
           <Field label="Database">
@@ -184,7 +195,7 @@ function SqlServerFields({ config, updateConfig, vaultPicker }: ConfigProps & { 
             {...vaultPicker}
             vault={sqlVault}
             onVaultChange={(v) => updateConfig('vault', v)}
-            mappingFields={JSON_MAPPING_FIELDS.sqlserver}
+            mappingFields={JSON_MAPPING_FIELDS.database}
           >
             <div className="grid grid-cols-2 gap-3">
               <Field label="User">
@@ -206,8 +217,8 @@ function SqlServerFields({ config, updateConfig, vaultPicker }: ConfigProps & { 
         />
       )}
 
-      <Field label="Test Query">
-        <input value={(config['query'] as string) ?? 'SELECT 1'} onChange={(e) => updateConfig('query', e.target.value)} className="input-sig" />
+      <Field label={type === 'mongodb' ? 'Test Command (JSON)' : 'Test Query'}>
+        <input value={(config['query'] as string) ?? DATABASE_DEFAULT_QUERIES[type]} onChange={(e) => updateConfig('query', e.target.value)} className="input-sig" />
       </Field>
     </>
   )
