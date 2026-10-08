@@ -67,7 +67,8 @@ test('a webhook monitor goes up when its generated URL is called', async ({ admi
   await page.goto(`${ADMIN_URL}/monitors`)
   await page.getByRole('button', { name: 'Add Monitor' }).click()
   await page.getByPlaceholder('My Service').fill(name)
-  await page.getByRole('button', { name: 'Webhook' }).click()
+  await page.getByRole('button', { name: /^Type / }).click()
+  await page.getByRole('option', { name: /^Webhook/ }).click()
   await page.getByRole('button', { name: 'Create Monitor' }).click()
 
   const hookUrl = await page.locator('input[readonly][value*="/api/v1/hook/"]').inputValue()

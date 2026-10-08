@@ -10,6 +10,10 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 - **PostgreSQL, MySQL / MariaDB and MongoDB monitors**: run a test query (for MongoDB, a JSON command), like the SQL Server monitor. They appear in the form as one **Database** type with an **Engine** selector, together with SQL Server. Connect with individual fields or a connection string from the vault; includes the **Test** button. MySQL and MariaDB share one type. See the [monitors guide](monitors.md#sql-server-postgresql-mysql--mariadb-and-mongodb).
 - **Docker monitor**: checks the state and healthcheck of a container through the Docker Engine API, over a local socket, a Windows named pipe or HTTP(S). Running and healthy is operational; restarting, unhealthy or starting is degraded; stopped, paused or missing is down. Includes the **Test** button. See the [monitors guide](monitors.md#docker).
 
+### Changed
+
+- **Monitor form**: the type is picked from a searchable list grouped by area instead of a row of buttons, so the form no longer grows with every new monitor type. The type-specific fields now come right after the type, and **Interval**, **Timeout**, **Attempts**, **Alert after** and **Recover after** sit in a collapsed **Schedule & alerting** row that shows their current values.
+
 ### Fixed
 
 - **Incidents block**: an **Incident limit** above 10 now works on the public status page. It fetched at most 10 resolved incidents, whatever the limit was.

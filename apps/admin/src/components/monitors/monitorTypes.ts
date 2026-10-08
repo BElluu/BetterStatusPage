@@ -3,6 +3,8 @@ import type { MonitorType } from '@bsp/shared'
 export interface MonitorTypeOption {
   value: MonitorType
   label: string
+  /** Heading the type is listed under in the type picker. */
+  group: string
   /** Material Symbols icon name for the quick-start tiles. */
   icon: string
   /** Short line for the quick-start tiles shown while no monitor exists yet. */
@@ -13,12 +15,12 @@ export interface MonitorTypeOption {
 
 /** Display order of the type switcher in the monitor form. */
 export const MONITOR_TYPES: MonitorTypeOption[] = [
-  { value: 'https',     label: 'HTTPS',      icon: 'language', hint: 'Website or API endpoint' },
-  { value: 'ping',      label: 'Ping / TCP', icon: 'lan',      hint: 'Host or open port' },
-  { value: 'dns',       label: 'DNS',        icon: 'dns',      hint: 'Record resolution' },
-  { value: 'sqlserver', label: 'Database',   icon: 'database', hint: 'SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB', types: ['sqlserver', 'postgresql', 'mysql', 'mongodb'] },
-  { value: 'docker',    label: 'Docker',     icon: 'deployed_code', hint: 'Container state and health' },
-  { value: 'webhook',   label: 'Webhook',    icon: 'webhook',  hint: 'Your service calls in' },
+  { value: 'https',     label: 'HTTPS',      group: 'Web',            icon: 'language', hint: 'Website or API endpoint' },
+  { value: 'ping',      label: 'Ping / TCP', group: 'Network',        icon: 'lan',      hint: 'Host or open port' },
+  { value: 'dns',       label: 'DNS',        group: 'Network',        icon: 'dns',      hint: 'Record resolution' },
+  { value: 'sqlserver', label: 'Database',   group: 'Data',           icon: 'database', hint: 'SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB', types: ['sqlserver', 'postgresql', 'mysql', 'mongodb'] },
+  { value: 'docker',    label: 'Docker',     group: 'Infrastructure', icon: 'deployed_code', hint: 'Container state and health' },
+  { value: 'webhook',   label: 'Webhook',    group: 'Inbound',        icon: 'webhook',  hint: 'Your service calls in' },
 ]
 
 /** The database engines behind the Database type: one config shape and form; port and test query differ. */
