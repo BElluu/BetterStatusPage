@@ -1,8 +1,11 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
-import { and, desc, eq, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
 import { db } from '../db/client.js'
-import { subscribers } from '../db/schema.js'
-import type { AdminSubscriptionSettings, SubscriberList, SubscriptionPreferencesUpdate, SubscriptionRequest, SubscriptionSettings } from '@bsp/shared'
+import { monitors, subscriberDeliveries, subscribers } from '../db/schema.js'
+import type {
+  AdminSubscriptionSettings, SubscriberDelivery, SubscriberDeliveryList, SubscriberEventType, SubscriberList,
+  SubscriberType, SubscriptionPreferencesUpdate, SubscriptionRequest, SubscriptionSettings,
+} from '@bsp/shared'
 import { SUBSCRIBE_RATE_LIMIT, SUBSCRIPTION_TOKEN_RATE_LIMIT } from '../config/rateLimits.js'
 import {
   SubscriptionError, confirmSubscription, getMethodStatuses, getPublicSubscriptionOptions, getSubscriptionPreferences,
@@ -10,6 +13,7 @@ import {
   unsubscribe, updateSubscriptionPreferences,
 } from '../services/subscriptions.js'
 import { isSmtpConfigured } from '../workers/notifier.js'
+import { retrySubscriberDelivery, type SubscriberEvent } from '../workers/subscriberNotifier.js'
 import { resolvePublicUrl } from '../config/publicUrl.js'
 import { auditActor, diffObjects, snapshot, writeAudit } from '../services/audit.js'
 import { requestIdentity } from '../middleware/auth.js'
@@ -139,18 +143,23 @@ export async function adminSubscriberRoutes(app: FastifyInstance) {
     return adminSettings(after)
   })
 
-  app.get<{ Querystring: { page?: string; limit?: string; status?: string; search?: string } }>('/', async (req): Promise<SubscriberList> => {
-    const { page, limit, offset } = parsePagination(req.query, { defaultLimit: 25, maxLimit: 100 })
+  /** The status and search filters the list and the CSV export share. */
+  function subscriberFilter(query: { status?: string; search?: string }) {
     const conditions = []
-    if (req.query.status) conditions.push(eq(subscribers.status, req.query.status))
-    if (req.query.search) {
-      const pattern = `%${req.query.search.replace(/[%_\\]/g, (c) => `\\${c}`)}%`
+    if (query.status) conditions.push(eq(subscribers.status, query.status))
+    if (query.search) {
+      const pattern = `%${query.search.replace(/[%_\\]/g, (c) => `\\${c}`)}%`
       conditions.push(or(
         sql`${subscribers.email} LIKE ${pattern} ESCAPE '\\'`,
         sql`${subscribers.webhookUrl} LIKE ${pattern} ESCAPE '\\'`,
       ))
     }
-    const where = conditions.length ? and(...conditions) : undefined
+    return conditions.length ? and(...conditions) : undefined
+  }
+
+  app.get<{ Querystring: { page?: string; limit?: string; status?: string; search?: string } }>('/', async (req): Promise<SubscriberList> => {
+    const { page, limit, offset } = parsePagination(req.query, { defaultLimit: 25, maxLimit: 100 })
+    const where = subscriberFilter(req.query)
     const [rows, count, byStatus] = await Promise.all([
       db.select().from(subscribers).where(where).orderBy(desc(subscribers.createdAt)).limit(limit).offset(offset),
       db.select({ count: sql<number>`count(*)` }).from(subscribers).where(where),
@@ -174,6 +183,71 @@ export async function adminSubscriberRoutes(app: FastifyInstance) {
     }
   })
 
+  // Spreadsheets run text that starts with one of these as a formula, and addresses come from anonymous visitors.
+  const csvCell = (value: unknown) => {
+    const text = String(value ?? '')
+    return `"${(/^[=+\-@\t\r]/.test(text) ? `'${text}` : text).replace(/"/g, '""')}"`
+  }
+
+  app.get<{ Querystring: { status?: string; search?: string; ids?: string } }>('/export', async (req, reply) => {
+    const ids = req.query.ids ? req.query.ids.split(',').map(Number).filter((id) => Number.isInteger(id) && id > 0) : null
+    const where = ids ? inArray(subscribers.id, ids) : subscriberFilter(req.query)
+    const [rows, monitorRows] = await Promise.all([
+      db.select().from(subscribers).where(where).orderBy(desc(subscribers.createdAt)),
+      db.select({ id: monitors.id, name: monitors.name }).from(monitors),
+    ])
+    const monitorName = (id: number) => monitorRows.find((monitor) => monitor.id === id)?.name ?? `#${id}`
+    const lines = rows.map(toSubscriber).map((s) => [
+      s.id, s.type, s.type === 'webhook' ? s.webhookUrl : s.email, s.email, s.status, s.events.join(' '),
+      s.monitorIds.map(monitorName).join(' | '), s.tags.join(' '),
+      s.lastNotifiedAt ? new Date(s.lastNotifiedAt).toISOString() : '', s.lastError ?? '',
+    ].map(csvCell).join(','))
+    const header = ['id', 'type', 'destination', 'contact_email', 'status', 'events', 'monitors', 'tags', 'last_notified_at', 'last_error']
+    return reply.type('text/csv; charset=utf-8').header('Content-Disposition', 'attachment; filename="subscribers.csv"')
+      .send([header.join(','), ...lines].join('\r\n') + '\r\n')
+  })
+
+  app.get<{
+    Querystring: { page?: string; limit?: string; status?: string; eventType?: string; subscriberId?: string }
+  }>('/deliveries', async (req): Promise<SubscriberDeliveryList> => {
+    const { page, limit, offset } = parsePagination(req.query, { defaultLimit: 25, maxLimit: 100 })
+    const conditions = []
+    if (req.query.status) conditions.push(eq(subscriberDeliveries.status, req.query.status))
+    if (req.query.eventType) conditions.push(eq(subscriberDeliveries.eventType, req.query.eventType))
+    if (req.query.subscriberId) conditions.push(eq(subscriberDeliveries.subscriberId, Number(req.query.subscriberId)))
+    const where = conditions.length ? and(...conditions) : undefined
+    const [rows, count] = await Promise.all([
+      db.select().from(subscriberDeliveries).where(where).orderBy(desc(subscriberDeliveries.createdAt)).limit(limit).offset(offset),
+      db.select({ count: sql<number>`count(*)` }).from(subscriberDeliveries).where(where),
+    ])
+    // Two queries rather than a join: the driver keys rows by column name, so the shared `id` and `status` would collide.
+    const owners = rows.length
+      ? await db.select().from(subscribers).where(inArray(subscribers.id, [...new Set(rows.map((row) => row.subscriberId))]))
+      : []
+    const total = count[0]?.count ?? 0
+    return {
+      deliveries: rows.flatMap((row) => {
+        const owner = owners.find((subscriber) => subscriber.id === row.subscriberId)
+        return owner ? [toDelivery(row, owner)] : []
+      }),
+      total, page, limit, pages: Math.ceil(total / limit),
+    }
+  })
+
+  app.post<{ Params: { id: string } }>('/deliveries/:id/retry', async (req, reply) => {
+    const id = Number(req.params.id)
+    const delivery = (await db.select().from(subscriberDeliveries).where(eq(subscriberDeliveries.id, id)))[0]
+    const owner = delivery && (await db.select().from(subscribers).where(eq(subscribers.id, delivery.subscriberId)))[0]
+    if (!delivery || !owner) return reply.code(404).send({ error: 'Delivery not found' })
+    if (!(await retrySubscriberDelivery(id))) return reply.code(409).send({ error: 'Only failed deliveries can be retried' })
+    const actor = requestIdentity(req)
+    await writeAudit(auditActor(actor), 'update', 'subscriber_delivery', id, toDelivery(delivery, owner).destination, {
+      manualRetry: { from: false, to: true },
+    })
+    const after = (await db.select().from(subscriberDeliveries).where(eq(subscriberDeliveries.id, id)))[0]!
+    return toDelivery(after, owner)
+  })
+
   app.delete<{ Params: { id: string } }>('/:id', async (req, reply) => {
     const id = Number(req.params.id)
     const existing = (await db.select().from(subscribers).where(eq(subscribers.id, id)))[0]
@@ -184,4 +258,28 @@ export async function adminSubscriberRoutes(app: FastifyInstance) {
       snapshot({ type: existing.type, status: existing.status, webhookUrl: existing.webhookUrl }))
     return reply.code(204).send()
   })
+}
+
+function toDelivery(delivery: typeof subscriberDeliveries.$inferSelect, subscriber: typeof subscribers.$inferSelect): SubscriberDelivery {
+  let subject = ''
+  try {
+    const event = JSON.parse(delivery.event) as SubscriberEvent
+    subject = event.incident?.title ?? event.maintenance?.name ?? ''
+  } catch { /* an unreadable payload only costs the subject line */ }
+  return {
+    id: delivery.id,
+    subscriberId: subscriber.id,
+    subscriberType: subscriber.type as SubscriberType,
+    destination: (subscriber.type === 'webhook' ? subscriber.webhookUrl : subscriber.email) ?? subscriber.email,
+    eventType: delivery.eventType as SubscriberEventType,
+    subject,
+    status: delivery.status as SubscriberDelivery['status'],
+    attemptCount: delivery.attemptCount,
+    maxAttempts: delivery.maxAttempts,
+    nextAttemptAt: delivery.nextAttemptAt,
+    lastError: delivery.lastError,
+    deliveredAt: delivery.deliveredAt,
+    createdAt: delivery.createdAt,
+    updatedAt: delivery.updatedAt,
+  }
 }

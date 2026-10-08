@@ -6,14 +6,25 @@ Subscribers only ever hear about things an operator publishes: incidents, incide
 
 ## Turning it on
 
-Open **Configure → Subscribers** in the admin console (operator role or higher).
+Open **Configure → Subscribers** in the admin console (operator role or higher). The page has two tabs, **Subscribers** and **Settings**.
 
-1. Switch on **Allow visitors to subscribe** — the master switch for everything below.
-2. Switch on the **subscription methods** you want to offer. Each method card shows whether visitors will actually be offered it and, if not, what is missing.
+1. On the **Settings** tab, switch on **Allow visitors to subscribe** — the master switch for everything below.
+2. Switch on the **subscription methods** you want to offer. Each method row shows whether visitors will actually be offered it and, if not, what is missing. The feed, Slack and API addresses have a **Copy** button.
 3. For email and webhook, configure SMTP (**Notifications → SMTP Settings**) and set `PUBLIC_URL` in the server environment (for example `PUBLIC_URL=https://status.example.com` in `.env`), then restart. Both methods confirm subscribers by email, and every email links back to the page.
-4. Save. The status page picks up the change on its next load.
+4. Click **Save settings** in the bar that appears at the bottom while you have unsaved changes (**Discard** reverts them). The status page picks up the change on its next load.
 
 Visitors click **Subscribe** on the status page, pick one of the offered methods, and only then see its form or instructions. When no method is available the button is hidden.
+
+## Managing subscribers
+
+> [!WARNING]
+> **Not released yet.** The tabbed layout, selection, CSV export and per-subscriber history link are new. Until it ships, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+The **Subscribers** tab lists everyone who signed up. Filter by status, search by address or URL, and page through the list.
+
+- **Export CSV** downloads the current filter and search as a file; tick rows and use **Export selected** for just those. The file has the columns `id, type, destination, contact_email, status, events, monitors, tags, last_notified_at, last_error`. Text that a spreadsheet could run as a formula (starting with `=`, `+`, `-` or `@`) is prefixed with an apostrophe.
+- Tick one or more rows to **Delete** them together. Deleting erases the address and its delivery records.
+- The history icon on a row opens the [delivery history](#delivery-history) for that subscriber.
 
 ## Public URL
 
@@ -148,10 +159,21 @@ Keep in mind:
 
 ## Delivery and retention
 
-- Deliveries are queued and sent in the background, five at a time. Failed ones are retried after 1, 5 and 30 minutes; the last error shows on the subscriber's row in the admin console.
+- Deliveries are queued and sent in the background, five at a time. Failed ones are retried after 1, 5 and 30 minutes; the last error shows on the subscriber's row and in the [delivery history](#delivery-history).
 - Delivery records are deleted after 90 days. Subscriptions never confirmed are deleted a week after their link expires.
 - Unsubscribed people stay in the list, marked *Unsubscribed*, so they can re-subscribe from their manage link. Delete a row in the admin console to erase the address entirely.
 - Webhook health (failure alerts and pausing) is described under [When the endpoint fails](#when-the-endpoint-fails).
+
+## Delivery history
+
+> [!WARNING]
+> **Not released yet.** The subscriber delivery history is new. Until it ships, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+*Admin → Subscribers → **Delivery history***
+
+Every notification queued for a subscriber is listed with the time, the subscriber, the event and the incident or maintenance it is about, the attempts used (for example *4 / 4*) and its status: *Pending*, *Delivered*, *Failed* or *Cancelled* (dropped because the subscriber or subscriptions were switched off before it was sent). Filter by status and event; the history icon on a subscriber's row opens it already narrowed to that subscriber, with a chip that clears the filter. The list refreshes every 30 seconds and records are kept for 90 days.
+
+Click a row to see the last error and when it was delivered. A failed delivery has **Retry now**, which queues another full round of attempts (and is recorded in the audit log as a *Subscriber Delivery* update); only failed deliveries can be retried.
 
 ## Feeds
 
@@ -246,4 +268,4 @@ Public (`/api/v1/public/subscriptions`):
 | PUT | `/preferences` | `{ token, events, monitorIds?, tags?, webhookMethod?, webhookHeaders?, notifyOnFailure?, resubscribe? }` — `resubscribe` also resumes a paused webhook |
 | POST | `/unsubscribe` | `{ token }`, or `?token=` with a form body for one-click |
 
-Admin (`/api/v1/admin/subscribers`, operator role or higher): `GET/PUT /settings`, `GET /?status=&search=&page=&limit=`, `DELETE /:id`. Changes to settings and deletions are recorded in the audit log.
+Admin (`/api/v1/admin/subscribers`, operator role or higher): `GET/PUT /settings`, `GET /?status=&search=&page=&limit=`, `GET /export?status=&search=` (CSV; `?ids=1,2` exports just those subscribers), `GET /deliveries?status=&eventType=&subscriberId=&page=&limit=`, `POST /deliveries/:id/retry`, `DELETE /:id`. Changes to settings, deletions and manual retries are recorded in the audit log.

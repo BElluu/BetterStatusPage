@@ -5,9 +5,10 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SUBSCRIBER_EVENT_TYPES, subscriptionMethodStatuses, type AdminSubscriptionSettings } from '@bsp/shared'
 import { api } from '../api/client'
+import { ToastProvider } from '../components/ui'
 import SubscribersPage from './Subscribers'
 
-vi.mock('../api/client', () => ({ api: { get: vi.fn(), put: vi.fn(), delete: vi.fn() } }))
+vi.mock('../api/client', () => ({ api: { get: vi.fn(), put: vi.fn(), delete: vi.fn(), download: vi.fn() } }))
 
 const base = {
   enabled: true,
@@ -37,7 +38,7 @@ function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter><SubscribersPage /></MemoryRouter>
+      <MemoryRouter><ToastProvider><SubscribersPage /></ToastProvider></MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -58,6 +59,7 @@ describe('SubscribersPage methods', () => {
 
     expect(await screen.findByText('No subscribers yet')).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Destination' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Delivery history' })).toHaveAttribute('href', '/admin/subscribers/history')
 
     await user.click(screen.getByRole('button', { name: /^Pending/ }))
     expect(await screen.findByText('No subscribers match this filter')).toBeInTheDocument()
@@ -67,7 +69,9 @@ describe('SubscribersPage methods', () => {
   })
 
   it('explains why email and webhook are hidden while Slack is offered', async () => {
+    const user = userEvent.setup()
     renderPage()
+    await user.click(await screen.findByRole('tab', { name: /^Settings/ }))
     const email = await screen.findByTestId('method-email')
     expect(within(email).getByText('Not available')).toBeInTheDocument()
     expect(within(email).getByText(/SMTP is not configured/)).toBeInTheDocument()
@@ -75,17 +79,35 @@ describe('SubscribersPage methods', () => {
     expect(within(screen.getByTestId('method-webhook')).getByText('Not available')).toBeInTheDocument()
     expect(within(screen.getByTestId('method-slack')).getByText('Offered to visitors')).toBeInTheDocument()
     expect(within(screen.getByTestId('method-rss')).getByText('Off')).toBeInTheDocument()
-    expect(screen.getByText('Visitors will choose from: Slack.')).toBeInTheDocument()
+    expect(screen.getByText('Visitors choose from: Slack')).toBeInTheDocument()
   })
 
   it('updates what visitors are offered as soon as a method is toggled', async () => {
     const user = userEvent.setup()
     renderPage()
+    await user.click(await screen.findByRole('tab', { name: /^Settings/ }))
     const rss = await screen.findByTestId('method-rss')
     await user.click(within(rss).getByRole('switch', { name: 'Enable RSS / Atom' }))
     expect(within(rss).getByText('Offered to visitors')).toBeInTheDocument()
-    expect(screen.getByText('Visitors will choose from: Slack, RSS / Atom.')).toBeInTheDocument()
+    expect(screen.getByText('Visitors choose from: Slack, RSS / Atom')).toBeInTheDocument()
+    expect(screen.getByText('You have unsaved changes')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save settings' })).toBeEnabled()
+  })
+
+  it('saves with the floating bar and discards back to the saved values', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.put).mockResolvedValue(settings({ rssEnabled: true }) as never)
+    renderPage()
+    await user.click(await screen.findByRole('tab', { name: /^Settings/ }))
+    await user.click(within(await screen.findByTestId('method-rss')).getByRole('switch', { name: 'Enable RSS / Atom' }))
+    await user.click(screen.getByRole('button', { name: 'Discard' }))
+    expect(screen.queryByText('You have unsaved changes')).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('method-rss')).getByText('Off')).toBeInTheDocument()
+
+    await user.click(within(screen.getByTestId('method-rss')).getByRole('switch', { name: 'Enable RSS / Atom' }))
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/subscribers/settings', expect.objectContaining({ rssEnabled: true })))
+    expect(await screen.findByText(/Saved — the status page picks it up/)).toBeInTheDocument()
   })
 })
 
@@ -103,6 +125,7 @@ describe('SubscribersPage table', () => {
       path === '/admin/subscribers/settings' ? settings() : path === '/admin/monitors' ? [] : list()
     ) as never)
     vi.mocked(api.delete).mockResolvedValue(undefined as never)
+    vi.mocked(api.download).mockResolvedValue(undefined as never)
   })
 
   const subscriberCalls = () => vi.mocked(api.get).mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith('/admin/subscribers?'))
@@ -133,6 +156,31 @@ describe('SubscribersPage table', () => {
     await user.click(screen.getByRole('button', { name: /^Paused/ }))
     expect(screen.getByRole('button', { name: /^Paused/ })).toHaveAttribute('aria-pressed', 'true')
     await waitFor(() => expect(subscriberCalls().at(-1)).toContain('status=disabled'))
+  })
+
+  it('links each row to the delivery history of its subscriber', async () => {
+    renderPage()
+    expect(await screen.findByRole('link', { name: 'Delivery history for reader@example.test' })).toHaveAttribute('href', '/admin/subscribers/history?subscriberId=7')
+  })
+
+  it('exports the filtered list, or only the selected rows, and deletes a selection in bulk', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('reader@example.test')
+
+    await user.click(screen.getByRole('button', { name: /^Active/ }))
+    await user.click(screen.getByRole('button', { name: 'Export CSV' }))
+    expect(api.download).toHaveBeenLastCalledWith('/admin/subscribers/export?status=active', 'subscribers.csv')
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    expect(screen.getByText('1 selected')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Export selected' }))
+    expect(api.download).toHaveBeenLastCalledWith('/admin/subscribers/export?ids=7', 'subscribers-selected.csv')
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/admin/subscribers/7'))
+    await waitFor(() => expect(screen.queryByText('1 selected')).not.toBeInTheDocument())
   })
 
   it('shows a retryable error instead of a stuck loading message', async () => {

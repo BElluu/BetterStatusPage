@@ -10,7 +10,7 @@ import {
   incidentMonitors, incidentUpdates, incidents, layout, maintenanceWindowMonitors, maintenanceWindows, monitors, smtpSettings,
   subscriberDeliveries, subscribers, subscriptionSettings,
 } from '../src/db/schema.js'
-import { publicSubscriptionRoutes } from '../src/routes/subscriptions.js'
+import { adminSubscriberRoutes, publicSubscriptionRoutes } from '../src/routes/subscriptions.js'
 import { feedRoutes } from '../src/routes/feeds.js'
 import { incidentRoutes } from '../src/routes/incidents.js'
 import { maintenanceRoutes } from '../src/routes/maintenance.js'
@@ -162,6 +162,7 @@ before(async () => {
   await app.register(rateLimit, { global: false })
   app.addHook('onRequest', async (req) => { (req as unknown as { user: unknown }).user = { userId: 1, email: 'operator@example.test' } })
   await app.register(publicSubscriptionRoutes, { prefix: '/api/v1/public/subscriptions' })
+  await app.register(adminSubscriberRoutes, { prefix: '/api/v1/admin/subscribers' })
   await app.register(feedRoutes, { prefix: '/api/v1/public' })
   await app.register(incidentRoutes, { prefix: '/api/v1/admin/incidents' })
   await app.register(maintenanceRoutes, { prefix: '/api/v1/admin/maintenance' })
@@ -546,6 +547,71 @@ describe('status page subscriptions', () => {
     }
     await waitFor(() => emails.length === 1)
     assert.match(emails[0]!, /we have paused it/)
+  })
+
+  it('lists deliveries for the admin, filters them, and retries only failed ones', async () => {
+    await enable({ allowWebhook: true })
+    process.env['SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE'] = 'true'
+    await subscribeAndConfirm({ type: 'email', email: 'reader@example.test' })
+    await subscribeAndConfirm({ type: 'webhook', email: 'ops@example.test', webhookUrl: hookUrl })
+    hookStatus = 500
+    const created = await inject({ method: 'POST', url: '/api/v1/admin/incidents', payload: { title: 'Search is slow' } })
+    assert.equal(created.statusCode, 200, created.body)
+    await exhaustDeliveries()
+
+    const all = (await inject({ method: 'GET', url: '/api/v1/admin/subscribers/deliveries' })).json()
+    assert.equal(all.total, 2)
+    assert.deepEqual(all.deliveries.map((d: { destination: string }) => d.destination).sort(), [hookUrl, 'reader@example.test'].sort())
+    assert.ok(all.deliveries.every((d: { subject: string; eventType: string }) => d.subject === 'Search is slow' && d.eventType === 'incident.created'))
+
+    const failed = (await inject({ method: 'GET', url: '/api/v1/admin/subscribers/deliveries?status=failed' })).json()
+    assert.equal(failed.total, 1)
+    const failedDelivery = failed.deliveries[0]
+    assert.equal(failedDelivery.destination, hookUrl)
+    assert.equal(failedDelivery.subscriberType, 'webhook')
+    assert.match(failedDelivery.lastError, /HTTP 500/)
+
+    const forEmail = (await inject({ method: 'GET', url: `/api/v1/admin/subscribers/deliveries?subscriberId=${all.deliveries.find((d: { subscriberType: string }) => d.subscriberType === 'email').subscriberId}` })).json()
+    assert.equal(forEmail.total, 1)
+    assert.equal(forEmail.deliveries[0].status, 'delivered')
+
+    const delivered = await inject({ method: 'POST', url: `/api/v1/admin/subscribers/deliveries/${forEmail.deliveries[0].id}/retry` })
+    assert.equal(delivered.statusCode, 409)
+    const missing = await inject({ method: 'POST', url: '/api/v1/admin/subscribers/deliveries/999999/retry' })
+    assert.equal(missing.statusCode, 404)
+
+    hookStatus = 204
+    hooks.length = 0
+    const retried = await inject({ method: 'POST', url: `/api/v1/admin/subscribers/deliveries/${failedDelivery.id}/retry` })
+    assert.equal(retried.statusCode, 200, retried.body)
+    await waitFor(async () => (await db.select().from(subscriberDeliveries).where(eq(subscriberDeliveries.id, failedDelivery.id)))[0]?.status === 'delivered')
+    assert.equal(hooks.length, 1)
+  })
+
+  it('exports subscribers as CSV for a filter or a selection and neutralises spreadsheet formulas', async () => {
+    await enable()
+    await subscribeAndConfirm({ type: 'email', email: 'one@example.test', monitorIds: [publicA] })
+    await subscribeAndConfirm({ type: 'email', email: '=cmd@example.test' })
+    const rows = await db.select().from(subscribers)
+    await db.update(subscribers).set({ status: 'unsubscribed' }).where(eq(subscribers.id, rows.find((row) => row.email === 'one@example.test')!.id))
+
+    const everything = await inject({ method: 'GET', url: '/api/v1/admin/subscribers/export' })
+    assert.equal(everything.statusCode, 200)
+    assert.match(String(everything.headers['content-type']), /text\/csv/)
+    assert.match(String(everything.headers['content-disposition']), /attachment/)
+    const lines = everything.body.trim().split('\r\n')
+    assert.equal(lines[0], 'id,type,destination,contact_email,status,events,monitors,tags,last_notified_at,last_error')
+    assert.equal(lines.length, 3)
+    assert.ok(lines.some((line) => line.includes('"\'=cmd@example.test"')), 'formula-looking address is quoted with a leading apostrophe')
+    assert.ok(lines.some((line) => line.includes('"Public API"')))
+
+    const filtered = (await inject({ method: 'GET', url: '/api/v1/admin/subscribers/export?status=unsubscribed' })).body.trim().split('\r\n')
+    assert.equal(filtered.length, 2)
+    assert.match(filtered[1]!, /one@example\.test/)
+
+    const selected = (await inject({ method: 'GET', url: `/api/v1/admin/subscribers/export?ids=${rows.find((row) => row.email === '=cmd@example.test')!.id}` })).body.trim().split('\r\n')
+    assert.equal(selected.length, 2)
+    assert.match(selected[1]!, /cmd@example\.test/)
   })
 
   it('refuses webhook targets inside private networks', () => {

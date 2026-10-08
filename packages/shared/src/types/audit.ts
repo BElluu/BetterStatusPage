@@ -22,6 +22,7 @@ export type AuditEntityType =
   | 'backup'
   | 'backup-config'
   | 'notification_delivery'
+  | 'subscriber_delivery'
   /** Every sign-in attempt, with a password or SSO; `diff.method` says which. */
   | 'sign_in'
 

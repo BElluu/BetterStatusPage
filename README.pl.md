@@ -157,6 +157,7 @@ Kanały powiadomień budzą Twój zespół, a subskrypcje informują **Twoich u�
 - **Double opt-in** przez e-mail, a w każdej wiadomości link do zarządzania subskrypcją i wypis jednym kliknięciem (RFC 8058)
 - **Tylko to, co publikujesz** — incydenty i prace serwisowe, nigdy flapy monitorów. Pole *Notify subscribers* pozwala opublikować wpis po cichu.
 - **Konfigurowalne webhooki** — subskrybent wybiera metodę HTTP i własne nagłówki, może dostać maila, gdy jego endpoint przestanie odpowiadać, a stale zawodzące endpointy są automatycznie wstrzymywane
+- **Historia dostaw** — każde powiadomienie wysłane do subskrybentów z jego statusem i ostatnim błędem, ponawianie nieudanych oraz eksport listy subskrybentów do CSV
 - **Bezpieczny publiczny formularz** — limit żądań, honeypot, brak możliwości sprawdzenia, kto jest zapisany, i adresy webhooków, które nigdy nie wskażą Twojej sieci wewnętrznej
 
 > Zobacz **[docs.betterstatuspage.dev/subscriptions](https://docs.betterstatuspage.dev/subscriptions/)** — konfiguracja, zasady dostarczania i format webhooka *(EN)*.
@@ -198,7 +199,8 @@ Każda zmiana w panelu admina jest rejestrowana — kto, kiedy i co dokładnie z
 | Kanały powiadomień | Tworzenie, aktualizacja (nazwa, typ, włączony, konfiguracja), usuwanie |
 | Ustawienia SMTP | Konfiguracja / aktualizacja |
 | Ustawienia subskrypcji | Konfiguracja lub zmiana metod, typów powiadomień i zakresu komponentów |
-| Subskrybenci | Usuwanie |
+| Subskrybenci | Usuwanie (pojedyncze lub kilku naraz) |
+| Dostawy do subskrybentów | Ręczne ponowienie nieudanej dostawy |
 | Sejfy i sekrety | Tworzenie, aktualizacja (nazwa, zmiana wartości oznaczona jako `[redacted]`), usuwanie |
 | Użytkownicy | Tworzenie, zmiana roli, reset hasła, usuwanie |
 | Bezpieczeństwo konta | Włączenie lub wyłączenie uwierzytelniania dwuskładnikowego TOTP, zmiana hasła, powiązanie konta z SSO, unieważnienie hasła tymczasowego |

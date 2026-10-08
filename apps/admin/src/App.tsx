@@ -20,6 +20,7 @@ import VaultPage from './pages/Vault'
 import NotificationsPage from './pages/Notifications'
 import NotificationHistoryPage from './pages/NotificationHistory'
 import SubscribersPage from './pages/Subscribers'
+import SubscriberHistoryPage from './pages/SubscriberHistory'
 import MaintenancePage from './pages/Maintenance'
 import AuditLogPage from './pages/AuditLog'
 import BackupsPage from './pages/Backups'
@@ -143,6 +144,7 @@ export default function App() {
           <Route path="notifications" element={<RequireRole minRole="operator"><NotificationsPage /></RequireRole>} />
           <Route path="notifications/history" element={<RequireRole minRole="operator"><NotificationHistoryPage /></RequireRole>} />
           <Route path="subscribers" element={<RequireRole minRole="operator"><SubscribersPage /></RequireRole>} />
+          <Route path="subscribers/history" element={<RequireRole minRole="operator"><SubscriberHistoryPage /></RequireRole>} />
           <Route path="users"     element={<RequireRole minRole="admin"><UsersPage /></RequireRole>} />
           <Route path="sso-test"  element={<RequireRole minRole="admin"><SsoTestResultPage /></RequireRole>} />
           <Route path="vault"      element={<RequireRole minRole="admin"><VaultPage /></RequireRole>} />

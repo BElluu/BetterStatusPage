@@ -219,3 +219,34 @@ export interface SubscriberList {
   limit: number
   pages: number
 }
+
+/** `cancelled`: dropped before sending because the subscriber or the feature was switched off. */
+export type SubscriberDeliveryStatus = 'pending' | 'delivered' | 'failed' | 'cancelled'
+
+/** One queued or sent notification for one subscriber, as the delivery history lists it. */
+export interface SubscriberDelivery {
+  id: number
+  subscriberId: number
+  subscriberType: SubscriberType
+  /** The email address, or the webhook URL for webhook subscribers. */
+  destination: string
+  eventType: SubscriberEventType
+  /** The incident title or maintenance name the notification is about. */
+  subject: string
+  status: SubscriberDeliveryStatus
+  attemptCount: number
+  maxAttempts: number
+  nextAttemptAt: number | null
+  lastError: string | null
+  deliveredAt: number | null
+  createdAt: number
+  updatedAt: number
+}
+
+export interface SubscriberDeliveryList {
+  deliveries: SubscriberDelivery[]
+  total: number
+  page: number
+  limit: number
+  pages: number
+}

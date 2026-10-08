@@ -41,13 +41,14 @@ const ENTITY_LABELS: Record<AuditEntityType, string> = {
   backup:               'Backup',
   'backup-config':      'Backup Schedule',
   notification_delivery: 'Notification Delivery',
+  subscriber_delivery:  'Subscriber Delivery',
   sign_in:              'Sign-in',
 }
 
 /** Entity filter sections, most used first; types inside a group run from most to least important. */
 const ENTITY_GROUPS = [
   { label: 'Monitoring', types: ['monitor', 'incident', 'maintenance'] },
-  { label: 'Notifications', types: ['notification_channel', 'notification_delivery', 'smtp_settings', 'subscriber', 'subscription_settings'] },
+  { label: 'Notifications', types: ['notification_channel', 'notification_delivery', 'smtp_settings', 'subscriber', 'subscriber_delivery', 'subscription_settings'] },
   { label: 'Access & security', types: ['sign_in', 'user', 'user-security', 'oidc_settings', 'status_page_access', 'vault', 'vault_secret'] },
   { label: 'Appearance', types: ['branding', 'layout', 'locale'] },
   { label: 'System', types: ['backup', 'backup-config'] },
@@ -76,6 +77,7 @@ const ENTITY_ICONS: Record<AuditEntityType, string> = {
   backup:               'backup',
   'backup-config':      'schedule',
   notification_delivery: 'send',
+  subscriber_delivery:  'send',
   sign_in:              'login',
 }
 
