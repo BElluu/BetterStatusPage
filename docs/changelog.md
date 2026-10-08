@@ -7,9 +7,11 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ### Added
 
-- **PostgreSQL, MySQL / MariaDB and MongoDB monitors**: run a test query (for MongoDB, a JSON command), like the SQL Server monitor. They appear in the form as one **Database** type with an **Engine** selector, together with SQL Server. Connect with individual fields or a connection string from the vault; includes the **Test** button. MySQL and MariaDB share one type. See the [monitors guide](monitors.md#sql-server-postgresql-mysql--mariadb-and-mongodb).
+- **PostgreSQL, MySQL / MariaDB and MongoDB monitors**: run a test query (for MongoDB, a JSON command), like the SQL Server monitor. They appear in the form as one **Database** type with an **Engine** selector, together with SQL Server. Connect with individual fields or a connection string from the vault; an optional **Expected Result** (first column of the first row) makes a mismatch Degraded; includes the **Test** button. MySQL and MariaDB share one type. See the [monitors guide](monitors.md#sql-server-postgresql-mysql--mariadb-and-mongodb).
 - **Docker monitor**: checks the state and healthcheck of a container through the Docker Engine API, over a local socket, a Windows named pipe or HTTP(S). Running and healthy is operational; restarting, unhealthy or starting is degraded; stopped, paused or missing is down. Includes the **Test** button. See the [monitors guide](monitors.md#docker).
 - **Subscriber delivery history**: **Subscribers → Delivery history** lists every notification sent to subscribers with its status, attempts and last error, filters by status, event and subscriber (the history icon on a subscriber's row), and has **Retry now** for failed deliveries. See [Delivery history](subscriptions.md#delivery-history).
+
+- **Status page link in the admin sidebar**: **Status page**, above **Settings**, opens the public status page in a new tab.
 
 ### Changed
 

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true, Position = 0)]
-  [ValidatePattern('^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$')]
+  [ValidatePattern('^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$')]
   [string]$Version,
 
   [Parameter(Mandatory = $false)]
@@ -11,6 +11,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$Version = $Version.TrimStart('v')
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $image = 'ghcr.io/belluu/better-status-page'
 $gitTag = "v$Version"
@@ -102,7 +103,7 @@ try {
     Write-Host "Project packages already use version $Version; skipping npm version."
   }
 
-  Write-Step 'Updating GHCR image versions in documentation'
+  Write-Step 'Updating GHCR image versions and removing "Not released yet" callouts in documentation'
   $documentationFiles = @(
     Get-Item -LiteralPath 'README.md'
     Get-Item -LiteralPath 'README.pl.md'
@@ -110,13 +111,31 @@ try {
   )
   $imagePattern = 'ghcr\.io/belluu/better-status-page:(?:v)?\d+\.\d+\.\d+'
   $imageReplacement = "${image}:$Version"
+  $notReleasedPattern = '(?m)^> \[!WARNING\]\r?\n> \*\*Not released yet\.\*\*.*\r?\n(?:>.*\r?\n)*(?:\r?\n)?'
   foreach ($file in $documentationFiles) {
     $content = [IO.File]::ReadAllText($file.FullName, $utf8NoBom)
     $updated = [Text.RegularExpressions.Regex]::Replace($content, $imagePattern, $imageReplacement)
+    $updated = [Text.RegularExpressions.Regex]::Replace($updated, $notReleasedPattern, '')
     if ($updated -ne $content) {
       [IO.File]::WriteAllText($file.FullName, $updated, $utf8NoBom)
       Write-Host "Updated $($file.FullName.Substring($repoRoot.Length + 1))"
     }
+  }
+
+  Write-Step 'Dating the changelog release section'
+  $changelogPath = Join-Path $repoRoot 'docs/changelog.md'
+  $changelog = [IO.File]::ReadAllText($changelogPath, $utf8NoBom)
+  if ($changelog -match "(?m)^## \[$([regex]::Escape($Version))\]") {
+    Write-Host "Changelog already has a section for $Version; skipping."
+  } else {
+    $releaseHeading = "## [$Version] - $(Get-Date -Format 'yyyy-MM-dd')"
+    $unreleasedPattern = '(?m)^## \[Unreleased\][ \t]*\r?$'
+    if ($changelog -notmatch $unreleasedPattern) {
+      throw 'docs/changelog.md has no "## [Unreleased]" heading to turn into a release section'
+    }
+    $changelog = [regex]::Replace($changelog, $unreleasedPattern, "## [Unreleased]`n`n$releaseHeading", 1)
+    [IO.File]::WriteAllText($changelogPath, $changelog, $utf8NoBom)
+    Write-Host "Changelog: [Unreleased] -> $releaseHeading"
   }
 
   Write-Step 'Running release verification'

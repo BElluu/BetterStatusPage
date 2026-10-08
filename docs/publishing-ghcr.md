@@ -4,6 +4,8 @@ Releases are published manually with `scripts/publish-release.ps1`. The script a
 
 - synchronizing the version across all npm workspaces and `package-lock.json`;
 - updating the `ghcr.io/belluu/better-status-page` image tag in `README.md`, `README.pl.md` and `docs/*.md` files;
+- removing the `> [!WARNING]` / `> **Not released yet.**` callouts from `README.md`, `README.pl.md` and `docs/*.md`, because everything on `main` ships with the release;
+- turning the `## [Unreleased]` heading in `docs/changelog.md` into `## [X.Y.Z] - YYYY-MM-DD` (today's date) and leaving a fresh empty `## [Unreleased]` above it;
 - auditing production dependencies, linting, testing, building, and checking version consistency;
 - creating a `chore: release X.Y.Z` commit;
 - building one Linux AMD64 image with the `X.Y.Z` and `latest` tags;
@@ -45,7 +47,7 @@ $pat = Read-Host 'GitHub PAT classic with write:packages' -AsSecureString
 
 The script stops the release if:
 
-- the version does not follow the `X.Y.Z` format;
+- the version does not follow the `X.Y.Z` format (a leading `v`, as in `v0.1.2`, is accepted; it is stripped from the package versions, changelog and image tag, while the Git tag is always `vX.Y.Z`);
 - the current branch is not `main`;
 - the working tree contains uncommitted or untracked files;
 - the requested version is lower than the current version;
