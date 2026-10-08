@@ -352,6 +352,18 @@ export function processDueSubscriberDeliveries(now = Date.now()): Promise<number
   return processing
 }
 
+/** Puts a failed delivery back in the queue for another full round of attempts. */
+export async function retrySubscriberDelivery(deliveryId: number): Promise<boolean> {
+  const delivery = (await db.select().from(subscriberDeliveries).where(eq(subscriberDeliveries.id, deliveryId)))[0]
+  if (!delivery || delivery.status !== 'failed') return false
+  const now = Date.now()
+  await db.update(subscriberDeliveries).set({
+    status: 'pending', maxAttempts: delivery.attemptCount + MAX_ATTEMPTS, nextAttemptAt: now, lastError: null, updatedAt: now,
+  }).where(eq(subscriberDeliveries.id, deliveryId))
+  kickSubscriberDeliveries()
+  return true
+}
+
 function kickSubscriberDeliveries(): void {
   setImmediate(() => {
     processDueSubscriberDeliveries().catch((error) => console.error('[subscriptions] Delivery pass failed:', error))

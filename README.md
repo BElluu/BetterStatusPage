@@ -157,6 +157,7 @@ Notification channels wake up your team; subscriptions keep **your users** in th
 - **Double opt-in** by email, with a manage link and RFC 8058 one-click unsubscribe in every message
 - **Only what you publish** — incidents and maintenance, never monitor flaps. A *Notify subscribers* checkbox lets you post quietly.
 - **Configurable webhooks** — subscribers pick the HTTP method and custom headers, can be emailed when their endpoint stops responding, and failing endpoints are paused automatically
+- **Delivery history** — see every notification sent to subscribers with its status and last error, retry failed ones, and export the subscriber list as CSV
 - **A safe public form** — rate limit, honeypot, no way to discover who is subscribed, and webhook URLs that can never point into your own network
 
 > See **[docs.betterstatuspage.dev/subscriptions](https://docs.betterstatuspage.dev/subscriptions/)** for setup, delivery rules and the webhook payload.
@@ -198,7 +199,8 @@ Every mutation in the admin panel is recorded — who did it, when, and exactly 
 | Notification channels | Create, update (name, type, enabled, config), delete |
 | SMTP settings | Configure / update |
 | Subscription settings | Configure or change methods, notification types and component scope |
-| Subscribers | Delete |
+| Subscribers | Delete (single or several at once) |
+| Subscriber deliveries | Manual retry of a failed delivery |
 | Vaults & secrets | Create, update (name, value change flagged as `[redacted]`), delete |
 | Users | Create, role change, password reset, delete |
 | User security | Enable or disable TOTP two-factor authentication, password changes, SSO account linking, revoked temporary passwords |

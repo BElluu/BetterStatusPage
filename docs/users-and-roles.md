@@ -149,7 +149,7 @@ The **Audit Log** (administrators only) records who changed what and when. Each 
 |--------|----------|
 | Monitor, Incident, Maintenance | Create, update, delete |
 | Notification Channel, SMTP Settings | Create, update, delete |
-| Notification Delivery | Manual retry of a failed delivery |
+| Notification Delivery, Subscriber Delivery | Manual retry of a failed delivery |
 | Subscription Settings, Subscriber | Settings changes, subscriber deletion |
 | Vault, Vault Secret | Create, update, delete (secret values never) |
 | Branding, Status Page Layout, Language | Branding and page builder saves, translation changes |

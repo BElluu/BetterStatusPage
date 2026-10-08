@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<title>Subscribers — Admin Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<style>
+:root{--m3-surface:#f5f6f9;--m3-surface-container-lowest:#fafbfc;--m3-surface-container-low:#eef0f5;--m3-surface-container:#e7eaf0;--m3-surface-container-high:#dfe3ea;--m3-surface-container-highest:#d7dce5;--m3-on-surface:#1c2333;--m3-on-surface-variant:#45464d;--m3-secondary:#566174;--m3-outline:#7c828e;--m3-outline-variant:#d3d7df;--m3-primary:#000000;--m3-error:#ba1a1a;--m3-error-container:#ffdad6;--m3-on-error-container:#93000a;--m3-up:#166534;--m3-up-bg:rgba(34,197,94,0.12);--m3-down:#ba1a1a;--m3-down-bg:#ffdad6;--m3-degraded:#854d0e;--m3-degraded-bg:rgba(234,179,8,0.12);--admin-action-primary:#dbe7ff;--admin-action-primary-hover:#c9d9ff;--admin-on-action-primary:#172033;--admin-action-focus:rgba(73,124,255,0.28);--admin-selection:#dbe7ff;--admin-selection-hover:#c9d9ff;--admin-on-selection:#000000;--admin-selection-border:#a9bfe6;--admin-control-accent:#4b5563;--admin-control-on:#ffffff;--admin-icon-container:#e4e7ec;--admin-icon-color:#4b5563}
+html.dark{--m3-surface:#20232a;--m3-surface-container-lowest:#252830;--m3-surface-container-low:#1a1c22;--m3-surface-container:#282b33;--m3-surface-container-high:#30343d;--m3-surface-container-highest:#383c46;--m3-on-surface:#e3e5ea;--m3-on-surface-variant:#c5cad3;--m3-secondary:#aab0bb;--m3-outline:#80868f;--m3-outline-variant:#3a3e48;--m3-primary:#b4c5ff;--m3-error:#ffb4ab;--m3-error-container:#93000a;--m3-on-error-container:#ffdad6;--m3-up:#4ade80;--m3-up-bg:rgba(74,222,128,0.12);--m3-down:#ffb4ab;--m3-down-bg:rgba(147,0,10,0.25);--m3-degraded:#ffb950;--m3-degraded-bg:rgba(234,179,8,0.15);--admin-action-primary:#e5e7eb;--admin-action-primary-hover:#ffffff;--admin-on-action-primary:#111318;--admin-action-focus:rgba(229,231,235,0.28);--admin-selection:#3a3d46;--admin-selection-hover:#454953;--admin-on-selection:#f0f1f3;--admin-selection-border:#777e8b;--admin-control-accent:#c3c8d1;--admin-control-on:#1a1c22;--admin-icon-container:#30343d;--admin-icon-color:#d6d9df}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter',system-ui,sans-serif;background:var(--m3-surface);color:var(--m3-on-surface)}
+button{font-family:inherit}
+a{color:var(--m3-on-surface);text-decoration:underline}
+a:hover{color:var(--m3-secondary)}
+.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;line-height:1;vertical-align:middle}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</helmet>
+
+<div style="display:flex;height:100vh;background:var(--m3-surface-container-low);font-family:'Inter',system-ui,sans-serif;color:var(--m3-on-surface)">
+
+  <aside style="display:flex;flex-direction:column;height:100vh;width:256px;flex-shrink:0;background:var(--m3-surface-container-low)">
+    <div style="margin-bottom:24px;padding:20px 16px 0">
+      <div style="display:flex;align-items:center;gap:12px;min-width:0">
+        <img src="assets/icon.png" alt="BetterStatusPage" style="width:40px;height:40px;object-fit:contain;flex-shrink:0">
+        <div style="min-width:0">
+          <p style="margin:0;font-family:Manrope,system-ui,sans-serif;font-weight:700;font-size:16px;line-height:1;color:var(--m3-on-surface)">Admin Console</p>
+          <p style="margin:4px 0 0;font-size:12px;line-height:1;color:var(--m3-secondary)">Reliability Engineering</p>
+        </div>
+      </div>
+    </div>
+    <nav aria-label="Main" style="flex:1;padding:0 12px 8px;overflow-y:auto;display:flex;flex-direction:column;gap:16px">
+      <sc-for list="{{ navSections }}" as="section" hint-placeholder-count="3">
+        <div>
+          <p style="margin:0;padding:0 16px 4px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;font-size:10px;letter-spacing:0.1em;color:var(--m3-outline)">{{ section.label }}</p>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <sc-for list="{{ section.items }}" as="item" hint-placeholder-count="4">
+              <div style="{{ item.style }}" style-hover="{{ item.hover }}">
+                <span class="material-symbols-outlined" style="{{ item.iconStyle }}">{{ item.icon }}</span>
+                <span>{{ item.label }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-for>
+    </nav>
+    <div style="padding:16px 12px;border-top:1px solid var(--m3-outline-variant);display:flex;flex-direction:column;gap:2px">
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:12px;font-size:14px;line-height:20px;color:var(--m3-secondary);cursor:pointer"><span class="material-symbols-outlined" style="font-size:20px">manage_accounts</span><span>Settings</span></div>
+      <button type="button" onClick="{{ toggleDark }}" style="display:flex;width:100%;align-items:center;gap:12px;padding:10px 16px;border-radius:12px;font-size:14px;line-height:20px;color:var(--m3-secondary);background:transparent;border:none;cursor:pointer;text-align:left" style-hover="background:rgba(127,127,127,0.1);color:var(--m3-on-surface)"><span class="material-symbols-outlined" style="font-size:20px">{{ darkIcon }}</span><span>{{ darkLabel }}</span></button>
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:12px;font-size:14px;line-height:20px;color:var(--m3-secondary);cursor:pointer"><span class="material-symbols-outlined" style="font-size:20px">logout</span><span>Logout</span></div>
+    </div>
+  </aside>
+
+  <main style="flex:1;min-height:0;min-width:0;overflow:auto;background:var(--m3-surface-container-low);position:relative">
+
+    <sc-if value="{{ isCurrent }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Current" style="padding:32px;display:flex;flex-direction:column;gap:24px;animation:fadeUp 0.4s ease forwards">
+        <header>
+          <h1 style="margin:0;font-family:Manrope,system-ui,sans-serif;font-weight:700;font-size:24px;line-height:32px;color:var(--m3-on-surface)">Subscribers</h1>
+          <p style="margin:4px 0 0;font-size:14px;color:var(--m3-secondary)">Choose how visitors of the status page can follow incidents and maintenance</p>
+        </header>
+        <section style="border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:24px;background:var(--m3-surface-container-low);border:1px solid var(--m3-outline-variant)">
+          <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:16px">
+            <div style="display:flex;flex-direction:column;gap:8px;max-width:672px">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+                <div style="min-width:0">
+                  <label style="display:block;font-size:14px;font-weight:500;color:var(--m3-on-surface);cursor:pointer" onClick="{{ master.onToggle }}">Allow visitors to subscribe</label>
+                  <p style="margin:2px 0 0;font-size:12px;color:var(--m3-secondary)">Master switch. Off hides the Subscribe button, takes the feeds and the status API offline, and stops notifications to subscribers.</p>
+                </div>
+                <button type="button" role="switch" onClick="{{ master.onToggle }}" style="{{ master.track }}"><span style="{{ master.knob }}"></span></button>
+              </div>
+              <sc-if value="{{ draftEnabled }}" hint-placeholder-val="{{ true }}">
+                <p style="{{ offeredStyle }}">{{ offeredText }}</p>
+              </sc-if>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px">
+              <span style="font-size:12px;color:var(--m3-up)">{{ message }}</span>
+              <button type="button" onClick="{{ onSave }}" style="{{ saveBtnStyle }}">Save settings</button>
+            </div>
+          </div>
+          <div>
+            <p style="margin:0 0 12px;font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--m3-secondary)">Subscription methods</p>
+            <div style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(380px,1fr))">
+              <sc-for list="{{ methods }}" as="m" hint-placeholder-count="5">
+                <div style="border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--m3-surface-container-lowest);border:1px solid var(--m3-outline-variant)">
+                  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+                    <div style="display:flex;align-items:center;gap:10px">
+                      <span class="material-symbols-outlined" style="font-size:20px;color:var(--m3-secondary)">{{ m.icon }}</span>
+                      <span style="font-family:Manrope,system-ui,sans-serif;font-weight:600;font-size:14px;color:var(--m3-on-surface)">{{ m.title }}</span>
+                      <span style="{{ m.badgeStyle }}">{{ m.badgeLabel }}</span>
+                    </div>
+                    <button type="button" role="switch" onClick="{{ m.onToggle }}" style="{{ m.track }}"><span style="{{ m.knob }}"></span></button>
+                  </div>
+                  <p style="margin:0;font-size:12px;line-height:16px;color:var(--m3-secondary)">{{ m.desc }}</p>
+                  <sc-if value="{{ m.showProblems }}" hint-placeholder-val="{{ false }}">
+                    <ul style="margin:0;list-style:none;font-size:12px;border-radius:8px;padding:8px 12px;background:var(--m3-degraded-bg);color:var(--m3-on-surface-variant);display:flex;flex-direction:column;gap:4px">
+                      <sc-for list="{{ m.problems }}" as="p" hint-placeholder-count="1">
+                        <li style="display:flex;gap:6px"><span class="material-symbols-outlined" style="font-size:14px;color:var(--m3-degraded);margin-top:1px;flex-shrink:0">warning</span><span>{{ p.text }}</span></li>
+                      </sc-for>
+                    </ul>
+                  </sc-if>
+                  <sc-if value="{{ m.showUrls }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:12px;font-family:'JetBrains Mono',monospace;word-break:break-all;color:var(--m3-secondary);display:flex;flex-direction:column;gap:4px">
+                      <sc-for list="{{ m.urls }}" as="u" hint-placeholder-count="1"><div>{{ u.url }}</div></sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:grid;gap:24px;grid-template-columns:repeat(auto-fit,minmax(380px,1fr))">
+            <div>
+              <p style="margin:0 0 12px;font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--m3-secondary)">Notifications subscribers may receive</p>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <sc-for list="{{ events }}" as="e" hint-placeholder-count="4">
+                  <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+                    <input type="checkbox" checked="{{ e.checked }}" onChange="{{ e.onChange }}" style="margin-top:4px;accent-color:var(--admin-control-accent)">
+                    <span><span style="display:block;font-size:14px;font-weight:500;color:var(--m3-on-surface)">{{ e.label }}</span><span style="display:block;font-size:12px;color:var(--m3-secondary)">{{ e.hint }}</span></span>
+                  </label>
+                </sc-for>
+                <p style="margin:0;padding-top:4px;font-size:12px;color:var(--m3-secondary)">Applies to email, webhook and Slack. Subscribers pick from these; monitor status flaps are never sent — only what you publish.</p>
+              </div>
+            </div>
+            <div>
+              <p style="margin:0 0 12px;font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--m3-secondary)">Scope</p>
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+                <div style="min-width:0">
+                  <label style="display:block;font-size:14px;font-weight:500;color:var(--m3-on-surface);cursor:pointer" onClick="{{ scope.onToggle }}">Let subscribers choose components</label>
+                  <p style="margin:2px 0 0;font-size:12px;color:var(--m3-secondary)">Email and webhook subscribers can follow only selected monitors or tags. Only monitors placed on the public page are offered. Incidents with no linked monitors go to everyone.</p>
+                </div>
+                <button type="button" role="switch" onClick="{{ scope.onToggle }}" style="{{ scope.track }}"><span style="{{ scope.knob }}"></span></button>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section style="display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px">
+            <div role="group" style="display:flex;max-width:100%;overflow-x:auto;border-radius:12px;border:1px solid var(--m3-outline-variant)">
+              <sc-for list="{{ filterTabs }}" as="t" hint-placeholder-count="5">
+                <button type="button" onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}<span style="margin-left:6px;font-family:'JetBrains Mono',monospace;font-size:12px;opacity:0.7">{{ t.count }}</span></button>
+              </sc-for>
+            </div>
+            <input type="search" value="{{ search }}" onChange="{{ onSearch }}" placeholder="Search email or URL…" style="width:100%;max-width:320px;background:var(--m3-surface-container-lowest);border:1.5px solid var(--m3-outline-variant);border-radius:10px;padding:9px 13px;color:var(--m3-on-surface);font-family:Inter,system-ui,sans-serif;font-size:14px;outline:none">
+          </div>
+          <div style="border-radius:16px;overflow-x:auto;background:var(--m3-surface-container-low);border:1px solid var(--m3-outline-variant)">
+            <table style="width:100%;min-width:860px;font-size:14px;border-collapse:collapse">
+              <thead><tr style="border-bottom:1px solid var(--m3-outline-variant)">
+                <th style="padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-align:left;color:var(--m3-secondary);background:var(--m3-surface-container)">Destination</th>
+                <th style="padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-align:left;color:var(--m3-secondary);background:var(--m3-surface-container)">Status</th>
+                <th style="padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-align:left;color:var(--m3-secondary);background:var(--m3-surface-container)">Receives</th>
+                <th style="padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-align:left;color:var(--m3-secondary);background:var(--m3-surface-container)">Scope</th>
+                <th style="padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-align:left;color:var(--m3-secondary);background:var(--m3-surface-container)">Last notified</th>
+                <th style="padding:12px 16px;background:var(--m3-surface-container)"></th>
+              </tr></thead>
+              <tbody>
+                <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+                  <tr style="border-top:1px solid var(--m3-outline-variant)">
+                    <td style="padding:12px 16px;vertical-align:top">
+                      <div style="display:flex;align-items:center;gap:8px"><span class="material-symbols-outlined" style="font-size:16px;color:var(--m3-secondary)">{{ r.icon }}</span><span style="font-weight:500;word-break:break-all;color:var(--m3-on-surface)">{{ r.dest }}</span></div>
+                      <sc-if value="{{ r.isWebhook }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size:12px;margin:2px 0 0 24px;color:var(--m3-secondary)"><div>{{ r.contactLine }}</div><div style="font-family:'JetBrains Mono',monospace">{{ r.methodLine }}</div></div>
+                      </sc-if>
+                    </td>
+                    <td style="padding:12px 16px;vertical-align:top"><span style="{{ r.badgeStyle }}">{{ r.statusLabel }}</span></td>
+                    <td style="padding:12px 16px;vertical-align:top;font-size:12px;color:var(--m3-on-surface-variant)">{{ r.receives }}</td>
+                    <td style="padding:12px 16px;vertical-align:top;font-size:12px;color:var(--m3-on-surface-variant)">{{ r.scope }}</td>
+                    <td style="padding:12px 16px;vertical-align:top;font-size:12px;color:var(--m3-secondary)">{{ r.last }}<sc-if value="{{ r.hasFail }}" hint-placeholder-val="{{ false }}"><div style="margin-top:2px;color:var(--m3-down)">{{ r.failText }}</div></sc-if></td>
+                    <td style="padding:12px 16px;vertical-align:top;text-align:right"><button type="button" onClick="{{ r.onDelete }}" style="display:inline-flex;align-items:center;border-radius:8px;padding:6px 12px;font-size:12px;line-height:16px;font-weight:600;color:var(--m3-down);border:1px solid var(--m3-outline-variant);background:transparent;cursor:pointer" style-hover="background:var(--m3-down-bg)">Delete</button></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isA }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Variant A" style="padding:32px;display:flex;flex-direction:column;gap:24px;animation:fadeUp 0.4s ease forwards">
+        <header style="display:flex;flex-direction:column;gap:20px">
+          <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px 16px">
+            <div style="min-width:0">
+              <h1 style="margin:0;font-family:Manrope,system-ui,sans-serif;font-weight:700;font-size:24px;line-height:32px;color:var(--m3-on-surface)">Subscribers</h1>
+              <p style="margin:4px 0 0;font-size:14px;color:var(--m3-secondary)">Choose how visitors of the status page can follow incidents and maintenance</p>
+            </div>
+            <button type="button" onClick="{{ goSettings }}" style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 10px;border-radius:999px;border:1px solid var(--m3-outline-variant);background:var(--m3-surface-container-lowest);font-size:12px;font-weight:500;color:var(--m3-on-surface-variant);cursor:pointer" style-hover="border-color:var(--m3-outline)">
+              <span style="{{ pillDot }}"></span><span>{{ pillText }}</span>
+            </button>
+          </div>
+          <div role="tablist" style="display:flex;gap:24px;border-bottom:1px solid var(--m3-outline-variant)">
+            <sc-for list="{{ pageTabsA }}" as="t" hint-placeholder-count="3">
+              <button type="button" role="tab" onClick="{{ t.onClick }}" style="{{ t.styleA }}">
+                <span>{{ t.label }}</span>
+                <sc-if value="{{ t.hasCount }}" hint-placeholder-val="{{ false }}"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;padding:1px 7px;border-radius:999px;background:var(--m3-surface-container-high);color:var(--m3-secondary)">{{ t.count }}</span></sc-if>
+                <sc-if value="{{ t.hasWarn }}" hint-placeholder-val="{{ false }}"><span class="material-symbols-outlined" style="font-size:16px;color:var(--m3-degraded)">warning</span></sc-if>
+              </button>
+            </sc-for>
+          </div>
+        </header>
+
+        <sc-if value="{{ onSubsTab }}" hint-placeholder-val="{{ true }}">
+          <section style="display:flex;flex-direction:column;gap:16px">
+            <sc-if value="{{ noSelection }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;min-height:44px">
+                <div role="group" style="display:flex;max-width:100%;overflow-x:auto;border-radius:12px;border:1px solid var(--m3-outline-variant)">
+                  <sc-for list="{{ filterTabs }}" as="t" hint-placeholder-count="5">
+                    <button type="button" onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}<span style="margin-left:6px;font-family:'JetBrains Mono',monospace;font-size:12px;opacity:0.7">{{ t.count }}</span></button>
+                  </sc-for>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;min-width:280px">
+                  <input type="search" value="{{ search }}" onChange="{{ onSearch }}" placeholder="Search email or URL…" style="width:100%;max-width:320px;background:var(--m3-surface-container-lowest);border:1.5px solid var(--m3-outline-variant);border-radius:10px;padding:9px 13px;color:var(--m3-on-surface);font-family:Inter,system-ui,sans-serif;font-size:14px;outline:none">
+                  <button type="button" onClick="{{ exportAll }}" style="display:inline-flex;align-items:center;gap:8px;border-radius:12px;padding:9px 16px;font-size:14px;line-height:20px;font-weight:600;white-space:nowrap;cursor:pointer;background:transparent;border:1px solid var(--m3-outline-variant);color:var(--m3-on-surface)" style-hover="background:var(--m3-surface-container)"><span class="material-symbols-outlined" style="font-size:18px">download</span>Export CSV</button>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:6px 8px 6px 16px;border-radius:12px;background:var(--admin-selection);border:1px solid var(--admin-selection-border);color:var(--admin-on-selection)">
+                <div style="display:flex;align-items:center;gap:12px;font-size:14px"><span style="font-weight:600">{{ selectedText }}</span><button type="button" onClick="{{ clearSelection }}" style="background:none;border:none;padding:0;font-size:14px;color:inherit;text-decoration:underline;cursor:pointer">Clear</button></div>
+                <div style="display:flex;gap:8px">
+                  <button type="button" onClick="{{ exportSelected }}" style="display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:6px 12px;font-size:12px;line-height:16px;font-weight:600;cursor:pointer;background:var(--m3-surface-container-lowest);border:1px solid var(--m3-outline-variant);color:var(--m3-on-surface)"><span class="material-symbols-outlined" style="font-size:16px">download</span>Export selected</button>
+                  <button type="button" onClick="{{ deleteSelected }}" style="display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:6px 12px;font-size:12px;line-height:16px;font-weight:600;cursor:pointer;background:var(--m3-surface-container-lowest);border:1px solid var(--m3-outline-variant);color:var(--m3-down)" style-hover="background:var(--m3-down-bg)"><span class="material-symbols-outlined" style="font-size:16px">delete</span>Delete</button>
+                </div>
+              </div>
+            </sc-if>
+            <div style="border-radius:16px;overflow-x:auto;background:var(--m3-surface-container-low);border:1px solid var(--m3-outline-variant)">
+              <table style="width:100%;min-width:860px;font-size:14px;border-collapse:collapse">
+                <thead><tr>
+                  <th style="width:44px;padding:12px 0 12px 16px;text-align:left;background:var(--m3-surface-container)"><input type="checkbox" checked="{{ allSelected }}" onChange="{{ onSelectAll }}" aria-label="Select all" style="accent-color:var(--admin-control-accent);width:16px;height:16px;cursor:pointer"></th>
+                  <th style="padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-align:left;color:var(--m3-secondary);background:var(--m3-surface-container)">Destination</th>
+                  <th style="padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-align:left;color:var(--m3-secondary);background:var(--m3-surface-container)">Status</th>
+                  <th style="padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-align:left;color:var(--m3-secondary);background:var(--m3-surface-container)">Receives</th>
+                  <th style="padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-align:left;color:var(--m3-secondary);background:var(--m3-surface-container)">Scope</th>
+                  <th style="padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-align:left;color:var(--m3-secondary);background:var(--m3-surface-container)">Last notified</th>
+                  <th style="width:96px;background:var(--m3-surface-container)"></th>
+                </tr></thead>
+                <tbody>
+                  <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+                    <tr style="{{ r.rowStyle }}">
+                      <td style="padding:14px 0 14px 16px;vertical-align:top"><input type="checkbox" checked="{{ r.selected }}" onChange="{{ r.onSelect }}" style="accent-color:var(--admin-control-accent);width:16px;height:16px;margin-top:2px;cursor:pointer"></td>
+                      <td style="padding:12px 16px;vertical-align:top">
+                        <div style="display:flex;align-items:center;gap:8px"><span class="material-symbols-outlined" style="font-size:16px;color:var(--m3-secondary)">{{ r.icon }}</span><span style="font-weight:500;word-break:break-all;color:var(--m3-on-surface)">{{ r.dest }}</span></div>
+                        <sc-if value="{{ r.isWebhook }}" hint-placeholder-val="{{ false }}">
+                          <div style="font-size:12px;margin:2px 0 0 24px;color:var(--m3-secondary)"><div>{{ r.contactLine }}</div><div style="font-family:'JetBrains Mono',monospace">{{ r.methodLine }}</div></div>
+                        </sc-if>
+                      </td>
+                      <td style="padding:12px 16px;vertical-align:top"><span style="{{ r.badgeStyle }}">{{ r.statusLabel }}</span></td>
+                      <td style="padding:12px 16px;vertical-align:top;font-size:12px;color:var(--m3-on-surface-variant)">{{ r.receives }}</td>
+                      <td style="padding:12px 16px;vertical-align:top;font-size:12px;color:var(--m3-on-surface-variant)">{{ r.scope }}</td>
+                      <td style="padding:12px 16px;vertical-align:top;font-size:12px;color:var(--m3-secondary)">{{ r.last }}<sc-if value="{{ r.hasFail }}" hint-placeholder-val="{{ false }}"><div style="margin-top:2px;color:var(--m3-down)">{{ r.failText }}</div></sc-if></td>
+                      <td style="padding:8px 16px 8px 0;vertical-align:top;text-align:right;white-space:nowrap"><button type="button" onClick="{{ r.onHistory }}" aria-label="Delivery history" title="Delivery history" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:var(--m3-secondary);cursor:pointer" style-hover="background:var(--m3-surface-container);color:var(--m3-on-surface)"><span class="material-symbols-outlined" style="font-size:20px">history</span></button><button type="button" onClick="{{ r.onDelete }}" aria-label="Delete" title="Delete" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:none;background:transparent;color:var(--m3-secondary);cursor:pointer" style-hover="background:var(--m3-down-bg);color:var(--m3-down)"><span class="material-symbols-outlined" style="font-size:20px">delete</span></button></td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+              <sc-if value="{{ noRows }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:48px 16px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px"><span class="material-symbols-outlined" style="font-size:32px;color:var(--m3-outline)">group_off</span><p style="margin:0;font-weight:600;font-size:14px">No subscribers match this filter</p><p style="margin:0;font-size:12px;color:var(--m3-secondary)">Try another status or search term.</p></div>
+              </sc-if>
+            </div>
+            <p style="margin:0;font-size:14px;color:var(--m3-secondary)">{{ showingText }}</p>
+          </section>
+        </sc-if>
+
+        <sc-if value="{{ onDeliveriesTab }}" hint-placeholder-val="{{ false }}">
+          <section style="display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px">
+              <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+                <select value="{{ dStatus }}" onChange="{{ onDStatus }}" aria-label="Status" style="appearance:none;min-width:150px;background:var(--m3-surface-container-lowest);border:1.5px solid var(--m3-outline-variant);border-radius:10px;padding:9px 32px 9px 13px;color:var(--m3-on-surface);font-family:Inter,system-ui,sans-serif;font-size:14px;outline:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2376777d' d='M6 8L1 3h10z'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 12px center">
+                  <option value="">All statuses</option><option value="pending">Pending</option><option value="delivered">Delivered</option><option value="failed">Failed</option>
+                </select>
+                <select value="{{ dEvent }}" onChange="{{ onDEvent }}" aria-label="Event" style="appearance:none;min-width:190px;background:var(--m3-surface-container-lowest);border:1.5px solid var(--m3-outline-variant);border-radius:10px;padding:9px 32px 9px 13px;color:var(--m3-on-surface);font-family:Inter,system-ui,sans-serif;font-size:14px;outline:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2376777d' d='M6 8L1 3h10z'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 12px center">
+                  <option value="">All events</option><option value="incident.created">New incidents</option><option value="incident.updated">Incident updates</option><option value="incident.resolved">Resolutions</option><option value="maintenance.scheduled">Scheduled maintenance</option>
+                </select>
+                <sc-if value="{{ hasDSub }}" hint-placeholder-val="{{ false }}">
+                  <span style="display:inline-flex;align-items:center;gap:6px;padding:6px 6px 6px 12px;border-radius:999px;font-size:13px;background:var(--admin-selection);border:1px solid var(--admin-selection-border);color:var(--admin-on-selection)"><span class="material-symbols-outlined" style="font-size:16px">{{ dSubIcon }}</span>{{ dSubLabel }}<button type="button" onClick="{{ clearDSub }}" aria-label="Show all subscribers" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;border:none;background:transparent;color:inherit;cursor:pointer" style-hover="background:rgba(127,127,127,0.2)"><span class="material-symbols-outlined" style="font-size:16px">close</span></button></span>
+                </sc-if>
+              </div>
+              <span style="font-size:12px;color:var(--m3-secondary)">Failed sends retry after 1, 5 and 30 minutes. Records are kept for 90 days.</span>
+            </div>
+            <div style="border-radius:16px;overflow-x:auto;background:var(--m3-surface-container-low);border:1px solid var(--m3-outline-variant)">
+              <table style="width:100%;min-width:850px;font-size:14px;border-collapse:collapse">
+                <thead><tr style="background:var(--m3-surface-container);border-bottom:1px solid var(--m3-outline-variant)">
+                  <th style="padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-align:left;color:var(--m3-secondary)">Time</th>
+                  <th style="padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-align:left;color:var(--m3-secondary)">Subscriber</th>
+                  <th style="padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-align:left;color:var(--m3-secondary)">Event</th>
+                  <th style="padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-align:left;color:var(--m3-secondary)">Attempts</th>
+                  <th style="padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;text-align:left;color:var(--m3-secondary)">Status</th>
+                  <th style="width:56px"></th>
+                </tr></thead>
+                <tbody>
+                  <sc-for list="{{ deliveries }}" as="d" hint-placeholder-count="6">
+                    <tr onClick="{{ d.onToggle }}" style="border-top:1px solid var(--m3-outline-variant);cursor:pointer">
+                      <td style="padding:12px 16px;white-space:nowrap;vertical-align:top;color:var(--m3-secondary)">{{ d.time }}</td>
+                      <td style="padding:12px 16px;vertical-align:top"><div style="display:flex;align-items:center;gap:8px"><span class="material-symbols-outlined" style="font-size:16px;color:var(--m3-secondary)">{{ d.icon }}</span><span style="font-weight:500;word-break:break-all">{{ d.dest }}</span></div></td>
+                      <td style="padding:12px 16px;vertical-align:top"><p style="margin:0">{{ d.eventLabel }}</p><p style="margin:0;font-size:12px;color:var(--m3-secondary)">{{ d.subject }}</p></td>
+                      <td style="padding:12px 16px;vertical-align:top">{{ d.attempts }}</td>
+                      <td style="padding:12px 16px;vertical-align:top"><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600"><span style="{{ d.dot }}"></span>{{ d.statusLabel }}</span><sc-if value="{{ d.hasNote }}" hint-placeholder-val="{{ false }}"><p style="margin:0;font-size:12px;color:var(--m3-secondary)">{{ d.note }}</p></sc-if></td>
+                      <td style="padding:8px 16px 8px 0;text-align:right;vertical-align:top"><span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;color:var(--m3-secondary)"><span class="material-symbols-outlined" style="font-size:18px">{{ d.chevron }}</span></span></td>
+                    </tr>
+                    <sc-if value="{{ d.expanded }}" hint-placeholder-val="{{ false }}">
+                      <tr><td colspan="6" style="padding:16px;background:var(--m3-surface-container)">
+                        <sc-if value="{{ d.hasError }}" hint-placeholder-val="{{ false }}">
+                          <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:12px;padding:10px 12px;border-radius:12px;font-size:14px;background:var(--m3-down-bg);color:var(--m3-down)"><span class="material-symbols-outlined" style="font-size:18px">error</span><span>{{ d.error }}</span></div>
+                        </sc-if>
+                        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+                          <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+                            <p style="margin:0;font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--m3-secondary)">Attempts</p>
+                            <sc-for list="{{ d.attemptList }}" as="a" hint-placeholder-count="1">
+                              <div style="display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px"><span style="font-weight:600">#{{ a.n }}</span><span style="{{ a.style }}">{{ a.label }}</span><span style="color:var(--m3-secondary)">{{ a.time }}</span><span style="color:var(--m3-secondary)">{{ a.error }}</span></div>
+                            </sc-for>
+                            <p style="margin:4px 0 0;font-size:12px;color:var(--m3-secondary)">{{ d.payloadNote }}</p>
+                          </div>
+                          <sc-if value="{{ d.canRetry }}" hint-placeholder-val="{{ false }}">
+                            <button type="button" onClick="{{ d.onRetry }}" style="border-radius:12px;padding:10px 16px;font-size:14px;font-weight:600;white-space:nowrap;cursor:pointer;background:var(--admin-action-primary);border:1px solid transparent;color:var(--admin-on-action-primary)" style-hover="background:var(--admin-action-primary-hover)">Retry now</button>
+                          </sc-if>
+                        </div>
+                      </td></tr>
+                    </sc-if>
+                  </sc-for>
+                </tbody>
+              </table>
+              <sc-if value="{{ noDeliveries }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:48px 16px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px"><span class="material-symbols-outlined" style="font-size:32px;color:var(--m3-outline)">outbox</span><p style="margin:0;font-weight:600;font-size:14px">No deliveries match these filters.</p><button type="button" onClick="{{ clearDFilters }}" style="background:none;border:none;padding:0;font-size:12px;color:var(--m3-secondary);text-decoration:underline;cursor:pointer">Clear the filters</button></div>
+              </sc-if>
+            </div>
+            <p style="margin:0;font-size:14px;color:var(--m3-secondary)">{{ deliveriesSummary }}</p>
+          </section>
+        </sc-if>
+
+        <sc-if value="{{ onSettingsTab }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:16px;max-width:1080px;padding-bottom:88px">
+            <section style="border-radius:12px;padding:10px 12px 10px 16px;background:var(--m3-surface-container-lowest);border:1px solid var(--m3-outline-variant);display:flex;align-items:center;justify-content:space-between;gap:16px">
+              <div style="min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px">
+                <label style="font-size:14px;font-weight:600;color:var(--m3-on-surface);cursor:pointer;white-space:nowrap" onClick="{{ master.onToggle }}" title="Master switch. Off hides the Subscribe button, takes the feeds and the status API offline, and stops notifications to subscribers.">Allow visitors to subscribe</label>
+                <span style="{{ offeredInline }}">{{ offeredInlineText }}</span>
+              </div>
+              <button type="button" role="switch" onClick="{{ master.onToggle }}" style="{{ master.track }}"><span style="{{ master.knob }}"></span></button>
+            </section>
+
+            <section style="border-radius:16px;background:var(--m3-surface-container-lowest);border:1px solid var(--m3-outline-variant);overflow:hidden">
+              <div style="padding:16px 24px;border-bottom:1px solid var(--m3-outline-variant)"><p style="margin:0;font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--m3-secondary)">Subscription methods</p></div>
+              <sc-for list="{{ methods }}" as="m" hint-placeholder-count="5">
+                <div style="padding:16px 24px;border-bottom:1px solid var(--m3-outline-variant);display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:4px 16px;align-items:start">
+                  <span style="width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:var(--admin-icon-container);color:var(--admin-icon-color)"><span class="material-symbols-outlined" style="font-size:20px">{{ m.icon }}</span></span>
+                  <div style="min-width:0;display:flex;flex-direction:column;gap:4px">
+                    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:20px"><span style="font-family:Manrope,system-ui,sans-serif;font-weight:600;font-size:14px;color:var(--m3-on-surface)">{{ m.title }}</span><span style="{{ m.badgeStyle }}">{{ m.badgeLabel }}</span></div>
+                    <p style="margin:0;font-size:12px;line-height:17px;color:var(--m3-secondary);max-width:720px;text-wrap:pretty">{{ m.desc }}</p>
+                    <sc-if value="{{ m.showProblems }}" hint-placeholder-val="{{ false }}">
+                      <ul style="margin:6px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--m3-on-surface-variant)">
+                        <sc-for list="{{ m.problems }}" as="p" hint-placeholder-count="1">
+                          <li style="display:flex;gap:6px;align-items:flex-start"><span class="material-symbols-outlined" style="font-size:14px;color:var(--m3-degraded);margin-top:1px;flex-shrink:0">warning</span><span>{{ p.text }}</span></li>
+                        </sc-for>
+                      </ul>
+                    </sc-if>
+                    <sc-if value="{{ m.showUrls }}" hint-placeholder-val="{{ false }}">
+                      <div style="margin-top:6px;display:flex;flex-direction:column;gap:6px">
+                        <sc-for list="{{ m.urls }}" as="u" hint-placeholder-count="1">
+                          <div style="display:flex;align-items:center;gap:8px;max-width:640px;padding:4px 4px 4px 10px;border-radius:8px;background:var(--m3-surface-container);font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--m3-on-surface-variant)">
+                            <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ u.url }}</span>
+                            <button type="button" onClick="{{ u.onCopy }}" style="display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:4px 8px;font-family:Inter,system-ui,sans-serif;font-size:12px;font-weight:600;cursor:pointer;background:var(--m3-surface-container-lowest);border:1px solid var(--m3-outline-variant);color:var(--m3-on-surface)"><span class="material-symbols-outlined" style="font-size:14px">content_copy</span>{{ u.copyLabel }}</button>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                  </div>
+                  <button type="button" role="switch" onClick="{{ m.onToggle }}" style="{{ m.track }}"><span style="{{ m.knob }}"></span></button>
+                </div>
+              </sc-for>
+            </section>
+
+            <section style="border-radius:16px;padding:24px;background:var(--m3-surface-container-lowest);border:1px solid var(--m3-outline-variant);display:grid;gap:32px;grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+              <div>
+                <p style="margin:0 0 12px;font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--m3-secondary)">Notifications subscribers may receive</p>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <sc-for list="{{ events }}" as="e" hint-placeholder-count="4">
+                    <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+                      <input type="checkbox" checked="{{ e.checked }}" onChange="{{ e.onChange }}" style="margin-top:4px;accent-color:var(--admin-control-accent)">
+                      <span><span style="display:block;font-size:14px;font-weight:500;color:var(--m3-on-surface)">{{ e.label }}</span><span style="display:block;font-size:12px;color:var(--m3-secondary)">{{ e.hint }}</span></span>
+                    </label>
+                  </sc-for>
+                  <p style="margin:0;padding-top:4px;font-size:12px;color:var(--m3-secondary)">Applies to email, webhook and Slack. Subscribers pick from these; monitor status flaps are never sent — only what you publish.</p>
+                </div>
+              </div>
+              <div>
+                <p style="margin:0 0 12px;font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--m3-secondary)">Scope</p>
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+                  <div style="min-width:0">
+                    <label style="display:block;font-size:14px;font-weight:500;color:var(--m3-on-surface);cursor:pointer" onClick="{{ scope.onToggle }}">Let subscribers choose components</label>
+                    <p style="margin:2px 0 0;font-size:12px;color:var(--m3-secondary)">Email and webhook subscribers can follow only selected monitors or tags. Only monitors placed on the public page are offered. Incidents with no linked monitors go to everyone.</p>
+                  </div>
+                  <button type="button" role="switch" onClick="{{ scope.onToggle }}" style="{{ scope.track }}"><span style="{{ scope.knob }}"></span></button>
+                </div>
+              </div>
+            </section>
+          </div>
+          <sc-if value="{{ showSaveBar }}" hint-placeholder-val="{{ false }}">
+            <div style="position:sticky;bottom:24px;margin-top:-72px;display:flex;justify-content:center;pointer-events:none">
+              <div style="pointer-events:auto;display:flex;align-items:center;gap:16px;padding:10px 10px 10px 20px;border-radius:16px;background:var(--m3-surface-container-lowest);border:1px solid var(--m3-outline-variant);box-shadow:0 8px 32px rgba(0,0,0,0.18)">
+                <span style="font-size:14px;color:var(--m3-on-surface)">{{ saveBarText }}</span>
+                <sc-if value="{{ dirty }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;gap:8px">
+                    <button type="button" onClick="{{ onDiscard }}" style="border-radius:12px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;background:transparent;border:1px solid transparent;color:var(--m3-secondary)" style-hover="background:var(--m3-surface-container);color:var(--m3-on-surface)">Discard</button>
+                    <button type="button" onClick="{{ onSave }}" style="border-radius:12px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;background:var(--admin-action-primary);border:1px solid transparent;color:var(--admin-on-action-primary)" style-hover="background:var(--admin-action-primary-hover)">Save settings</button>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+          </sc-if>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isB }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Variant B" style="padding:32px;display:flex;flex-direction:column;gap:24px;animation:fadeUp 0.4s ease forwards">
+        <header style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 16px">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;min-width:0">
+            <h1 style="margin:0;font-family:Manrope,system-ui,sans-serif;font-weight:700;font-size:24px;line-height:32px;color:var(--m3-on-surface)">Subscribers</h1>
+            <div role="tablist" style="display:flex;border-radius:12px;padding:3px;background:var(--m3-surface-container);gap:2px">
+              <sc-for list="{{ pageTabs }}" as="t" hint-placeholder-count="2">
+                <button type="button" role="tab" onClick="{{ t.onClick }}" style="{{ t.styleB }}">
+                  <span>{{ t.label }}</span>
+                  <sc-if value="{{ t.hasWarn }}" hint-placeholder-val="{{ false }}"><span style="width:7px;height:7px;border-radius:50%;background:var(--m3-degraded)"></span></sc-if>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+            <sc-if value="{{ onSubsTab }}" hint-placeholder-val="{{ true }}">
+              <button type="button" onClick="{{ exportAll }}" style="display:inline-flex;align-items:center;gap:8px;border-radius:12px;padding:9px 16px;font-size:14px;line-height:20px;font-weight:600;white-space:nowrap;cursor:pointer;background:transparent;border:1px solid var(--m3-outline-variant);color:var(--m3-on-surface)" style-hover="background:var(--m3-surface-container)"><span class="material-symbols-outlined" style="font-size:18px">download</span>{{ exportLabel }}</button>
+            </sc-if>
+            <sc-if value="{{ onSettingsTab }}" hint-placeholder-val="{{ false }}">
+              <span style="font-size:12px;color:var(--m3-up)">{{ message }}</span>
+              <sc-if value="{{ dirty }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ onDiscard }}" style="border-radius:12px;padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer;background:transparent;border:1px solid transparent;color:var(--m3-secondary)" style-hover="background:var(--m3-surface-container);color:var(--m3-on-surface)">Discard</button></sc-if>
+              <button type="button" onClick="{{ onSave }}" style="{{ saveBtnStyle }}">Save settings</button>
+            </sc-if>
+          </div>
+        </header>
+
+        <sc-if value="{{ onSubsTab }}" hint-placeholder-val="{{ true }}">
+          <sc-if value="{{ showBanner }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding:12px 16px;border-radius:12px;background:var(--m3-degraded-bg);font-size:13px;color:var(--m3-on-surface-variant)">
+              <div style="display:flex;gap:10px;align-items:flex-start"><span class="material-symbols-outlined" style="font-size:18px;color:var(--m3-degraded)">warning</span><span>{{ bannerText }}</span></div>
+              <button type="button" onClick="{{ goSettings }}" style="background:none;border:none;padding:0;font-size:13px;font-weight:600;color:var(--m3-on-surface);text-decoration:underline;cursor:pointer">Review settings</button>
+            </div>
+          </sc-if>
+          <div style="display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;align-items:start">
+            <aside style="display:flex;flex-direction:column;gap:20px;position:sticky;top:0">
+              <div>
+                <p style="margin:0 0 6px;padding:0 12px;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--m3-outline)">Status</p>
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <sc-for list="{{ filterTabs }}" as="t" hint-placeholder-count="5">
+                    <button type="button" onClick="{{ t.onClick }}" style="{{ t.railStyle }}"><span style="display:flex;align-items:center;gap:8px"><span style="{{ t.dot }}"></span>{{ t.label }}</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;opacity:0.7">{{ t.count }}</span></button>
+                  </sc-for>
+                </div>
+              </div>
+              <div>
+                <p style="margin:0 0 6px;padding:0 12px;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--m3-outline)">Type</p>
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <sc-for list="{{ typeTabs }}" as="t" hint-placeholder-count="3">
+                    <button type="button" onClick="{{ t.onClick }}" style="{{ t.railStyle }}"><span style="display:flex;align-items:center;gap:8px"><span class="material-symbols-outlined" style="font-size:16px">{{ t.icon }}</span>{{ t.label }}</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;opacity:0.7">{{ t.count }}</span></button>
+                  </sc-for>
+                </div>
+              </div>
+              <p style="margin:0;padding:0 12px;font-size:12px;line-height:17px;color:var(--m3-secondary)">Slack, RSS and API followers are not stored, so they don't appear in this list.</p>
+            </aside>
+            <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+              <div style="position:relative">
+                <span class="material-symbols-outlined" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--m3-secondary)">search</span>
+                <input type="search" value="{{ search }}" onChange="{{ onSearch }}" placeholder="Search email or URL…" style="width:100%;background:var(--m3-surface-container-lowest);border:1.5px solid var(--m3-outline-variant);border-radius:10px;padding:9px 13px 9px 38px;color:var(--m3-on-surface);font-family:Inter,system-ui,sans-serif;font-size:14px;outline:none">
+              </div>
+              <div style="border-radius:16px;overflow-x:auto;background:var(--m3-surface-container-lowest);border:1px solid var(--m3-outline-variant)">
+                <table style="width:100%;min-width:760px;font-size:14px;border-collapse:collapse">
+                  <thead><tr style="border-bottom:1px solid var(--m3-outline-variant)">
+                    <th style="width:44px;padding:10px 0 10px 16px;text-align:left"><input type="checkbox" checked="{{ allSelected }}" onChange="{{ onSelectAll }}" aria-label="Select all" style="accent-color:var(--admin-control-accent);width:16px;height:16px;cursor:pointer"></th>
+                    <th style="padding:10px 12px;font-size:12px;font-weight:600;text-align:left;color:var(--m3-secondary)">Subscriber</th>
+                    <th style="padding:10px 12px;font-size:12px;font-weight:600;text-align:left;color:var(--m3-secondary)">Status</th>
+                    <th style="padding:10px 12px;font-size:12px;font-weight:600;text-align:left;color:var(--m3-secondary)">Receives · Scope</th>
+                    <th style="padding:10px 12px;font-size:12px;font-weight:600;text-align:right;color:var(--m3-secondary)">Last notified</th>
+                    <th style="width:48px"></th>
+                  </tr></thead>
+                  <tbody>
+                    <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+                      <tr style="{{ r.rowStyle }}">
+                        <td style="padding:14px 0 14px 16px;vertical-align:top"><input type="checkbox" checked="{{ r.selected }}" onChange="{{ r.onSelect }}" style="accent-color:var(--admin-control-accent);width:16px;height:16px;margin-top:8px;cursor:pointer"></td>
+                        <td style="padding:12px;vertical-align:top">
+                          <div style="display:flex;gap:10px;align-items:flex-start">
+                            <span style="width:32px;height:32px;flex-shrink:0;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--admin-icon-container);color:var(--admin-icon-color)"><span class="material-symbols-outlined" style="font-size:18px">{{ r.icon }}</span></span>
+                            <div style="min-width:0">
+                              <div style="font-weight:500;word-break:break-all;color:var(--m3-on-surface)">{{ r.dest }}</div>
+                              <div style="font-size:12px;margin-top:2px;color:var(--m3-secondary)">{{ r.subline }}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style="padding:12px;vertical-align:top;white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;margin-top:8px;color:var(--m3-on-surface-variant)"><span style="{{ r.dot }}"></span>{{ r.statusShort }}</span><sc-if value="{{ r.hasFail }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;margin-top:2px;color:var(--m3-down)">{{ r.failText }}</div></sc-if></td>
+                        <td style="padding:12px;vertical-align:top;font-size:12px;color:var(--m3-on-surface-variant)"><div style="margin-top:2px">{{ r.receives }}</div><div style="margin-top:2px;color:var(--m3-secondary)">{{ r.scope }}</div></td>
+                        <td style="padding:12px;vertical-align:top;font-size:12px;text-align:right;color:var(--m3-secondary);white-space:nowrap"><div style="margin-top:8px" title="{{ r.last }}">{{ r.lastRel }}</div></td>
+                        <td style="padding:8px 12px 8px 0;vertical-align:top;text-align:right"><button type="button" onClick="{{ r.onDelete }}" aria-label="Delete" title="Delete" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;margin-top:4px;border-radius:8px;border:none;background:transparent;color:var(--m3-secondary);cursor:pointer" style-hover="background:var(--m3-down-bg);color:var(--m3-down)"><span class="material-symbols-outlined" style="font-size:20px">delete</span></button></td>
+                      </tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+                <sc-if value="{{ noRows }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:48px 16px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px"><span class="material-symbols-outlined" style="font-size:32px;color:var(--m3-outline)">group_off</span><p style="margin:0;font-weight:600;font-size:14px">No subscribers match this filter</p><p style="margin:0;font-size:12px;color:var(--m3-secondary)">Try another status, type or search term.</p></div>
+                </sc-if>
+              </div>
+              <p style="margin:0;font-size:14px;color:var(--m3-secondary)">{{ showingText }}</p>
+            </div>
+          </div>
+          <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ false }}">
+            <div style="position:sticky;bottom:24px;display:flex;justify-content:center;pointer-events:none">
+              <div style="pointer-events:auto;display:flex;align-items:center;gap:4px;padding:6px;border-radius:14px;background:var(--m3-on-surface);color:var(--m3-surface);box-shadow:0 8px 32px rgba(0,0,0,0.25)">
+                <span style="padding:0 12px 0 10px;font-size:14px;font-weight:600">{{ selectedText }}</span>
+                <span style="width:1px;height:20px;background:var(--m3-outline)"></span>
+                <button type="button" onClick="{{ exportSelected }}" style="display:inline-flex;align-items:center;gap:6px;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;border:none;color:inherit" style-hover="background:rgba(127,127,127,0.25)"><span class="material-symbols-outlined" style="font-size:18px">download</span>Export CSV</button>
+                <button type="button" onClick="{{ deleteSelected }}" style="display:inline-flex;align-items:center;gap:6px;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;border:none;color:inherit" style-hover="background:rgba(127,127,127,0.25)"><span class="material-symbols-outlined" style="font-size:18px">delete</span>Delete</button>
+                <button type="button" onClick="{{ clearSelection }}" aria-label="Clear selection" style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;cursor:pointer;background:transparent;border:none;color:inherit" style-hover="background:rgba(127,127,127,0.25)"><span class="material-symbols-outlined" style="font-size:18px">close</span></button>
+              </div>
+            </div>
+          </sc-if>
+        </sc-if>
+
+        <sc-if value="{{ onSettingsTab }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:16px;max-width:1080px">
+            <section style="border-radius:16px;padding:20px 24px;background:var(--m3-surface-container-lowest);border:1px solid var(--m3-outline-variant);display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+              <div style="min-width:0">
+                <label style="display:block;font-family:Manrope,system-ui,sans-serif;font-size:16px;font-weight:700;color:var(--m3-on-surface);cursor:pointer" onClick="{{ master.onToggle }}">Allow visitors to subscribe</label>
+                <p style="margin:4px 0 0;font-size:13px;line-height:18px;color:var(--m3-secondary);max-width:640px">Master switch. Off hides the Subscribe button, takes the feeds and the status API offline, and stops notifications to subscribers.</p>
+                <sc-if value="{{ draftEnabled }}" hint-placeholder-val="{{ true }}"><p style="{{ offeredStyle }}">{{ offeredText }}</p></sc-if>
+              </div>
+              <button type="button" role="switch" onClick="{{ master.onToggle }}" style="{{ master.track }}"><span style="{{ master.knob }}"></span></button>
+            </section>
+
+            <section style="border-radius:16px;background:var(--m3-surface-container-lowest);border:1px solid var(--m3-outline-variant);overflow-x:auto">
+              <table style="width:100%;min-width:720px;border-collapse:collapse;font-size:14px">
+                <thead><tr style="border-bottom:1px solid var(--m3-outline-variant)">
+                  <th style="padding:12px 24px;font-size:12px;font-weight:600;text-align:left;color:var(--m3-secondary)">Method</th>
+                  <th style="padding:12px;font-size:12px;font-weight:600;text-align:left;color:var(--m3-secondary)">Requirements</th>
+                  <th style="padding:12px;font-size:12px;font-weight:600;text-align:left;color:var(--m3-secondary)">Visitors</th>
+                  <th style="padding:12px 24px;font-size:12px;font-weight:600;text-align:right;color:var(--m3-secondary)">On</th>
+                </tr></thead>
+                <tbody>
+                  <sc-for list="{{ methods }}" as="m" hint-placeholder-count="5">
+                    <tr style="border-top:1px solid var(--m3-outline-variant)">
+                      <td style="padding:14px 24px;vertical-align:top;width:42%">
+                        <div style="display:flex;gap:12px;align-items:flex-start">
+                          <span class="material-symbols-outlined" style="font-size:20px;color:var(--m3-secondary);margin-top:1px">{{ m.icon }}</span>
+                          <div style="min-width:0"><div style="font-family:Manrope,system-ui,sans-serif;font-weight:600;font-size:14px;color:var(--m3-on-surface)">{{ m.title }}</div><div style="font-size:12px;line-height:17px;margin-top:2px;color:var(--m3-secondary);text-wrap:pretty">{{ m.shortDesc }}</div></div>
+                        </div>
+                      </td>
+                      <td style="padding:14px 12px;vertical-align:top">
+                        <div style="{{ m.reqWrap }}">
+                          <sc-for list="{{ m.reqs }}" as="q" hint-placeholder-count="2">
+                            <span title="{{ q.tip }}" style="{{ q.style }}"><span class="material-symbols-outlined" style="font-size:14px">{{ q.icon }}</span>{{ q.label }}</span>
+                          </sc-for>
+                        </div>
+                        <sc-if value="{{ m.showProblems }}" hint-placeholder-val="{{ false }}">
+                          <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;font-size:12px;line-height:16px;color:var(--m3-on-surface-variant)">
+                            <sc-for list="{{ m.problems }}" as="p" hint-placeholder-count="1"><div>{{ p.text }}</div></sc-for>
+                          </div>
+                        </sc-if>
+                      </td>
+                      <td style="padding:14px 12px;vertical-align:top;white-space:nowrap"><span style="{{ m.badgeStyle }}">{{ m.badgeLabel }}</span></td>
+                      <td style="padding:12px 24px;vertical-align:top;text-align:right"><button type="button" role="switch" onClick="{{ m.onToggle }}" style="{{ m.track }}"><span style="{{ m.knob }}"></span></button></td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </section>
+
+            <sc-if value="{{ hasEndpoints }}" hint-placeholder-val="{{ true }}">
+              <section style="border-radius:16px;padding:20px 24px;background:var(--m3-surface-container-lowest);border:1px solid var(--m3-outline-variant)">
+                <p style="margin:0 0 12px;font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--m3-secondary)">Public addresses</p>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <sc-for list="{{ endpoints }}" as="u" hint-placeholder-count="4">
+                    <div style="display:grid;grid-template-columns:96px minmax(0,1fr) auto;align-items:center;gap:12px;padding:4px 4px 4px 0">
+                      <span style="font-size:12px;font-weight:500;color:var(--m3-secondary)">{{ u.method }}</span>
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--m3-on-surface-variant);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ u.url }}</span>
+                      <button type="button" onClick="{{ u.onCopy }}" style="display:inline-flex;align-items:center;gap:4px;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;border:1px solid var(--m3-outline-variant);color:var(--m3-on-surface)" style-hover="background:var(--m3-surface-container)"><span class="material-symbols-outlined" style="font-size:14px">content_copy</span>{{ u.copyLabel }}</button>
+                    </div>
+                  </sc-for>
+                </div>
+              </section>
+            </sc-if>
+
+            <section style="border-radius:16px;padding:24px;background:var(--m3-surface-container-lowest);border:1px solid var(--m3-outline-variant);display:grid;gap:32px;grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+              <div>
+                <p style="margin:0 0 12px;font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--m3-secondary)">Notifications subscribers may receive</p>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <sc-for list="{{ events }}" as="e" hint-placeholder-count="4">
+                    <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+                      <input type="checkbox" checked="{{ e.checked }}" onChange="{{ e.onChange }}" style="margin-top:4px;accent-color:var(--admin-control-accent)">
+                      <span><span style="display:block;font-size:14px;font-weight:500;color:var(--m3-on-surface)">{{ e.label }}</span><span style="display:block;font-size:12px;color:var(--m3-secondary)">{{ e.hint }}</span></span>
+                    </label>
+                  </sc-for>
+                  <p style="margin:0;padding-top:4px;font-size:12px;color:var(--m3-secondary)">Applies to email, webhook and Slack. Subscribers pick from these; monitor status flaps are never sent — only what you publish.</p>
+                </div>
+              </div>
+              <div>
+                <p style="margin:0 0 12px;font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--m3-secondary)">Scope</p>
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+                  <div style="min-width:0">
+                    <label style="display:block;font-size:14px;font-weight:500;color:var(--m3-on-surface);cursor:pointer" onClick="{{ scope.onToggle }}">Let subscribers choose components</label>
+                    <p style="margin:2px 0 0;font-size:12px;color:var(--m3-secondary)">Email and webhook subscribers can follow only selected monitors or tags. Only monitors placed on the public page are offered. Incidents with no linked monitors go to everyone.</p>
+                  </div>
+                  <button type="button" role="switch" onClick="{{ scope.onToggle }}" style="{{ scope.track }}"><span style="{{ scope.knob }}"></span></button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <div style="position:fixed;right:20px;bottom:20px;z-index:50;display:flex;align-items:center;gap:2px;padding:4px;border-radius:12px;background:var(--m3-surface-container-lowest);border:1px solid var(--m3-outline-variant);box-shadow:0 4px 16px rgba(0,0,0,0.12)">
+      <span style="padding:0 8px;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--m3-outline)">View</span>
+      <sc-for list="{{ variants }}" as="v" hint-placeholder-count="3">
+        <button type="button" onClick="{{ v.onClick }}" style="{{ v.style }}">{{ v.label }}</button>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{ confirmOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:16px">
+        <div role="dialog" aria-modal="true" style="border-radius:16px;padding:24px;width:100%;max-width:384px;display:flex;flex-direction:column;gap:16px;background:var(--m3-surface-container-lowest);box-shadow:0 8px 32px rgba(0,0,0,0.18)">
+          <h3 style="margin:0;font-family:Manrope,system-ui,sans-serif;font-size:18px;font-weight:700;color:var(--m3-on-surface)">{{ confirmTitle }}</h3>
+          <p style="margin:0;font-size:14px;line-height:20px;color:var(--m3-on-surface-variant)">{{ confirmMessage }}</p>
+          <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;padding-top:8px">
+            <button type="button" onClick="{{ onCancel }}" style="border-radius:999px;padding:8px 20px;font-size:14px;font-weight:600;cursor:pointer;background:transparent;border:1px solid var(--m3-outline-variant);color:var(--m3-on-surface)" style-hover="background:var(--m3-surface-container)">Cancel</button>
+            <button type="button" onClick="{{ onConfirm }}" style="border-radius:999px;padding:8px 20px;font-size:14px;font-weight:600;cursor:pointer;background:var(--m3-error-container);color:var(--m3-on-error-container);border:1px solid color-mix(in srgb, var(--m3-error) 45%, transparent)" style-hover="border-color:var(--m3-error)">Delete</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;current&quot;,&quot;a&quot;,&quot;b&quot;],&quot;default&quot;:&quot;a&quot;,&quot;tsType&quot;:&quot;'current'|'a'|'b'&quot;},&quot;smtpConfigured&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Server environment&quot;},&quot;publicUrlSet&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Server environment&quot;},&quot;statusPagePrivate&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Server environment&quot;}}">
+const EVENTS = ['incident.created', 'incident.updated', 'incident.resolved', 'maintenance.scheduled'];
+const EVENT_LABELS = {
+  'incident.created': { label: 'New incidents', hint: 'When an incident is published' },
+  'incident.updated': { label: 'Incident updates', hint: 'Every update posted to an ongoing incident' },
+  'incident.resolved': { label: 'Resolutions', hint: 'When an incident is marked resolved' },
+  'maintenance.scheduled': { label: 'Scheduled maintenance', hint: 'When a maintenance window is announced' },
+};
+const STATUS = {
+  active: { bg: 'var(--m3-up-bg)', fg: 'var(--m3-up)', label: 'Active', short: 'Active', filter: 'Active' },
+  pending: { bg: 'var(--m3-degraded-bg)', fg: 'var(--m3-degraded)', label: 'Awaiting confirmation', short: 'Pending', filter: 'Pending' },
+  unsubscribed: { bg: 'var(--m3-surface-container-high)', fg: 'var(--m3-secondary)', label: 'Unsubscribed', short: 'Unsubscribed', filter: 'Unsubscribed' },
+  disabled: { bg: 'var(--m3-down-bg)', fg: 'var(--m3-down)', label: 'Paused — endpoint failing', short: 'Paused', filter: 'Paused' },
+};
+const DOT = { all: 'var(--m3-outline)', active: 'var(--m3-up)', pending: 'var(--m3-degraded)', unsubscribed: 'var(--m3-outline-variant)', disabled: 'var(--m3-down)' };
+const METHODS = ['email', 'webhook', 'slack', 'rss', 'api'];
+const METHOD_CONFIG = {
+  email: { title: 'Email', icon: 'mail', toggle: 'allowEmail', description: 'Visitors enter their address and confirm it with a link (double opt-in). Every email carries a manage link and one-click unsubscribe.', short: 'Double opt-in by email. Every email has a manage link and one-click unsubscribe.' },
+  webhook: { title: 'Webhook', icon: 'webhook', toggle: 'allowWebhook', description: 'Visitors register an https URL that receives JSON, optionally with their own HTTP method and headers. They confirm by email and can be emailed when the URL stops responding; after 5 failed deliveries in a row it is paused. Private and internal addresses are refused.', short: 'JSON to an https URL, confirmed by email. Paused after 5 failed deliveries in a row.' },
+  slack: { title: 'Slack', icon: 'forum', toggle: 'allowSlack', description: "Visitors paste a /feed subscribe command into a Slack channel and Slack's RSS app posts each allowed event. Slack polls the feed, so posts can lag by several minutes, and the page must be reachable from the internet.", short: 'A /feed subscribe command for Slack’s RSS app. Posts can lag by several minutes.' },
+  rss: { title: 'RSS / Atom', icon: 'rss_feed', toggle: 'rssEnabled', description: 'Public incident feeds for feed readers. No signup; they mirror what the public page shows.', short: 'Incident feeds for feed readers. No signup.' },
+  api: { title: 'Status API', icon: 'data_object', toggle: 'apiEnabled', description: "Read-only JSON (summary.json, components.json) for other teams' dashboards and scripts. No key needed; only components on the public page are included.", short: 'Read-only JSON for dashboards and scripts. No key needed.' },
+};
+const PROBLEM_TEXT = {
+  disabled: 'Turn on Allow visitors to subscribe above.',
+  smtp: 'SMTP is not configured — set it up in Notifications → SMTP Settings.',
+  publicUrl: 'Set PUBLIC_URL in the server environment and restart — confirmation links point to it.',
+  events: 'Allow at least one notification type below.',
+  private: 'The status page is private, and feed readers, Slack and scripts cannot sign in. Make it public in Users → Status page access.',
+};
+const REQS = {
+  email: ['smtp', 'publicUrl', 'events'], webhook: ['smtp', 'publicUrl', 'events'],
+  slack: ['events', 'private'], rss: ['private'], api: ['private'],
+};
+const REQ_LABEL = { smtp: 'SMTP', publicUrl: 'PUBLIC_URL', events: 'Notification types', private: 'Public page' };
+const MONITORS = { 1: 'Public API', 2: 'Dashboard', 3: 'Checkout API', 4: 'Auth Service' };
+const NOW = new Date('2026-10-08T12:00:00');
+const SEED = [
+  { id: 1, type: 'email', email: 'ops@northwind.io', status: 'active', events: [...EVENTS], monitorIds: [], tags: [], lastNotifiedAt: '2026-10-07T14:12:00' },
+  { id: 2, type: 'webhook', webhookUrl: 'https://hooks.acme-corp.com/status/bsp', email: 'platform@acme-corp.com', notifyOnFailure: true, webhookMethod: 'POST', webhookHeaderNames: ['Authorization'], status: 'active', events: ['incident.created', 'incident.resolved'], monitorIds: [1, 3], tags: [], lastNotifiedAt: '2026-10-07T14:12:00' },
+  { id: 3, type: 'email', email: 'j.kowalski@example.pl', status: 'pending', events: [...EVENTS], monitorIds: [], tags: [], lastNotifiedAt: null },
+  { id: 4, type: 'webhook', webhookUrl: 'https://api.fleetline.dev/v2/incidents', email: 'oncall@fleetline.dev', notifyOnFailure: false, webhookMethod: 'POST', webhookHeaderNames: [], status: 'disabled', events: [...EVENTS], monitorIds: [], tags: [], lastNotifiedAt: '2026-10-02T09:40:00', lastError: 'HTTP 502 Bad Gateway', consecutiveFailures: 5 },
+  { id: 5, type: 'email', email: 'maria.santos@lumen.health', status: 'active', events: [...EVENTS], monitorIds: [], tags: ['payments'], lastNotifiedAt: '2026-10-05T18:03:00' },
+  { id: 6, type: 'email', email: 'dev-alerts@tidepool.app', status: 'unsubscribed', events: ['incident.created'], monitorIds: [], tags: [], lastNotifiedAt: '2026-09-21T07:15:00' },
+  { id: 7, type: 'email', email: 'support@brightdesk.co', status: 'active', events: ['maintenance.scheduled'], monitorIds: [], tags: [], lastNotifiedAt: '2026-09-30T22:00:00' },
+  { id: 8, type: 'webhook', webhookUrl: 'https://ingest.statuscast.example/hook', email: 'infra@statuscast.example', notifyOnFailure: true, webhookMethod: 'PUT', webhookHeaderNames: ['X-Api-Key', 'X-Tenant'], status: 'active', events: [...EVENTS], monitorIds: [2], tags: [], lastNotifiedAt: '2026-10-07T14:13:00', lastError: 'Timeout after 10 s', consecutiveFailures: 1 },
+  { id: 9, type: 'email', email: 'cto@harborline.com', status: 'active', events: ['incident.created', 'incident.resolved', 'maintenance.scheduled'], monitorIds: [4], tags: [], lastNotifiedAt: '2026-10-07T14:12:00' },
+  { id: 10, type: 'email', email: 'noc@vertexgrid.net', status: 'pending', events: [...EVENTS], monitorIds: [], tags: [], lastNotifiedAt: null },
+];
+const DELIVERIES = [
+  { id: 11, sub: 8, ev: 'incident.updated', subject: 'Checkout errors', status: 'pending', attempts: 1, err: 'Timeout after 10 s', at: '2026-10-07T14:40:00', note: 'Next attempt in 5 min' },
+  { id: 10, sub: 1, ev: 'incident.updated', subject: 'Checkout errors', status: 'delivered', attempts: 1, at: '2026-10-07T14:40:00' },
+  { id: 9, sub: 9, ev: 'incident.created', subject: 'Checkout errors', status: 'delivered', attempts: 1, at: '2026-10-07T14:12:00' },
+  { id: 8, sub: 8, ev: 'incident.created', subject: 'Checkout errors', status: 'delivered', attempts: 2, err: 'Timeout after 10 s', at: '2026-10-07T14:12:00' },
+  { id: 7, sub: 2, ev: 'incident.created', subject: 'Checkout errors', status: 'delivered', attempts: 1, at: '2026-10-07T14:12:00' },
+  { id: 6, sub: 1, ev: 'incident.created', subject: 'Checkout errors', status: 'delivered', attempts: 1, at: '2026-10-07T14:12:00' },
+  { id: 5, sub: 5, ev: 'incident.resolved', subject: 'Payment gateway latency', status: 'delivered', attempts: 1, at: '2026-10-05T18:03:00' },
+  { id: 4, sub: 4, ev: 'incident.resolved', subject: 'API latency', status: 'failed', attempts: 4, err: 'HTTP 502 Bad Gateway', at: '2026-10-02T09:04:00', note: 'Subscription paused after 5 failures' },
+  { id: 3, sub: 4, ev: 'incident.updated', subject: 'API latency', status: 'failed', attempts: 4, err: 'HTTP 502 Bad Gateway', at: '2026-10-02T08:31:00' },
+  { id: 2, sub: 7, ev: 'maintenance.scheduled', subject: 'Database upgrade', status: 'delivered', attempts: 1, at: '2026-09-30T22:00:00' },
+  { id: 1, sub: 6, ev: 'incident.created', subject: 'Search degraded', status: 'delivered', attempts: 1, at: '2026-09-21T07:15:00' },
+];
+const EVENT_SINGULAR = { 'incident.created': 'New incident', 'incident.updated': 'Incident update', 'incident.resolved': 'Resolution', 'maintenance.scheduled': 'Scheduled maintenance' };
+const D_COLOR = { delivered: 'var(--m3-up)', failed: 'var(--m3-error)', pending: 'var(--m3-degraded)' };
+const RETRY_OFFSETS = [0, 1, 6, 36];
+const INITIAL = { enabled: true, allowEmail: true, allowWebhook: true, allowSlack: true, allowedEvents: [...EVENTS], allowComponentScope: true, rssEnabled: true, apiEnabled: true };
+const NAV = [
+  { label: 'Monitoring', items: [['Dashboard', 'dashboard'], ['Monitors', 'radio_button_checked'], ['Incidents', 'warning'], ['Maintenance', 'construction']] },
+  { label: 'Configure', items: [['Notifications', 'notifications'], ['Subscribers', 'campaign'], ['Page Builder', 'dashboard_customize'], ['Branding', 'palette'], ['Localization', 'translate']] },
+  { label: 'Administration', items: [['Users', 'group'], ['Vault', 'shield_lock'], ['Audit Log', 'policy'], ['Backups', 'backup'], ['System Health', 'monitor_heart']] },
+];
+
+function fmt(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function rel(iso) {
+  if (!iso) return 'Never';
+  const h = Math.round((NOW - new Date(iso)) / 3600000);
+  if (h < 24) return h + ' h ago';
+  const d = Math.round(h / 24);
+  return d === 1 ? 'Yesterday' : d + ' days ago';
+}
+function sw(on) {
+  return {
+    track: { position: 'relative', flexShrink: 0, width: 48, height: 28, borderRadius: 999, border: 'none', cursor: 'pointer', padding: 0, transition: 'background-color .18s', background: on ? 'var(--admin-control-accent)' : 'var(--m3-outline-variant)' },
+    knob: { position: 'absolute', top: 4, width: 20, height: 20, borderRadius: 999, transition: 'all .18s', left: on ? 24 : 4, background: on ? 'var(--admin-control-on)' : 'var(--m3-outline)' },
+  };
+}
+const badge = (bg, fg) => ({ fontSize: 12, lineHeight: '16px', padding: '2px 8px', borderRadius: 999, fontWeight: 500, whiteSpace: 'nowrap', background: bg, color: fg });
+const dot = (c) => ({ width: 8, height: 8, borderRadius: 999, flexShrink: 0, background: c });
+
+class Component extends DCLogic {
+  state = { variant: this.props.variant ?? 'a', tab: 'subscribers', filter: 'all', type: 'all', search: '', selected: [], subs: SEED, saved: INITIAL, draft: INITIAL, message: '', confirm: null, dark: false, copied: '', dStatus: '', dEvent: '', dSub: null, expanded: null, retried: [] };
+
+  env() {
+    return { smtpConfigured: this.props.smtpConfigured ?? false, publicUrl: (this.props.publicUrlSet ?? true) ? 'https://status.acme.com' : '', statusPagePrivate: this.props.statusPagePrivate ?? false };
+  }
+  statuses(s) {
+    const env = this.env();
+    const out = {};
+    METHODS.forEach((m) => {
+      const on = s[METHOD_CONFIG[m].toggle];
+      const p = [];
+      if (on) {
+        if (!s.enabled) p.push('disabled');
+        if ((m === 'email' || m === 'webhook')) { if (!env.smtpConfigured) p.push('smtp'); if (!env.publicUrl) p.push('publicUrl'); }
+        if ((m === 'email' || m === 'webhook' || m === 'slack') && s.allowedEvents.length === 0) p.push('events');
+        if ((m === 'slack' || m === 'rss' || m === 'api') && env.statusPagePrivate) p.push('private');
+      }
+      out[m] = { enabled: on, available: on && p.length === 0, problems: p };
+    });
+    return out;
+  }
+  setDraft(k, v) { this.setState((st) => ({ message: '', draft: { ...st.draft, [k]: v } })); }
+  download(list, name) {
+    const esc = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const head = ['id', 'type', 'destination', 'contact_email', 'status', 'events', 'monitors', 'tags', 'last_notified_at', 'last_error'];
+    const lines = list.map((s) => [s.id, s.type, s.type === 'webhook' ? s.webhookUrl : s.email, s.email, s.status, s.events.join(' '), s.monitorIds.map((id) => MONITORS[id]).join(' | '), s.tags.join(' '), s.lastNotifiedAt ?? '', s.lastError ?? ''].map(esc).join(','));
+    const blob = new Blob([[head.join(','), ...lines].join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  copy(url) {
+    try { navigator.clipboard?.writeText(url); } catch (e) {}
+    this.setState({ copied: url });
+    clearTimeout(this._ct); this._ct = setTimeout(() => this.setState({ copied: '' }), 1500);
+  }
+  toggleDark = () => {
+    const dark = !this.state.dark;
+    document.documentElement.classList.toggle('dark', dark);
+    this.setState({ dark });
+  };
+  componentDidUpdate(prev) {
+    if (prev.variant !== this.props.variant && this.props.variant) this.setState({ variant: this.props.variant, filter: 'all', type: 'all', selected: [] });
+  }
+  componentWillUnmount() { document.documentElement.classList.remove('dark'); }
+
+  renderVals() {
+    const st = this.state;
+    const { draft, saved, subs } = st;
+    const v = st.variant;
+    const statuses = this.statuses(draft);
+    const env = this.env();
+    const feedBase = env.publicUrl || window.location.origin;
+    const offered = METHODS.filter((m) => statuses[m].available);
+    const brokenMethods = METHODS.filter((m) => statuses[m].enabled && !statuses[m].available && !statuses[m].problems.includes('disabled'));
+    const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+    const savedStatuses = this.statuses(saved);
+    const savedOffered = METHODS.filter((m) => savedStatuses[m].available);
+    const savedBroken = METHODS.filter((m) => savedStatuses[m].enabled && !savedStatuses[m].available);
+
+    const navSections = NAV.map((sec) => ({
+      label: sec.label,
+      items: sec.items.map(([label, icon]) => {
+        const active = label === 'Subscribers';
+        return {
+          label, icon,
+          style: { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderRadius: 12, fontSize: 14, lineHeight: '20px', cursor: 'pointer', transition: 'all .2s', color: active ? 'var(--m3-on-surface)' : 'var(--m3-secondary)', fontWeight: active ? 600 : 400, background: active ? 'var(--m3-surface-container-lowest)' : 'transparent', boxShadow: active ? '0 1px 4px rgba(19,27,46,0.08)' : 'none' },
+          hover: active ? {} : { background: 'rgba(127,127,127,0.1)', color: 'var(--m3-on-surface)', transform: 'translateX(4px)' },
+          iconStyle: { fontSize: 20, flexShrink: 0, fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" },
+        };
+      }),
+    }));
+
+    const q = st.search.trim().toLowerCase();
+    const byType = (s) => st.type === 'all' || (v === 'b' && s.type === st.type) || v !== 'b';
+    const base = subs.filter((s) => (!q || (s.email + ' ' + (s.webhookUrl || '')).toLowerCase().includes(q)));
+    const visible = base.filter((s) => (st.filter === 'all' || s.status === st.filter) && byType(s));
+    const count = (k) => subs.filter((s) => k === 'all' || s.status === k).length;
+
+    const filterTabs = ['all', 'active', 'pending', 'unsubscribed', 'disabled'].map((k) => {
+      const on = st.filter === k;
+      return {
+        label: k === 'all' ? 'All' : STATUS[k].filter, count: count(k),
+        onClick: () => this.setState({ filter: k, selected: [] }),
+        style: { padding: '8px 16px', fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', border: 'none', background: on ? 'var(--admin-selection)' : 'transparent', color: on ? 'var(--admin-on-selection)' : 'var(--m3-secondary)' },
+        railStyle: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '8px 12px', borderRadius: 10, fontSize: 14, fontWeight: on ? 600 : 400, cursor: 'pointer', textAlign: 'left', border: 'none', background: on ? 'var(--admin-selection)' : 'transparent', color: on ? 'var(--admin-on-selection)' : 'var(--m3-secondary)' },
+        dot: dot(DOT[k]),
+      };
+    });
+    const typeTabs = [['all', 'All types', 'stacks'], ['email', 'Email', 'mail'], ['webhook', 'Webhook', 'webhook']].map(([k, label, icon]) => {
+      const on = st.type === k;
+      return {
+        label, icon, count: subs.filter((s) => k === 'all' || s.type === k).length,
+        onClick: () => this.setState({ type: k, selected: [] }),
+        railStyle: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '8px 12px', borderRadius: 10, fontSize: 14, fontWeight: on ? 600 : 400, cursor: 'pointer', textAlign: 'left', border: 'none', background: on ? 'var(--admin-selection)' : 'transparent', color: on ? 'var(--admin-on-selection)' : 'var(--m3-secondary)' },
+      };
+    });
+
+    const sel = new Set(st.selected);
+    const askDelete = (ids) => {
+      const one = ids.length === 1 ? subs.find((s) => s.id === ids[0]) : null;
+      const dest = one ? (one.type === 'webhook' ? one.webhookUrl : one.email) : '';
+      this.setState({ confirm: { ids, title: one ? 'Delete subscriber' : `Delete ${ids.length} subscribers`, message: one ? `Delete ${dest}? They stop receiving notifications immediately and their data is removed.` : `Delete ${ids.length} subscribers? They stop receiving notifications immediately and their data is removed.` } });
+    };
+    const rows = visible.map((s) => {
+      const ss = STATUS[s.status];
+      const isWebhook = s.type === 'webhook';
+      const scope = s.monitorIds.length === 0 && s.tags.length === 0 ? 'All components' : [...s.monitorIds.map((id) => MONITORS[id] ?? `#${id}`), ...s.tags.map((t) => `#${t}`)].join(', ');
+      const selected = sel.has(s.id);
+      return {
+        icon: isWebhook ? 'webhook' : 'mail', dest: isWebhook ? s.webhookUrl : s.email, isWebhook,
+        contactLine: `Contact: ${s.email}${s.notifyOnFailure ? ' · failure alerts on' : ''}`,
+        methodLine: s.webhookMethod + (s.webhookHeaderNames?.length ? ' · ' + s.webhookHeaderNames.join(', ') : ''),
+        subline: isWebhook ? `${s.webhookMethod}${s.webhookHeaderNames.length ? ' · ' + s.webhookHeaderNames.join(', ') : ''} · ${s.email}` : 'Email',
+        statusLabel: ss.label, statusShort: ss.short, badgeStyle: badge(ss.bg, ss.fg), dot: dot(ss.fg === 'var(--m3-secondary)' ? 'var(--m3-outline)' : ss.fg),
+        receives: s.events.length === EVENTS.length ? 'Everything' : s.events.map((e) => EVENT_LABELS[e].label).join(', '),
+        scope, last: fmt(s.lastNotifiedAt), lastRel: rel(s.lastNotifiedAt),
+        hasFail: !!s.lastError, failText: s.consecutiveFailures > 0 ? `${s.consecutiveFailures} failed in a row` : 'Last attempt failed',
+        selected,
+        rowStyle: { borderTop: '1px solid var(--m3-outline-variant)', background: selected ? 'color-mix(in srgb, var(--admin-selection) 55%, transparent)' : 'transparent' },
+        onSelect: () => this.setState((p) => ({ selected: p.selected.includes(s.id) ? p.selected.filter((x) => x !== s.id) : [...p.selected, s.id] })),
+        onDelete: () => askDelete([s.id]),
+        onHistory: () => this.setState({ tab: 'deliveries', dSub: s.id, dStatus: '', dEvent: '', expanded: null }),
+      };
+    });
+    const allSelected = visible.length > 0 && visible.every((s) => sel.has(s.id));
+    const selectedList = subs.filter((s) => sel.has(s.id));
+
+    const methods = METHODS.map((m) => {
+      const c = METHOD_CONFIG[m];
+      const s = statuses[m];
+      const b = !s.enabled ? ['Off', 'var(--m3-surface-container-high)', 'var(--m3-secondary)'] : s.available ? ['Offered to visitors', 'var(--m3-up-bg)', 'var(--m3-up)'] : ['Not available', 'var(--m3-degraded-bg)', 'var(--m3-degraded)'];
+      const urls = m === 'slack' ? [`/feed subscribe ${feedBase}/api/v1/public/slack.rss`] : m === 'rss' ? [`${feedBase}/api/v1/public/incidents.rss`, `${feedBase}/api/v1/public/incidents.atom`] : m === 'api' ? [`${feedBase}/api/v1/public/summary.json`, `${feedBase}/api/v1/public/components.json`] : [];
+      const w = sw(s.enabled);
+      const fails = (r) => (r === 'smtp' && !env.smtpConfigured) || (r === 'publicUrl' && !env.publicUrl) || (r === 'events' && draft.allowedEvents.length === 0) || (r === 'private' && env.statusPagePrivate);
+      return {
+        key: m, title: c.title, icon: c.icon, desc: c.description, shortDesc: c.short,
+        badgeLabel: b[0], badgeStyle: badge(b[1], b[2]), track: w.track, knob: w.knob,
+        onToggle: () => this.setDraft(c.toggle, !s.enabled),
+        problems: s.problems.map((p) => ({ text: PROBLEM_TEXT[p] })),
+        showProblems: s.enabled && s.problems.length > 0,
+        urls: urls.map((u) => ({ url: u, onCopy: () => this.copy(u), copyLabel: st.copied === u ? 'Copied' : 'Copy' })),
+        showUrls: s.enabled && urls.length > 0,
+        reqWrap: { display: 'flex', flexWrap: 'wrap', gap: 6, opacity: s.enabled ? 1 : 0.5 },
+        reqs: REQS[m].map((r) => {
+          const bad = fails(r);
+          return { label: REQ_LABEL[r], icon: bad ? 'close' : 'check', tip: bad ? PROBLEM_TEXT[r] : 'OK', style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, lineHeight: '16px', padding: '2px 8px 2px 6px', borderRadius: 999, fontWeight: 500, whiteSpace: 'nowrap', background: bad ? 'var(--m3-down-bg)' : 'var(--m3-up-bg)', color: bad ? 'var(--m3-down)' : 'var(--m3-up)' } };
+        }),
+      };
+    });
+    const endpoints = [];
+    methods.forEach((m) => { if (m.showUrls) m.urls.forEach((u) => endpoints.push({ ...u, method: m.title })); });
+
+    const events = EVENTS.map((t) => ({
+      label: EVENT_LABELS[t].label, hint: EVENT_LABELS[t].hint, checked: draft.allowedEvents.includes(t),
+      onChange: (e) => { const on = e.target.checked; this.setDraft('allowedEvents', EVENTS.filter((x) => (x === t ? on : draft.allowedEvents.includes(x)))); },
+    }));
+    const m = sw(draft.enabled), sc = sw(draft.allowComponentScope);
+
+    const tabBase = { display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600, background: 'transparent', border: 'none' };
+    const pageTabs = [['subscribers', 'Subscribers', subs.length, false], ['settings', 'Settings', null, savedBroken.length > 0 || !saved.enabled]].map(([k, label, c, warn]) => {
+      const on = st.tab === k;
+      return {
+        label, count: c, hasCount: c !== null, hasWarn: warn,
+        onClick: () => this.setState({ tab: k }),
+        styleA: { ...tabBase, padding: '0 2px 12px', marginBottom: -1, borderBottom: on ? '2px solid var(--m3-on-surface)' : '2px solid transparent', color: on ? 'var(--m3-on-surface)' : 'var(--m3-secondary)' },
+        styleB: { ...tabBase, padding: '6px 14px', borderRadius: 9, background: on ? 'var(--m3-surface-container-lowest)' : 'transparent', color: on ? 'var(--m3-on-surface)' : 'var(--m3-secondary)', boxShadow: on ? '0 1px 3px rgba(19,27,46,0.1)' : 'none' },
+      };
+    });
+
+    const pageTabsA = [['subscribers', 'Subscribers', subs.length, false], ['deliveries', 'Delivery history', null, false], ['settings', 'Settings', null, savedBroken.length > 0 || !saved.enabled]].map(([k, label, c, warn]) => {
+      const on = st.tab === k;
+      return { label, count: c, hasCount: c !== null, hasWarn: warn, onClick: () => this.setState({ tab: k }), styleA: { ...tabBase, padding: '0 2px 12px', marginBottom: -1, borderBottom: on ? '2px solid var(--m3-on-surface)' : '2px solid transparent', color: on ? 'var(--m3-on-surface)' : 'var(--m3-secondary)' } };
+    });
+
+    const subById = (id) => subs.find((s) => s.id === id);
+    const dList = DELIVERIES.filter((d) => subById(d.sub)).map((d) => (st.retried.includes(d.id) ? { ...d, status: 'pending', note: 'Retry queued' } : d))
+      .filter((d) => (!st.dStatus || d.status === st.dStatus) && (!st.dEvent || d.ev === st.dEvent) && (!st.dSub || d.sub === st.dSub));
+    const deliveries = dList.map((d) => {
+      const s = subById(d.sub);
+      const isWh = s.type === 'webhook';
+      const t0 = new Date(d.at).getTime();
+      const attemptList = Array.from({ length: d.attempts }, (_, i) => {
+        const ok = d.status === 'delivered' && i === d.attempts - 1;
+        return { n: i + 1, label: ok ? 'Delivered' : 'Failed', style: { color: ok ? 'var(--m3-up)' : 'var(--m3-down)' }, time: fmt(new Date(t0 + RETRY_OFFSETS[i] * 60000).toISOString()), error: ok ? '' : (d.err || '') };
+      });
+      const expanded = st.expanded === d.id;
+      return {
+        time: fmt(d.at), icon: isWh ? 'webhook' : 'mail', dest: isWh ? s.webhookUrl : s.email,
+        eventLabel: EVENT_SINGULAR[d.ev], subject: d.subject, attempts: `${d.attempts} / 4`,
+        dot: dot(D_COLOR[d.status]), statusLabel: d.status[0].toUpperCase() + d.status.slice(1),
+        hasNote: !!d.note, note: d.note, expanded, chevron: expanded ? 'expand_less' : 'expand_more',
+        onToggle: () => this.setState({ expanded: expanded ? null : d.id }),
+        hasError: !!d.err && d.status !== 'delivered', error: d.err, attemptList,
+        payloadNote: isWh ? `${s.webhookMethod} with X-BSP-Event: ${d.ev}` : `Email to ${s.email}`,
+        canRetry: d.status === 'failed',
+        onRetry: (e) => { e.stopPropagation(); this.setState((p) => ({ retried: [...p.retried, d.id] })); },
+      };
+    });
+    const dSubObj = st.dSub ? subById(st.dSub) : null;
+    const failedCount = dList.filter((d) => d.status === 'failed').length;
+
+    const pillColor = !saved.enabled ? 'var(--m3-outline)' : savedBroken.length ? 'var(--m3-degraded)' : 'var(--m3-up)';
+    const pillText = !saved.enabled ? 'Subscriptions off' : `Subscriptions on · ${savedOffered.length} of ${METHODS.length} methods offered` + (savedBroken.length ? ` · ${savedBroken.length} need attention` : '');
+    const titles = (list) => list.map((x) => METHOD_CONFIG[x].title).join(' and ');
+    const bannerText = !saved.enabled ? 'Subscriptions are off. Visitors don’t see the Subscribe button and existing subscribers receive nothing.' : savedBroken.length ? `${titles(savedBroken)} ${savedBroken.length > 1 ? 'are' : 'is'} switched on but not offered to visitors. ${savedBroken.some((x) => savedStatuses[x].problems.includes('smtp')) ? 'SMTP is not configured.' : ''}` : '';
+
+    const saveBtnStyle = { display: 'inline-flex', alignItems: 'center', borderRadius: 12, padding: '10px 16px', fontSize: 14, lineHeight: '20px', fontWeight: 600, whiteSpace: 'nowrap', border: '1px solid transparent', background: 'var(--admin-action-primary)', color: 'var(--admin-on-action-primary)', cursor: dirty ? 'pointer' : 'not-allowed', opacity: dirty ? 1 : 0.5 };
+
+    return {
+      navSections, toggleDark: this.toggleDark, darkIcon: st.dark ? 'light_mode' : 'dark_mode', darkLabel: st.dark ? 'Light Mode' : 'Dark Mode',
+      isCurrent: v === 'current', isA: v === 'a', isB: v === 'b',
+      variants: [['current', 'Current'], ['a', 'A · Tabs'], ['b', 'B · Split']].map(([k, label]) => ({ label, onClick: () => this.setState({ variant: k, filter: 'all', type: 'all', selected: [] }), style: { padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none', background: v === k ? 'var(--admin-selection)' : 'transparent', color: v === k ? 'var(--admin-on-selection)' : 'var(--m3-secondary)' } })),
+      onSubsTab: st.tab === 'subscribers' || (v !== 'a' && st.tab === 'deliveries'), onSettingsTab: st.tab === 'settings', pageTabs, pageTabsA,
+      onDeliveriesTab: v === 'a' && st.tab === 'deliveries', deliveries, noDeliveries: deliveries.length === 0,
+      dStatus: st.dStatus, dEvent: st.dEvent,
+      onDStatus: (e) => this.setState({ dStatus: e.target.value, expanded: null }),
+      onDEvent: (e) => this.setState({ dEvent: e.target.value, expanded: null }),
+      hasDSub: !!dSubObj, dSubLabel: dSubObj ? (dSubObj.type === 'webhook' ? dSubObj.webhookUrl : dSubObj.email) : '', dSubIcon: dSubObj?.type === 'webhook' ? 'webhook' : 'mail',
+      clearDSub: () => this.setState({ dSub: null, expanded: null }),
+      clearDFilters: () => this.setState({ dSub: null, dStatus: '', dEvent: '', expanded: null }),
+      deliveriesSummary: `${deliveries.length} deliveries` + (failedCount ? ` · ${failedCount} failed` : ''),
+      offeredInlineText: !draft.enabled ? 'Off — the Subscribe button is hidden and subscribers receive nothing.' : offered.length ? `Visitors choose from: ${offered.map((x) => METHOD_CONFIG[x].title).join(', ')}` : 'No method is available yet, so the Subscribe button stays hidden.',
+      offeredInline: { fontSize: 12, color: draft.enabled && !offered.length ? 'var(--m3-degraded)' : 'var(--m3-secondary)' },
+      goSettings: () => this.setState({ tab: 'settings' }),
+      pillDot: dot(pillColor), pillText, showBanner: !!bannerText, bannerText,
+      master: { ...m, onToggle: () => this.setDraft('enabled', !draft.enabled) },
+      scope: { ...sc, onToggle: () => this.setDraft('allowComponentScope', !draft.allowComponentScope) },
+      draftEnabled: draft.enabled,
+      offeredText: offered.length ? `Visitors will choose from: ${offered.map((x) => METHOD_CONFIG[x].title).join(', ')}.` : 'No method is available yet, so the Subscribe button stays hidden.',
+      offeredStyle: { margin: '8px 0 0', fontSize: 12, color: offered.length ? 'var(--m3-secondary)' : 'var(--m3-degraded)' },
+      methods, endpoints, hasEndpoints: endpoints.length > 0, events,
+      dirty, message: st.message, saveBtnStyle,
+      showSaveBar: dirty || !!st.message, saveBarText: dirty ? 'You have unsaved changes' : st.message,
+      onSave: () => { if (dirty) this.setState({ saved: draft, message: 'Saved — the status page picks it up on its next load' }); },
+      onDiscard: () => this.setState({ draft: saved, message: '' }),
+      filterTabs, typeTabs, search: st.search,
+      onSearch: (e) => this.setState({ search: e.target.value, selected: [] }),
+      rows, noRows: rows.length === 0, allSelected,
+      onSelectAll: () => this.setState({ selected: allSelected ? [] : visible.map((s) => s.id) }),
+      hasSelection: sel.size > 0, noSelection: sel.size === 0,
+      selectedText: `${sel.size} selected`,
+      clearSelection: () => this.setState({ selected: [] }),
+      exportLabel: visible.length === subs.length ? 'Export CSV' : `Export ${visible.length} as CSV`,
+      exportAll: () => this.download(visible, 'subscribers.csv'),
+      exportSelected: () => this.download(selectedList, 'subscribers-selected.csv'),
+      deleteSelected: () => askDelete([...sel]),
+      showingText: `${visible.length} of ${subs.length} subscribers`,
+      confirmOpen: !!st.confirm, confirmTitle: st.confirm?.title, confirmMessage: st.confirm?.message,
+      onCancel: () => this.setState({ confirm: null }),
+      onConfirm: () => { const ids = st.confirm.ids; this.setState((p) => ({ confirm: null, subs: p.subs.filter((s) => !ids.includes(s.id)), selected: p.selected.filter((x) => !ids.includes(x)) })); },
+    };
+  }
+}
+</script>
+</body>
+</html>
