@@ -25,6 +25,7 @@ import MaintenancePage from './pages/Maintenance'
 import AuditLogPage from './pages/AuditLog'
 import BackupsPage from './pages/Backups'
 import SystemHealthPage from './pages/SystemHealth'
+import ReportsPage from './pages/Reports'
 
 const ROLE_RANK: Record<string, number> = { admin: 3, operator: 2, branding: 1 }
 
@@ -139,6 +140,7 @@ export default function App() {
           <Route path="monitors"  element={<RequireRole minRole="operator"><MonitorsPage /></RequireRole>} />
           <Route path="incidents" element={<RequireRole minRole="operator"><IncidentsPage /></RequireRole>} />
           <Route path="maintenance" element={<RequireRole minRole="operator"><MaintenancePage /></RequireRole>} />
+          <Route path="reports" element={<RequireRole minRole="operator"><ReportsPage /></RequireRole>} />
           <Route path="builder"   element={<RequireRole minRole="branding"><BuilderPage /></RequireRole>} />
           <Route path="branding"  element={<RequireRole minRole="branding"><BrandingPage /></RequireRole>} />
           <Route path="notifications" element={<RequireRole minRole="operator"><NotificationsPage /></RequireRole>} />

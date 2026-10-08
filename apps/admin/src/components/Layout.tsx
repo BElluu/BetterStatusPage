@@ -18,6 +18,7 @@ const ALL_SECTIONS: NavSection[] = [
       { to: '/admin/monitors',    label: 'Monitors',     icon: 'radio_button_checked', minRole: 'operator' },
       { to: '/admin/incidents',   label: 'Incidents',    icon: 'warning',              minRole: 'operator' },
       { to: '/admin/maintenance', label: 'Maintenance',  icon: 'construction',         minRole: 'operator' },
+      { to: '/admin/reports',     label: 'Reports',      icon: 'assessment',           minRole: 'operator' },
     ],
   },
   {

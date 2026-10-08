@@ -81,7 +81,8 @@ see [Subscriptions](subscriptions.md#what-subscribers-can-receive).
 Every check result is stored with its status, response time and error message. The admin API
 returns the last 30 days of a monitor's results (`GET /api/v1/admin/monitors/:id/history`). Results
 older than 90 days are deleted every night; change that with `MONITOR_RESULT_RETENTION_DAYS` and
-`MONITOR_RESULT_PURGE_CRON`.
+`MONITOR_RESULT_PURGE_CRON`. The [uptime reports](reports.md) page turns these results into uptime
+per monitor for any date range, with CSV export.
 
 The **Check now** button in the monitor list runs a check straight away. It is not offered for
 webhook monitors.

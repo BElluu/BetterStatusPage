@@ -11,6 +11,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 - **Docker monitor**: checks the state and healthcheck of a container through the Docker Engine API, over a local socket, a Windows named pipe or HTTP(S). Running and healthy is operational; restarting, unhealthy or starting is degraded; stopped, paused or missing is down. Includes the **Test** button. See the [monitors guide](monitors.md#docker).
 - **Subscriber delivery history**: **Subscribers → Delivery history** lists every notification sent to subscribers with its status, attempts and last error, filters by status, event and subscriber (the history icon on a subscriber's row), and has **Retry now** for failed deliveries. See [Delivery history](subscriptions.md#delivery-history).
 
+- **Uptime reports**: **Monitoring → Reports** shows the uptime, checks, average response time and incident count of every monitor for any date range (up to 366 days, within the result retention), and exports it as a summary or daily CSV. See [Uptime reports](reports.md).
+
 - **Status page link in the admin sidebar**: **Status page**, above **Settings**, opens the public status page in a new tab.
 
 ### Changed
