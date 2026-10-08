@@ -286,6 +286,27 @@ describe('MonitorFormModal', () => {
     })
   })
 
+  it('submits the expected result of a database query', async () => {
+    const user = userEvent.setup()
+    renderModal()
+
+    await user.type(field('Name'), 'Stuck queue')
+    await pickType(user, 'Database')
+    await user.type(field('Host'), 'sql.internal')
+    await user.type(field('Database'), 'orders')
+    await user.type(field('User'), 'monitor')
+    await user.type(field('Password'), 'pw')
+    await user.clear(field('Test Query'))
+    await user.type(field('Test Query'), 'SELECT COUNT(*) FROM queue WHERE stuck = 1')
+    await user.type(field('Expected Result (optional)'), '0')
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+
+    await waitFor(() => expect(createdBody()).toBeDefined())
+    expect(createdBody()).toMatchObject({
+      config: { query: 'SELECT COUNT(*) FROM queue WHERE stuck = 1', expectedResult: '0' },
+    })
+  })
+
   it('requires a vault for SQL Server connection strings', async () => {
     const user = userEvent.setup()
     renderModal()

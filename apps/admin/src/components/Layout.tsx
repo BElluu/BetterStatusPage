@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-dom'
 import { api, clearSession, getCurrentUser } from '../api/client'
 import { useDarkMode } from '../hooks/useDarkMode'
+import { statusPageUrl } from '../navigation'
 
 // role hierarchy: admin > operator > branding
 const ROLE_RANK: Record<string, number> = { admin: 3, operator: 2, branding: 1 }
@@ -101,6 +102,11 @@ function NavContent({ sections, isDark, onToggleDark, onLogout }: NavContentProp
       </nav>
 
       <div className="px-3 pb-4 pt-4 space-y-0.5" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
+        <a href={statusPageUrl()} target="_blank" rel="noopener" className="admin-nav-item">
+          <span aria-hidden="true" className="material-symbols-outlined flex-shrink-0" style={ICON_STYLE}>open_in_new</span>
+          <span className="font-sans">Status page</span>
+        </a>
+
         <Link to="/admin/settings" className="admin-nav-item">
           <span aria-hidden="true" className="material-symbols-outlined flex-shrink-0" style={ICON_STYLE}>manage_accounts</span>
           <span className="font-sans">Settings</span>

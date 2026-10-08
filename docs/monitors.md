@@ -264,8 +264,20 @@ For MongoDB the field is **Test Command (JSON)**, a database command such as `{"
 default) or `{"dbStats":1}`. The first field of the reply is the value that `expectedResult`
 compares. Use a user that can only read: the command runs as given.
 
-The API also accepts `expectedResult` in the monitor config: the first column of the first row,
-as text, must then equal it exactly, or the check is **Degraded**. It is not in the form yet.
+**Expected Result** (optional): the first column of the first row, as text, must equal it exactly,
+or the check is **Degraded**. Leave it empty to accept any result. In the API it is the
+`expectedResult` field of the monitor config.
+
+Example: a job queue where tasks sometimes get stuck. Set **Test Query** to
+`SELECT COUNT(*) FROM queue WHERE stuck = 1` and **Expected Result** to `0`.
+
+| Query returns | Check |
+|---|---|
+| `0` | **Operational** |
+| `3` | **Degraded**: `Expected "0", got "3"` |
+| connection error, query error or timeout | **Down**, whatever the expected result |
+
+The comparison is on text, so `0` does not match `0.0` or ` 0`.
 
 ```http
 PATCH /api/v1/admin/monitors/:id

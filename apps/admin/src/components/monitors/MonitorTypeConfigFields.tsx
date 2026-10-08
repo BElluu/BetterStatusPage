@@ -234,6 +234,9 @@ function DatabaseFields({ type, config, updateConfig, onEngineChange, vaultPicke
       <Field label={type === 'mongodb' ? 'Test Command (JSON)' : 'Test Query'}>
         <input value={(config['query'] as string) ?? DATABASE_DEFAULT_QUERIES[type]} onChange={(e) => updateConfig('query', e.target.value)} className="input-sig" />
       </Field>
+      <Field label="Expected Result (optional)">
+        <input value={(config['expectedResult'] as string) ?? ''} onChange={(e) => updateConfig('expectedResult', e.target.value)} className="input-sig" placeholder="First column of the first row; empty = any" />
+      </Field>
     </>
   )
 }
