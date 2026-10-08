@@ -591,6 +591,12 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
                 </p>
               )}
 
+              {selectedSecret?.type === 'value' && (
+                <Alert tone="warning">
+                  A <strong>value</strong> secret has no username, so SMTP sending will fail. Use a <strong>userpass</strong> or <strong>json</strong> secret.
+                </Alert>
+              )}
+
               {selectedSecret?.type === 'json' && vault?.secretId && (
                 <div className="space-y-2">
                   <p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>JSON Field Mapping</p>

@@ -503,6 +503,8 @@ export async function sendSmtpMail(message: {
     const creds = await resolveVaultSecret(ref)
     smtpUser = creds['username'] ?? creds['user'] ?? smtpUser
     smtpPass = creds['password'] ?? creds['value'] ?? smtpPass
+    // A vault reference means sign-in was intended; without a user nodemailer would skip auth silently.
+    if (!smtpUser) throw new Error('SMTP vault secret has no username: use a User / Password secret or map a username in a JSON secret')
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -12,6 +12,13 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 ### Fixed
 
 - **Webhook notifications**: variables such as `{{error_message}}` are now escaped inside the JSON body, so quotes and new lines no longer produce invalid JSON.
+- **SMTP with a Vault secret**: a **Secure Value** secret (no username) now makes sending fail with a clear error instead of silently sending without signing in. The SMTP form warns about it.
+- **Maintenance windows**: saving a window with no monitors selected and "all monitors" unchecked is now rejected with a message, instead of being saved as a window that suppresses nothing.
+- **Status page translations**: English text overrides set in **Settings → Translations** now apply on the public status page.
+
+### Removed
+
+- **"None" incident impact**: the option is gone from the incident form, along with its translation key `incident.impact.none`. Incidents now have `minor`, `major` or `critical` impact.
 
 ## [0.2.0] - 2026-10-02
 

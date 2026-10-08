@@ -117,6 +117,14 @@ describe('SMTP delivery', () => {
     assert.deepEqual(logins, [{ username: 'stored-user', password: 'vault-only-pass' }])
   })
 
+  it('refuses to send without signing in when a value secret leaves no username', async () => {
+    const secretId = await addSecret('smtp-value-only', 'value', { value: 'vault-only-pass' })
+    await configureSmtp({ vaultConfig: JSON.stringify({ vaultId, secretId }) })
+
+    await assert.rejects(() => sendSmtpMail(message), /has no username/)
+    assert.equal(mails.length, 0)
+  })
+
   it('maps json secret fields through fieldMapping', async () => {
     const secretId = await addSecret('smtp-json', 'json', { value: JSON.stringify({ login: 'json-user', secret: 'json-pass' }) })
     await configureSmtp({
