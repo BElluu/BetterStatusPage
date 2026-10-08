@@ -110,6 +110,7 @@ describe('notification delivery', () => {
     assert.deepEqual(requests.map((request) => request.url).sort(), ['/discord', '/slack', '/teams', '/webhook'])
     assert.match(requests.find((request) => request.url === '/webhook')!.body, /Checkout API/)
     assert.match(requests.find((request) => request.url === '/discord')!.body, /connection failed/)
+    assert.equal(JSON.parse(requests.find((request) => request.url === '/discord')!.body).avatar_url, 'https://docs.betterstatuspage.dev/discord-avatar.png')
     assert.equal(emails.length, 1)
     assert.match(emails[0]!, /Subject: Checkout API down/)
     assert.match(emails[0]!, /connection failed/)

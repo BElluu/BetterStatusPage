@@ -593,7 +593,9 @@ function certificateHeadline(vars: Record<string, string>, strong: (text: string
   return vars['cert_expires_in'] ? `TLS certificate of ${name} expires ${vars['cert_expires_in']}` : `TLS certificates expiring: ${name}`
 }
 
-const DISCORD_COLORS = { down: 0xe53935, degraded: 0xfb8c00, up: 0x43a047 } as const
+// Discord only accepts a public image URL for a webhook avatar; it cannot be uploaded as a file.
+const DISCORD_DEFAULT_AVATAR_URL = 'https://docs.betterstatuspage.dev/discord-avatar.png'
+const DISCORD_COLORS ={ down: 0xe53935, degraded: 0xfb8c00, up: 0x43a047 } as const
 
 async function sendDiscord(
   config: { webhookUrl: string; username?: string; avatarUrl?: string; content?: string },
@@ -617,7 +619,7 @@ async function sendDiscord(
 
   const payload: Record<string, unknown> = { embeds: [embed] }
   if (config.username) payload['username'] = config.username
-  if (config.avatarUrl) payload['avatar_url'] = substituteVars(config.avatarUrl, vars)
+  payload['avatar_url'] = config.avatarUrl ? substituteVars(config.avatarUrl, vars) : DISCORD_DEFAULT_AVATAR_URL
   if (config.content) payload['content'] = substituteVars(config.content, vars)
 
   await postWebhookJson(config.webhookUrl, payload, 'Discord')

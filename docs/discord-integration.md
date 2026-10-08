@@ -32,7 +32,7 @@ You need **Manage Webhooks** permission in the server (or be the server owner).
 3. In the channel settings, open the **Integrations** tab.
 4. Click **Webhooks**, then **New Webhook**.
 5. Give it a name (e.g. `BSP Alerts`) — this is the default display name in Discord. You can override it in BSP later.
-6. Optionally upload an avatar image for the webhook.
+6. Optionally upload an avatar image for the webhook. BSP overrides it on every message: with the **Avatar URL** set in BSP, or with the BetterStatusPage logo when that field is empty.
 7. Click **Copy Webhook URL** — you will need this URL in the next step.
 8. Click **Save Changes**.
 
@@ -59,6 +59,7 @@ Keep this URL private. Anyone who has it can post messages to your channel.
    | **Type** | Select **Discord** |
    | **Webhook URL** | Paste the URL copied from Discord |
    | **Bot Username** *(optional)* | Overrides the webhook's display name in Discord, e.g. `BSP Alerts` |
+   | **Avatar URL** *(optional)* | Public URL of an image used as the bot's picture. Discord cannot take an uploaded file here. If left empty, the BetterStatusPage logo is used |
    | **Message Content** *(optional)* | Plain text posted above the embed — useful for pinging a role, e.g. `<@&ROLE_ID> monitor alert` |
 
 5. Toggle **Enabled** on.

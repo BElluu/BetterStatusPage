@@ -21,7 +21,7 @@ describe('channel type descriptors', () => {
     const configs = {
       email: { to: 'ops@example.test', subject: 'S', body: 'B' },
       webhook: { url: 'https://hook.test', method: 'POST', headers: { A: '1' }, body: '{}' },
-      discord: { webhookUrl: 'https://discord.test', username: 'BSP', content: 'hi' },
+      discord: { webhookUrl: 'https://discord.test', username: 'BSP', avatarUrl: 'https://img.test/a.png', content: 'hi' },
       teams: { webhookUrl: 'https://teams.test', summary: 'Alert' },
       slack: { webhookUrl: 'https://slack.test', text: 'Heads up' },
     }
