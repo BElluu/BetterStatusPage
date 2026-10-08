@@ -44,7 +44,6 @@ Before exposing an instance publicly:
 - Set `TRUST_PROXY=1` only when the app is reachable exclusively through the trusted proxy.
 - Keep Docker, Node.js, and host packages patched.
 - Run `npm audit` or equivalent dependency scanning before release.
-- Keep Dependabot alerts enabled and review production dependency updates promptly.
 - Create and verify backups regularly.
 - Test restore on a non-production copy before relying on backups.
 
