@@ -11,6 +11,7 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ### Fixed
 
+- **HTTP(S) monitor**: a GET or HEAD monitor with an empty request body now passes scheduled checks, not only the **Test** button. The body is ignored for these methods.
 - **Ping monitor**: the **Test** button now sends an ICMP ping in ICMP mode, instead of always opening a TCP connection.
 - **Webhook notifications**: variables such as `{{error_message}}` are now escaped inside the JSON body, so quotes and new lines no longer produce invalid JSON.
 - **SMTP with a Vault secret**: a **Secure Value** secret (no username) now makes sending fail with a clear error instead of silently sending without signing in. The SMTP form warns about it.
