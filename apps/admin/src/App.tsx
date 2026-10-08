@@ -1,30 +1,31 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { lazy, Suspense, useState, useEffect } from 'react'
 import { api, clearSession, getCurrentUser, isViewer, mustChangePassword, setSession, type AuthUser } from './api/client'
 import { navigation, statusPageUrl } from './navigation'
 import Layout from './components/Layout'
 import LoginPage from './pages/Login'
 import SetupPage from './pages/Setup'
-import DashboardPage from './pages/Dashboard'
-import MonitorsPage from './pages/Monitors'
-import IncidentsPage from './pages/Incidents'
-import BuilderPage from './pages/Builder'
-import BrandingPage from './pages/Branding'
+const DashboardPage = lazy(() => import('./pages/Dashboard'))
+const MonitorsPage = lazy(() => import('./pages/Monitors'))
+const IncidentsPage = lazy(() => import('./pages/Incidents'))
+const BuilderPage = lazy(() => import('./pages/Builder'))
+const BrandingPage = lazy(() => import('./pages/Branding'))
 import ChangePasswordPage from './pages/ChangePassword'
-import UsersPage from './pages/Users'
-import SsoTestResultPage from './pages/SsoTestResult'
+const UsersPage = lazy(() => import('./pages/Users'))
+const SsoTestResultPage = lazy(() => import('./pages/SsoTestResult'))
 import SsoConfirmPage from './pages/SsoConfirm'
-import SettingsPage from './pages/Settings'
-import LocalizationPage from './pages/Localization'
-import VaultPage from './pages/Vault'
-import NotificationsPage from './pages/Notifications'
-import SubscribersPage from './pages/Subscribers'
-import DeliveryHistoryPage, { DeliveryHistoryRedirect } from './pages/DeliveryHistory'
-import MaintenancePage from './pages/Maintenance'
-import AuditLogPage from './pages/AuditLog'
-import BackupsPage from './pages/Backups'
-import SystemHealthPage from './pages/SystemHealth'
-import ReportsPage from './pages/Reports'
+const SettingsPage = lazy(() => import('./pages/Settings'))
+const LocalizationPage = lazy(() => import('./pages/Localization'))
+const VaultPage = lazy(() => import('./pages/Vault'))
+const NotificationsPage = lazy(() => import('./pages/Notifications'))
+const SubscribersPage = lazy(() => import('./pages/Subscribers'))
+const MaintenancePage = lazy(() => import('./pages/Maintenance'))
+const AuditLogPage = lazy(() => import('./pages/AuditLog'))
+const BackupsPage = lazy(() => import('./pages/Backups'))
+const SystemHealthPage = lazy(() => import('./pages/SystemHealth'))
+const ReportsPage = lazy(() => import('./pages/Reports'))
+const DeliveryHistoryPage = lazy(() => import('./pages/DeliveryHistory'))
+const DeliveryHistoryRedirect = lazy(() => import('./pages/DeliveryHistory').then((m) => ({ default: m.DeliveryHistoryRedirect })))
 
 const ROLE_RANK: Record<string, number> = { admin: 3, operator: 2, branding: 1 }
 
@@ -108,6 +109,7 @@ function SetupGate({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <Suspense fallback={null}>
       <Routes>
         {/* Setup wizard — only accessible when no users exist */}
         <Route path="/admin/setup" element={<SetupPage />} />
@@ -158,6 +160,7 @@ export default function App() {
         </Route>
         <Route path="*" element={<Navigate to="/admin/" replace />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }

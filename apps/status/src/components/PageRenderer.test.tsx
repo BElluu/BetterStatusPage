@@ -29,7 +29,7 @@ const monitors: PublicMonitor[] = [
 ]
 
 describe('PageRenderer', () => {
-  it('renders text, monitor, divider, and chart nodes', () => {
+  it('renders text, monitor, divider, and chart nodes', async () => {
     const tree: LayoutTree = {
       id: 'root', type: 'page', children: [
         { id: 'intro', type: 'text', name: 'Intro', markdown: '# Service health' },
@@ -40,10 +40,10 @@ describe('PageRenderer', () => {
     }
     render(<PageRenderer tree={tree} monitors={monitors} statusMap={{ 1: { status: 'down', responseMs: 500, checkedAt: 1 } }} />)
 
-    expect(screen.getByRole('heading', { name: 'Service health' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Service health' })).toBeInTheDocument()
     expect(screen.getAllByText('Public API').length).toBeGreaterThan(0)
     expect(screen.getByText('status.outage')).toBeInTheDocument()
-    expect(screen.getByText('Latency')).toBeInTheDocument()
+    expect(await screen.findByText('Latency')).toBeInTheDocument()
   })
 
   it('shows maintenance and dependency causes', () => {
