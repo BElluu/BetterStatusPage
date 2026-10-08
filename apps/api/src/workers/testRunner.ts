@@ -6,7 +6,7 @@ import { closeSqlServerPool, openSqlServerPool, sqlServerTarget } from './sqlser
 import { certificateTarget, certMilestone, normalizeCertExpiry, readCertificate } from './certificate.js'
 import { expiresInPhrase } from './notifier.js'
 import type { ConnectionPool } from 'mssql'
-import net from 'net'
+import { checkPing } from './ping.js'
 import { Resolver } from 'dns/promises'
 
 export interface TestStep {
@@ -296,28 +296,18 @@ export async function testDocker(config: DockerConfig, timeoutMs: number): Promi
   return { overall: 'ok', steps, totalMs: Date.now() - totalStart }
 }
 
-// ── Ping (TCP) ────────────────────────────────────────────────────────────────
+// ── Ping (TCP / ICMP) ─────────────────────────────────────────────────────────
 
 export async function testPing(config: PingConfig, timeoutMs: number): Promise<TestResult> {
-  const steps: TestStep[] = []
   const totalStart = Date.now()
-  const port = config.port ?? 80
-  const t = Date.now()
-  try {
-    const responseMs = await new Promise<number>((resolve, reject) => {
-      const socket = new net.Socket()
-      socket.setTimeout(timeoutMs)
-      socket.on('connect', () => { resolve(Date.now() - t); socket.destroy() })
-      socket.on('timeout', () => { socket.destroy(); reject(new Error('TCP connect timed out')) })
-      socket.on('error', reject)
-      socket.connect(port, config.host)
-    })
-    steps.push({ label: `TCP connect to ${config.host}:${port}`, status: 'ok', durationMs: responseMs })
-    return { overall: 'ok', steps, totalMs: Date.now() - totalStart }
-  } catch (err) {
-    steps.push({ label: `TCP connect to ${config.host}:${port} failed`, status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
-    return { overall: 'error', steps, totalMs: Date.now() - totalStart }
-  }
+  const target = config.mode === 'icmp'
+    ? `ICMP ping to ${config.host}`
+    : `TCP connect to ${config.host}:${config.port ?? 80}`
+  const result = await checkPing(config, timeoutMs)
+  const step: TestStep = result.status === 'up'
+    ? { label: target, status: 'ok', durationMs: result.responseMs ?? 0 }
+    : { label: `${target} failed`, status: 'error', detail: result.error ?? undefined, durationMs: Date.now() - totalStart }
+  return { overall: result.status === 'up' ? 'ok' : 'error', steps: [step], totalMs: Date.now() - totalStart }
 }
 
 // ── DNS ───────────────────────────────────────────────────────────────────────
