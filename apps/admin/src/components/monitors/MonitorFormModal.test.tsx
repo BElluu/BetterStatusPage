@@ -190,6 +190,17 @@ describe('MonitorFormModal', () => {
     expect(screen.queryByRole('button', { name: /Test$/ })).not.toBeInTheDocument()
   })
 
+  it('shows the Docker fields with a socket default', async () => {
+    const user = userEvent.setup()
+    renderModal()
+
+    await user.click(screen.getByRole('button', { name: 'Docker' }))
+    expect(field('Docker endpoint')).toHaveValue('unix:///var/run/docker.sock')
+    await user.type(field('Container name or ID'), 'my-app')
+    expect(field('Container name or ID')).toHaveValue('my-app')
+    expect(screen.getByRole('button', { name: /Test$/ })).toBeInTheDocument()
+  })
+
   it('submits ping and DNS configurations', async () => {
     const user = userEvent.setup()
     renderModal()

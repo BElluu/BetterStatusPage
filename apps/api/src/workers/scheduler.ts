@@ -7,11 +7,12 @@ import { checkHttps } from './https.js'
 import { checkPing } from './ping.js'
 import { checkDns } from './dns.js'
 import { checkSqlServer } from './sqlserver.js'
+import { checkDocker } from './docker.js'
 import { sendNotifications } from './notifier.js'
 import { checkCertificateExpiry } from './certificate.js'
 import { evaluateAlertTransition, isFailureStatus } from '../services/alertThresholds.js'
 import { lt, gt, eq, and, lte, gte, inArray, sql } from 'drizzle-orm'
-import type { HttpsConfig, PingConfig, DnsConfig, SqlServerConfig, MonitorStatus } from '@bsp/shared'
+import type { HttpsConfig, PingConfig, DnsConfig, SqlServerConfig, DockerConfig, MonitorStatus } from '@bsp/shared'
 import { getSchedulerConfig, type SchedulerConfig } from '../config/scheduler.js'
 
 export async function isInMaintenance(monitorId: number, now = Date.now()): Promise<boolean> {
@@ -67,7 +68,7 @@ export async function runCheck(monitor: MonitorRow): Promise<boolean> {
 }
 
 async function performCheck(monitor: MonitorRow): Promise<void> {
-  const config = JSON.parse(monitor.config) as HttpsConfig | PingConfig | DnsConfig | SqlServerConfig
+  const config = JSON.parse(monitor.config) as HttpsConfig | PingConfig | DnsConfig | SqlServerConfig | DockerConfig
   let result: CheckResult = {
     status: 'down',
     responseMs: null,
@@ -82,6 +83,7 @@ async function performCheck(monitor: MonitorRow): Promise<void> {
         case 'ping': result = await checkPing(config as PingConfig, monitor.timeoutMs); break
         case 'dns': result = await checkDns(config as DnsConfig, monitor.timeoutMs); break
         case 'sqlserver': result = await checkSqlServer(config as SqlServerConfig, monitor.timeoutMs); break
+        case 'docker': result = await checkDocker(config as DockerConfig, monitor.timeoutMs); break
         case 'webhook': result = { status: 'down', responseMs: null, error: 'No webhook received within interval' }; break
         default: result = { status: 'down', responseMs: null, error: `Unknown type: ${monitor.type}` }
       }

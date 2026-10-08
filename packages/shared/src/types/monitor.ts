@@ -1,4 +1,4 @@
-export type MonitorType = 'https' | 'ping' | 'dns' | 'sqlserver' | 'webhook'
+export type MonitorType = 'https' | 'ping' | 'dns' | 'sqlserver' | 'docker' | 'webhook'
 export type MonitorStatus = 'up' | 'down' | 'degraded' | 'pending' | 'affected'
 export type HttpsAuthType = 'none' | 'basic' | 'oauth2' | 'cas'
 
@@ -91,10 +91,17 @@ export interface SqlServerConfig {
   vault?: VaultRef
 }
 
+export interface DockerConfig {
+  /** Docker Engine API: unix:///var/run/docker.sock, npipe:////./pipe/docker_engine, or http(s)://host:port */
+  endpoint: string
+  /** Container name or ID */
+  container: string
+}
+
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface WebhookConfig {}
 
-export type MonitorConfig = HttpsConfig | PingConfig | DnsConfig | SqlServerConfig | WebhookConfig
+export type MonitorConfig = HttpsConfig | PingConfig | DnsConfig | SqlServerConfig | DockerConfig | WebhookConfig
 
 export interface MonitorTag {
   label: string

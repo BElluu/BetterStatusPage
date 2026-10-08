@@ -17,7 +17,23 @@ function rewrite(url) {
   return url
 }
 
+/**
+ * GitHub-style alert (`> [!WARNING]`) becomes a yellow callout on the site; on GitHub the same
+ * Markdown renders as GitHub's own warning block. Used to mark features that are not released yet.
+ */
+const WARNING = /^\[!WARNING\][ \t]*\r?\n?/
+
+function convertWarning(node) {
+  const paragraph = node.children?.[0]
+  const text = paragraph?.type === 'paragraph' ? paragraph.children?.[0] : null
+  if (text?.type !== 'text' || !WARNING.test(text.value)) return
+  text.value = text.value.replace(WARNING, '')
+  if (!text.value) paragraph.children.shift()
+  node.data = { hName: 'aside', hProperties: { className: ['callout', 'callout-warning'] } }
+}
+
 function visit(node) {
+  if (node.type === 'blockquote') convertWarning(node)
   if ((node.type === 'link' || node.type === 'definition') && typeof node.url === 'string') {
     node.url = rewrite(node.url)
   }

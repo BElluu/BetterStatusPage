@@ -5,15 +5,16 @@ import { monitors, monitorResults, monitorDependencies } from '../db/schema.js'
 import { eq, desc, gte, and, inArray } from 'drizzle-orm'
 import { withImmediateTransaction } from '../db/transaction.js'
 import { runCheck } from '../workers/scheduler.js'
-import { testHttps, testSqlServer, testPing, testDns } from '../workers/testRunner.js'
+import { validateDockerConfig } from '../workers/docker.js'
+import { testHttps, testSqlServer, testPing, testDns, testDocker } from '../workers/testRunner.js'
 import { auditActor, writeAudit, diffObjects, snapshot } from '../services/audit.js'
 import { requestIdentity } from '../middleware/auth.js'
 import { refreshPublishedMonitorIds } from '../services/publishedMonitors.js'
 import { serveEventStream } from '../services/sse.service.js'
 import { authenticateRequest } from '../services/authSession.js'
-import type { HttpsConfig, SqlServerConfig, PingConfig, DnsConfig, MonitorType } from '@bsp/shared'
+import type { HttpsConfig, SqlServerConfig, PingConfig, DnsConfig, DockerConfig, MonitorType } from '@bsp/shared'
 
-const MONITOR_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'webhook']
+const MONITOR_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'docker', 'webhook']
 const MIN_TEST_TIMEOUT_MS = 500
 const MAX_TEST_TIMEOUT_MS = 60_000
 
@@ -96,6 +97,10 @@ export async function monitorRoutes(app: FastifyInstance) {
     if (!MONITOR_TYPES.includes(req.body.type as MonitorType)) {
       return reply.code(400).send({ error: `Type must be one of: ${MONITOR_TYPES.join(', ')}` })
     }
+    if (req.body.type === 'docker') {
+      const invalid = validateDockerConfig(req.body.config)
+      if (invalid) return reply.code(400).send({ error: invalid })
+    }
     const now = Date.now()
     const results = await db.insert(monitors).values({
       name: req.body.name,
@@ -138,6 +143,14 @@ export async function monitorRoutes(app: FastifyInstance) {
     const id = Number(req.params.id)
     const existing = (await db.select().from(monitors).where(eq(monitors.id, id)))[0]
     if (!existing) return reply.code(404).send({ error: 'Not found' })
+
+    if (req.body.type !== undefined && !MONITOR_TYPES.includes(req.body.type as MonitorType)) {
+      return reply.code(400).send({ error: `Type must be one of: ${MONITOR_TYPES.join(', ')}` })
+    }
+    if ((req.body.type ?? existing.type) === 'docker' && req.body.config !== undefined) {
+      const invalid = validateDockerConfig(req.body.config)
+      if (invalid) return reply.code(400).send({ error: invalid })
+    }
 
     const updates: Partial<typeof monitors.$inferInsert> = { updatedAt: Date.now() }
     if (req.body.name !== undefined) updates.name = req.body.name
@@ -194,6 +207,7 @@ export async function monitorRoutes(app: FastifyInstance) {
     const timeoutMs = Math.min(MAX_TEST_TIMEOUT_MS, Math.max(MIN_TEST_TIMEOUT_MS, requestedTimeout ?? 10000))
     if (type === 'https') return testHttps(config as HttpsConfig, timeoutMs)
     if (type === 'sqlserver') return testSqlServer(config as SqlServerConfig, timeoutMs)
+    if (type === 'docker') return testDocker(config as DockerConfig, timeoutMs)
     if (type === 'ping') return testPing(config as PingConfig, timeoutMs)
     if (type === 'dns') return testDns(config as DnsConfig, timeoutMs)
     return reply.code(400).send({ error: `Test not supported for monitor type: ${type}` })

@@ -16,6 +16,7 @@ Monitors live under **Admin → Monitors** and can be managed by operators and a
 | **Ping / TCP** | A host, by TCP connect or ICMP ping | The host does not answer in time | — |
 | **DNS** | A record of a hostname | The lookup fails or times out | The expected value is not in the answer |
 | **SQL Server** | A query against Microsoft SQL Server | Connection or query error, timeout | The first value returned does not match |
+| **Docker** | State and healthcheck of a container | The container does not exist, is stopped or paused, or the Docker API is unreachable | The container is restarting, unhealthy or still starting |
 | **Webhook** | Requests your service sends in | No request arrives within the interval | — |
 
 A monitor shows one of these statuses:
@@ -190,6 +191,40 @@ expected value, the check only requires that the lookup returns records.
 
 ---
 
+## Docker
+
+> [!WARNING]
+> **Not released yet.** The Docker monitor is not part of any release so far. To try it, build the
+> image yourself from the `main` branch of the repository (see [Deployment](deployment.md)).
+
+Checks one container through the Docker Engine API. Only read access is used: the monitor inspects
+the container and never starts, stops or changes anything.
+
+- **Docker endpoint** — where the API is reachable:
+  - `unix:///var/run/docker.sock` — the local socket (default). When BetterStatusPage itself runs in
+    a container, the socket has to be mounted into it. Access to the socket is equivalent to root
+    access on the host, so prefer a socket proxy that only allows read requests.
+  - `npipe:////./pipe/docker_engine` — the named pipe of Docker on Windows.
+  - `http://host:2375` or `https://host:2376` — the API of a remote host. Client certificates are
+    not supported, so expose it only on a trusted network or behind a proxy.
+- **Container name or ID** — as shown by `docker ps`: letters, digits, `_`, `.` and `-`.
+
+The endpoint is validated when you save the monitor. HTTP(S) endpoints must be just scheme, host and
+port; a path, query or credentials are rejected, and so is a remote `npipe://` host. A socket
+endpoint reaches any socket the BetterStatusPage process can open, so only trusted administrators
+and operators should create Docker monitors.
+
+A container stuck in a crash loop alternates between restarting (**Degraded**) and stopped
+(**Down**). Set the monitor's retries or failure threshold with that in mind.
+
+| Container | Result |
+| --- | --- |
+| Running, healthy or without a healthcheck | **Operational** |
+| Running, healthcheck `unhealthy` or `starting`, or restarting | **Degraded** |
+| Stopped, paused or not found; the API does not answer | **Down** |
+
+---
+
 ## SQL Server
 
 Choose how to connect:
@@ -343,7 +378,7 @@ interval passes without one.
 ## Testing a monitor
 
 The **Test** button in the form runs the check once with the settings in the form, without saving
-them. It is available for HTTPS, Ping / TCP, DNS and SQL Server; a webhook can only be tested by
+them. It is available for HTTPS, Ping / TCP, DNS, SQL Server and Docker; a webhook can only be tested by
 calling its URL.
 
 The result lists each step with its duration — authentication, every redirect, the response status,

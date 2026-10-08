@@ -11,6 +11,18 @@ Edit the `.md` file and merge it into `main`. The [Docs workflow](../.github/wor
 - The first `# heading` is the page title. Front matter (`title`, `description`) is optional and overrides it.
 - Link to another guide by its file name, e.g. `[backups](backup-restore.md#restore)`. The site turns it into `/backup-restore/#restore`, and the link keeps working on GitHub.
 
+## Marking unreleased features
+
+Documentation for a feature that is on `main` but not in a release yet starts with a warning callout:
+
+```md
+> [!WARNING]
+> **Not released yet.** This feature is not part of any release so far. To try it, build the
+> image yourself from the `main` branch of the repository (see [Deployment](deployment.md)).
+```
+
+It renders as a yellow block on the site and as GitHub's warning block on GitHub. Remove it when the feature is released.
+
 ## Adding a guide
 
 Create `docs/<slug>.md`. It becomes `https://docs.betterstatuspage.dev/<slug>/`. To place it in the sidebar, add the slug to `SECTIONS` in `src/nav.ts`. Until then it is listed under "More".
