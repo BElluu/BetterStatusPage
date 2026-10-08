@@ -20,6 +20,7 @@ const SECTIONS: { label: string; items: { slug: string; label?: string }[] }[] =
       { slug: 'monitors', label: 'Monitors' },
       { slug: 'notification-channels', label: 'Notification channels' },
       { slug: 'alert-hygiene' },
+      { slug: 'reports', label: 'Uptime reports' },
     ],
   },
   {

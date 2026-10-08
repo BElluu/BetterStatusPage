@@ -18,6 +18,7 @@ import { resolvePublicUrl } from '../config/publicUrl.js'
 import { auditActor, diffObjects, snapshot, writeAudit } from '../services/audit.js'
 import { requestIdentity } from '../middleware/auth.js'
 import { parsePagination } from '../lib/pagination.js'
+import { csvDocument } from '../lib/csv.js'
 import { isStatusPagePrivate, protectStatusPage } from '../services/statusPageAccess.js'
 
 function sendError(reply: FastifyReply, error: unknown) {
@@ -183,12 +184,6 @@ export async function adminSubscriberRoutes(app: FastifyInstance) {
     }
   })
 
-  // Spreadsheets run text that starts with one of these as a formula, and addresses come from anonymous visitors.
-  const csvCell = (value: unknown) => {
-    const text = String(value ?? '')
-    return `"${(/^[=+\-@\t\r]/.test(text) ? `'${text}` : text).replace(/"/g, '""')}"`
-  }
-
   app.get<{ Querystring: { status?: string; search?: string; ids?: string } }>('/export', async (req, reply) => {
     const ids = req.query.ids ? req.query.ids.split(',').map(Number).filter((id) => Number.isInteger(id) && id > 0) : null
     const where = ids ? inArray(subscribers.id, ids) : subscriberFilter(req.query)
@@ -201,10 +196,11 @@ export async function adminSubscriberRoutes(app: FastifyInstance) {
       s.id, s.type, s.type === 'webhook' ? s.webhookUrl : s.email, s.email, s.status, s.events.join(' '),
       s.monitorIds.map(monitorName).join(' | '), s.tags.join(' '),
       s.lastNotifiedAt ? new Date(s.lastNotifiedAt).toISOString() : '', s.lastError ?? '',
-    ].map(csvCell).join(','))
+    ])
     const header = ['id', 'type', 'destination', 'contact_email', 'status', 'events', 'monitors', 'tags', 'last_notified_at', 'last_error']
+    // Addresses come from anonymous visitors, hence the formula neutralising in csvCell.
     return reply.type('text/csv; charset=utf-8').header('Content-Disposition', 'attachment; filename="subscribers.csv"')
-      .send([header.join(','), ...lines].join('\r\n') + '\r\n')
+      .send(csvDocument(header, lines))
   })
 
   app.get<{

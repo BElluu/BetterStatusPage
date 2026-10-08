@@ -18,13 +18,13 @@ import SettingsPage from './pages/Settings'
 import LocalizationPage from './pages/Localization'
 import VaultPage from './pages/Vault'
 import NotificationsPage from './pages/Notifications'
-import NotificationHistoryPage from './pages/NotificationHistory'
 import SubscribersPage from './pages/Subscribers'
-import SubscriberHistoryPage from './pages/SubscriberHistory'
+import DeliveryHistoryPage, { DeliveryHistoryRedirect } from './pages/DeliveryHistory'
 import MaintenancePage from './pages/Maintenance'
 import AuditLogPage from './pages/AuditLog'
 import BackupsPage from './pages/Backups'
 import SystemHealthPage from './pages/SystemHealth'
+import ReportsPage from './pages/Reports'
 
 const ROLE_RANK: Record<string, number> = { admin: 3, operator: 2, branding: 1 }
 
@@ -139,12 +139,14 @@ export default function App() {
           <Route path="monitors"  element={<RequireRole minRole="operator"><MonitorsPage /></RequireRole>} />
           <Route path="incidents" element={<RequireRole minRole="operator"><IncidentsPage /></RequireRole>} />
           <Route path="maintenance" element={<RequireRole minRole="operator"><MaintenancePage /></RequireRole>} />
+          <Route path="reports" element={<RequireRole minRole="operator"><ReportsPage /></RequireRole>} />
           <Route path="builder"   element={<RequireRole minRole="branding"><BuilderPage /></RequireRole>} />
           <Route path="branding"  element={<RequireRole minRole="branding"><BrandingPage /></RequireRole>} />
           <Route path="notifications" element={<RequireRole minRole="operator"><NotificationsPage /></RequireRole>} />
-          <Route path="notifications/history" element={<RequireRole minRole="operator"><NotificationHistoryPage /></RequireRole>} />
+          <Route path="delivery-history" element={<RequireRole minRole="operator"><DeliveryHistoryPage /></RequireRole>} />
+          <Route path="notifications/history" element={<DeliveryHistoryRedirect tab="notifications" />} />
           <Route path="subscribers" element={<RequireRole minRole="operator"><SubscribersPage /></RequireRole>} />
-          <Route path="subscribers/history" element={<RequireRole minRole="operator"><SubscriberHistoryPage /></RequireRole>} />
+          <Route path="subscribers/history" element={<DeliveryHistoryRedirect tab="subscribers" />} />
           <Route path="users"     element={<RequireRole minRole="admin"><UsersPage /></RequireRole>} />
           <Route path="sso-test"  element={<RequireRole minRole="admin"><SsoTestResultPage /></RequireRole>} />
           <Route path="vault"      element={<RequireRole minRole="admin"><VaultPage /></RequireRole>} />

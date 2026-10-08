@@ -45,6 +45,7 @@ import { resolveTrustProxy } from './config/proxy.js'
 import { sseService } from './services/sse.service.js'
 import { registerProductionFrontends } from './services/productionFallback.js'
 import { systemHealthRoutes } from './routes/systemHealth.js'
+import { reportRoutes } from './routes/reports.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -197,6 +198,7 @@ await app.register(async (adminApp) => {
     sub.addHook('preHandler', requireRole('operator'))
     await sub.register(notificationRoutes, { prefix: '/notifications' })
     await sub.register(adminSubscriberRoutes, { prefix: '/subscribers' })
+    await sub.register(reportRoutes, { prefix: '/reports' })
   })
 
   // maintenance windows: operator+

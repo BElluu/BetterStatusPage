@@ -172,6 +172,12 @@ Not every status page is for the whole internet. Switch on **Users → Status pa
 
 > See **[docs.betterstatuspage.dev/private-status-page](https://docs.betterstatuspage.dev/private-status-page/)** for who can view a private page and what it switches off.
 
+### 📊 Uptime reports
+
+The status page shows 30 days; **Monitoring → Reports** in the admin console covers any date range you still have results for (90 days by default). See uptime, checks, average response time and incidents per monitor, and export a summary or a day-by-day CSV for SLA reviews.
+
+> See **[docs.betterstatuspage.dev/reports](https://docs.betterstatuspage.dev/reports/)** for how uptime is counted and the CSV columns.
+
 ### 🔧 Maintenance windows
 
 Scheduled that 3 AM database migration? Let people know in advance instead of letting them think you're on fire.

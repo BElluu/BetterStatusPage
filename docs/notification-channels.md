@@ -264,7 +264,7 @@ To check only the SMTP connection, use **Send Test Email** in **SMTP Settings** 
 
 ## Delivery history
 
-*Admin → Notifications → **Delivery history***
+*Admin → Monitoring → **Delivery history** → Notifications tab*
 
 Every notification — sent, failed, waiting or suppressed — is listed with the monitor and its status change, the channel, the event, the number of attempts and the delivery status. Filter by status, channel and event; click a row to see each attempt with its time and error. The list refreshes every 30 seconds, and entries older than 180 days are deleted automatically.
 
