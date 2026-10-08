@@ -161,6 +161,31 @@ describe('POST /admin/monitors/test', () => {
     assert.match(result.steps.at(-1).detail, /empty/)
   })
 
+  it('tests Docker monitors and validates their config on save', async () => {
+    const down = await runTest({ type: 'docker', config: { endpoint: 'http://127.0.0.1:1', container: 'web' }, timeoutMs: 500 })
+    assert.equal(down.statusCode, 200)
+    assert.equal(down.json().overall, 'error')
+
+    const invalid = await runTest({ type: 'docker', config: { endpoint: 'http://127.0.0.1:1', container: '..' } })
+    assert.equal(invalid.json().steps.at(-1).label, 'Invalid configuration')
+
+    const headers = authorizations['admin']!
+    const create = (config: unknown) => app.inject({
+      method: 'POST', url: '/api/v1/admin/monitors', headers,
+      payload: { name: 'Web container', type: 'docker', config } as Record<string, unknown>,
+    })
+    assert.equal((await create({ endpoint: 'npipe:////attacker/pipe/x', container: 'web' })).statusCode, 400)
+    assert.equal((await create({ endpoint: 'http://127.0.0.1:2375', container: '../x' })).statusCode, 400)
+    const ok = await create({ endpoint: 'http://127.0.0.1:2375', container: 'web' })
+    assert.equal(ok.statusCode, 200)
+
+    const patch = (config: unknown) => app.inject({
+      method: 'PATCH', url: `/api/v1/admin/monitors/${ok.json().id}`, headers, payload: { config } as Record<string, unknown>,
+    })
+    assert.equal((await patch({ endpoint: 'http://127.0.0.1:2375/x', container: 'web' })).statusCode, 400)
+    assert.equal((await patch({ endpoint: 'http://127.0.0.1:2375', container: 'db' })).statusCode, 200)
+  })
+
   it('rejects monitor types that cannot be tested', async () => {
     const response = await runTest({ type: 'webhook', config: {} })
     assert.equal(response.statusCode, 400)

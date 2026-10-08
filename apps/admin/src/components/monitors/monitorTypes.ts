@@ -15,5 +15,6 @@ export const MONITOR_TYPES: MonitorTypeOption[] = [
   { value: 'ping',      label: 'Ping / TCP', icon: 'lan',      hint: 'Host or open port' },
   { value: 'dns',       label: 'DNS',        icon: 'dns',      hint: 'Record resolution' },
   { value: 'sqlserver', label: 'SQL Server', icon: 'database', hint: 'Query a database' },
+  { value: 'docker',    label: 'Docker',     icon: 'deployed_code', hint: 'Container state and health' },
   { value: 'webhook',   label: 'Webhook',    icon: 'webhook',  hint: 'Your service calls in' },
 ]

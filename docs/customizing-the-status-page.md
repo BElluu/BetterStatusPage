@@ -35,7 +35,7 @@ Click a block to select it. Its settings appear under **Properties** in the left
 
 **Monitor cards.** **Card type** is **Full** (default) or **Compact**. A full card has a 30-day uptime bar that you can switch off or place to the **Right** of the name (default) or **Below** it. With the bar below, **Show uptime %** adds the uptime percentage. A compact card is a single row without the uptime bar. **Show monitor type** adds the monitor type to either kind.
 
-**Charts** are only offered for HTTPS, Ping and SQL Server monitors, because the other types have no response time. A chart has:
+**Charts** are only offered for HTTPS, Ping, SQL Server and Docker monitors, because the other types have no response time. A chart has:
 
 - **Title (optional)**: leave it empty to use the monitor name.
 - **Time range**: last 1, 3, 6, 12 or 24 hours, 2 days or 7 days. Default: 24 hours.

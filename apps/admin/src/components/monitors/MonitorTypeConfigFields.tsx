@@ -24,6 +24,7 @@ export function MonitorTypeConfigFields({ type, config, updateConfig, vaultPicke
     case 'ping':      return <PingFields config={config} updateConfig={updateConfig} />
     case 'dns':       return <DnsFields config={config} updateConfig={updateConfig} />
     case 'sqlserver': return <SqlServerFields config={config} updateConfig={updateConfig} vaultPicker={vaultPicker} />
+    case 'docker':    return <DockerFields config={config} updateConfig={updateConfig} />
     case 'webhook':   return <WebhookSection {...webhook} />
     default:          return null
   }
@@ -103,6 +104,20 @@ function PingFields({ config, updateConfig }: ConfigProps) {
           <input type="number" value={(config['port'] as number) ?? 80} onChange={(e) => updateConfig('port', Number(e.target.value))} className="input-sig" />
         </Field>
       </div>
+    </>
+  )
+}
+
+function DockerFields({ config, updateConfig }: ConfigProps) {
+  return (
+    <>
+      <Field label="Docker endpoint">
+        <input value={(config['endpoint'] as string) ?? ''} onChange={(e) => updateConfig('endpoint', e.target.value)} required className="input-sig" placeholder="unix:///var/run/docker.sock" />
+      </Field>
+      <Note tone="info">Socket (unix://, npipe:////./pipe/docker_engine) or Docker API over HTTP(S), e.g. http://host:2375. Only read access is used.</Note>
+      <Field label="Container name or ID">
+        <input value={(config['container'] as string) ?? ''} onChange={(e) => updateConfig('container', e.target.value)} required className="input-sig" placeholder="my-app" />
+      </Field>
     </>
   )
 }

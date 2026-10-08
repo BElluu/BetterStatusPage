@@ -1,4 +1,5 @@
-import type { HttpsConfig, SqlServerConfig, PingConfig, DnsConfig } from '@bsp/shared'
+import type { HttpsConfig, SqlServerConfig, PingConfig, DnsConfig, DockerConfig } from '@bsp/shared'
+import { evaluateContainer, inspectContainer, validateDockerConfig } from './docker.js'
 import { resolveVaultSecret } from './resolveSecret.js'
 import { CookieJar, discardBody, errMsg, redactedCookies, requestWithCas, resolveHttpAuth, type HttpFetch, type HttpResponse, type ResolvedHttpAuth } from './httpAuth.js'
 import { closeSqlServerPool, openSqlServerPool, sqlServerTarget } from './sqlserver.js'
@@ -254,6 +255,42 @@ export async function testSqlServer(config: SqlServerConfig, timeoutMs: number):
     return fail()
   } finally {
     await closeSqlServerPool(pool)
+  }
+
+  return { overall: 'ok', steps, totalMs: Date.now() - totalStart }
+}
+
+// ── Docker ────────────────────────────────────────────────────────────────────
+
+export async function testDocker(config: DockerConfig, timeoutMs: number): Promise<TestResult> {
+  const steps: TestStep[] = []
+  const totalStart = Date.now()
+  const fail = (): TestResult => ({ overall: 'error', steps, totalMs: Date.now() - totalStart })
+
+  const invalid = validateDockerConfig(config)
+  if (invalid) {
+    steps.push({ label: 'Invalid configuration', status: 'error', detail: invalid })
+    return fail()
+  }
+  steps.push({ label: `Docker endpoint: ${config.endpoint}`, status: 'info' })
+
+  const t = Date.now()
+  try {
+    const state = await inspectContainer(config, timeoutMs)
+    const { status, error } = evaluateContainer(state, config.container)
+    if (state) {
+      const health = state.health ? `, health: ${state.health}` : ''
+      steps.push({ label: `Container "${config.container}" found`, status: 'ok', detail: `status: ${state.status}${health}`, durationMs: Date.now() - t })
+    }
+    if (status === 'up') {
+      steps.push({ label: 'Container is running', status: 'ok' })
+    } else {
+      steps.push({ label: status === 'degraded' ? 'Container is degraded' : 'Container check failed', status: 'error', detail: error ?? undefined, durationMs: state ? undefined : Date.now() - t })
+      return fail()
+    }
+  } catch (err) {
+    steps.push({ label: 'Docker API request failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
+    return fail()
   }
 
   return { overall: 'ok', steps, totalMs: Date.now() - totalStart }

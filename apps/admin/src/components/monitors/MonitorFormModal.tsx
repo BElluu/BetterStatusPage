@@ -26,6 +26,7 @@ const defaultConfigs: Record<MonitorType, Record<string, unknown>> = {
   ping:      { host: '', mode: 'tcp', port: 80 },
   dns:       { hostname: '', recordType: 'A' },
   sqlserver: { host: '', port: 1433, database: '', user: '', password: '', query: 'SELECT 1' },
+  docker:    { endpoint: 'unix:///var/run/docker.sock', container: '' },
   webhook:   {},
 }
 
@@ -121,7 +122,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
   }
 
   async function handleTest() {
-    if (type !== 'https' && type !== 'sqlserver' && type !== 'ping' && type !== 'dns') return
+    if (type !== 'https' && type !== 'sqlserver' && type !== 'ping' && type !== 'dns' && type !== 'docker') return
     setTesting(true)
     setTestResult(null)
     try {
@@ -169,7 +170,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
   const authType = auth.type ?? 'none'
   const headerCount = Object.keys((config['headers'] as Record<string, string> | undefined) ?? {}).length
   const vaultPicker = { vaults, secretsByVault, onLoadSecrets: loadSecrets }
-  const isTestable = type === 'https' || type === 'sqlserver' || type === 'ping' || type === 'dns'
+  const isTestable = type === 'https' || type === 'sqlserver' || type === 'ping' || type === 'dns' || type === 'docker'
   const webhookCreated = type === 'webhook' && !isEdit && !!webhookToken
 
   const sideTabs: SideTab<SidePanelKey>[] = [

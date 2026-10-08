@@ -20,6 +20,7 @@
   --m3-down: #ba1a1a;
   --m3-down-bg: #ffdad6;
   --m3-degraded-bar: #eab308;
+  --m3-warning-bg: rgba(234, 179, 8, 0.14);
 
   --action-primary: #dbe7ff;
   --action-primary-hover: #c9d9ff;
@@ -62,6 +63,7 @@ html.dark {
   --m3-down: #ffb4ab;
   --m3-down-bg: rgba(147, 0, 10, 0.25);
   --m3-degraded-bar: #fbbf24;
+  --m3-warning-bg: rgba(251, 191, 36, 0.14);
 
   --action-primary: #e5e7eb;
   --action-primary-hover: #ffffff;
@@ -502,6 +504,17 @@ html.dark .astro-code, html.dark .astro-code span { color: var(--shiki-dark); }
   color: var(--m3-on-surface-variant);
 }
 .prose blockquote > :last-child { margin-bottom: 0; }
+
+.prose .callout {
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  border: 1px solid var(--m3-degraded-bar);
+  border-left-width: 4px;
+  border-radius: 0 12px 12px 0;
+  background: var(--m3-warning-bg);
+  color: var(--m3-on-surface);
+}
+.prose .callout > :last-child { margin-bottom: 0; }
 
 .prose table {
   display: block;

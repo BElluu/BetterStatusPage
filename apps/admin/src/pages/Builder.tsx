@@ -81,7 +81,7 @@ function calcTextH(markdown: string): number {
   return Math.max(1, Math.ceil(estimatedPx / ROW_H))
 }
 
-const CHART_TYPES = ['https', 'ping', 'sqlserver']
+const CHART_TYPES = ['https', 'ping', 'sqlserver', 'docker']
 
 /** A new root node of the given toolbox type, or null when the type needs a monitor that was not given. */
 function createToolboxNode(type: string, options: { monitorId?: number; label?: string } = {}): Omit<LayoutNode, 'id'> | null {

@@ -3,6 +3,12 @@
 All notable changes to BetterStatusPage are documented in this file.
 The project follows [Semantic Versioning](https://semver.org/); while it is below 1.0, a new minor version marks new features.
 
+## [Unreleased]
+
+### Added
+
+- **Docker monitor**: checks the state and healthcheck of a container through the Docker Engine API, over a local socket, a Windows named pipe or HTTP(S). Running and healthy is operational; restarting, unhealthy or starting is degraded; stopped, paused or missing is down. Includes the **Test** button. See the [monitors guide](monitors.md#docker).
+
 ## [0.2.0] - 2026-10-02
 
 BetterStatusPage now has a home of its own: the project website at [betterstatuspage.dev](https://betterstatuspage.dev) and full documentation at [docs.betterstatuspage.dev](https://docs.betterstatuspage.dev).
