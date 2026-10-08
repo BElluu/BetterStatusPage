@@ -198,7 +198,7 @@ Every mutation in the admin panel is recorded — who did it, when, and exactly 
 | Subscribers | Delete |
 | Vaults & secrets | Create, update (name, value change flagged as `[redacted]`), delete |
 | Users | Create, role change, password reset, delete |
-| Account security | Enable or disable TOTP two-factor authentication, password changes, SSO account linking, revoked temporary passwords |
+| User security | Enable or disable TOTP two-factor authentication, password changes, SSO account linking, revoked temporary passwords |
 | SSO settings | Configure or change OpenID Connect settings |
 | Branding, page builder, translations | Branding saves, layout saves, locale and translation changes |
 | Backups | Backup created or deleted, automatic backup schedule changes |

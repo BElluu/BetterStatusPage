@@ -149,14 +149,14 @@ The **Audit Log** (administrators only) records who changed what and when. Each 
 |--------|----------|
 | Monitor, Incident, Maintenance | Create, update, delete |
 | Notification Channel, SMTP Settings | Create, update, delete |
-| Notification delivery | Manual retry of a failed delivery |
+| Notification Delivery | Manual retry of a failed delivery |
 | Subscription Settings, Subscriber | Settings changes, subscriber deletion |
 | Vault, Vault Secret | Create, update, delete (secret values never) |
-| Branding, Layout, Locale | Branding and page builder saves, translation changes |
+| Branding, Status Page Layout, Language | Branding and page builder saves, translation changes |
 | User | Create (also viewer accounts created through SSO), role change, password reset, delete |
-| Account security (`user-security`) | Password changed, 2FA turned on or off, 2FA reset by an administrator (`admin_recovery`) or from the command line (`emergency_cli`), SSO account linked, temporary password revoked by an SSO sign-in |
+| User Security | Password changed, 2FA turned on or off, 2FA reset by an administrator (`admin_recovery`) or from the command line (`emergency_cli`), SSO account linked, temporary password revoked by an SSO sign-in |
 | SSO Settings, Status Page Access | Settings changes |
-| Backup, backup schedule | Backup created or deleted, schedule changes |
+| Backup, Backup Schedule | Backup created or deleted, schedule changes |
 | Sign-in | Every sign-in with a password or SSO: **Allowed** (with the method and whether a 2FA code was used) or **Denied** (with the reason) |
 
 Refused sign-ins have no signed-in user, so they are recorded as user 0 with the email that was entered or that the identity provider sent. The reason codes are listed in [Why a sign-in was refused](single-sign-on.md#why-a-sign-in-was-refused).
@@ -173,7 +173,7 @@ Any field whose name contains `password`, `secret`, `token`, `authorization`, `c
 
 ### Filters
 
-Filter by **User** (part of the email), **Entity**, **Action** (**Create**, **Update**, **Delete**, **Allowed**, **Denied**) and a **From** / **To** date range. The list shows 50 entries per page, newest first.
+Filter by **User** (part of the email), **Entity** (the list is split into sections: **Monitoring**, **Notifications**, **Access & security**, **Appearance** and **System**), **Action** (**Create**, **Update**, **Delete**, **Allowed**, **Denied**) and a **From** / **To** date range. The list shows 50 entries per page, newest first.
 
 The API behind the page, `GET /api/v1/admin/audit`, takes the same filters as query parameters (`userEmail`, `entityType`, `action`, `from`, `to` in Unix milliseconds, `page`, `limit` up to 100).
 

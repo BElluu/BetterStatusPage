@@ -69,6 +69,16 @@ describe('AuditLogPage', () => {
     expect(screen.getByText('null')).toBeInTheDocument()
   })
 
+  it('groups the entity filter into sections', async () => {
+    renderPage()
+    await screen.findByText('4 entries')
+
+    const groups = screen.getAllByRole('group').map((g) => g.getAttribute('label'))
+    expect(groups).toEqual(['Monitoring', 'Notifications', 'Access & security', 'Appearance', 'System'])
+    expect(screen.getByRole('option', { name: 'Backup Schedule' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'User Security' })).toBeInTheDocument()
+  })
+
   it('sends filters to the server and clears them', async () => {
     const user = userEvent.setup()
     renderPage()
