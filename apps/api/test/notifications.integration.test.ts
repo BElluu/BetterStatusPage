@@ -67,6 +67,24 @@ after(async () => {
 })
 
 describe('notification delivery', () => {
+  it('escapes template variables in the webhook JSON body', async () => {
+    const now = Date.now()
+    const [monitor] = await db.insert(monitors).values({
+      name: 'Escape API', type: 'https', intervalSecs: 60, timeoutMs: 1_000, retries: 1,
+      config: '{}', currentStatus: 'up', tags: '[]', createdAt: now, updatedAt: now,
+    }).returning()
+    const [channel] = await db.insert(notificationChannels).values({
+      name: 'Escaped webhook', type: 'webhook', enabled: 1, notifyOnRecovery: 1, createdAt: now, updatedAt: now,
+      config: JSON.stringify({ url: `${baseUrl}/escaped`, method: 'POST', body: '{"error":"{{error_message}}"}' }),
+    }).returning()
+    await db.insert(monitorNotificationChannels).values({ monitorId: monitor!.id, channelId: channel!.id })
+
+    await sendNotifications(monitor!, 'down', 'up', 'said "no"\nline two')
+
+    const request = requests.find((r) => r.url === '/escaped')!
+    assert.deepEqual(JSON.parse(request.body), { error: 'said "no"\nline two' })
+  })
+
   it('delivers templated webhook, Discord, Teams, and Slack alerts', async () => {
     const now = Date.now()
     const [monitor] = await db.insert(monitors).values({
@@ -92,6 +110,7 @@ describe('notification delivery', () => {
     assert.deepEqual(requests.map((request) => request.url).sort(), ['/discord', '/slack', '/teams', '/webhook'])
     assert.match(requests.find((request) => request.url === '/webhook')!.body, /Checkout API/)
     assert.match(requests.find((request) => request.url === '/discord')!.body, /connection failed/)
+    assert.equal(JSON.parse(requests.find((request) => request.url === '/discord')!.body).avatar_url, 'https://docs.betterstatuspage.dev/discord-avatar.png')
     assert.equal(emails.length, 1)
     assert.match(emails[0]!, /Subject: Checkout API down/)
     assert.match(emails[0]!, /connection failed/)

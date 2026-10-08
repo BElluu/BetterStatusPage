@@ -189,7 +189,7 @@ Values are not URL-encoded, so this works best with monitor names that contain n
 
 **Slack** posts a Block Kit card through an incoming webhook: a red, orange or green border by severity, the monitor name and status, fields for status, previous status, monitor type and error, and the check time. The optional **Message Text** is posted above the card and is where mentions such as `<!here>` go. See [Slack integration](slack-integration.md).
 
-**Discord** posts a colour-coded embed with the same fields through a channel webhook. **Bot Username** overrides the webhook's display name, and the optional **Message Content** is a plain-text line above the embed, used for `@here` or role mentions. See [Discord integration](discord-integration.md).
+**Discord** posts a colour-coded embed with the same fields through a channel webhook. **Bot Username** overrides the webhook's display name, **Avatar URL** overrides its picture (a public image URL; Discord cannot take an uploaded file, and the BetterStatusPage logo is used when empty), and the optional **Message Content** is a plain-text line above the embed, used for `@here` or role mentions. See [Discord integration](discord-integration.md).
 
 **Teams** posts a colour-coded MessageCard with the same facts. The optional **Summary** replaces the notification toast text. See [Microsoft Teams integration](teams-integration.md).
 

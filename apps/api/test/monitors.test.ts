@@ -73,6 +73,19 @@ describe('monitor workers', () => {
     assert.equal(typeof result.responseMs, 'number')
   })
 
+  it('ignores an empty body for GET and HEAD instead of failing the check', async () => {
+    for (const method of ['GET', 'HEAD'] as const) {
+      const result = await checkHttps({
+        url: `${baseUrl}/healthy`,
+        method,
+        expectedStatus: 200,
+        body: '',
+      }, 2_000)
+
+      assert.equal(result.status, 'up', `${method}: ${result.error}`)
+    }
+  })
+
   it('reports status and keyword mismatches', async () => {
     const badStatus = await checkHttps({
       url: `${baseUrl}/unavailable`,

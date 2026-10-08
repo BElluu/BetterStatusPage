@@ -260,7 +260,7 @@ export function DeliveryHistory({ channels }: { channels: NotificationChannel[] 
           <option value="">All channels</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
         </select>
         <select aria-label="Event" className="input-sig text-sm min-w-32" value={eventType} onChange={(e) => changeFilter(setEventType, e.target.value)}>
-          <option value="">All events</option><option value="alert">Alert</option><option value="recovery">Recovery</option><option value="test">Test</option>
+          <option value="">All events</option><option value="alert">Alert</option><option value="recovery">Recovery</option><option value="certificate">Certificate</option><option value="test">Test</option>
         </select>
       </div>
     </div>
@@ -589,6 +589,12 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
                 <p className="text-xs rounded-lg px-3 py-2" style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }}>
                   Auto-mapped: <strong>username</strong> → SMTP user, <strong>password</strong> → SMTP password.
                 </p>
+              )}
+
+              {selectedSecret?.type === 'value' && (
+                <Alert tone="warning">
+                  A <strong>value</strong> secret has no username, so SMTP sending will fail. Use a <strong>userpass</strong> or <strong>json</strong> secret.
+                </Alert>
               )}
 
               {selectedSecret?.type === 'json' && vault?.secretId && (

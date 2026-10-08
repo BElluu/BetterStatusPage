@@ -5,8 +5,16 @@ import { resolveVaultSecret } from './resolveSecret.js'
 import { isWithinQuietHours, parseAlertPolicy, quietHoursEndAt } from '../services/alertPolicy.js'
 import type { ChannelAlertPolicy, MonitorStatus, NotificationSuppressionReason, VaultRef } from '@bsp/shared'
 
-function substituteVars(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? `{{${key}}}`)
+function substituteVars(template: string, vars: Record<string, string>, escape?: (value: string) => string): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
+    const value = vars[key]
+    return value === undefined ? `{{${key}}}` : escape ? escape(value) : value
+  })
+}
+
+/** Escapes a value for use inside a JSON string literal in a template. */
+function escapeJsonString(value: string): string {
+  return JSON.stringify(value).slice(1, -1)
 }
 
 const MAX_DELIVERY_ATTEMPTS = 3
@@ -495,6 +503,8 @@ export async function sendSmtpMail(message: {
     const creds = await resolveVaultSecret(ref)
     smtpUser = creds['username'] ?? creds['user'] ?? smtpUser
     smtpPass = creds['password'] ?? creds['value'] ?? smtpPass
+    // A vault reference means sign-in was intended; without a user nodemailer would skip auth silently.
+    if (!smtpUser) throw new Error('SMTP vault secret has no username: use a User / Password secret or map a username in a JSON secret')
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -546,7 +556,7 @@ async function sendWebhook(
   vars: Record<string, string>,
 ) {
   const url = substituteVars(config.url, vars)
-  const body = config.body ? substituteVars(config.body, vars) : undefined
+  const body = config.body ? substituteVars(config.body, vars, escapeJsonString) : undefined
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (config.headers) {
@@ -583,7 +593,9 @@ function certificateHeadline(vars: Record<string, string>, strong: (text: string
   return vars['cert_expires_in'] ? `TLS certificate of ${name} expires ${vars['cert_expires_in']}` : `TLS certificates expiring: ${name}`
 }
 
-const DISCORD_COLORS = { down: 0xe53935, degraded: 0xfb8c00, up: 0x43a047 } as const
+// Discord only accepts a public image URL for a webhook avatar; it cannot be uploaded as a file.
+const DISCORD_DEFAULT_AVATAR_URL = 'https://docs.betterstatuspage.dev/discord-avatar.png'
+const DISCORD_COLORS ={ down: 0xe53935, degraded: 0xfb8c00, up: 0x43a047 } as const
 
 async function sendDiscord(
   config: { webhookUrl: string; username?: string; avatarUrl?: string; content?: string },
@@ -607,7 +619,7 @@ async function sendDiscord(
 
   const payload: Record<string, unknown> = { embeds: [embed] }
   if (config.username) payload['username'] = config.username
-  if (config.avatarUrl) payload['avatar_url'] = substituteVars(config.avatarUrl, vars)
+  payload['avatar_url'] = config.avatarUrl ? substituteVars(config.avatarUrl, vars) : DISCORD_DEFAULT_AVATAR_URL
   if (config.content) payload['content'] = substituteVars(config.content, vars)
 
   await postWebhookJson(config.webhookUrl, payload, 'Discord')

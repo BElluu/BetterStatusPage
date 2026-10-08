@@ -34,8 +34,27 @@ const ENTITY_LABELS: Record<AuditEntityType, string> = {
   user:                 'User',
   oidc_settings:        'SSO Settings',
   status_page_access:   'Status Page Access',
+  'user-security':      'User Security',
+  branding:             'Branding',
+  layout:               'Status Page Layout',
+  locale:               'Language',
+  backup:               'Backup',
+  'backup-config':      'Backup Schedule',
+  notification_delivery: 'Notification Delivery',
   sign_in:              'Sign-in',
 }
+
+/** Entity filter sections, most used first; types inside a group run from most to least important. */
+const ENTITY_GROUPS = [
+  { label: 'Monitoring', types: ['monitor', 'incident', 'maintenance'] },
+  { label: 'Notifications', types: ['notification_channel', 'notification_delivery', 'smtp_settings', 'subscriber', 'subscription_settings'] },
+  { label: 'Access & security', types: ['sign_in', 'user', 'user-security', 'oidc_settings', 'status_page_access', 'vault', 'vault_secret'] },
+  { label: 'Appearance', types: ['branding', 'layout', 'locale'] },
+  { label: 'System', types: ['backup', 'backup-config'] },
+] as const satisfies readonly { label: string; types: readonly AuditEntityType[] }[]
+
+// Compile error here means an AuditEntityType is missing from ENTITY_GROUPS.
+export const ENTITY_TYPES_ALL_GROUPED: Exclude<AuditEntityType, (typeof ENTITY_GROUPS)[number]['types'][number]> extends never ? true : never = true
 
 const ENTITY_ICONS: Record<AuditEntityType, string> = {
   monitor:              'radio_button_checked',
@@ -50,6 +69,13 @@ const ENTITY_ICONS: Record<AuditEntityType, string> = {
   user:                 'person',
   oidc_settings:        'admin_panel_settings',
   status_page_access:   'lock',
+  'user-security':      'manage_accounts',
+  branding:             'palette',
+  layout:               'dashboard',
+  locale:               'translate',
+  backup:               'backup',
+  'backup-config':      'schedule',
+  notification_delivery: 'send',
   sign_in:              'login',
 }
 
@@ -191,8 +217,10 @@ export default function AuditLogPage() {
             style={{ height: '36px', fontSize: '13px', width: '180px' }}
           >
             <option value="">All entities</option>
-            {(Object.keys(ENTITY_LABELS) as AuditEntityType[]).map((t) => (
-              <option key={t} value={t}>{ENTITY_LABELS[t]}</option>
+            {ENTITY_GROUPS.map((group) => (
+              <optgroup key={group.label} label={group.label}>
+                {group.types.map((t) => <option key={t} value={t}>{ENTITY_LABELS[t]}</option>)}
+              </optgroup>
             ))}
           </select>
         </div>

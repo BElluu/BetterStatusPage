@@ -155,7 +155,8 @@ function StatusPage({ account }: { account: { email: string; role: string | null
 
   const { data: incidents = [] } = useQuery<Incident[]>({
     queryKey: ['public-incidents'],
-    queryFn: () => getJSON<Incident[]>('/api/v1/public/incidents?limit=10'),
+    // 20 = max of the Incidents block's "Incident limit" in the builder.
+    queryFn: () => getJSON<Incident[]>('/api/v1/public/incidents?limit=20'),
   })
 
   const signInRequired = isSignInRequired(statusQuery.error) || isSignInRequired(layoutQuery.error)

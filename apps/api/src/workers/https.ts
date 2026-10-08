@@ -55,14 +55,15 @@ export async function checkHttps(
   try {
     const auth = await resolveHttpAuth(config.auth, config.url, opts)
 
+    const method = config.method ?? 'GET'
     let res: HttpResponse
     if (auth.cas) {
       res = await requestWithCas(config, { ...auth, cas: auth.cas }, opts)
     } else {
       res = await pooledFetch(auth.url, {
-        method: config.method ?? 'GET',
+        method,
         headers: { ...(config.headers ?? {}), ...auth.headers },
-        ...(config.body !== undefined ? { body: config.body } : {}),
+        ...(config.body !== undefined && method !== 'GET' && method !== 'HEAD' ? { body: config.body } : {}),
         signal: controller.signal,
         redirect: 'follow',
       })

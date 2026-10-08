@@ -98,7 +98,7 @@ Custom request headers on an HTTPS monitor and the other monitor fields cannot u
 
 **User / Password** maps automatically: `username` goes to the user or client ID field, `password` to the password or client secret.
 
-**Secure Value** is used as the password, the client secret, or (for **Connection string**) the whole connection string. Any user name still comes from the direct field. For SMTP, use a **User / Password** or **JSON** secret: a single value gives no SMTP user, and without a user BetterStatusPage connects without signing in.
+**Secure Value** is used as the password, the client secret, or (for **Connection string**) the whole connection string. Any user name still comes from the direct field. For SMTP, use a **User / Password** or **JSON** secret: a single value gives no SMTP user, so sending fails with an error instead of connecting without signing in.
 
 **JSON** shows a **JSON Field Mapping** table when selected. For each credential, enter the key in your JSON that holds it:
 

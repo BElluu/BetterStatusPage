@@ -144,7 +144,7 @@ The public status page isn't just a list of green dots. It's a fully customizabl
 
 ### 📢 Incident management
 
-Create incidents, set severity (none → minor → major → critical), link affected monitors, post real-time updates as the situation unfolds, and mark resolved when the dust settles. On the public page, an active minor incident marks its linked monitors as degraded, while major and critical incidents mark them as down. Resolving the incident restores the status reported by monitoring checks.
+Create incidents, set severity (minor → major → critical), link affected monitors, post real-time updates as the situation unfolds, and mark resolved when the dust settles. On the public page, an active minor incident marks its linked monitors as degraded, while major and critical incidents mark them as down. Resolving the incident restores the status reported by monitoring checks.
 
 ### 📬 Subscriptions for your audience
 
@@ -198,7 +198,7 @@ Every mutation in the admin panel is recorded — who did it, when, and exactly 
 | Subscribers | Delete |
 | Vaults & secrets | Create, update (name, value change flagged as `[redacted]`), delete |
 | Users | Create, role change, password reset, delete |
-| Account security | Enable or disable TOTP two-factor authentication, password changes, SSO account linking, revoked temporary passwords |
+| User security | Enable or disable TOTP two-factor authentication, password changes, SSO account linking, revoked temporary passwords |
 | SSO settings | Configure or change OpenID Connect settings |
 | Branding, page builder, translations | Branding saves, layout saves, locale and translation changes |
 | Backups | Backup created or deleted, automatic backup schedule changes |

@@ -9,6 +9,23 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 - **Docker monitor**: checks the state and healthcheck of a container through the Docker Engine API, over a local socket, a Windows named pipe or HTTP(S). Running and healthy is operational; restarting, unhealthy or starting is degraded; stopped, paused or missing is down. Includes the **Test** button. See the [monitors guide](monitors.md#docker).
 
+### Fixed
+
+- **Incidents block**: an **Incident limit** above 10 now works on the public status page. It fetched at most 10 resolved incidents, whatever the limit was.
+- **Discord notifications**: the channel form now has an **Avatar URL** field, so saving a channel no longer drops an avatar set through the API. Without an avatar, messages use the BetterStatusPage logo.
+- **Audit log**: the **Entity** filter now lists every recorded type: user security, branding, page layout, languages, backups, backup schedule and notification deliveries.
+- **Delivery history**: the **Event** filter now includes **Certificate**.
+- **HTTP(S) monitor**: a GET or HEAD monitor with an empty request body now passes scheduled checks, not only the **Test** button. The body is ignored for these methods.
+- **Ping monitor**: the **Test** button now sends an ICMP ping in ICMP mode, instead of always opening a TCP connection.
+- **Webhook notifications**: variables such as `{{error_message}}` are now escaped inside the JSON body, so quotes and new lines no longer produce invalid JSON.
+- **SMTP with a Vault secret**: a **Secure Value** secret (no username) now makes sending fail with a clear error instead of silently sending without signing in. The SMTP form warns about it.
+- **Maintenance windows**: saving a window with no monitors selected and "all monitors" unchecked is now rejected with a message, instead of being saved as a window that suppresses nothing.
+- **Status page translations**: English text overrides set in **Settings → Translations** now apply on the public status page.
+
+### Removed
+
+- **"None" incident impact**: the option is gone from the incident form, along with its translation key `incident.impact.none`. Incidents now have `minor`, `major` or `critical` impact.
+
 ## [0.2.0] - 2026-10-02
 
 BetterStatusPage now has a home of its own: the project website at [betterstatuspage.dev](https://betterstatuspage.dev) and full documentation at [docs.betterstatuspage.dev](https://docs.betterstatuspage.dev).

@@ -357,7 +357,6 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
           </Field>
           <Field label="Impact">
             <select value={impact} onChange={(e) => setImpact(e.target.value)} className="input-sig">
-              <option value="none">None</option>
               <option value="minor">Minor</option>
               <option value="major">Major</option>
               <option value="critical">Critical</option>

@@ -408,6 +408,10 @@ function MaintenanceModal({
       setError('End time must be after start time.')
       return
     }
+    if (!allMonitors && selectedMonitors.length === 0) {
+      setError('Select at least one monitor or choose all monitors.')
+      return
+    }
     setLoading(true)
     try {
       const payload = {
@@ -522,11 +526,6 @@ function MaintenanceModal({
                   <p className="text-xs px-2 py-2" style={{ color: 'var(--m3-secondary)' }}>No monitors available</p>
                 )}
               </div>
-            )}
-            {!allMonitors && selectedMonitors.length === 0 && (
-              <p className="text-xs mt-1.5" style={{ color: 'var(--m3-outline)' }}>
-                No monitors selected — notifications will not be suppressed.
-              </p>
             )}
           </fieldset>
 

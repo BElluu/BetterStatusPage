@@ -72,7 +72,7 @@ When a monitor is deleted, it disappears from the public page at once. The next 
 
 ### Saving
 
-There is no draft: **Save** publishes the layout immediately. The button is only active when there are unsaved changes, and the header shows **Unsaved** until you save. Every save is written to the audit log as **Status page layout**.
+There is no draft: **Save** publishes the layout immediately. The button is only active when there are unsaved changes, and the header shows **Unsaved** until you save. Every save is written to the audit log as **Status Page Layout**.
 
 The builder shows the structure of the page, not the finished look. To see the real page, open it, or use the live preview in **Branding**, which renders the saved layout.
 

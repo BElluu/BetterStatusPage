@@ -24,7 +24,7 @@ const DEFAULT_WEBHOOK_BODY = `{
 
 interface EmailDraft { to: string; subject: string; body: string }
 interface WebhookDraft { url: string; method: string; headers: [string, string][]; body: string }
-interface DiscordDraft { webhookUrl: string; username: string; content: string }
+interface DiscordDraft { webhookUrl: string; username: string; avatarUrl: string; content: string }
 interface TeamsDraft { webhookUrl: string; summary: string }
 interface SlackDraft { webhookUrl: string; text: string }
 
@@ -123,6 +123,9 @@ function DiscordFields({ draft, onChange }: ChannelFieldsProps<DiscordDraft>) {
       </Field>
       <Field label="Bot Username (optional)">
         <input value={draft.username} onChange={(e) => onChange({ ...draft, username: e.target.value })} className="input-sig" placeholder="BSP Alerts" />
+      </Field>
+      <Field label="Avatar URL (optional)">
+        <input value={draft.avatarUrl} onChange={(e) => onChange({ ...draft, avatarUrl: e.target.value })} className="input-sig" placeholder="https://example.com/avatar.png" />
       </Field>
       <Field label="Message Content (optional)">
         <input value={draft.content} onChange={(e) => onChange({ ...draft, content: e.target.value })} className="input-sig" placeholder="@here Monitor {{monitor_name}} is {{status}}" />
@@ -264,11 +267,12 @@ export const CHANNEL_TYPES: { [K in ChannelType]: ChannelTypeDescriptor<ChannelD
     label: 'Discord',
     hint: 'Channel webhook',
     icon: (size) => <DiscordIcon size={size} />,
-    defaultDraft: () => ({ webhookUrl: '', username: '', content: '' }),
-    parse: (c) => ({ webhookUrl: str(c['webhookUrl']), username: str(c['username']), content: str(c['content']) }),
+    defaultDraft: () => ({ webhookUrl: '', username: '', avatarUrl: '', content: '' }),
+    parse: (c) => ({ webhookUrl: str(c['webhookUrl']), username: str(c['username']), avatarUrl: str(c['avatarUrl']), content: str(c['content']) }),
     build: (d) => ({
       webhookUrl: d.webhookUrl,
       ...(d.username ? { username: d.username } : {}),
+      ...(d.avatarUrl ? { avatarUrl: d.avatarUrl } : {}),
       ...(d.content ? { content: d.content } : {}),
     }),
     Fields: DiscordFields,

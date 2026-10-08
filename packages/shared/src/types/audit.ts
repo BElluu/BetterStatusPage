@@ -14,6 +14,14 @@ export type AuditEntityType =
   | 'user'
   | 'oidc_settings'
   | 'status_page_access'
+  /** Security changes on a user account: password, two-factor, SSO link. */
+  | 'user-security'
+  | 'branding'
+  | 'layout'
+  | 'locale'
+  | 'backup'
+  | 'backup-config'
+  | 'notification_delivery'
   /** Every sign-in attempt, with a password or SSO; `diff.method` says which. */
   | 'sign_in'
 
