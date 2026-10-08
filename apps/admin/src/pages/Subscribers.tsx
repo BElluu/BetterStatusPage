@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { deliveryHistoryUrl } from '../deliveryHistoryUrl'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { SUBSCRIBER_EVENT_TYPES, SUBSCRIPTION_METHODS, subscriptionMethodStatuses } from '@bsp/shared'
 import type {
@@ -87,7 +88,7 @@ export default function SubscribersPage() {
         title="Subscribers"
         subtitle="Choose how visitors of the status page can follow incidents and maintenance"
         actions={
-          <Link to="/admin/subscribers/history" className="btn btn-secondary">
+          <Link to={deliveryHistoryUrl('subscribers')} className="btn btn-secondary">
             <span className="material-symbols-outlined" aria-hidden="true">history</span>
             Delivery history
           </Link>
@@ -525,7 +526,7 @@ function SubscriberTable() {
                     </td>
                     <td className="py-2 pr-4 pl-0 align-top text-right whitespace-nowrap">
                       <Link
-                        to={`/admin/subscribers/history?subscriberId=${s.id}`}
+                        to={deliveryHistoryUrl('subscribers', s.id)}
                         aria-label={`Delivery history for ${destination(s)}`}
                         title="Delivery history"
                         className="btn-icon"

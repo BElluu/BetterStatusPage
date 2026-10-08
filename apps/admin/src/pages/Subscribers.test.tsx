@@ -59,7 +59,7 @@ describe('SubscribersPage methods', () => {
 
     expect(await screen.findByText('No subscribers yet')).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Destination' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Delivery history' })).toHaveAttribute('href', '/admin/subscribers/history')
+    expect(screen.getByRole('link', { name: 'Delivery history' })).toHaveAttribute('href', '/admin/delivery-history?tab=subscribers')
 
     await user.click(screen.getByRole('button', { name: /^Pending/ }))
     expect(await screen.findByText('No subscribers match this filter')).toBeInTheDocument()
@@ -160,7 +160,7 @@ describe('SubscribersPage table', () => {
 
   it('links each row to the delivery history of its subscriber', async () => {
     renderPage()
-    expect(await screen.findByRole('link', { name: 'Delivery history for reader@example.test' })).toHaveAttribute('href', '/admin/subscribers/history?subscriberId=7')
+    expect(await screen.findByRole('link', { name: 'Delivery history for reader@example.test' })).toHaveAttribute('href', '/admin/delivery-history?tab=subscribers&subscriberId=7')
   })
 
   it('exports the filtered list, or only the selected rows, and deletes a selection in bulk', async () => {

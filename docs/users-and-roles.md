@@ -22,7 +22,8 @@ The role is checked by the API on every request, not only by the admin panel, so
 | [**Incidents**](incidents-and-maintenance.md) | Yes | Yes | No | No |
 | [**Maintenance**](incidents-and-maintenance.md) | Yes | Yes | No | No |
 | [**Reports**](reports.md): uptime per monitor and CSV export | Yes | Yes | No | No |
-| [**Notifications**](notification-channels.md): channels, SMTP settings, delivery history | Yes | Yes | No | No |
+| **Delivery history**: [notifications](notification-channels.md#delivery-history) and [subscribers](subscriptions.md#delivery-history) | Yes | Yes | No | No |
+| [**Notifications**](notification-channels.md): channels, SMTP settings | Yes | Yes | No | No |
 | [**Subscribers**](subscriptions.md) and subscription settings | Yes | Yes | No | No |
 | [**Page Builder**](customizing-the-status-page.md) | Yes | Yes | Yes | No |
 | [**Branding**](customizing-the-status-page.md) | Yes | Yes | Yes | No |

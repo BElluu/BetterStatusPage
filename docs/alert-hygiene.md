@@ -13,7 +13,7 @@ existing instance changes nothing about when or how you are notified.
 | Rate cap | Per channel | Limits how often one monitor may alert on that channel |
 | Grouping | Per channel | Collapses a burst of simultaneous events into one digest |
 
-Anything the rules stop is still recorded in **Notifications → Delivery history** with the reason,
+Anything the rules stop is still recorded in **Monitoring → Delivery history** (Notifications tab) with the reason,
 so you can always see what was *not* sent.
 
 ---
@@ -166,7 +166,7 @@ quiet so the root cause fires the only alert.
 
 ## Reading the delivery history
 
-*Admin → Notifications → Delivery history*
+*Admin → Monitoring → Delivery history → Notifications tab*
 
 Suppressed notifications are listed alongside delivered ones with a **Suppressed** status and the
 reason. Filter on `Suppressed` to answer "what did the rules eat last night?" — if the answer is

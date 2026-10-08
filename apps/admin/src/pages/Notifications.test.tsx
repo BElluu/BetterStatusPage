@@ -5,7 +5,7 @@ import type { NotificationChannel, NotificationDelivery } from '@bsp/shared'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
-import NotificationHistoryPage from './NotificationHistory'
+import DeliveryHistoryPage from './DeliveryHistory'
 import NotificationsPage from './Notifications'
 
 vi.mock('../api/client', () => ({
@@ -111,7 +111,7 @@ describe('NotificationsPage', () => {
     expect(within(rows[2]!).getByText('https://hooks.test/in')).toBeInTheDocument()
     expect(within(rows[3]!).getByText('teams')).toBeInTheDocument()
     expect(within(rows[4]!).getByText('slack')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Delivery history/ })).toHaveAttribute('href', '/admin/notifications/history')
+    expect(screen.getByRole('link', { name: /Delivery history/ })).toHaveAttribute('href', '/admin/delivery-history?tab=notifications')
   })
 
   it('offers channel type tiles without channels and opens the form with that type', async () => {
@@ -250,7 +250,7 @@ describe('NotificationsPage', () => {
   })
 })
 
-describe('NotificationHistoryPage delivery log', () => {
+describe('DeliveryHistoryPage notifications tab', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     deliveryPages = 1
@@ -259,10 +259,10 @@ describe('NotificationHistoryPage delivery log', () => {
   })
 
   it('renders deliveries with their status, event and suppression details', async () => {
-    renderWithProviders(<NotificationHistoryPage />)
+    renderWithProviders(<DeliveryHistoryPage />)
 
     expect(await screen.findAllByText('Checkout API')).toHaveLength(4)
-    expect(screen.getByRole('heading', { name: 'Notification delivery history' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Delivery history' })).toBeInTheDocument()
     const rows = screen.getAllByRole('row').slice(1)
     expect(within(rows[0]!).getByText('Delivered')).toBeInTheDocument()
     expect(within(rows[0]!).getByText('Operational → Down')).toBeInTheDocument()
@@ -276,7 +276,7 @@ describe('NotificationHistoryPage delivery log', () => {
 
   it('expands a failed delivery to show attempts and retries it', async () => {
     const user = userEvent.setup()
-    renderWithProviders(<NotificationHistoryPage />)
+    renderWithProviders(<DeliveryHistoryPage />)
 
     // Row 0 is the header; row 2 is the failed delivery.
     const rows = await screen.findAllByRole('row')
@@ -292,7 +292,7 @@ describe('NotificationHistoryPage delivery log', () => {
 
   it('expands a delivery from its details button with aria-expanded', async () => {
     const user = userEvent.setup()
-    renderWithProviders(<NotificationHistoryPage />)
+    renderWithProviders(<DeliveryHistoryPage />)
 
     const toggles = await screen.findAllByRole('button', { name: /^Show details for/ })
     expect(toggles[1]).toHaveAttribute('aria-expanded', 'false')
@@ -304,7 +304,7 @@ describe('NotificationHistoryPage delivery log', () => {
 
   it('explains a suppressed delivery that was never attempted', async () => {
     const user = userEvent.setup()
-    renderWithProviders(<NotificationHistoryPage />)
+    renderWithProviders(<DeliveryHistoryPage />)
 
     const rows = await screen.findAllByRole('row')
     await user.click(rows[3]!)
@@ -317,7 +317,7 @@ describe('NotificationHistoryPage delivery log', () => {
   it('sends filters to the server and pages through results', async () => {
     const user = userEvent.setup()
     deliveryPages = 2
-    renderWithProviders(<NotificationHistoryPage />)
+    renderWithProviders(<DeliveryHistoryPage />)
 
     await screen.findByText('Page 1 of 2 · 8 deliveries')
     await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'failed')
@@ -339,7 +339,7 @@ describe('NotificationHistoryPage delivery log', () => {
       if (path === '/admin/notifications/channels') return []
       return { deliveries: [], total: 0, page: 1, pages: 1 }
     })
-    renderWithProviders(<NotificationHistoryPage />)
+    renderWithProviders(<DeliveryHistoryPage />)
 
     expect(await screen.findByText('No deliveries yet')).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Monitor' })).toBeInTheDocument()

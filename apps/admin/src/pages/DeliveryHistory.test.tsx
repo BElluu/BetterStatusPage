@@ -1,12 +1,12 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SubscriberDelivery, SubscriberDeliveryList } from '@bsp/shared'
 import { api } from '../api/client'
 import { ToastProvider } from '../components/ui'
-import SubscriberHistoryPage from './SubscriberHistory'
+import DeliveryHistoryPage, { DeliveryHistoryRedirect } from './DeliveryHistory'
 
 vi.mock('../api/client', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 
@@ -19,31 +19,30 @@ const delivery = (overrides: Partial<SubscriberDelivery> = {}): SubscriberDelive
 const list = (deliveries: SubscriberDelivery[], pages = 1): SubscriberDeliveryList =>
   ({ deliveries, total: deliveries.length, page: 1, limit: 20, pages })
 
-function renderPage(url = '/admin/subscribers/history') {
+function renderPage(url = '/admin/delivery-history?tab=subscribers') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[url]}><ToastProvider><SubscriberHistoryPage /></ToastProvider></MemoryRouter>
+      <MemoryRouter initialEntries={[url]}><ToastProvider><DeliveryHistoryPage /></ToastProvider></MemoryRouter>
     </QueryClientProvider>,
   )
 }
 
 const deliveryCalls = () => vi.mocked(api.get).mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith('/admin/subscribers/deliveries'))
 
-describe('SubscriberHistoryPage', () => {
+describe('DeliveryHistoryPage subscribers tab', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(api.get).mockResolvedValue(list([delivery()]) as never)
     vi.mocked(api.post).mockResolvedValue(delivery({ status: 'pending' }) as never)
   })
 
-  it('lists deliveries, links back to the subscribers and filters by status and event', async () => {
+  it('lists deliveries and filters by status and event', async () => {
     const user = userEvent.setup()
     renderPage()
     expect(await screen.findByText('reader@example.test')).toBeInTheDocument()
     expect(screen.getByText('API errors')).toBeInTheDocument()
     expect(screen.getByText('4 / 4')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Subscribers/ })).toHaveAttribute('href', '/admin/subscribers')
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'failed')
     await waitFor(() => expect(deliveryCalls().at(-1)).toContain('status=failed'))
@@ -75,7 +74,7 @@ describe('SubscriberHistoryPage', () => {
 
   it('narrows to one subscriber from the link and clears it from the chip', async () => {
     const user = userEvent.setup()
-    renderPage('/admin/subscribers/history?subscriberId=7')
+    renderPage('/admin/delivery-history?tab=subscribers&subscriberId=7')
     expect(await screen.findByRole('button', { name: 'Show all subscribers' })).toBeInTheDocument()
     expect(deliveryCalls().at(-1)).toContain('subscriberId=7')
 
@@ -101,5 +100,42 @@ describe('SubscriberHistoryPage', () => {
     expect(await screen.findByText('Could not load deliveries.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Try again/ }))
     expect(await screen.findByText('reader@example.test')).toBeInTheDocument()
+  })
+})
+
+describe('DeliveryHistoryPage tabs', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(api.get).mockImplementation(async (path: string) => path.startsWith('/admin/subscribers/deliveries') ? list([delivery()]) : path.startsWith('/admin/notifications/deliveries') ? { deliveries: [], total: 0, page: 1, pages: 1 } : [])
+  })
+
+  it('opens on the notifications tab and switches to the subscribers tab', async () => {
+    const user = userEvent.setup()
+    renderPage('/admin/delivery-history')
+    expect(screen.getByRole('tab', { name: 'Notifications' })).toHaveAttribute('aria-selected', 'true')
+    expect(deliveryCalls()).toHaveLength(0)
+
+    await user.click(screen.getByRole('tab', { name: 'Subscribers' }))
+    expect(screen.getByRole('tab', { name: 'Subscribers' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByText('reader@example.test')).toBeInTheDocument()
+  })
+
+  it('keeps the addresses of the former history pages working', async () => {
+    function Location() {
+      const { pathname, search } = useLocation()
+      return <p data-testid="location">{pathname + search}</p>
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/admin/subscribers/history?subscriberId=7']}>
+          <Routes>
+            <Route path="/admin/subscribers/history" element={<DeliveryHistoryRedirect tab="subscribers" />} />
+            <Route path="/admin/delivery-history" element={<Location />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    expect(await screen.findByTestId('location')).toHaveTextContent('/admin/delivery-history?tab=subscribers&subscriberId=7')
   })
 })

@@ -169,7 +169,7 @@ Keep in mind:
 > [!WARNING]
 > **Not released yet.** The subscriber delivery history is new. Until it ships, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
-*Admin → Subscribers → **Delivery history***
+*Admin → Monitoring → **Delivery history** → Subscribers tab*
 
 Every notification queued for a subscriber is listed with the time, the subscriber, the event and the incident or maintenance it is about, the attempts used (for example *4 / 4*) and its status: *Pending*, *Delivered*, *Failed* or *Cancelled* (dropped because the subscriber or subscriptions were switched off before it was sent). Filter by status and event; the history icon on a subscriber's row opens it already narrowed to that subscriber, with a chip that clears the filter. The list refreshes every 30 seconds and records are kept for 90 days.
 

@@ -7,6 +7,7 @@ import { CHANNEL_TYPES, CHANNEL_TYPE_ORDER, type ChannelType } from '../componen
 import { DiscordIcon, SlackIcon, TeamsIcon } from '../components/notifications/icons'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { Link } from 'react-router-dom'
+import { deliveryHistoryUrl } from '../deliveryHistoryUrl'
 import { ModalHeader, ModalShell } from '../components/ModalShell'
 import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, Field, LoadingState, PageContainer, PageHeader, Pagination, QuickStartPanel, Switch, useToast, type FieldControlProps, type QuickStartOption } from '../components/ui'
 
@@ -62,7 +63,7 @@ export default function NotificationsPage() {
         title="Notifications"
         subtitle="Alert channels fired when a monitor changes status"
         actions={<>
-          <Link to="/admin/notifications/history" className="btn btn-secondary">
+          <Link to={deliveryHistoryUrl('notifications')} className="btn btn-secondary">
             <span className="material-symbols-outlined" aria-hidden="true">history</span>
             Delivery history
           </Link>
