@@ -69,7 +69,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   // Fetch translations whenever active locale changes
   useEffect(() => {
-    if (!locale || locale === 'en') {
+    if (!locale) {
       setTranslations({})
       return
     }
