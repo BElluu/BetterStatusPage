@@ -7,7 +7,9 @@ import { SidePanelFrame, SideTabStrip, type SideTab } from '../SidePanel'
 import { ChannelsSection, DependenciesSection, PANEL_META, RequestSection, type SidePanelKey } from './MonitorSidePanel'
 import { MonitorTypeConfigFields } from './MonitorTypeConfigFields'
 import { Field, type SecretSummary, type VaultSummary } from './monitorFormParts'
-import { MONITOR_TYPES, DATABASE_DEFAULT_PORTS, DATABASE_DEFAULT_QUERIES, isDatabaseType } from './monitorTypes'
+import { DATABASE_DEFAULT_PORTS, DATABASE_DEFAULT_QUERIES, isDatabaseType } from './monitorTypes'
+import { MonitorTypePicker } from './MonitorTypePicker'
+import { ScheduleSection } from './ScheduleSection'
 import { TagsSection } from './TagsSection'
 import { TestResultPanel, type TestResult } from './TestResultPanel'
 import { Alert } from '../ui'
@@ -220,54 +222,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
             <input value={name} onChange={(e) => setName(e.target.value)} required className="input-sig" placeholder="My Service" />
           </Field>
 
-          {/* Type tabs */}
-          <div role="group" aria-labelledby="monitor-type-label">
-            <span id="monitor-type-label" className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Type</span>
-            <div className="flex flex-wrap rounded-lg p-1 gap-1" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}>
-              {MONITOR_TYPES.map((t) => {
-                const selected = (t.types ?? [t.value]).includes(type)
-                return (
-                <button key={t.value} type="button" onClick={() => !selected && handleTypeChange(t.value)} aria-pressed={selected}
-                  className={`flex-1 text-xs font-medium py-1.5 px-2 rounded-md transition-all whitespace-nowrap focus-ring ${selected ? 'selection-active' : ''}`}
-                  style={selected
-                    ? { background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 25%, transparent)' }
-                    : { color: 'var(--m3-secondary)', border: '1px solid transparent' }
-                  }
-                >
-                  {t.label}
-                </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <Field label="Interval (s)">
-            <input type="number" value={intervalSecs} onChange={(e) => setIntervalSecs(Number(e.target.value))} min={10} className="input-sig" />
-          </Field>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Timeout (ms)">
-              <input type="number" value={timeoutMs} onChange={(e) => setTimeoutMs(Number(e.target.value))} min={1000} className="input-sig" />
-            </Field>
-            <Field label="Attempts">
-              <input type="number" value={retries} onChange={(e) => setRetries(Math.max(1, Number(e.target.value)))} min={1} max={10} className="input-sig" />
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Alert after (checks)">
-              <input type="number" value={failureThreshold} onChange={(e) => setFailureThreshold(Math.max(1, Number(e.target.value)))} min={1} max={20} className="input-sig" />
-            </Field>
-            <Field label="Recover after (checks)">
-              <input type="number" value={recoveryThreshold} onChange={(e) => setRecoveryThreshold(Math.max(1, Number(e.target.value)))} min={1} max={20} className="input-sig" />
-            </Field>
-          </div>
-          <p className="text-xs -mt-2" style={{ color: 'var(--m3-secondary)' }}>
-            Consecutive checks required before a notification is sent. Raise the first value to stop a flapping
-            endpoint from paging on every blip — the status page still updates immediately. 1 = notify on every change.
-          </p>
-
-          <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
+          <MonitorTypePicker value={type} onChange={handleTypeChange} />
 
           <MonitorTypeConfigFields
             type={type}
@@ -276,6 +231,19 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
             onEngineChange={handleEngineChange}
             vaultPicker={vaultPicker}
             webhook={{ token: webhookToken, canReset: isEdit, resetting: resettingToken, onReset: handleResetToken }}
+          />
+
+          <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
+
+          <ScheduleSection
+            values={{ intervalSecs, timeoutMs, retries, failureThreshold, recoveryThreshold }}
+            onChange={(p) => {
+              if (p.intervalSecs !== undefined) setIntervalSecs(p.intervalSecs)
+              if (p.timeoutMs !== undefined) setTimeoutMs(p.timeoutMs)
+              if (p.retries !== undefined) setRetries(p.retries)
+              if (p.failureThreshold !== undefined) setFailureThreshold(p.failureThreshold)
+              if (p.recoveryThreshold !== undefined) setRecoveryThreshold(p.recoveryThreshold)
+            }}
           />
 
           {/* ── Test result panel ─────────────────────────────────────────── */}

@@ -40,6 +40,12 @@ function field<T extends HTMLElement = HTMLInputElement>(label: string): T {
   return control as T
 }
 
+/** Opens the type picker and chooses an entry. */
+async function pickType(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await user.click(screen.getByRole('button', { name: /^Type / }))
+  await user.click(screen.getByRole('option', { name: (name) => name.startsWith(label) }))
+}
+
 function renderModal(monitor: Monitor | null = null) {
   const onClose = vi.fn()
   const onSaved = vi.fn()
@@ -86,7 +92,7 @@ describe('MonitorFormModal', () => {
   it('starts a new monitor on the preselected type with its default config', async () => {
     const user = userEvent.setup()
     render(<MonitorFormModal monitor={null} initialType="dns" onClose={vi.fn()} onSaved={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'DNS' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /^Type DNS/ })).toBeInTheDocument()
 
     await user.type(field('Name'), 'Resolver')
     await user.type(field('Hostname'), 'example.test')
@@ -169,7 +175,7 @@ describe('MonitorFormModal', () => {
     renderModal()
 
     expect(screen.getByTitle('Auth')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Ping / TCP' }))
+    await pickType(user, 'Ping / TCP')
     expect(screen.queryByText('URL', { selector: 'label' })).not.toBeInTheDocument()
     expect(field('Host')).toHaveValue('')
     expect(field('Port')).toHaveValue(80)
@@ -177,15 +183,15 @@ describe('MonitorFormModal', () => {
     expect(screen.queryByTitle('Auth')).not.toBeInTheDocument()
     expect(screen.queryByTitle('Request')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'DNS' }))
+    await pickType(user, 'DNS')
     expect(field<HTMLSelectElement>('Record Type')).toHaveValue('A')
     expect(field('Custom Resolver (optional)')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Database' }))
+    await pickType(user, 'Database')
     expect(field('Port')).toHaveValue(1433)
     expect(field('Test Query')).toHaveValue('SELECT 1')
 
-    await user.click(screen.getByRole('button', { name: 'Webhook' }))
+    await pickType(user, 'Webhook')
     expect(screen.getByText('A unique webhook URL will be generated after saving.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Test$/ })).not.toBeInTheDocument()
   })
@@ -194,7 +200,7 @@ describe('MonitorFormModal', () => {
     const user = userEvent.setup()
     renderModal()
 
-    await user.click(screen.getByRole('button', { name: 'Docker' }))
+    await pickType(user, 'Docker')
     expect(field('Docker endpoint')).toHaveValue('unix:///var/run/docker.sock')
     await user.type(field('Container name or ID'), 'my-app')
     expect(field('Container name or ID')).toHaveValue('my-app')
@@ -206,7 +212,7 @@ describe('MonitorFormModal', () => {
     renderModal()
 
     await user.type(field('Name'), 'Router')
-    await user.click(screen.getByRole('button', { name: 'Ping / TCP' }))
+    await pickType(user, 'Ping / TCP')
     await user.type(field('Host'), '10.0.0.1')
     await user.selectOptions(field<HTMLSelectElement>('Mode'), 'icmp')
     await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
@@ -214,7 +220,7 @@ describe('MonitorFormModal', () => {
     expect(createdBody()).toMatchObject({ type: 'ping', config: { host: '10.0.0.1', mode: 'icmp', port: 80 } })
 
     vi.mocked(api.post).mockClear()
-    await user.click(screen.getByRole('button', { name: 'DNS' }))
+    await pickType(user, 'DNS')
     await user.type(field('Hostname'), 'example.test')
     await user.selectOptions(field<HTMLSelectElement>('Record Type'), 'MX')
     await user.type(field('Expected Value'), 'mail.example.test')
@@ -231,7 +237,7 @@ describe('MonitorFormModal', () => {
     renderModal()
 
     await user.type(field('Name'), 'Orders DB')
-    await user.click(screen.getByRole('button', { name: 'Database' }))
+    await pickType(user, 'Database')
     await user.type(field('Host'), 'sql.internal')
     await user.type(field('Database'), 'orders')
     expect(screen.getByText(/store credentials in Vault/)).toBeInTheDocument()
@@ -265,8 +271,8 @@ describe('MonitorFormModal', () => {
     renderModal()
 
     await user.type(field('Name'), 'Orders DB')
-    await user.click(screen.getByRole('button', { name: 'Database' }))
-    await user.selectOptions(field<HTMLSelectElement>('Engine'), button)
+    await pickType(user, 'Database')
+    await user.click(screen.getByRole('button', { name: button }))
     await user.type(field('Host'), 'db.internal')
     await user.type(field('Database'), 'orders')
     await user.type(field('User'), 'monitor')
@@ -284,7 +290,7 @@ describe('MonitorFormModal', () => {
     const user = userEvent.setup()
     renderModal()
 
-    await user.click(screen.getByRole('button', { name: 'Database' }))
+    await pickType(user, 'Database')
     await user.click(screen.getByRole('button', { name: 'Connection string' }))
 
     expect(screen.getByText('Connection strings contain credentials and must always be stored in Vault.')).toBeInTheDocument()
@@ -455,7 +461,7 @@ describe('MonitorFormModal', () => {
     const { onSaved } = renderModal()
 
     await user.type(field('Name'), 'Cron job')
-    await user.click(screen.getByRole('button', { name: 'Webhook' }))
+    await pickType(user, 'Webhook')
     await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
 
     const url = `${window.location.origin}/api/v1/hook/tok123`

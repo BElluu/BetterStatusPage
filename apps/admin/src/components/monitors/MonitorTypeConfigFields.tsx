@@ -155,11 +155,25 @@ function DatabaseFields({ type, config, updateConfig, onEngineChange, vaultPicke
   const sqlVault = config['vault'] as VaultRef | undefined
   return (
     <>
-      <Field label="Engine">
-        <select value={type} onChange={(e) => onEngineChange(e.target.value as MonitorType)} className="input-sig">
-          {DATABASE_ENGINES.map((e) => <option key={e.value} value={e.value}>{e.label}</option>)}
-        </select>
-      </Field>
+      <div role="group" aria-labelledby="database-engine-label">
+        <span id="database-engine-label" className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Engine</span>
+        <div className="flex flex-wrap rounded-lg p-1 gap-1" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}>
+          {DATABASE_ENGINES.map((e) => {
+            const selected = e.value === type
+            return (
+              <button key={e.value} type="button" aria-pressed={selected} onClick={() => !selected && onEngineChange(e.value)}
+                className={`flex-1 text-xs font-medium py-1.5 px-2 rounded-md transition-all whitespace-nowrap focus-ring ${selected ? 'selection-active' : ''}`}
+                style={selected
+                  ? { background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 25%, transparent)' }
+                  : { color: 'var(--m3-secondary)', border: '1px solid transparent' }
+                }
+              >
+                {e.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
 
       {/* Connection mode toggle */}
       <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--m3-outline-variant)', width: 'fit-content' }}>

@@ -38,12 +38,12 @@ Status changes reach the admin list and the public page live, without a reload.
 
 ## Common settings
 
-These fields are at the top of the form for every type.
+These fields are in the form for every type. **Name** and **Type** come first, followed by the settings of the chosen type. The timing and alert fields below are grouped in a collapsed **Schedule & alerting** row at the end of the form, which shows their current values and opens on click.
 
 | Field | Default | What it does |
 | --- | --- | --- |
 | **Name** | — | Shown in the admin console, in notifications and on the status page. Required. |
-| **Type** | HTTPS | Switching type resets the type-specific settings. |
+| **Type** | HTTPS | Chosen from a searchable list grouped by area (Web, Network, Data, Infrastructure, Inbound). Switching type resets the type-specific settings. |
 | **Interval (s)** | `60` | How often the check runs. Minimum `10`. For a webhook monitor, how long silence may last. |
 | **Timeout (ms)** | `10000` | How long one attempt may take, authentication and redirects included. Minimum `1000`. |
 | **Attempts** | `1` | How many times one check is tried before it counts as down. `1–10`. |
