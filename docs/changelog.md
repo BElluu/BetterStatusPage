@@ -11,6 +11,7 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ### Fixed
 
+- **Incidents block**: an **Incident limit** above 10 now works on the public status page. It fetched at most 10 resolved incidents, whatever the limit was.
 - **Discord notifications**: the channel form now has an **Avatar URL** field, so saving a channel no longer drops an avatar set through the API. Without an avatar, messages use the BetterStatusPage logo.
 - **Audit log**: the **Entity** filter now lists every recorded type: user security, branding, page layout, languages, backups, backup schedule and notification deliveries.
 - **Delivery history**: the **Event** filter now includes **Certificate**.
