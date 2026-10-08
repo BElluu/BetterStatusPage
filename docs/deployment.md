@@ -34,7 +34,7 @@ openssl rand -hex 32   # VAULT_ENCRYPTION_KEY
 Edit `.env` and set at least:
 
 ```env
-BSP_IMAGE=ghcr.io/belluu/better-status-page:0.2.0
+BSP_IMAGE=ghcr.io/belluu/better-status-page:0.2.1
 BSP_BIND_ADDRESS=127.0.0.1
 JWT_SECRET=<first generated value>
 VAULT_ENCRYPTION_KEY=<second generated value>
@@ -404,7 +404,7 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ### Docker Compose
 
-Set the new version in `.env`, for example `BSP_IMAGE=ghcr.io/belluu/better-status-page:0.2.0`, then:
+Set the new version in `.env`, for example `BSP_IMAGE=ghcr.io/belluu/better-status-page:0.2.1`, then:
 
 ```bash
 docker compose pull
@@ -453,7 +453,7 @@ Before exposing an instance publicly:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `BSP_IMAGE` | Docker Compose | Container image used by `docker-compose.yml`, for example `ghcr.io/belluu/better-status-page:0.2.0`. |
+| `BSP_IMAGE` | Docker Compose | Container image used by `docker-compose.yml`, for example `ghcr.io/belluu/better-status-page:0.2.1`. |
 | `BSP_BIND_ADDRESS` | Docker Compose | Host address for published port. Default/recommended behind Nginx: `127.0.0.1`. Use `0.0.0.0` only for direct testing. |
 | `PORT` | No | Port to listen on. Default: `3000` |
 | `NODE_ENV` | Yes (prod) | Set to `production`. Enables security headers, HSTS, enforces secrets. |

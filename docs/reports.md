@@ -2,9 +2,6 @@
 
 The status page shows the last 30 days of each monitor as a bar. **Monitoring → Reports** in the admin console goes further back and further into the numbers: pick any date range, see the uptime of every monitor, and download it as CSV for an SLA review or a customer.
 
-> [!WARNING]
-> **Not released yet.** Uptime reports are not part of any release so far. To try them, build the image yourself from the `main` branch of the repository (see [Deployment](deployment.md)).
-
 The page is open to the operator role and above (see [Users and roles](users-and-roles.md)).
 
 ## Choosing a range

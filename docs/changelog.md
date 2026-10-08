@@ -5,6 +5,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-08
+
 ### Added
 
 - **PostgreSQL, MySQL / MariaDB and MongoDB monitors**: run a test query (for MongoDB, a JSON command), like the SQL Server monitor. They appear in the form as one **Database** type with an **Engine** selector, together with SQL Server. Connect with individual fields or a connection string from the vault; an optional **Expected Result** (first column of the first row) makes a mismatch Degraded; includes the **Test** button. MySQL and MariaDB share one type. See the [monitors guide](monitors.md#sql-server-postgresql-mysql--mariadb-and-mongodb).

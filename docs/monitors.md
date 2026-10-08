@@ -197,10 +197,6 @@ expected value, the check only requires that the lookup returns records.
 
 ## Docker
 
-> [!WARNING]
-> **Not released yet.** The Docker monitor is not part of any release so far. To try it, build the
-> image yourself from the `main` branch of the repository (see [Deployment](deployment.md)).
-
 Checks one container through the Docker Engine API. Only read access is used: the monitor inspects
 the container and never starts, stops or changes anything.
 
@@ -230,10 +226,6 @@ A container stuck in a crash loop alternates between restarting (**Degraded**) a
 ---
 
 ## SQL Server, PostgreSQL, MySQL / MariaDB and MongoDB
-
-> [!WARNING]
-> **Not released yet.** The PostgreSQL, MySQL / MariaDB and MongoDB monitors are not part of any release so far. To try
-> them, build the image yourself from the `main` branch of the repository (see [Deployment](deployment.md)).
 
 In the monitor form these are one **Database** type: pick the **Engine** inside it. Switching the engine keeps what you typed and changes the port only while it still holds the previous default. The engines share one check; only the driver, the default port and the test query differ.
 

@@ -325,7 +325,7 @@ chmod 600 .env
 Edytuj `.env` i ustaw co najmniej:
 
 ```env
-BSP_IMAGE=ghcr.io/belluu/better-status-page:0.2.0
+BSP_IMAGE=ghcr.io/belluu/better-status-page:0.2.1
 JWT_SECRET=<losowy sekret, min. 32 znaki>
 VAULT_ENCRYPTION_KEY=<64-znakowy klucz hex>
 ```
@@ -416,7 +416,7 @@ Skopiuj `.env.example` do `.env`:
 ```env
 PORT=3000
 NODE_ENV=production
-BSP_IMAGE=ghcr.io/belluu/better-status-page:0.2.0
+BSP_IMAGE=ghcr.io/belluu/better-status-page:0.2.1
 BSP_BIND_ADDRESS=127.0.0.1
 
 JWT_SECRET=something-long-random-and-secret

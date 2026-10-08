@@ -16,9 +16,6 @@ Edit the `.md` file and merge it into `main`. The [Docs workflow](../.github/wor
 Documentation for a feature that is on `main` but not in a release yet starts with a warning callout:
 
 ```md
-> [!WARNING]
-> **Not released yet.** This feature is not part of any release so far. To try it, build the
-> image yourself from the `main` branch of the repository (see [Deployment](deployment.md)).
 ```
 
 It renders as a yellow block on the site and as GitHub's warning block on GitHub. Remove it when the feature is released.

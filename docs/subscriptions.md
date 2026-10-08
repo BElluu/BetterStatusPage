@@ -17,9 +17,6 @@ Visitors click **Subscribe** on the status page, pick one of the offered methods
 
 ## Managing subscribers
 
-> [!WARNING]
-> **Not released yet.** The tabbed layout, selection, CSV export and per-subscriber history link are new. Until it ships, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 The **Subscribers** tab lists everyone who signed up. Filter by status, search by address or URL, and page through the list.
 
 - **Export CSV** downloads the current filter and search as a file; tick rows and use **Export selected** for just those. The file has the columns `id, type, destination, contact_email, status, events, monitors, tags, last_notified_at, last_error`. Text that a spreadsheet could run as a formula (starting with `=`, `+`, `-` or `@`) is prefixed with an apostrophe.
@@ -165,9 +162,6 @@ Keep in mind:
 - Webhook health (failure alerts and pausing) is described under [When the endpoint fails](#when-the-endpoint-fails).
 
 ## Delivery history
-
-> [!WARNING]
-> **Not released yet.** The subscriber delivery history is new. Until it ships, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 *Admin → Monitoring → **Delivery history** → Subscribers tab*
 
