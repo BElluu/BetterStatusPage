@@ -130,8 +130,10 @@ describe('MaintenancePage', () => {
     renderPage()
 
     await user.click(screen.getByRole('button', { name: /Schedule Maintenance/ }))
-    expect(screen.getByText('No monitors selected — notifications will not be suppressed.')).toBeInTheDocument()
     await user.type(screen.getByPlaceholderText('Scheduled database maintenance'), 'Kernel patch')
+    await user.click(screen.getByRole('button', { name: 'Schedule' }))
+    expect(screen.getByText('Select at least one monitor or choose all monitors.')).toBeInTheDocument()
+    expect(api.post).not.toHaveBeenCalled()
     await user.type(screen.getByPlaceholderText('Brief description visible on the status page…'), '  ')
     await user.click(await screen.findByRole('checkbox', { name: /^Search/ }))
     await user.click(await screen.findByRole('checkbox', { name: 'Notify subscribers' }))
