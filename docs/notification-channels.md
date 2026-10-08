@@ -216,7 +216,7 @@ A variable that does not exist for the event is left in the text unchanged — f
 | Variable | Meaning | Example |
 | --- | --- | --- |
 | `{{monitor_name}}` | Monitor name; `N monitors` in a digest | `Checkout API` |
-| `{{monitor_type}}` | `https`, `ping`, `dns`, `sqlserver`, `webhook`; `group` in a digest | `https` |
+| `{{monitor_type}}` | `https`, `ping`, `dns`, `sqlserver`, `postgresql`, `mysql`, `mongodb`, `docker`, `webhook`; `group` in a digest | `https` |
 | `{{status}}` | New status: `down`, `degraded`, `up`, `cert-expiring`, `cert-renewed`; the worst status in a digest | `down` |
 | `{{previous_status}}` | Status before the change; `various` in a digest whose members differ | `up` |
 | `{{error_message}}` | Error of the failing check, empty on recovery; a certificate sentence for certificate events; one line per monitor in a digest | `connection timeout` |

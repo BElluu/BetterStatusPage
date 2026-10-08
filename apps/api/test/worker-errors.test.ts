@@ -6,6 +6,9 @@ import { vaults, vaultSecrets } from '../src/db/schema.js'
 import { encrypt } from '../src/crypto/vault.js'
 import { checkDns } from '../src/workers/dns.js'
 import { checkSqlServer } from '../src/workers/sqlserver.js'
+import { checkPostgres } from '../src/workers/postgres.js'
+import { checkMysql } from '../src/workers/mysql.js'
+import { checkMongo } from '../src/workers/mongodb.js'
 import { resolveVaultSecret } from '../src/workers/resolveSecret.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
@@ -218,3 +221,39 @@ describe('SQL Server monitor', () => {
     assert.doesNotMatch(result.error, /Vault secret/)
   })
 })
+
+// The check flow is shared; these cover what each engine adds: its driver and its error text.
+for (const [label, check] of [['PostgreSQL', checkPostgres], ['MySQL / MariaDB', checkMysql], ['MongoDB', checkMongo]] as const) {
+  describe(`${label} monitor`, () => {
+    const base = { host: '127.0.0.1', port: 1, database: 'db', user: 'u', password: 'pw', query: 'SELECT 1' }
+
+    it('requires a vault secret in connection string mode', async () => {
+      const result = await check({ ...base, mode: 'connectionString' }, 200)
+      assert.equal(result.status, 'down')
+      assert.equal(result.error, `${label} connection string mode requires a vault secret`)
+    })
+
+    it('reports an empty connection string from the vault', async () => {
+      const secretId = await addSecret(`empty-conn-${label}`, 'value', { value: '' })
+      const result = await check({ ...base, mode: 'connectionString', vault: { vaultId, secretId } }, 200)
+      assert.equal(result.status, 'down')
+      assert.equal(result.error, `${label}: resolved connection string is empty`)
+    })
+
+    it('reports a missing vault secret as down', async () => {
+      const result = await check({ ...base, vault: { vaultId, secretId: 424_242 } }, 200)
+      assert.equal(result.status, 'down')
+      assert.match(result.error ?? '', /Vault secret 424242 not found/)
+    })
+
+    it('is down on a refused port, with and without vault credentials', async () => {
+      const secretId = await addSecret(`creds-${label}`, 'userpass', { username: 'vault-u', password: 'vault-pw' })
+      for (const config of [base, { ...base, vault: { vaultId, secretId } }]) {
+        const result = await check(config, 1_000)
+        assert.equal(result.status, 'down')
+        assert.ok(result.error)
+        assert.doesNotMatch(result.error, /Vault secret/)
+      }
+    })
+  })
+}

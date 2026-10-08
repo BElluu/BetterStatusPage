@@ -1,11 +1,13 @@
-import type { HttpsConfig, SqlServerConfig, PingConfig, DnsConfig, DockerConfig } from '@bsp/shared'
+import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig } from '@bsp/shared'
 import { evaluateContainer, inspectContainer, validateDockerConfig } from './docker.js'
-import { resolveVaultSecret } from './resolveSecret.js'
 import { CookieJar, discardBody, errMsg, redactedCookies, requestWithCas, resolveHttpAuth, type HttpFetch, type HttpResponse, type ResolvedHttpAuth } from './httpAuth.js'
-import { closeSqlServerPool, openSqlServerPool, sqlServerTarget } from './sqlserver.js'
+import { firstValue, resolveConnectionString, resolveFieldCredentials, type DatabaseConnection, type DatabaseDriver, type DatabaseSession } from './database.js'
+import { sqlServerDriver } from './sqlserver.js'
+import { postgresDriver } from './postgres.js'
+import { mysqlDriver } from './mysql.js'
+import { mongoDriver } from './mongodb.js'
 import { certificateTarget, certMilestone, normalizeCertExpiry, readCertificate } from './certificate.js'
 import { expiresInPhrase } from './notifier.js'
-import type { ConnectionPool } from 'mssql'
 import { checkPing } from './ping.js'
 import { Resolver } from 'dns/promises'
 
@@ -161,88 +163,78 @@ async function followRedirects(
   return res
 }
 
-// ── SQL Server ────────────────────────────────────────────────────────────────
+// ── Databases (SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB) ───────────────────
 
-export async function testSqlServer(config: SqlServerConfig, timeoutMs: number): Promise<TestResult> {
+async function testDatabase(driver: DatabaseDriver, config: DatabaseConfig, timeoutMs: number): Promise<TestResult> {
   const steps: TestStep[] = []
   const totalStart = Date.now()
   const fail = (): TestResult => ({ overall: 'error', steps, totalMs: Date.now() - totalStart })
-  let pool: ConnectionPool | null = null
+  let session: DatabaseSession | null = null
 
   try {
+    let connection: DatabaseConnection
+    let connectedLabel: string
+    let failedLabel: string
     if (config.mode === 'connectionString') {
       if (!config.vault) {
         steps.push({ label: 'Connection string: no Vault secret configured', status: 'error' })
         return fail()
       }
       const t = Date.now()
-      let connStr: string
       try {
-        const creds = await resolveVaultSecret(config.vault)
-        connStr = creds['connectionString'] ?? creds['value'] ?? ''
-        if (!connStr) throw new Error('Resolved connection string is empty')
+        connection = { connectionString: await resolveConnectionString(driver, config.vault) }
         steps.push({ label: 'Connection string resolved from Vault', status: 'ok', durationMs: Date.now() - t })
       } catch (err) {
         steps.push({ label: 'Vault resolution failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
         return fail()
       }
-      const t2 = Date.now()
-      try {
-        pool = await openSqlServerPool(connStr)
-        steps.push({ label: 'Connected via connection string', status: 'ok', durationMs: Date.now() - t2 })
-      } catch (err) {
-        steps.push({ label: 'Connection failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t2 })
-        return fail()
-      }
+      connectedLabel = 'Connected via connection string'
+      failedLabel = 'Connection failed'
     } else {
-      let user     = config.user
-      let password = config.password
-
-      if (config.vault) {
-        const t = Date.now()
-        try {
-          const creds = await resolveVaultSecret(config.vault)
-          user     = creds['username'] ?? creds['user']  ?? user
-          password = creds['password'] ?? creds['value'] ?? password
-          steps.push({ label: 'Credentials resolved from Vault', status: 'ok', detail: `User: ${user}`, durationMs: Date.now() - t })
-        } catch (err) {
-          steps.push({ label: 'Vault resolution failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
-          return fail()
-        }
-      } else {
-        steps.push({ label: 'Using direct credentials', status: 'info', detail: `User: ${user}` })
-      }
-
       const t = Date.now()
+      let user: string
+      let password: string
       try {
-        pool = await openSqlServerPool(sqlServerTarget(config, user, password, timeoutMs))
-        steps.push({ label: `Connected to ${config.host}:${config.port} / ${config.database}`, status: 'ok', durationMs: Date.now() - t })
+        ;({ user, password } = await resolveFieldCredentials(config))
       } catch (err) {
-        steps.push({ label: `Connection to ${config.host}:${config.port} failed`, status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
+        steps.push({ label: 'Vault resolution failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
         return fail()
       }
+      steps.push(config.vault
+        ? { label: 'Credentials resolved from Vault', status: 'ok', detail: `User: ${user}`, durationMs: Date.now() - t }
+        : { label: 'Using direct credentials', status: 'info', detail: `User: ${user}` })
+      connection = { host: config.host, port: config.port, database: config.database, user, password }
+      connectedLabel = `Connected to ${config.host}:${config.port} / ${config.database}`
+      failedLabel = `Connection to ${config.host}:${config.port} failed`
+    }
+
+    const tConnect = Date.now()
+    try {
+      session = await driver.connect(connection, timeoutMs)
+      steps.push({ label: connectedLabel, status: 'ok', durationMs: Date.now() - tConnect })
+    } catch (err) {
+      steps.push({ label: failedLabel, status: 'error', detail: errMsg(err), durationMs: Date.now() - tConnect })
+      return fail()
     }
 
     // ── Query ───────────────────────────────────────────────────────────────
-    const query = config.query || 'SELECT 1 AS result'
+    const query = config.query || driver.defaultQuery
     const t = Date.now()
     try {
-      const result = await pool.request().query(query)
-      const responseMs = Date.now() - t
-      const firstRow   = result.recordset[0] as Record<string, unknown> | undefined
-      const firstValue = firstRow ? String(Object.values(firstRow)[0]) : '(no rows)'
+      const rows = await session.query(query)
+      const value = firstValue(rows) ?? '(no rows)'
       steps.push({
-        label: `Query OK — ${result.recordset.length} row(s) returned`,
+        label: `Query OK — ${rows.length} row(s) returned`,
         status: 'ok',
-        detail: `${query} → ${firstValue}`,
-        durationMs: responseMs,
+        detail: `${query} → ${value}`,
+        durationMs: Date.now() - t,
       })
 
       if (config.expectedResult) {
-        if (firstValue === config.expectedResult) {
+        if (value === config.expectedResult) {
           steps.push({ label: `Expected result matched: "${config.expectedResult}"`, status: 'ok' })
         } else {
-          steps.push({ label: 'Expected result mismatch', status: 'error', detail: `Expected "${config.expectedResult}", got "${firstValue}"` })
+          steps.push({ label: 'Expected result mismatch', status: 'error', detail: `Expected "${config.expectedResult}", got "${value}"` })
           return fail()
         }
       }
@@ -254,11 +246,16 @@ export async function testSqlServer(config: SqlServerConfig, timeoutMs: number):
     steps.push({ label: 'Test failed', status: 'error', detail: errMsg(err) })
     return fail()
   } finally {
-    await closeSqlServerPool(pool)
+    await session?.close()
   }
 
   return { overall: 'ok', steps, totalMs: Date.now() - totalStart }
 }
+
+export const testSqlServer = (config: DatabaseConfig, timeoutMs: number) => testDatabase(sqlServerDriver, config, timeoutMs)
+export const testPostgres = (config: DatabaseConfig, timeoutMs: number) => testDatabase(postgresDriver, config, timeoutMs)
+export const testMysql = (config: DatabaseConfig, timeoutMs: number) => testDatabase(mysqlDriver, config, timeoutMs)
+export const testMongo = (config: DatabaseConfig, timeoutMs: number) => testDatabase(mongoDriver, config, timeoutMs)
 
 // ── Docker ────────────────────────────────────────────────────────────────────
 

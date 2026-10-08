@@ -181,7 +181,7 @@ describe('MonitorFormModal', () => {
     expect(field<HTMLSelectElement>('Record Type')).toHaveValue('A')
     expect(field('Custom Resolver (optional)')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'SQL Server' }))
+    await user.click(screen.getByRole('button', { name: 'Database' }))
     expect(field('Port')).toHaveValue(1433)
     expect(field('Test Query')).toHaveValue('SELECT 1')
 
@@ -231,7 +231,7 @@ describe('MonitorFormModal', () => {
     renderModal()
 
     await user.type(field('Name'), 'Orders DB')
-    await user.click(screen.getByRole('button', { name: 'SQL Server' }))
+    await user.click(screen.getByRole('button', { name: 'Database' }))
     await user.type(field('Host'), 'sql.internal')
     await user.type(field('Database'), 'orders')
     expect(screen.getByText(/store credentials in Vault/)).toBeInTheDocument()
@@ -256,11 +256,35 @@ describe('MonitorFormModal', () => {
     })
   })
 
+  it.each([
+    { button: 'PostgreSQL', type: 'postgresql', port: 5432 },
+    { button: 'MySQL / MariaDB', type: 'mysql', port: 3306 },
+    { button: 'MongoDB', type: 'mongodb', port: 27017 },
+  ])('submits $button with its default port and test query', async ({ button, type, port }) => {
+    const user = userEvent.setup()
+    renderModal()
+
+    await user.type(field('Name'), 'Orders DB')
+    await user.click(screen.getByRole('button', { name: 'Database' }))
+    await user.selectOptions(field<HTMLSelectElement>('Engine'), button)
+    await user.type(field('Host'), 'db.internal')
+    await user.type(field('Database'), 'orders')
+    await user.type(field('User'), 'monitor')
+    await user.type(field('Password'), 'pw')
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+
+    await waitFor(() => expect(createdBody()).toBeDefined())
+    expect(createdBody()).toMatchObject({
+      type,
+      config: { host: 'db.internal', port, database: 'orders', user: 'monitor', query: type === 'mongodb' ? '{"ping":1}' : 'SELECT 1' },
+    })
+  })
+
   it('requires a vault for SQL Server connection strings', async () => {
     const user = userEvent.setup()
     renderModal()
 
-    await user.click(screen.getByRole('button', { name: 'SQL Server' }))
+    await user.click(screen.getByRole('button', { name: 'Database' }))
     await user.click(screen.getByRole('button', { name: 'Connection string' }))
 
     expect(screen.getByText('Connection strings contain credentials and must always be stored in Vault.')).toBeInTheDocument()

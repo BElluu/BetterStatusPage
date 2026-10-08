@@ -33,7 +33,7 @@ export const authSessions = sqliteTable('auth_sessions', {
 export const monitors = sqliteTable('monitors', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
-  type: text('type').notNull(), // 'https'|'ping'|'dns'|'sqlserver'
+  type: text('type').notNull(), // 'https'|'ping'|'dns'|'sqlserver'|'postgresql'|'mysql'|'mongodb'
   intervalSecs: integer('interval_secs').notNull().default(60),
   timeoutMs: integer('timeout_ms').notNull().default(10000),
   config: text('config').notNull(), // JSON

@@ -53,7 +53,7 @@ Secrets live in **vaults**. A vault is a named group with an optional descriptio
 
 | Type | Label in the UI | Stored fields | Use it for |
 | --- | --- | --- | --- |
-| `userpass` | **User / Password** | `username`, `password` | Basic auth, CAS, SQL Server, SMTP sign-in |
+| `userpass` | **User / Password** | `username`, `password` | Basic auth, CAS, database monitors, SMTP sign-in |
 | `value` | **Secure Value** | `value` (one string) | An API token, a client secret, a full connection string |
 | `json` | **JSON** | Any JSON object | Several related values in one secret, such as an OAuth2 client ID and secret |
 
@@ -88,8 +88,8 @@ Wherever a credential can come from the vault, the form has a **Direct input** /
 | HTTPS monitor, **Auth** panel, **Basic** | Username, Password |
 | HTTPS monitor, **Auth** panel, **OAuth2** | Client ID, Client Secret |
 | HTTPS monitor, **Auth** panel, **CAS** | Username, Password |
-| SQL Server monitor, **Individual fields** | User, Password (under **Credentials**) |
-| SQL Server monitor, **Connection string** | The whole connection string (vault only, there is no direct input) |
+| Database monitor, **Individual fields** | User, Password (under **Credentials**) |
+| Database monitor, **Connection string** | The whole connection string (vault only, there is no direct input) |
 | **Notifications → SMTP Settings** | SMTP user, SMTP password (under **Credentials**) |
 
 Custom request headers on an HTTPS monitor and the other monitor fields cannot use the vault.

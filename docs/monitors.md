@@ -16,6 +16,9 @@ Monitors live under **Admin → Monitors** and can be managed by operators and a
 | **Ping / TCP** | A host, by TCP connect or ICMP ping | The host does not answer in time | — |
 | **DNS** | A record of a hostname | The lookup fails or times out | The expected value is not in the answer |
 | **SQL Server** | A query against Microsoft SQL Server | Connection or query error, timeout | The first value returned does not match |
+| **PostgreSQL** | A query against PostgreSQL | Connection or query error, timeout | The first value returned does not match |
+| **MySQL / MariaDB** | A query against MySQL or MariaDB | Connection or query error, timeout | The first value returned does not match |
+| **MongoDB** | A command against MongoDB | Connection or command error, timeout | The first value returned does not match |
 | **Docker** | State and healthcheck of a container | The container does not exist, is stopped or paused, or the Docker API is unreachable | The container is restarting, unhealthy or still starting |
 | **Webhook** | Requests your service sends in | No request arrives within the interval | — |
 
@@ -147,11 +150,11 @@ CAS uses the CAS REST protocol. On each check:
 
 ### Credentials from the vault
 
-Every credential block — Basic, OAuth2, CAS and SQL Server — has a **Direct input / From Vault**
+Every credential block — Basic, OAuth2, CAS and the SQL databases — has a **Direct input / From Vault**
 switch. Direct input stores the values in the monitor. **From Vault** references a secret from the
 [vault](vault.md) instead; when a secret is set, it overrides any direct values.
 
-| Secret type | Basic / CAS | OAuth2 | SQL Server |
+| Secret type | Basic / CAS | OAuth2 | SQL databases |
 | --- | --- | --- | --- |
 | **userpass** | username, password | username → Client ID, password → Client Secret | username, password |
 | **value** | used as the password | used as the Client Secret | used as the password |
@@ -225,19 +228,41 @@ A container stuck in a crash loop alternates between restarting (**Degraded**) a
 
 ---
 
-## SQL Server
+## SQL Server, PostgreSQL, MySQL / MariaDB and MongoDB
+
+> [!WARNING]
+> **Not released yet.** The PostgreSQL, MySQL / MariaDB and MongoDB monitors are not part of any release so far. To try
+> them, build the image yourself from the `main` branch of the repository (see [Deployment](deployment.md)).
+
+In the monitor form these are one **Database** type: pick the **Engine** inside it. Switching the engine keeps what you typed and changes the port only while it still holds the previous default. The engines share one check; only the driver, the default port and the test query differ.
+
+| Type | Default port | Notes |
+| --- | --- | --- |
+| **SQL Server** | `1433` | |
+| **PostgreSQL** | `5432` | |
+| **MySQL / MariaDB** | `3306` | One type for both servers: they speak the same protocol |
+| **MongoDB** | `27017` | The test is a command, not SQL; see below |
 
 Choose how to connect:
 
-- **Individual fields** — **Host**, **Port** (default `1433`), **Database**, and **User** /
-  **Password** typed in or taken from the vault. The connection is encrypted and the server
-  certificate is not verified.
+- **Individual fields** — **Host**, **Port** (default per type, see above), **Database**, and
+  **User** / **Password** typed in or taken from the vault. The connection is encrypted and the
+  server certificate is not verified. PostgreSQL and MySQL / MariaDB fall back to an unencrypted
+  connection when the server has no TLS; SQL Server always encrypts. MongoDB connects without TLS
+  and signs in against the given database (`admin` when empty); use a connection string for TLS or
+  another `authSource`.
 - **Connection string** — a full connection string, which must come from the vault: a **value**
   secret, or a **json** secret with the key that holds the string. A **userpass** secret cannot be
-  used here.
+  used here. TLS and certificate checks are then governed by the string itself (for MongoDB `tls=true` and `authSource`; for PostgreSQL
+  `sslmode`, where `require` verifies the certificate and `no-verify` does not; for MySQL / MariaDB a
+  `mysql://` URI, encrypted only with an `ssl` parameter). Use it when you need a verified certificate.
 
 **Test Query** (default `SELECT 1`) runs on every check. A connection error, query error or timeout
 makes the check **Down**.
+
+For MongoDB the field is **Test Command (JSON)**, a database command such as `{"ping":1}` (the
+default) or `{"dbStats":1}`. The first field of the reply is the value that `expectedResult`
+compares. Use a user that can only read: the command runs as given.
 
 The API also accepts `expectedResult` in the monitor config: the first column of the first row,
 as text, must then equal it exactly, or the check is **Degraded**. It is not in the form yet.
@@ -378,7 +403,7 @@ interval passes without one.
 ## Testing a monitor
 
 The **Test** button in the form runs the check once with the settings in the form, without saving
-them. It is available for HTTPS, Ping / TCP, DNS, SQL Server and Docker; a webhook can only be tested by
+them. It is available for HTTPS, Ping / TCP, DNS, the SQL databases and Docker; a webhook can only be tested by
 calling its URL.
 
 The result lists each step with its duration — authentication, every redirect, the response status,

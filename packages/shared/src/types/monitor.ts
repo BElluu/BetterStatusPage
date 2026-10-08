@@ -1,4 +1,4 @@
-export type MonitorType = 'https' | 'ping' | 'dns' | 'sqlserver' | 'docker' | 'webhook'
+export type MonitorType = 'https' | 'ping' | 'dns' | 'sqlserver' | 'postgresql' | 'mysql' | 'mongodb' | 'docker' | 'webhook'
 export type MonitorStatus = 'up' | 'down' | 'degraded' | 'pending' | 'affected'
 export type HttpsAuthType = 'none' | 'basic' | 'oauth2' | 'cas'
 
@@ -77,7 +77,11 @@ export interface DnsConfig {
   resolver?: string
 }
 
-export interface SqlServerConfig {
+/**
+ * Shared by every database monitor type; only the default port differs. `query` is a SQL statement,
+ * or for MongoDB a JSON command.
+ */
+export interface DatabaseConfig {
   host: string
   port: number
   database: string
@@ -91,6 +95,11 @@ export interface SqlServerConfig {
   vault?: VaultRef
 }
 
+export type SqlServerConfig = DatabaseConfig
+export type PostgresConfig = DatabaseConfig
+export type MySqlConfig = DatabaseConfig
+export type MongoConfig = DatabaseConfig
+
 export interface DockerConfig {
   /** Docker Engine API: unix:///var/run/docker.sock, npipe:////./pipe/docker_engine, or http(s)://host:port */
   endpoint: string
@@ -101,7 +110,7 @@ export interface DockerConfig {
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface WebhookConfig {}
 
-export type MonitorConfig = HttpsConfig | PingConfig | DnsConfig | SqlServerConfig | DockerConfig | WebhookConfig
+export type MonitorConfig = HttpsConfig | PingConfig | DnsConfig | DatabaseConfig | DockerConfig | WebhookConfig
 
 export interface MonitorTag {
   label: string

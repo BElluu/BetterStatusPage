@@ -70,6 +70,9 @@ Full documentation: **https://docs.betterstatuspage.dev**. Before exposing a pro
 | **Ping / TCP** | Whether a host is alive — via ICMP or TCP port check |
 | **DNS** | Whether your records resolve correctly — A, AAAA, MX, CNAME, TXT, with custom resolver support |
 | **SQL Server** | Runs a test query against MSSQL and validates the result |
+| **PostgreSQL** | Runs a test query against PostgreSQL and validates the result |
+| **MySQL / MariaDB** | Runs a test query against MySQL or MariaDB and validates the result |
+| **MongoDB** | Runs a test command against MongoDB and validates the result |
 | **Webhook** *(passive)* | Lets external services ping *you* to signal they're alive — silence means trouble |
 
 Every monitor gets: configurable intervals, timeouts, retries, **color-coded tags** for grouping, a **30-day uptime bar** on the status page, and 90 days of check results kept by default. Oh, and there's a built-in test runner so you can validate your config before hitting Save and immediately regretting it.
@@ -260,7 +263,7 @@ Status changes propagate to both the admin dashboard and the public page instant
 │   │  ├── HTTPS checker          Vault resolver           │  │
 │   │  ├── Ping / TCP             Result purger (daily)    │  │
 │   │  ├── DNS resolver                                    │  │
-│   │  └── SQL Server checker                              │  │
+│   │  └── DB checkers (SQL, PostgreSQL, MySQL, Mongo)    │  │
 │   └──────────────────────────────────────────────────────┘  │
 │                                                             │
 │   ┌──────────────────────────────────────────────────────┐  │
@@ -299,6 +302,9 @@ Status changes propagate to both the admin dashboard and the public page instant
 | Auth | Server-side sessions, HttpOnly JWT cookies, CSRF, TOTP, bcrypt, OpenID Connect (PKCE) | — |
 | Email | Nodemailer | 9.x |
 | SQL Server | mssql | 11.x |
+| PostgreSQL | pg | 8.x |
+| MySQL / MariaDB | mysql2 | 3.x |
+| MongoDB | mongodb | 7.x |
 | Scheduler | node-cron | 3.x |
 
 ---

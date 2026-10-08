@@ -13,11 +13,11 @@ export interface VaultPickerProps {
 }
 
 // Fields that can be sourced from a json vault secret, per context
-export const JSON_MAPPING_FIELDS: Record<'basic' | 'oauth2' | 'cas' | 'sqlserver', { key: string; label: string }[]> = {
+export const JSON_MAPPING_FIELDS: Record<'basic' | 'oauth2' | 'cas' | 'database', { key: string; label: string }[]> = {
   basic:     [{ key: 'username', label: 'Username' }, { key: 'password', label: 'Password' }],
   oauth2:    [{ key: 'clientId', label: 'Client ID' }, { key: 'clientSecret', label: 'Client Secret' }],
   cas:       [{ key: 'username', label: 'Username' }, { key: 'password', label: 'Password' }],
-  sqlserver: [{ key: 'username', label: 'Username' }, { key: 'password', label: 'Password' }],
+  database: [{ key: 'username', label: 'Username' }, { key: 'password', label: 'Password' }],
 }
 
 /** The shared caps-style form field: its label is programmatically tied to the control it wraps. */
