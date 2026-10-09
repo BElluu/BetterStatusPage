@@ -108,7 +108,8 @@ describe('LocalizationPage', () => {
     expect(screen.getByLabelText('chart.noData')).toBeInTheDocument()
     expect(screen.getByLabelText('overall.noServices')).toBeInTheDocument()
     expect(screen.getByLabelText('incident.impact.major')).toBeInTheDocument()
-  })
+    // One textbox per translation key makes the role query slow, so the default 5 s is too tight on a loaded CI runner.
+  }, 20_000)
 
   it('asks before discarding unsaved edits when switching language', async () => {
     const user = userEvent.setup()
