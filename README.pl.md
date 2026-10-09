@@ -88,6 +88,7 @@ Gdy coś się psuje (albo wraca do życia), BetterStatusPage może na Ciebie nak
 - **Discord** — natywna integracja z rozbudowanymi embedami; kolory zależne od wagi (czerwony = awaria, pomarańczowy = degradacja, zielony = przywrócenie), bez tokena bota — wystarczy URL webhooka
 - **Microsoft Teams** — natywna integracja MessageCard; kolorowe karty, bez instalowania aplikacji — wystarczy URL incoming webhooka
 - **Slack** — natywna integracja Block Kit; kolorowe załączniki, opcjonalne wzmianki `<!here>` / `<!channel>` — wystarczy URL incoming webhooka
+- **Telegram** — wiadomości przez własnego bota z emoji wagi (🔴 / 🟡 / 🟢) — wystarczy token bota i ID czatu
 
 Wszystkie kanały obsługują zmienne szablonów, takie jak `{{monitor_name}}`, `{{status}}`, `{{error_message}}` itd., dzięki czemu alert może brzmieć *„API Gateway nie działa: przekroczono czas połączenia"* zamiast *„zmiana statusu"*.
 
@@ -101,6 +102,7 @@ Każda wysyłka jest zapisywana wraz z poszczególnymi próbami. Nieudane wysył
 > Zobacz **[docs.betterstatuspage.dev/discord-integration](https://docs.betterstatuspage.dev/discord-integration/)** — konfiguracja Discorda krok po kroku *(EN)*.
 > Zobacz **[docs.betterstatuspage.dev/teams-integration](https://docs.betterstatuspage.dev/teams-integration/)** — konfiguracja Microsoft Teams krok po kroku *(EN)*.
 > Zobacz **[docs.betterstatuspage.dev/slack-integration](https://docs.betterstatuspage.dev/slack-integration/)** — konfiguracja Slacka krok po kroku *(EN)*.
+> Zobacz **[docs.betterstatuspage.dev/telegram-integration](https://docs.betterstatuspage.dev/telegram-integration/)** — konfiguracja Telegrama krok po kroku *(EN)*.
 
 ### 🤫 Higiena alertów — powód, dla którego ludzie nie wyłączają powiadomień
 
@@ -577,9 +579,8 @@ Jeśli korzystasz z AWS lub GCP, obserwuj projekt — naturalnym rozszerzeniem b
 
 ### 🔔 Więcej kanałów powiadomień
 
-E-mail, webhook, Discord, Teams i Slack pokrywają najczęstsze przypadki, ale alerty są tylko tak dobre, jak kanały, które ludzie faktycznie obserwują. Wciąż na liście:
+E-mail, webhook, Discord, Teams, Slack i Telegram pokrywają najczęstsze przypadki, ale alerty są tylko tak dobre, jak kanały, które ludzie faktycznie obserwują. Wciąż na liście:
 
-- **Telegram** — dla zespołów, które tam żyją
 - **SMS** — przez Twilio lub podobne, na wypadek gdy płonie sam internet i nikt nie zagląda na Slacka
 - **PagerDuty / OpsGenie** — gdy „ktoś powinien na to zerknąć" musi zamienić się w „obudźcie kogoś natychmiast"
 

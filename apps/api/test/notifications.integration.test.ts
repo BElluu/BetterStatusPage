@@ -3,7 +3,8 @@ import { createServer } from 'node:http'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import { SMTPServer } from 'smtp-server'
 import { db } from '../src/db/client.js'
-import { monitorNotificationChannels, monitors, notificationChannels, notificationDeliveries, notificationDeliveryAttempts, smtpSettings } from '../src/db/schema.js'
+import { monitorNotificationChannels, monitors, notificationChannels, notificationDeliveries, notificationDeliveryAttempts, smtpSettings, vaults, vaultSecrets } from '../src/db/schema.js'
+import { encrypt } from '../src/crypto/vault.js'
 import { processDueNotificationDeliveries, purgeOldNotificationDeliveries, retryNotificationDelivery, sendNotifications } from '../src/workers/notifier.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
@@ -118,6 +119,125 @@ describe('notification delivery', () => {
     assert.equal(deliveries.length, 5)
     assert.ok(deliveries.every((delivery) => delivery.status === 'delivered' && delivery.attemptCount === 1))
     assert.equal((await db.select().from(notificationDeliveryAttempts)).length, 5)
+  })
+
+  it('sends a Telegram alert through the bot API with escaped HTML and a bounded length', async () => {
+    const now = Date.now()
+    const [monitor] = await db.insert(monitors).values({
+      name: 'Checkout <API>', type: 'https', intervalSecs: 60, timeoutMs: 1_000, retries: 1,
+      config: '{}', currentStatus: 'up', tags: '[]', createdAt: now, updatedAt: now,
+    }).returning()
+    const [channel] = await db.insert(notificationChannels).values({
+      name: 'Telegram', type: 'telegram', enabled: 1, notifyOnRecovery: 1, createdAt: now, updatedAt: now,
+      config: JSON.stringify({ botToken: '123:SECRET', chatId: '-100500', text: 'Heads up {{monitor_name}}' }),
+    }).returning()
+    await db.insert(monitorNotificationChannels).values({ monitorId: monitor!.id, channelId: channel!.id })
+
+    const calls: Array<{ url: string; body: Record<string, unknown> }> = []
+    const realFetch = globalThis.fetch
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      calls.push({ url: String(input), body: JSON.parse(String(init?.body)) })
+      return new Response('{}', { status: 200 })
+    }) as typeof fetch
+    try {
+      await sendNotifications(monitor!, 'down', 'up', `<b>boom</b> & ${'x'.repeat(5_000)}`)
+    } finally {
+      globalThis.fetch = realFetch
+    }
+
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0]!.url, 'https://api.telegram.org/bot123:SECRET/sendMessage')
+    const body = calls[0]!.body
+    assert.equal(body['chat_id'], '-100500')
+    assert.equal(body['parse_mode'], 'HTML')
+    const text = String(body['text'])
+    assert.ok(text.length <= 4096)
+    assert.match(text, /^Heads up Checkout &lt;API&gt;\n/)
+    assert.match(text, /<b>Checkout &lt;API&gt;<\/b> is <b>DOWN<\/b>/)
+    assert.match(text, /&lt;b&gt;boom&lt;\/b&gt; &amp; x+…\n<i>Checked at /)
+  })
+
+  it('reads the Telegram bot token from a vault secret', async () => {
+    process.env['VAULT_ENCRYPTION_KEY'] = 'abcdef0123456789'.repeat(4)
+    const now = Date.now()
+    const [vault] = await db.insert(vaults).values({ name: 'Alerts', description: '', createdAt: now, updatedAt: now }).returning()
+    const [secret] = await db.insert(vaultSecrets).values({
+      vaultId: vault!.id, name: 'bot', type: 'value', encryptedValue: encrypt(JSON.stringify({ value: '555:FROMVAULT' })), createdAt: now, updatedAt: now,
+    }).returning()
+    const [monitor] = await db.insert(monitors).values({
+      name: 'API', type: 'https', intervalSecs: 60, timeoutMs: 1_000, retries: 1,
+      config: '{}', currentStatus: 'up', tags: '[]', createdAt: now, updatedAt: now,
+    }).returning()
+    const [channel] = await db.insert(notificationChannels).values({
+      name: 'Telegram vault', type: 'telegram', enabled: 1, notifyOnRecovery: 1, createdAt: now, updatedAt: now,
+      config: JSON.stringify({ vault: { vaultId: vault!.id, secretId: secret!.id }, chatId: '-100500' }),
+    }).returning()
+    await db.insert(monitorNotificationChannels).values({ monitorId: monitor!.id, channelId: channel!.id })
+
+    const urls: string[] = []
+    const realFetch = globalThis.fetch
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => { urls.push(String(input)); return new Response('{}', { status: 200 }) }) as typeof fetch
+    try {
+      await sendNotifications(monitor!, 'down', 'up', 'boom')
+    } finally {
+      globalThis.fetch = realFetch
+    }
+    assert.deepEqual(urls, ['https://api.telegram.org/bot555:FROMVAULT/sendMessage'])
+  })
+
+  it('does not leak the Telegram bot token into a failed delivery', async () => {
+    const now = Date.now()
+    const [monitor] = await db.insert(monitors).values({
+      name: 'Token API', type: 'https', intervalSecs: 60, timeoutMs: 1_000, retries: 1,
+      config: '{}', currentStatus: 'up', tags: '[]', createdAt: now, updatedAt: now,
+    }).returning()
+    const [channel] = await db.insert(notificationChannels).values({
+      name: 'Telegram', type: 'telegram', enabled: 1, notifyOnRecovery: 1, createdAt: now, updatedAt: now,
+      config: JSON.stringify({ botToken: '123:SECRET', chatId: '1' }),
+    }).returning()
+    await db.insert(monitorNotificationChannels).values({ monitorId: monitor!.id, channelId: channel!.id })
+
+    const realFetch = globalThis.fetch
+    globalThis.fetch = (async () => new Response('{}', { status: 401 })) as typeof fetch
+    try {
+      await sendNotifications(monitor!, 'down', 'up', 'down')
+    } finally {
+      globalThis.fetch = realFetch
+    }
+
+    const [delivery] = await db.select().from(notificationDeliveries)
+    assert.equal(delivery!.status, 'pending')
+    assert.equal(delivery!.lastError, 'Telegram API returned HTTP 401')
+  })
+
+  it('reports Telegram\'s error description and escapes literal HTML in the Message Text', async () => {
+    const now = Date.now()
+    const [monitor] = await db.insert(monitors).values({
+      name: 'Parse API', type: 'https', intervalSecs: 60, timeoutMs: 1_000, retries: 1,
+      config: '{}', currentStatus: 'up', tags: '[]', createdAt: now, updatedAt: now,
+    }).returning()
+    const [channel] = await db.insert(notificationChannels).values({
+      name: 'Telegram', type: 'telegram', enabled: 1, notifyOnRecovery: 1, createdAt: now, updatedAt: now,
+      config: JSON.stringify({ botToken: '123:SECRET', chatId: '1', text: 'ping <team> & co' }),
+    }).returning()
+    await db.insert(monitorNotificationChannels).values({ monitorId: monitor!.id, channelId: channel!.id })
+
+    let sentText = ''
+    const realFetch = globalThis.fetch
+    globalThis.fetch = (async (_input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      sentText = String(JSON.parse(String(init?.body)).text)
+      return new Response(JSON.stringify({ ok: false, description: 'Bad Request: chat not found' }), { status: 400 })
+    }) as typeof fetch
+    try {
+      await sendNotifications(monitor!, 'down', 'up', 'down')
+    } finally {
+      globalThis.fetch = realFetch
+    }
+
+    assert.match(sentText, /^ping &lt;team&gt; &amp; co\n/)
+    const [delivery] = await db.select().from(notificationDeliveries)
+    assert.equal(delivery!.lastError, 'Telegram API returned HTTP 400: Bad Request: chat not found')
+    assert.ok(!delivery!.lastError!.includes('SECRET'))
   })
 
   it('respects recovery flags and suppresses affected transitions', async () => {

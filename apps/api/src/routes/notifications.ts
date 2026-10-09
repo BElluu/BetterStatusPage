@@ -10,7 +10,7 @@ import { withImmediateTransaction } from '../db/transaction.js'
 import { parsePagination } from '../lib/pagination.js'
 import type { NotificationChannelType } from '@bsp/shared'
 
-const CHANNEL_TYPES: readonly NotificationChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack']
+const CHANNEL_TYPES: readonly NotificationChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack', 'telegram']
 
 export async function notificationRoutes(app: FastifyInstance) {
   app.get<{
@@ -70,9 +70,28 @@ export async function notificationRoutes(app: FastifyInstance) {
   // ── Channels CRUD ──────────────────────────────────────────────────────────
 
   type ChannelRow = typeof notificationChannels.$inferSelect
-  /** Channels leave the API with both JSON columns expanded and the policy filled in with defaults. */
+
+  /** Only the last characters of a stored token ever leave the API, e.g. `••••••••MSGo`. */
+  const maskToken = (token: string) => `${'•'.repeat(8)}${token.length >= 16 ? token.slice(-4) : ''}`
+
+  /** Channels leave the API with both JSON columns expanded, the policy filled in with defaults and secrets masked. */
   function parseChannel(r: ChannelRow) {
-    return { ...r, config: JSON.parse(r.config), alertPolicy: parseAlertPolicy(r.alertPolicy) }
+    const config = JSON.parse(r.config)
+    if (typeof config.botToken === 'string' && config.botToken) config.botToken = maskToken(config.botToken)
+    return { ...r, config, alertPolicy: parseAlertPolicy(r.alertPolicy) }
+  }
+
+  /**
+   * The form sends the masked token back when it was not edited: keep the stored one, but only while the
+   * channel stays a Telegram one. The token can only ever be sent to api.telegram.org, so unlike SMTP a
+   * changed chat ID needs no re-entry.
+   */
+  function keepUnchangedToken(config: unknown, existing: ChannelRow, effectiveType: string): unknown {
+    if (existing.type !== 'telegram' || effectiveType !== 'telegram' || !config || typeof config !== 'object') return config
+    const next = config as Record<string, unknown>
+    const stored = (JSON.parse(existing.config) as { botToken?: unknown }).botToken
+    if (typeof stored === 'string' && stored && next['botToken'] === maskToken(stored)) return { ...next, botToken: stored }
+    return config
   }
 
   /** Flat, auditable view of the hygiene settings — nested JSON would produce useless diffs. */
@@ -83,6 +102,15 @@ export async function notificationRoutes(app: FastifyInstance) {
       throttle: p.throttle.enabled ? `${p.throttle.maxAlerts} alerts / ${p.throttle.windowMinutes} min` : 'off',
       grouping: p.grouping.enabled ? `${p.grouping.minMonitors}+ monitors / ${p.grouping.windowSeconds} s` : 'off',
     }
+  }
+
+  /** Telegram needs a chat and a token, direct or from the vault; an edited mask is not a token. */
+  function telegramConfigError(config: unknown): string | null {
+    const c = (config && typeof config === 'object' ? config : {}) as { botToken?: unknown; vault?: { vaultId?: unknown; secretId?: unknown }; chatId?: unknown }
+    if (typeof c.chatId !== 'string' || !c.chatId.trim()) return 'Telegram needs a Chat ID'
+    if (c.vault) return Number.isInteger(c.vault.vaultId) && Number.isInteger(c.vault.secretId) && Number(c.vault.secretId) > 0 ? null : 'Pick a vault secret for the bot token'
+    if (typeof c.botToken !== 'string' || !c.botToken.trim()) return 'Telegram needs a Bot Token'
+    return c.botToken.includes('•') ? 'Paste the full bot token to replace the stored one' : null
   }
 
   app.get('/channels', async () => {
@@ -97,6 +125,10 @@ export async function notificationRoutes(app: FastifyInstance) {
     if (typeof req.body?.name !== 'string' || !req.body.name.trim()) return reply.code(400).send({ error: 'Name is required' })
     if (!CHANNEL_TYPES.includes(req.body.type as NotificationChannelType)) {
       return reply.code(400).send({ error: `Type must be one of: ${CHANNEL_TYPES.join(', ')}` })
+    }
+    if (req.body.type === 'telegram') {
+      const problem = telegramConfigError(req.body.config)
+      if (problem) return reply.code(400).send({ error: problem })
     }
     const now = Date.now()
     const results = await db.insert(notificationChannels).values({
@@ -129,10 +161,17 @@ export async function notificationRoutes(app: FastifyInstance) {
     const existing = (await db.select().from(notificationChannels).where(eq(notificationChannels.id, id)))[0]
     if (!existing) return reply.code(404).send({ error: 'Not found' })
 
+    const effectiveType = req.body.type ?? existing.type
+    const config = req.body.config !== undefined ? keepUnchangedToken(req.body.config, existing, effectiveType) : undefined
+    if (effectiveType === 'telegram' && (config !== undefined || req.body.type !== undefined)) {
+      const problem = telegramConfigError(config ?? JSON.parse(existing.config))
+      if (problem) return reply.code(400).send({ error: problem })
+    }
+
     const updates: Partial<typeof notificationChannels.$inferInsert> = { updatedAt: Date.now() }
     if (req.body.name !== undefined)              updates.name = req.body.name
     if (req.body.type !== undefined)              updates.type = req.body.type
-    if (req.body.config !== undefined)            updates.config = JSON.stringify(req.body.config)
+    if (req.body.config !== undefined)            updates.config = JSON.stringify(config)
     if (req.body.enabled !== undefined)           updates.enabled = req.body.enabled
     if (req.body.notifyOnRecovery !== undefined)  updates.notifyOnRecovery = req.body.notifyOnRecovery
     if (req.body.alertPolicy !== undefined)       updates.alertPolicy = JSON.stringify(normalizeAlertPolicy(req.body.alertPolicy))

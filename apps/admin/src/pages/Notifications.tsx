@@ -4,7 +4,7 @@ import { api } from '../api/client'
 import type { NotificationChannel, NotificationDelivery, NotificationDeliveryAttempt, SmtpSettings, VaultRef } from '@bsp/shared'
 import ChannelFormModal from '../components/notifications/ChannelFormModal'
 import { CHANNEL_TYPES, CHANNEL_TYPE_ORDER, type ChannelType } from '../components/notifications/channelTypes'
-import { DiscordIcon, SlackIcon, TeamsIcon } from '../components/notifications/icons'
+import { DiscordIcon, SlackIcon, TeamsIcon, TelegramIcon } from '../components/notifications/icons'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { Link } from 'react-router-dom'
 import { deliveryHistoryUrl } from '../deliveryHistoryUrl'
@@ -118,7 +118,9 @@ export default function NotificationsPage() {
                   ? String(cfg['to'] ?? '')
                   : ch.type === 'discord' || ch.type === 'teams' || ch.type === 'slack'
                     ? String(cfg['webhookUrl'] ?? '')
-                    : String(cfg['url'] ?? '')
+                    : ch.type === 'telegram'
+                      ? String(cfg['chatId'] ?? '')
+                      : String(cfg['url'] ?? '')
                 return (
                   <tr key={ch.id}
                     className="transition-colors"
@@ -134,6 +136,7 @@ export default function NotificationsPage() {
                         {ch.type === 'discord' ? <DiscordIcon size={12} />
                           : ch.type === 'teams' ? <TeamsIcon size={12} />
                           : ch.type === 'slack' ? <SlackIcon size={12} />
+                          : ch.type === 'telegram' ? <TelegramIcon size={12} />
                           : <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '12px' }}>{ch.type === 'email' ? 'mail' : 'webhook'}</span>
                         }
                         {ch.type}

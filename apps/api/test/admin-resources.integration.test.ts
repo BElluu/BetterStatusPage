@@ -5,7 +5,8 @@ import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import multipart from '@fastify/multipart'
 import { db, sqlite } from '../src/db/client.js'
-import { auditLog, monitors, notificationDeliveries } from '../src/db/schema.js'
+import { eq } from 'drizzle-orm'
+import { auditLog, monitors, notificationChannels, notificationDeliveries } from '../src/db/schema.js'
 import { auditRoutes } from '../src/routes/audit.js'
 import { brandingRoutes } from '../src/routes/branding.js'
 import { layoutRoutes } from '../src/routes/layout.js'
@@ -190,6 +191,46 @@ describe('notification configuration', () => {
     assert.equal((await db.select().from(auditLog)).some((entry) => entry.entityType === 'notification_delivery'), true)
 
     assert.equal((await app.inject({ method: 'DELETE', url: `/notifications/channels/${channel.id}` })).statusCode, 204)
+  })
+
+  it('masks a Telegram bot token and keeps the stored one when the masked value comes back', async () => {
+    const created = (await app.inject({
+      method: 'POST', url: '/notifications/channels',
+      payload: { name: 'Bot', type: 'telegram', config: { botToken: '123456:ABCDEFghijMSGo', chatId: '-100500' } },
+    })).json()
+    assert.equal(created.config.botToken, '••••••••MSGo')
+    assert.equal((await app.inject({ url: '/notifications/channels' })).json().find((c: { id: number }) => c.id === created.id).config.botToken, '••••••••MSGo')
+
+    const resaved = await app.inject({
+      method: 'PATCH', url: `/notifications/channels/${created.id}`,
+      payload: { config: { botToken: '••••••••MSGo', chatId: '-100501' } },
+    })
+    assert.equal(resaved.json().config.chatId, '-100501')
+    const [stored] = await db.select().from(notificationChannels).where(eq(notificationChannels.id, created.id))
+    assert.equal(JSON.parse(stored!.config).botToken, '123456:ABCDEFghijMSGo')
+
+    await app.inject({ method: 'PATCH', url: `/notifications/channels/${created.id}`, payload: { config: { botToken: '999:NEWTOKEN0000', chatId: '-100501' } } })
+    const [replaced] = await db.select().from(notificationChannels).where(eq(notificationChannels.id, created.id))
+    assert.equal(JSON.parse(replaced!.config).botToken, '999:NEWTOKEN0000')
+  })
+
+  it('does not restore a masked Telegram token for another type, and validates the Telegram config', async () => {
+    const created = (await app.inject({
+      method: 'POST', url: '/notifications/channels',
+      payload: { name: 'Bot2', type: 'telegram', config: { botToken: '123456:ABCDEFghijMSGo', chatId: '-100500' } },
+    })).json()
+    await app.inject({
+      method: 'PATCH', url: `/notifications/channels/${created.id}`,
+      payload: { type: 'webhook', config: { url: 'https://x.test', botToken: '••••••••MSGo' } },
+    })
+    const [row] = await db.select().from(notificationChannels).where(eq(notificationChannels.id, created.id))
+    assert.equal(JSON.parse(row!.config).botToken, '••••••••MSGo')
+
+    for (const config of [{ chatId: '-1' }, { botToken: '1:abc', chatId: ' ' }, { botToken: '••••••••XXXX1', chatId: '-1' }, { vault: { vaultId: 1, secretId: 0 }, chatId: '-1' }]) {
+      const response = await app.inject({ method: 'POST', url: '/notifications/channels', payload: { name: 'Bad', type: 'telegram', config } })
+      assert.equal(response.statusCode, 400, JSON.stringify(config))
+    }
+    assert.equal((await app.inject({ method: 'POST', url: '/notifications/channels', payload: { name: 'Vault', type: 'telegram', config: { vault: { vaultId: 1, secretId: 2 }, chatId: '-1' } } })).statusCode, 200)
   })
 })
 
