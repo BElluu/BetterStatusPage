@@ -10,6 +10,8 @@ interface CredentialSectionProps extends VaultPickerProps {
   note?: string
   /** What a `value` secret is used as; defaults to the password / client secret. */
   valueLabel?: string
+  /** Replaces the note shown for a User / Password secret when its username and password are not a username and password. */
+  userpassNote?: string
   /** Restricts the secret dropdown to these types; every type is offered when omitted. */
   secretTypes?: string[]
   /** Direct-input fields — rendered only when not using vault */
@@ -24,7 +26,7 @@ interface CredentialSectionProps extends VaultPickerProps {
 export function CredentialSection({
   vault, onVaultChange,
   vaults, secretsByVault, onLoadSecrets,
-  mappingFields, note, valueLabel = 'password / client secret', secretTypes, children,
+  mappingFields, note, valueLabel = 'password / client secret', userpassNote, secretTypes, children,
 }: CredentialSectionProps) {
   const isVault = !!vault
 
@@ -116,7 +118,7 @@ export function CredentialSection({
           {/* userpass — auto-mapped, no input needed */}
           {selectedSecret?.type === 'userpass' && (
             <p className="text-xs rounded-lg px-3 py-2" style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }}>
-              Auto-mapped: <strong>username</strong> → username field, <strong>password</strong> → password field.
+              {userpassNote ?? <>Auto-mapped: <strong>username</strong> → username field, <strong>password</strong> → password field.</>}
             </p>
           )}
 

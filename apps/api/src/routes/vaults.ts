@@ -8,7 +8,7 @@ import { requestIdentity } from '../middleware/auth.js'
 import { loadSecretPayload } from '../workers/resolveSecret.js'
 import {
   HashicorpVaultError, encodePath, forgetHashicorpVault, openConnection, parseConnection,
-  publicConnection, readKvSecret, sealConnection, testConnection,
+  publicConnection, readKvSecret, sealConnection, testConnection, testDraftConnection, verifyCredentialsRef, forgetCredentialDependents,
 } from '../services/hashicorpVault.js'
 
 const VALID_SECRET_TYPES = ['userpass', 'value', 'json'] as const
@@ -88,7 +88,7 @@ function connectionAudit(row: typeof vaults.$inferSelect): Record<string, unknow
   } catch {
     return { name: row.name, type: row.type } // connection undecryptable (key changed): still allow repair and delete
   }
-  return { name: row.name, type: row.type, address: c.address, namespace: c.namespace, mount: c.mount, authMethod: c.authMethod, approleMount: c.approleMount }
+  return { name: row.name, type: row.type, address: c.address, namespace: c.namespace, mount: c.mount, authMethod: c.authMethod, approleMount: c.approleMount, credentialsRef: c.credentialsRef }
 }
 
 function safeDecrypt(encryptedValue: string): unknown {
@@ -132,7 +132,9 @@ export async function vaultRoutes(app: FastifyInstance) {
     let connectionConfig: string | null = null
     if (type === 'hashicorp') {
       try {
-        connectionConfig = sealConnection(parseConnection(req.body.connection))
+        const cfg = parseConnection(req.body.connection)
+        await verifyCredentialsRef(cfg)
+        connectionConfig = sealConnection(cfg)
       } catch (e) {
         if (e instanceof HashicorpVaultError) return reply.code(400).send({ error: e.message })
         throw e
@@ -164,6 +166,32 @@ export async function vaultRoutes(app: FastifyInstance) {
     }
   })
 
+  // Tests settings from the form before they are saved. With vaultId, blank credentials fall back to the saved ones
+  // (parseConnection refuses that fallback when the connection target changed, so a saved secret never reaches a new server).
+  app.post<{ Body: { vaultId?: number; connection?: unknown } }>('/test-connection', async (req, reply) => {
+    let cfg: ReturnType<typeof parseConnection>
+    try {
+      let existing: ReturnType<typeof openConnection> | undefined
+      if (req.body.vaultId !== undefined) {
+        const vault = (await db.select().from(vaults).where(eq(vaults.id, Number(req.body.vaultId))))[0]
+        if (!vault) return reply.code(404).send({ error: 'Vault not found' })
+        if (vault.type !== 'hashicorp') return reply.code(400).send({ error: 'Only HashiCorp vaults have a connection to test' })
+        try { existing = openConnection(vault.connectionConfig) } catch { /* undecryptable: full credentials required */ }
+      }
+      cfg = parseConnection(req.body.connection, existing)
+      await verifyCredentialsRef(cfg)
+    } catch (e) {
+      if (e instanceof HashicorpVaultError) return reply.code(400).send({ error: e.message })
+      throw e
+    }
+    try {
+      return { ok: true, ...(await testDraftConnection(cfg)) }
+    } catch (e) {
+      if (e instanceof HashicorpVaultError) return reply.code(502).send({ error: e.message })
+      throw e
+    }
+  })
+
   app.post<{ Params: { id: string } }>('/:id/test', async (req, reply) => {
     const vault = (await db.select().from(vaults).where(eq(vaults.id, Number(req.params.id))))[0]
     if (!vault) return reply.code(404).send({ error: 'Vault not found' })
@@ -191,6 +219,7 @@ export async function vaultRoutes(app: FastifyInstance) {
           let old: ReturnType<typeof openConnection> | undefined
           try { old = openConnection(existing.connectionConfig) } catch { /* undecryptable: full credentials required */ }
           const next = parseConnection(req.body.connection, old)
+          await verifyCredentialsRef(next)
           credentialsChanged = old?.token !== next.token || old?.roleId !== next.roleId || old?.secretId !== next.secretId
           updates['connectionConfig'] = sealConnection(next)
         } catch (e) {
@@ -216,6 +245,7 @@ export async function vaultRoutes(app: FastifyInstance) {
     if (!existing) return reply.code(404).send({ error: 'Vault not found' })
     await db.delete(vaults).where(eq(vaults.id, id))
     forgetHashicorpVault(id)
+    forgetCredentialDependents(id)
     const actor = requestIdentity(req)
     writeAudit(auditActor(actor), 'delete', 'vault', id, existing.name, snapshot(connectionAudit(existing)))
     return reply.code(204).send()
@@ -304,6 +334,7 @@ export async function vaultRoutes(app: FastifyInstance) {
 
       try {
         const [row] = await db.update(vaultSecrets).set(updates).where(eq(vaultSecrets.id, secretId)).returning()
+        forgetCredentialDependents(vaultId, secretId)
         const actor = requestIdentity(req)
         const vaultRow = (await db.select().from(vaults).where(eq(vaults.id, vaultId)))[0]
         const diff: Record<string, unknown> = {}
@@ -328,6 +359,7 @@ export async function vaultRoutes(app: FastifyInstance) {
       ))[0]
       if (!secret) return reply.code(404).send({ error: 'Secret not found' })
       await db.delete(vaultSecrets).where(eq(vaultSecrets.id, secretId))
+      forgetCredentialDependents(vaultId, secretId)
       const actor = requestIdentity(req)
       const vaultRow = (await db.select().from(vaults).where(eq(vaults.id, vaultId)))[0]
       writeAudit(auditActor(actor), 'delete', 'vault_secret', secretId, `${vaultRow?.name ?? vaultId} / ${secret.name}`,

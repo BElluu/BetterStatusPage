@@ -1,18 +1,23 @@
-import { useId, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { CopyButton } from '../components/CopyButton'
-import { Modal, ModalShell } from '../components/ModalShell'
+import { Modal, ModalHeader, ModalShell } from '../components/ModalShell'
+import { SidePanelFrame, SideTabStrip, type SidePanelMeta } from '../components/SidePanel'
+import { VAULT_TYPE_ICONS, VaultTypePicker, isReferenceVault, type VaultTypeValue } from '../components/VaultTypePicker'
 import { Alert, EmptyState, EmptyStateLink, ErrorState, Field, LoadingState, useToast } from '../components/ui'
+import { CredentialSection } from '../components/monitors/CredentialSection'
+import type { VaultPickerProps } from '../components/monitors/monitorFormParts'
 import { formatDate } from '../lib/dateFormat'
+import type { VaultRef } from '@bsp/shared'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface Vault {
   id: number
   name: string
-  type: 'local' | 'hashicorp'
+  type: VaultTypeValue
   description: string | null
   createdAt: number
   updatedAt: number
@@ -46,6 +51,8 @@ interface HashicorpConnection {
   caCert: string
   hasToken: boolean
   hasSecretId: boolean
+  /** Local vault secret the credentials are read from, instead of being stored in the connection. */
+  credentialsRef: { vaultId: number; secretId: number; fieldMapping?: Record<string, string> } | null
 }
 
 /** What the connection form edits; credentials stay blank when unchanged. */
@@ -59,14 +66,34 @@ interface ConnectionForm {
   secretId: string
   approleMount: string
   caCert: string
+  credentialsRef: VaultRef | undefined
 }
 
 const EMPTY_CONNECTION: ConnectionForm = {
-  address: '', namespace: '', mount: 'secret', authMethod: 'token', token: '', roleId: '', secretId: '', approleMount: 'approle', caCert: '',
+  address: '', namespace: '', mount: 'secret', authMethod: 'token', token: '', roleId: '', secretId: '', approleMount: 'approle', caCert: '', credentialsRef: undefined,
+}
+
+/** The request body for a connection: a chosen secret replaces the typed credentials, direct input clears it. */
+function connectionPayload(form: ConnectionForm) {
+  return { ...form, credentialsRef: form.credentialsRef ? { vaultId: form.credentialsRef.vaultId, secretId: form.credentialsRef.secretId, ...(Object.keys(form.credentialsRef.fieldMapping ?? {}).length > 0 && { fieldMapping: form.credentialsRef.fieldMapping }) } : null }
 }
 
 const VAULT_TYPE_LABELS: Record<Vault['type'], string> = { local: 'LOCAL', hashicorp: 'HASHICORP VAULT' }
-const VAULT_TYPE_ICONS: Record<Vault['type'], string> = { local: 'lock', hashicorp: 'vpn_key' }
+
+/**
+ * Local-vault secrets a HashiCorp connection can take its credentials from. Only local vaults are offered,
+ * so a connection never depends on another external vault.
+ */
+function useLocalSecretPicker(vaults: Vault[]): VaultPickerProps {
+  const [secretsByVault, setSecretsByVault] = useState<VaultPickerProps['secretsByVault']>({})
+  const loadSecrets = useCallback(async (vaultId: number) => {
+    try {
+      const secrets = await api.get<VaultPickerProps['secretsByVault'][number]>(`/admin/vaults/${vaultId}/secrets`)
+      setSecretsByVault((prev) => ({ ...prev, [vaultId]: secrets }))
+    } catch { /* the picker simply stays empty */ }
+  }, [])
+  return { vaults: vaults.filter((v) => v.type === 'local'), secretsByVault, onLoadSecrets: loadSecrets }
+}
 
 function errorMessage(err: unknown, fallback: string) {
   return err instanceof Error && err.message ? err.message : fallback
@@ -196,22 +223,6 @@ export default function VaultPage() {
               )}
             </>
           )}
-
-          {/* Azure KeyVault — coming soon */}
-          <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
-            <p className="text-[10px] uppercase tracking-wider px-2 mb-2" style={{ color: 'var(--m3-secondary)' }}>External</p>
-            <div
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl opacity-40 cursor-not-allowed select-none"
-              style={{ background: 'var(--m3-surface-container)' }}
-              title="Coming soon"
-            >
-              <span className="material-symbols-outlined shrink-0" aria-hidden="true" style={{ fontSize: '18px', color: 'var(--m3-secondary)' }}>cloud</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate" style={{ color: 'var(--m3-on-surface)' }}>Azure Key Vault</p>
-                <p className="text-[10px]" style={{ color: 'var(--m3-secondary)' }}>Coming soon</p>
-              </div>
-            </div>
-          </div>
         </div>
       </aside>
 
@@ -244,8 +255,8 @@ export default function VaultPage() {
                   </>
                 )}
                 <button type="button" onClick={() => setShowCreateSecret(true)} className="btn btn-primary">
-                  <span className="material-symbols-outlined" aria-hidden="true">add</span>
-                  New Secret
+                  <span className="material-symbols-outlined" aria-hidden="true">{isReferenceVault(selectedVault.type) ? 'add_link' : 'add'}</span>
+                  {isReferenceVault(selectedVault.type) ? 'Add Reference' : 'New Secret'}
                 </button>
               </div>
             </div>
@@ -258,9 +269,9 @@ export default function VaultPage() {
               ) : secrets.length === 0 ? (
                 <EmptyState
                   icon="key_off"
-                  title="No secrets in this vault"
-                  description={selectedVault.type === 'hashicorp'
-                    ? <><EmptyStateLink onClick={() => setShowCreateSecret(true)}>Add a secret</EmptyStateLink> to point at a path in HashiCorp Vault that monitors can reference.</>
+                  title={isReferenceVault(selectedVault.type) ? 'No references in this vault' : 'No secrets in this vault'}
+                  description={isReferenceVault(selectedVault.type)
+                    ? <><EmptyStateLink onClick={() => setShowCreateSecret(true)}>Add a reference</EmptyStateLink> to a path in HashiCorp Vault that monitors can use. BetterStatusPage only reads from HashiCorp Vault; it never creates or changes secrets there.</>
                     : <><EmptyStateLink onClick={() => setShowCreateSecret(true)}>Add a secret</EmptyStateLink> to store credentials, tokens or JSON configuration that monitors can reference.</>}
                 />
               ) : (
@@ -289,6 +300,7 @@ export default function VaultPage() {
       {/* ── Modals ── */}
       {showCreateVault && (
         <CreateVaultModal
+          vaults={vaults}
           onClose={() => setShowCreateVault(false)}
           onCreated={(v) => { qc.invalidateQueries({ queryKey: ['vaults'] }); setSelectedVaultId(v.id); setShowCreateVault(false); toast.success(`Created vault "${v.name}".`) }}
         />
@@ -304,6 +316,7 @@ export default function VaultPage() {
       {showConnection && selectedVault?.type === 'hashicorp' && (
         <ConnectionSettingsModal
           vaultId={selectedVault.id}
+          vaults={vaults}
           onClose={() => setShowConnection(false)}
           onSaved={() => { qc.invalidateQueries({ queryKey: ['vaults'] }); setShowConnection(false); toast.success('Connection settings saved.') }}
         />
@@ -430,6 +443,7 @@ function DeleteVaultModal({ vault, secretCount, pending, onClose, onConfirm }: {
   onConfirm: () => void
 }) {
   const hasSecrets = secretCount === null || secretCount > 0
+  const isReference = isReferenceVault(vault.type)
   const [confirmed, setConfirmed] = useState(false)
 
   return (
@@ -457,10 +471,13 @@ function DeleteVaultModal({ vault, secretCount, pending, onClose, onConfirm }: {
         {hasSecrets && (
           <div className="rounded-xl px-4 py-3 space-y-3" style={{ background: 'var(--m3-error-container)' }}>
             <p className="text-sm font-medium" style={{ color: 'var(--m3-on-error-container)' }}>
-              {secretCount !== null && secretCount > 0
-                ? `This vault contains ${secretCount} secret${secretCount !== 1 ? 's' : ''}. All secrets will be permanently deleted.`
-                : 'This vault may contain secrets. All secrets will be permanently deleted.'}
-              {vault.type === 'hashicorp' && ' Only the references are deleted; nothing is removed from HashiCorp Vault.'}
+              {isReference
+                ? (secretCount !== null && secretCount > 0
+                    ? `This vault contains ${secretCount} reference${secretCount !== 1 ? 's' : ''}. They will be removed from BetterStatusPage. Nothing is deleted in HashiCorp Vault.`
+                    : 'This vault may contain references. They will be removed from BetterStatusPage. Nothing is deleted in HashiCorp Vault.')
+                : (secretCount !== null && secretCount > 0
+                    ? `This vault contains ${secretCount} secret${secretCount !== 1 ? 's' : ''}. All secrets will be permanently deleted.`
+                    : 'This vault may contain secrets. All secrets will be permanently deleted.')}
             </p>
             <label className="flex items-center gap-2.5 cursor-pointer select-none">
               <input
@@ -471,7 +488,7 @@ function DeleteVaultModal({ vault, secretCount, pending, onClose, onConfirm }: {
                 className="w-4 h-4 rounded"
               />
               <span className="text-sm font-medium" style={{ color: 'var(--m3-on-error-container)' }}>
-                I understand all secrets will be permanently deleted
+                {isReference ? 'I understand the references will be removed' : 'I understand all secrets will be permanently deleted'}
               </span>
             </label>
           </div>
@@ -497,14 +514,15 @@ function DeleteVaultModal({ vault, secretCount, pending, onClose, onConfirm }: {
 
 // ── Create Vault modal ─────────────────────────────────────────────────────────
 
-function CreateVaultModal({ onClose, onCreated }: { onClose: () => void; onCreated: (v: Vault) => void }) {
+function CreateVaultModal({ vaults, onClose, onCreated }: { vaults: Vault[]; onClose: () => void; onCreated: (v: Vault) => void }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [type, setType] = useState<Vault['type']>('local')
   const [connection, setConnection] = useState<ConnectionForm>(EMPTY_CONNECTION)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const typeLabelId = useId()
+  const test = useConnectionTest(connection)
+  const pickers = useLocalSecretPicker(vaults)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -514,7 +532,7 @@ function CreateVaultModal({ onClose, onCreated }: { onClose: () => void; onCreat
       const vault = await api.post<Vault>('/admin/vaults', {
         name,
         description: description || undefined,
-        ...(type === 'hashicorp' ? { type, connection } : {}),
+        ...(type === 'hashicorp' ? { type, connection: connectionPayload(connection) } : {}),
       })
       onCreated(vault)
     } catch (err) {
@@ -524,52 +542,27 @@ function CreateVaultModal({ onClose, onCreated }: { onClose: () => void; onCreat
     }
   }
 
+  const hashicorp = type === 'hashicorp'
   return (
-    <Modal title="Create Vault" icon="shield_lock" onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <Alert tone="error">{error}</Alert>}
-        <Field label="Vault name" required>
-          <input value={name} onChange={(e) => setName(e.target.value)} required className="input-sig" placeholder="My Credentials" autoFocus />
-        </Field>
-        <Field label="Description (optional)">
-          <input value={description} onChange={(e) => setDescription(e.target.value)} className="input-sig" placeholder="What this vault stores…" />
-        </Field>
-        <div role="group" aria-labelledby={typeLabelId}>
-          <p id={typeLabelId} className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Type</p>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              aria-pressed={type === 'local'}
-              onClick={() => setType('local')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg flex-1 focus-ring ${type === 'local' ? 'selection-active' : ''}`}
-              style={{ border: '1px solid var(--m3-outline-variant)' }}
-            >
-              <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px' }}>storage</span>
-              <span className="text-sm font-medium">Local</span>
-            </button>
-            <button
-              type="button"
-              aria-pressed={type === 'hashicorp'}
-              onClick={() => setType('hashicorp')}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg flex-1 focus-ring ${type === 'hashicorp' ? 'selection-active' : ''}`}
-              style={{ border: '1px solid var(--m3-outline-variant)' }}
-            >
-              <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px' }}>vpn_key</span>
-              <span className="text-sm font-medium">HashiCorp Vault</span>
-            </button>
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 opacity-40 cursor-not-allowed" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }} title="Coming soon">
-              <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px', color: 'var(--m3-secondary)' }}>cloud</span>
-              <div>
-                <span className="text-sm" style={{ color: 'var(--m3-secondary)' }}>Azure Key Vault</span>
-                <span className="text-[10px] block" style={{ color: 'var(--m3-secondary)' }}>Coming soon</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        {type === 'hashicorp' && <ConnectionFields value={connection} onChange={setConnection} />}
-        <ModalActions onClose={onClose} loading={loading} submitLabel="Create Vault" />
-      </form>
-    </Modal>
+    <ConnectionDialog
+      title="Create Vault"
+      icon="shield_lock"
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      advanced={hashicorp ? { connection, onChange: setConnection } : null}
+    >
+      {error && <Alert tone="error">{error}</Alert>}
+      <Field label="Vault name" required>
+        <input value={name} onChange={(e) => setName(e.target.value)} required className="input-sig" placeholder="My Credentials" autoFocus />
+      </Field>
+      <Field label="Description (optional)">
+        <input value={description} onChange={(e) => setDescription(e.target.value)} className="input-sig" placeholder="What this vault stores…" />
+      </Field>
+      <VaultTypePicker value={type} onChange={setType} />
+      {hashicorp && <ConnectionFields value={connection} onChange={setConnection} pickers={pickers} />}
+      {hashicorp && test.result && <Alert tone={test.result.ok ? 'success' : 'error'}>{test.result.text}</Alert>}
+      <ModalActions onClose={onClose} loading={loading} submitLabel="Create Vault" test={hashicorp ? test : undefined} />
+    </ConnectionDialog>
   )
 }
 
@@ -579,7 +572,7 @@ function CreateSecretModal({ vaultId, vaultType, onClose, onCreated }: { vaultId
   const [name, setName] = useState('')
   const [path, setPath] = useState('')
   const [secretKey, setSecretKey] = useState('')
-  const isReference = vaultType === 'hashicorp'
+  const isReference = isReferenceVault(vaultType)
   const [type, setType] = useState<'userpass' | 'value' | 'json'>('userpass')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -625,10 +618,11 @@ function CreateSecretModal({ vaultId, vaultType, onClose, onCreated }: { vaultId
   ]
 
   return (
-    <Modal title="New Secret" icon="key" onClose={onClose}>
+    <Modal title={isReference ? 'Add Secret Reference' : 'New Secret'} icon={isReference ? 'link' : 'key'} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <Alert tone="error">{error}</Alert>}
-        <Field label="Secret name" required>
+        {isReference && <Alert tone="info">This only points at a secret that already exists in HashiCorp Vault. BetterStatusPage reads it when needed and never creates, changes or deletes anything there.</Alert>}
+        <Field label={isReference ? 'Reference name' : 'Secret name'} required>
           <input value={name} onChange={(e) => setName(e.target.value)} required className="input-sig" placeholder="my-api-key" autoFocus />
         </Field>
 
@@ -692,7 +686,7 @@ function CreateSecretModal({ vaultId, vaultType, onClose, onCreated }: { vaultId
           </Field>
         )}
 
-        <ModalActions onClose={onClose} loading={loading} submitLabel="Save Secret" />
+        <ModalActions onClose={onClose} loading={loading} submitLabel={isReference ? 'Save Reference' : 'Save Secret'} />
       </form>
     </Modal>
   )
@@ -700,26 +694,24 @@ function CreateSecretModal({ vaultId, vaultType, onClose, onCreated }: { vaultId
 
 // ── HashiCorp connection ───────────────────────────────────────────────────────
 
-function ConnectionFields({ value, onChange, keepHint }: { value: ConnectionForm; onChange: (v: ConnectionForm) => void; keepHint?: boolean }) {
+/** Fields that decide where credentials are sent. */
+const TARGET_FIELDS = ['address', 'namespace', 'mount', 'authMethod', 'approleMount', 'caCert'] as const
+
+const DEFAULT_MOUNT = 'secret'
+const DEFAULT_APPROLE_MOUNT = 'approle'
+
+/** The fields every connection needs; the rarely changed options live in the side panel (`ConnectionAdvanced`). */
+function ConnectionFields({ value, onChange, pickers, keepHint }: { value: ConnectionForm; onChange: (v: ConnectionForm) => void; pickers: VaultPickerProps; keepHint?: boolean }) {
   const set = (patch: Partial<ConnectionForm>) => onChange({ ...value, ...patch })
   const authLabelId = useId()
   const credentialHint = keepHint ? 'Leave blank to keep the saved value. Re-enter it when you change the address, namespace, mount, CA certificate or auth method.' : undefined
   const insecure = value.address.trim().toLowerCase().startsWith('http://')
   return (
-    <fieldset className="space-y-3 rounded-xl p-3" style={{ border: '1px solid var(--m3-outline-variant)' }}>
-      <legend className="px-1 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Connection</legend>
+    <div className="space-y-4">
       <Field label="Address" required>
         <input type="url" value={value.address} onChange={(e) => set({ address: e.target.value })} required className="input-sig font-mono" placeholder="https://vault.example.com:8200" autoComplete="off" />
       </Field>
       {insecure && <Alert tone="warning">The token is sent unencrypted over http://. Use https:// unless Vault is on a trusted private network.</Alert>}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="Namespace (optional)">
-          <input value={value.namespace} onChange={(e) => set({ namespace: e.target.value })} className="input-sig font-mono" placeholder="team-a" autoComplete="off" />
-        </Field>
-        <Field label="KV v2 mount" required>
-          <input value={value.mount} onChange={(e) => set({ mount: e.target.value })} required className="input-sig font-mono" placeholder="secret" autoComplete="off" />
-        </Field>
-      </div>
       <div role="group" aria-labelledby={authLabelId}>
         <p id={authLabelId} className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Auth method</p>
         <div className="flex gap-2">
@@ -728,7 +720,7 @@ function ConnectionFields({ value, onChange, keepHint }: { value: ConnectionForm
               key={method}
               type="button"
               aria-pressed={value.authMethod === method}
-              onClick={() => set({ authMethod: method })}
+              onClick={() => set({ authMethod: method, credentialsRef: undefined })}
               className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium focus-ring ${value.authMethod === method ? 'selection-active' : ''}`}
               style={{ border: '1px solid var(--m3-outline-variant)' }}
             >
@@ -737,31 +729,125 @@ function ConnectionFields({ value, onChange, keepHint }: { value: ConnectionForm
           ))}
         </div>
       </div>
-      {value.authMethod === 'token' ? (
-        <Field label="Token" required={!keepHint} hint={credentialHint}>
-          <input type="password" value={value.token} onChange={(e) => set({ token: e.target.value })} required={!keepHint} className="input-sig font-mono" autoComplete="new-password" />
-        </Field>
-      ) : (
-        <>
-          <Field label="Role ID" required>
-            <input value={value.roleId} onChange={(e) => set({ roleId: e.target.value })} required className="input-sig font-mono" autoComplete="off" />
+      <CredentialSection
+        {...pickers}
+        vault={value.credentialsRef}
+        onVaultChange={(credentialsRef) => set({ credentialsRef })}
+        mappingFields={value.authMethod === 'token' ? [{ key: 'token', label: 'Token' }] : [{ key: 'roleId', label: 'Role ID' }, { key: 'secretId', label: 'Secret ID' }]}
+        secretTypes={value.authMethod === 'token' ? ['value', 'json'] : ['userpass', 'json']}
+        valueLabel="token"
+        userpassNote="The username is used as the Role ID and the password as the Secret ID."
+        note={value.authMethod === 'token'
+          ? 'Read the token from a local vault secret.'
+          : 'Read the Role ID and Secret ID from a local vault secret.'}
+      >
+        {value.authMethod === 'token' ? (
+          <Field label="Token" required={!keepHint} hint={credentialHint}>
+            <input type="password" value={value.token} onChange={(e) => set({ token: e.target.value })} required={!keepHint} className="input-sig font-mono" autoComplete="new-password" />
           </Field>
-          <Field label="Secret ID" required={!keepHint} hint={credentialHint}>
-            <input type="password" value={value.secretId} onChange={(e) => set({ secretId: e.target.value })} required={!keepHint} className="input-sig font-mono" autoComplete="new-password" />
-          </Field>
-          <Field label="AppRole mount">
-            <input value={value.approleMount} onChange={(e) => set({ approleMount: e.target.value })} className="input-sig font-mono" placeholder="approle" autoComplete="off" />
-          </Field>
-        </>
-      )}
-      <Field label="CA certificate (optional)" hint="PEM. Only for a private CA; include the full chain.">
-        <textarea value={value.caCert} onChange={(e) => set({ caCert: e.target.value })} rows={3} className="input-sig font-mono text-xs resize-none" placeholder="-----BEGIN CERTIFICATE-----" />
-      </Field>
-    </fieldset>
+        ) : (
+          <>
+            <Field label="Role ID" required>
+              <input value={value.roleId} onChange={(e) => set({ roleId: e.target.value })} required className="input-sig font-mono" autoComplete="off" />
+            </Field>
+            <Field label="Secret ID" required={!keepHint} hint={credentialHint}>
+              <input type="password" value={value.secretId} onChange={(e) => set({ secretId: e.target.value })} required={!keepHint} className="input-sig font-mono" autoComplete="new-password" />
+            </Field>
+          </>
+        )}
+      </CredentialSection>
+    </div>
   )
 }
 
-function ConnectionSettingsModal({ vaultId, onClose, onSaved }: { vaultId: number; onClose: () => void; onSaved: () => void }) {
+/** Options that rarely change from their defaults: namespace, mounts and the CA certificate. */
+function ConnectionAdvanced({ value, onChange }: { value: ConnectionForm; onChange: (v: ConnectionForm) => void }) {
+  const set = (patch: Partial<ConnectionForm>) => onChange({ ...value, ...patch })
+  return (
+    <div className="space-y-4">
+      <Field label="Namespace (optional)">
+        <input value={value.namespace} onChange={(e) => set({ namespace: e.target.value })} className="input-sig font-mono" placeholder="team-a" autoComplete="off" />
+      </Field>
+      <Field label="KV v2 mount" required>
+        <input value={value.mount} onChange={(e) => set({ mount: e.target.value })} required className="input-sig font-mono" placeholder={DEFAULT_MOUNT} autoComplete="off" />
+      </Field>
+      {value.authMethod === 'approle' && (
+        <Field label="AppRole mount">
+          <input value={value.approleMount} onChange={(e) => set({ approleMount: e.target.value })} className="input-sig font-mono" placeholder={DEFAULT_APPROLE_MOUNT} autoComplete="off" />
+        </Field>
+      )}
+      <Field label="CA certificate (optional)" hint="PEM. Only for a private CA; include the full chain.">
+        <textarea value={value.caCert} onChange={(e) => set({ caCert: e.target.value })} rows={5} className="input-sig font-mono text-xs resize-none" placeholder="-----BEGIN CERTIFICATE-----" />
+      </Field>
+    </div>
+  )
+}
+
+const ADVANCED_META: SidePanelMeta = { icon: 'tune', label: 'Connection options' }
+
+/** Number of options in the side panel that differ from their defaults, shown as the tab badge. */
+function advancedCount(c: ConnectionForm): number {
+  return [
+    c.namespace.trim() !== '',
+    c.mount.trim() !== DEFAULT_MOUNT,
+    c.authMethod === 'approle' && c.approleMount.trim() !== DEFAULT_APPROLE_MOUNT,
+    c.caCert.trim() !== '',
+  ].filter(Boolean).length
+}
+
+/**
+ * A modal form with the connection options in a collapsible side panel, as in the monitor form.
+ * Without `advanced` (a local vault) it is a plain narrow dialog with no tab strip.
+ */
+function ConnectionDialog({ title, icon, onClose, onSubmit, advanced, children }: {
+  title: string
+  icon: string
+  onClose: () => void
+  onSubmit: (e: React.FormEvent) => void
+  advanced: { connection: ConnectionForm; onChange: (v: ConnectionForm) => void } | null
+  children: React.ReactNode
+}) {
+  const hasAdvanced = advanced !== null
+  // Open whenever the dialog has connection options, since they include a required field.
+  const [open, setOpen] = useState(hasAdvanced)
+  useEffect(() => setOpen(hasAdvanced), [hasAdvanced])
+  const showPanel = open && advanced !== null
+  const count = advanced ? advancedCount(advanced.connection) : 0
+  return (
+    <ModalShell align="top" onClose={onClose} label={title}>
+      <div
+        className="rounded-2xl my-8 flex flex-col lg:flex-row"
+        style={{
+          width: showPanel ? 'min(900px, calc(100vw - 32px))' : advanced ? 'min(492px, calc(100vw - 32px))' : 'min(448px, calc(100vw - 32px))',
+          background: 'var(--m3-surface-container-low)',
+          border: '1px solid var(--m3-outline-variant)',
+          transition: 'width 0.2s ease',
+        }}
+      >
+        <div className={`flex-none min-w-0 w-full ${showPanel ? 'lg:w-[460px]' : advanced ? 'lg:w-[calc(100%-44px)]' : 'lg:w-full'}`}>
+          <ModalHeader icon={icon} title={title} onClose={onClose} />
+          <form onSubmit={onSubmit} className="p-6 space-y-4">{children}</form>
+        </div>
+        {showPanel && (
+          <SidePanelFrame meta={ADVANCED_META} layout="responsive">
+            <ConnectionAdvanced value={advanced.connection} onChange={advanced.onChange} />
+          </SidePanelFrame>
+        )}
+        {advanced && (
+          <SideTabStrip
+            tabs={[{ key: 'advanced', badge: count > 0 ? String(count) : null }]}
+            meta={{ advanced: ADVANCED_META }}
+            active={open ? 'advanced' : null}
+            onToggle={(key) => setOpen(key !== null)}
+            layout="responsive"
+          />
+        )}
+      </div>
+    </ModalShell>
+  )
+}
+
+function ConnectionSettingsModal({ vaultId, vaults, onClose, onSaved }: { vaultId: number; vaults: Vault[]; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState<ConnectionForm | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -771,7 +857,19 @@ function ConnectionSettingsModal({ vaultId, onClose, onSaved }: { vaultId: numbe
     gcTime: 0,
   })
 
-  const current = form ?? (query.data ? { ...EMPTY_CONNECTION, ...query.data.connection, token: '', secretId: '' } : null)
+  const saved = query.data?.connection
+  const current = form ?? (saved ? { ...EMPTY_CONNECTION, ...saved, credentialsRef: saved.credentialsRef ? { fieldMapping: {}, ...saved.credentialsRef } : undefined, token: '', secretId: '' } : null)
+  const pickers = useLocalSecretPicker(vaults)
+  const savedVaultId = saved?.credentialsRef?.vaultId
+  const { onLoadSecrets } = pickers
+  useEffect(() => { if (savedVaultId) void onLoadSecrets(savedVaultId) }, [savedVaultId, onLoadSecrets])
+  // The saved secret must not follow a changed target to a new server: the admin picks it again, as typed credentials are.
+  const change = (next: ConnectionForm) => {
+    const moved = current !== null && TARGET_FIELDS.some((f) => next[f] !== current[f])
+    setForm(moved && next.credentialsRef === current?.credentialsRef ? { ...next, credentialsRef: undefined } : next)
+  }
+  const hasSavedDirect = !!current && (current.authMethod === 'token' ? saved?.hasToken : saved?.hasSecretId) === true
+  const test = useConnectionTest(current ?? EMPTY_CONNECTION, vaultId)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -779,7 +877,7 @@ function ConnectionSettingsModal({ vaultId, onClose, onSaved }: { vaultId: numbe
     setError('')
     setLoading(true)
     try {
-      await api.patch(`/admin/vaults/${vaultId}`, { connection: current })
+      await api.patch(`/admin/vaults/${vaultId}`, { connection: connectionPayload(current) })
       onSaved()
     } catch (err) {
       setError(errorMessage(err, 'Failed to save connection settings'))
@@ -788,20 +886,22 @@ function ConnectionSettingsModal({ vaultId, onClose, onSaved }: { vaultId: numbe
     }
   }
 
+  if (!current) {
+    return (
+      <Modal title="Connection settings" icon="settings" onClose={onClose}>
+        {query.isError
+          ? <ErrorState message="Could not load the connection settings." onRetry={() => void query.refetch()} />
+          : <LoadingState label="Loading…" />}
+      </Modal>
+    )
+  }
   return (
-    <Modal title="Connection settings" icon="settings" onClose={onClose}>
-      {query.isError ? (
-        <ErrorState message="Could not load the connection settings." onRetry={() => void query.refetch()} />
-      ) : !current ? (
-        <LoadingState label="Loading…" />
-      ) : (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <Alert tone="error">{error}</Alert>}
-          <ConnectionFields value={current} onChange={setForm} keepHint />
-          <ModalActions onClose={onClose} loading={loading} submitLabel="Save" />
-        </form>
-      )}
-    </Modal>
+    <ConnectionDialog title="Connection settings" icon="settings" onClose={onClose} onSubmit={handleSubmit} advanced={{ connection: current, onChange: change }}>
+      {error && <Alert tone="error">{error}</Alert>}
+      <ConnectionFields value={current} onChange={change} pickers={pickers} keepHint={hasSavedDirect} />
+      {test.result && <Alert tone={test.result.ok ? 'success' : 'error'}>{test.result.text}</Alert>}
+      <ModalActions onClose={onClose} loading={loading} submitLabel="Save" test={test} />
+    </ConnectionDialog>
   )
 }
 
@@ -894,10 +994,38 @@ function RevealField({ label, value, mono, hidden, action }: { label: string; va
 
 // ── Shared primitives ──────────────────────────────────────────────────────────
 
-function ModalActions({ onClose, loading, submitLabel }: { onClose: () => void; loading: boolean; submitLabel: string }) {
+/** Tests the connection form as it is filled in, before it is saved. */
+function useConnectionTest(connection: ConnectionForm, vaultId?: number) {
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
+  const [pending, setPending] = useState(false)
+
+  async function run() {
+    setPending(true)
+    setResult(null)
+    try {
+      const res = await api.post<{ ttlSeconds: number | null }>('/admin/vaults/test-connection', { vaultId, connection: connectionPayload(connection) })
+      setResult({ ok: true, text: res.ttlSeconds ? `Connected. Token valid for ${res.ttlSeconds} s.` : 'Connected.' })
+    } catch (err) {
+      setResult({ ok: false, text: `Connection failed: ${errorMessage(err, 'unknown error')}` })
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return { result, pending, run }
+}
+
+function ModalActions({ onClose, loading, submitLabel, test }: { onClose: () => void; loading: boolean; submitLabel: string; test?: ReturnType<typeof useConnectionTest> | undefined }) {
   return (
     <div className="flex flex-wrap justify-end gap-3 pt-2">
       <button type="button" onClick={onClose} className="btn btn-ghost">Cancel</button>
+      {test && (
+        <button type="button" onClick={() => void test.run()} disabled={test.pending || loading} className="btn btn-outline">
+          {test.pending
+            ? <><span className="material-symbols-outlined animate-spin" aria-hidden="true">progress_activity</span> Testing…</>
+            : <><span className="material-symbols-outlined" aria-hidden="true">network_check</span> Test connection</>}
+        </button>
+      )}
       <button type="submit" disabled={loading} className="btn btn-primary">
         {loading ? 'Saving…' : submitLabel}
       </button>

@@ -34,7 +34,7 @@ Backups never contain `VAULT_ENCRYPTION_KEY`. Each backup records a fingerprint 
 
 ## Vaults and secrets
 
-Secrets live in **vaults**. A vault is a named group with an optional description; create as many as you like, for example one per team or per environment. A vault is either **Local**, with the values stored encrypted in the BetterStatusPage database, or **HashiCorp Vault**, where BetterStatusPage reads the values from your own HashiCorp Vault (see [HashiCorp Vault](#hashicorp-vault)). The type is chosen when the vault is created and cannot be changed. (**Azure Key Vault** is shown in the list as *Coming soon* and cannot be selected.)
+Secrets live in **vaults**. A vault is a named group with an optional description; create as many as you like, for example one per team or per environment. A vault is either **Local**, with the values stored encrypted in the BetterStatusPage database, or **HashiCorp Vault**, where BetterStatusPage reads the values from your own HashiCorp Vault (see [HashiCorp Vault](#hashicorp-vault)). The type is chosen when the vault is created and cannot be changed. (**Azure Key Vault**, **GCP Secret Manager** and **AWS Secrets Manager** are listed in the type picker as *Coming soon* and cannot be selected.)
 
 ### Create a vault
 
@@ -89,7 +89,7 @@ A **HashiCorp Vault** vault keeps no secret values in BetterStatusPage. It store
 ### Connect to HashiCorp Vault
 
 1. Open **Vault**, click **+** (**Create vault**) and choose **HashiCorp Vault**.
-2. Fill in the **Connection**:
+2. Fill in the **Connection**. **Address**, **Auth method** and the credentials are in the form; **Namespace**, **KV v2 mount**, **AppRole mount** and **CA certificate** are in the **Connection options** tab on the right edge of the dialog (its badge counts the options changed from their defaults):
 
 | Field | Meaning |
 | --- | --- |
@@ -97,15 +97,28 @@ A **HashiCorp Vault** vault keeps no secret values in BetterStatusPage. It store
 | **Namespace** | Optional. Sent as the `X-Vault-Namespace` header (Vault Enterprise and HCP Vault). |
 | **KV v2 mount** | The mount of the KV version 2 engine. Default `secret`. |
 | **Auth method** | **Token**, or **AppRole**. |
-| **Token** | For **Token**. |
-| **Role ID**, **Secret ID**, **AppRole mount** | For **AppRole**. The mount defaults to `approle`. |
+| **Token** | For **Token**: typed here, or **From Vault** (see [Credentials from a local vault](#credentials-from-a-local-vault)). |
+| **Role ID**, **Secret ID**, **AppRole mount** | For **AppRole**: typed here, or **From Vault**. The mount defaults to `approle`. |
 | **CA certificate** | Optional PEM, for a server certificate signed by a private CA. Include the full chain; it replaces the default trust store for this vault. There is no option to skip certificate verification. |
 
-3. Click **Create Vault**, then **Test connection** in the vault header. It checks the token with `auth/token/lookup-self` (and shows how long it stays valid) or performs the AppRole login.
+3. Click **Test connection** between **Cancel** and **Create Vault** to check the settings before saving; the same button is in **Connection settings**, where a blank credential uses the saved one. Then click **Create Vault**. You can run **Test connection** again later in the vault header. The test checks the token with `auth/token/lookup-self` (and shows how long it stays valid) or performs the AppRole login.
 
 Prefer **AppRole**: BetterStatusPage logs in when needed and again when the token expires. A **Token** is sent as it is and is never renewed, so use a periodic or long-lived token.
 
 The connection (including the token or Secret ID) is encrypted with `VAULT_ENCRYPTION_KEY` like every other secret, is never returned by the API (the settings form only shows whether a credential is set) and never reaches the audit log. Open **Connection settings** to change it; leave a credential blank to keep the saved one. When you change the address, namespace, KV mount, CA certificate, auth method or AppRole mount you must enter the credentials again, so a stored credential is never sent to a different server.
+
+### Credentials from a local vault
+
+Instead of typing the **Token**, or the **Role ID** and **Secret ID**, switch the field to **From Vault** and pick a secret from a **local** vault. This way the credentials are kept and rotated in one place, and the connection stores only the reference:
+
+| Auth method | Secret type | Used as |
+| --- | --- | --- |
+| **Token** | **Secure Value** | The token |
+| **Token** | **JSON** | The token, from the JSON key you enter under **Token** (default `token`) |
+| **AppRole** | **User / Password** | The username is the Role ID, the password is the Secret ID |
+| **AppRole** | **JSON** | The Role ID and Secret ID, from the JSON keys you enter (defaults `roleId` and `secretId`) |
+
+Only local vaults are offered, so a HashiCorp vault never depends on another external vault. The secret is read every time it is needed, so changing it takes effect on the next request. If the secret is deleted, or no longer has the right type, every check and email that uses the HashiCorp vault fails with a clear error until you pick another secret in **Connection settings**. Like typed credentials, a chosen secret is dropped when you change the address, namespace, KV mount, CA certificate or auth method; pick it again then.
 
 Give the token or role a policy that only reads what you reference, for example:
 
@@ -118,7 +131,7 @@ The second rule is only needed for **Test connection** with a token.
 
 ### Add a secret reference
 
-Select the vault, click **New Secret** and enter a **Secret name**, the **Type** and the location in Vault:
+BetterStatusPage only **reads** from HashiCorp Vault. It never creates, changes or deletes anything there, so create the secret in HashiCorp Vault first. In BetterStatusPage you only add a **reference** to it: select the vault, click **Add Reference** and enter a **Reference name** (the name monitors and SMTP settings show), the **Type** and the location in Vault:
 
 | Type | Fields | Result |
 | --- | --- | --- |
@@ -126,7 +139,7 @@ Select the vault, click **New Secret** and enter a **Secret name**, the **Type**
 | **Secure Value** | **Path** and **Key** | The value of that key |
 | **JSON** | **Path** | Every key at that path; use the [JSON field mapping](#how-each-type-is-mapped) to pick the ones you need |
 
-The path is relative to the mount (`bsp/database` reads `secret/data/bsp/database` on the default mount) and always reads the latest version. BetterStatusPage reads the path once when you save, and refuses the reference if Vault denies access or the path or key does not exist. **Reveal** reads the value live and shows its source. Deleting a reference or the vault removes only the reference; nothing is deleted in HashiCorp Vault.
+The path is relative to the mount (`bsp/database` reads `secret/data/bsp/database` on the default mount) and always reads the latest version. BetterStatusPage reads the path once when you save, and refuses the reference if Vault denies access or the path or key does not exist. **Reveal** reads the value live and shows its source. Deleting a reference or the vault removes only the reference; nothing is deleted in HashiCorp Vault. A read-only policy is enough for the token or role (see above).
 
 ### When Vault is unavailable
 

@@ -1,4 +1,7 @@
 import { Agent, fetch as httpFetch } from 'undici'
+import { and, eq } from 'drizzle-orm'
+import { db } from '../db/client.js'
+import { vaults, vaultSecrets } from '../db/schema.js'
 import { encrypt, decrypt } from '../crypto/vault.js'
 
 /**
@@ -22,7 +25,22 @@ export interface HashicorpConfig {
   secretId?: string
   approleMount: string
   caCert?: string
+  /**
+   * Reads the credentials from a secret in a local vault instead of storing them here: a Secure Value or JSON
+   * secret holding the token, or a User / Password (Role ID and Secret ID) or JSON secret for AppRole.
+   */
+  credentialsRef?: CredentialsRef
 }
+
+export interface CredentialsRef {
+  vaultId: number
+  secretId: number
+  /** For a JSON secret: the JSON key holding each credential (`token`, or `roleId` and `secretId`); the key defaults to that name. */
+  fieldMapping?: Record<string, string>
+}
+
+/** The credentials in effect for one request, whether stored in the connection or read from a local vault. */
+interface Credentials { token?: string | undefined; roleId?: string | undefined; secretId?: string | undefined }
 
 /** Message is always safe to return to the browser. */
 export class HashicorpVaultError extends Error {}
@@ -120,13 +138,25 @@ export function parseConnection(input: unknown, existing?: HashicorpConfig): Has
 
   const identityChanged = existing ? IDENTITY_FIELDS.some((f) => (existing[f] ?? '') !== (cfg[f] ?? '')) : false
   const keep = existing && !identityChanged ? existing : undefined
+  // An object picks a local vault secret; null means direct input; absent keeps what is saved.
+  const refInput = body['credentialsRef']
+  if (refInput !== undefined && refInput !== null) {
+    cfg.credentialsRef = parseCredentialsRef(refInput, authMethod)
+    return cfg
+  }
+  const keptRef = refInput === undefined ? keep?.credentialsRef : undefined
   if (authMethod === 'token') {
-    const token = text(body['token'], 'Token') ?? keep?.token
+    const typed = text(body['token'], 'Token')
+    if (!typed && keptRef) { cfg.credentialsRef = keptRef; return cfg }
+    const token = typed ?? keep?.token
     if (!token) throw new HashicorpVaultError(identityChanged ? 'Re-enter the token after changing the connection target' : 'Token is required')
     cfg.token = token
   } else {
-    const roleId = text(body['roleId'], 'Role ID') ?? keep?.roleId
-    const secretId = text(body['secretId'], 'Secret ID') ?? keep?.secretId
+    const typedSecretId = text(body['secretId'], 'Secret ID')
+    const typedRoleId = text(body['roleId'], 'Role ID')
+    if (!typedSecretId && !typedRoleId && keptRef) { cfg.credentialsRef = keptRef; return cfg }
+    const roleId = typedRoleId ?? keep?.roleId
+    const secretId = typedSecretId ?? keep?.secretId
     if (!roleId || !secretId) {
       throw new HashicorpVaultError(identityChanged ? 'Re-enter the Role ID and Secret ID after changing the connection target' : 'Role ID and Secret ID are required')
     }
@@ -134,6 +164,21 @@ export function parseConnection(input: unknown, existing?: HashicorpConfig): Has
     cfg.secretId = secretId
   }
   return cfg
+}
+
+function parseCredentialsRef(input: unknown, authMethod: HashicorpAuthMethod): CredentialsRef {
+  const { vaultId, secretId, fieldMapping } = (typeof input === 'object' ? input : {}) as Record<string, unknown>
+  if (!Number.isInteger(vaultId) || !Number.isInteger(secretId) || (vaultId as number) <= 0 || (secretId as number) <= 0) {
+    throw new HashicorpVaultError('Select a secret from a local vault for the credentials')
+  }
+  const ref: CredentialsRef = { vaultId: vaultId as number, secretId: secretId as number }
+  const mapping: Record<string, string> = {}
+  for (const field of authMethod === 'token' ? ['token'] : ['roleId', 'secretId']) {
+    const key = text((fieldMapping as Record<string, unknown> | undefined)?.[field], 'JSON key', 200)
+    if (key) mapping[field] = key
+  }
+  if (Object.keys(mapping).length) ref.fieldMapping = mapping
+  return ref
 }
 
 export function sealConnection(cfg: HashicorpConfig): string {
@@ -161,6 +206,7 @@ export function publicConnection(cfg: HashicorpConfig) {
     caCert: cfg.caCert ?? '',
     hasToken: !!cfg.token,
     hasSecretId: !!cfg.secretId,
+    credentialsRef: cfg.credentialsRef ?? null,
   }
 }
 
@@ -180,6 +226,8 @@ interface Session {
   expiresAt: number
   loginAt: number
   login?: Promise<string> | undefined
+  /** The credentials last used, kept only to scrub them from error messages. */
+  creds?: Credentials | undefined
 }
 
 const sessions = new Map<number, Session>()
@@ -190,6 +238,17 @@ export function forgetHashicorpVault(vaultId: number): void {
   sessions.delete(vaultId)
   const agent = session?.agent
   if (agent) setTimeout(() => void agent.close().catch(() => undefined), hashicorpLimits.agentCloseDelayMs).unref()
+}
+
+/**
+ * Drops the cached sessions of HashiCorp vaults that read their credentials from this local vault (or one
+ * of its secrets), so a rotated or deleted secret is used from the next request, also for AppRole.
+ */
+export function forgetCredentialDependents(vaultId: number, secretId?: number): void {
+  for (const [id, session] of sessions) {
+    const ref = session.cfg.credentialsRef
+    if (ref && ref.vaultId === vaultId && (secretId === undefined || ref.secretId === secretId)) forgetHashicorpVault(id)
+  }
 }
 
 function sessionFor(vault: HashicorpVaultRow): Session {
@@ -208,10 +267,45 @@ function sessionFor(vault: HashicorpVaultRow): Session {
   return session
 }
 
-function scrub(message: string, cfg: HashicorpConfig): string {
+function scrub(message: string, creds: Credentials | undefined): string {
   let out = message
-  for (const secret of [cfg.token, cfg.secretId]) if (secret) out = out.split(secret).join('[redacted]')
+  for (const secret of [creds?.token, creds?.secretId]) if (secret) out = out.split(secret).join('[redacted]')
   return out
+}
+
+/**
+ * Returns the credentials to use now. A referenced local vault secret is read on every call, so a
+ * rotation there takes effect on the next request; it must still exist, live in a local vault and
+ * have the type the auth method needs.
+ */
+async function credentialsFor(session: Session): Promise<Credentials> {
+  const { cfg } = session
+  const ref = cfg.credentialsRef
+  if (!ref) return (session.creds = { token: cfg.token, roleId: cfg.roleId, secretId: cfg.secretId })
+  const [row] = await db.select().from(vaultSecrets).where(and(eq(vaultSecrets.id, ref.secretId), eq(vaultSecrets.vaultId, ref.vaultId)))
+  const [owner] = row ? await db.select({ type: vaults.type }).from(vaults).where(eq(vaults.id, ref.vaultId)) : []
+  if (!row || owner?.type !== 'local') throw new HashicorpVaultError('the credentials secret no longer exists in a local vault')
+  let payload: Record<string, unknown>
+  try { payload = JSON.parse(decrypt(row.encryptedValue)) as Record<string, unknown> } catch { throw new HashicorpVaultError('the credentials secret cannot be decrypted') }
+  // Same trimming and character checks as typed credentials, so a stray newline is a clear error, not a failed request.
+  const clean = (value: unknown) => { try { return text(value, 'The credentials secret') } catch { return undefined } }
+  // A JSON secret holds an object; the mapping (or the default key names) picks each credential from it.
+  let fields: Record<string, unknown> = {}
+  if (row.type === 'json') {
+    try { fields = JSON.parse(String(payload['value'] ?? '')) as Record<string, unknown> } catch { /* reported below as a missing credential */ }
+  }
+  const pick = (field: string) => clean(fields[ref.fieldMapping?.[field] ?? field])
+  if (cfg.authMethod === 'token') {
+    const token = row.type === 'value' ? clean(payload['value']) : row.type === 'json' ? pick('token') : undefined
+    if (!token) throw new HashicorpVaultError('the credentials secret must be a Secure Value, or a JSON secret with the token key')
+    return (session.creds = { token })
+  }
+  const roleId = row.type === 'userpass' ? clean(payload['username']) : row.type === 'json' ? pick('roleId') : undefined
+  const secretId = row.type === 'userpass' ? clean(payload['password']) : row.type === 'json' ? pick('secretId') : undefined
+  if (!roleId || !secretId) {
+    throw new HashicorpVaultError('the credentials secret must be a User / Password secret, or a JSON secret with the Role ID and Secret ID keys')
+  }
+  return (session.creds = { roleId, secretId })
 }
 
 function describeNetworkError(err: unknown): string {
@@ -269,15 +363,16 @@ async function call(
     return { status: res.status, json: await readCapped(res) }
   } catch (err) {
     if (err instanceof HashicorpVaultError) throw err
-    throw new HashicorpVaultError(scrub(describeNetworkError(err), cfg))
+    throw new HashicorpVaultError(scrub(describeNetworkError(err), session.creds))
   }
 }
 
 function login(session: Session): Promise<string> {
   session.login ??= (async () => {
     const { cfg } = session
+    const creds = await credentialsFor(session)
     const { status, json } = await call(session, 'POST', `auth/${encodePath(cfg.approleMount, 'AppRole mount')}/login`, undefined,
-      { role_id: cfg.roleId, secret_id: cfg.secretId })
+      { role_id: creds.roleId, secret_id: creds.secretId })
     const auth = (json as { auth?: { client_token?: string; lease_duration?: number } } | null)?.auth
     if (status !== 200 || !auth?.client_token) {
       throw new HashicorpVaultError(status === 400 || status === 403 ? 'AppRole login was rejected' : `AppRole login failed (HTTP ${status})`)
@@ -293,7 +388,7 @@ function login(session: Session): Promise<string> {
 }
 
 async function tokenFor(session: Session): Promise<string> {
-  if (session.cfg.authMethod === 'token') return session.cfg.token!
+  if (session.cfg.authMethod === 'token') return (await credentialsFor(session)).token!
   if (session.token && Date.now() < session.expiresAt) return session.token
   return login(session)
 }
@@ -325,9 +420,27 @@ export async function readKvSecret(vault: HashicorpVaultRow, path: string): Prom
   return data as Record<string, unknown>
 }
 
+/** Fails unless the connection's credentials secret (if any) exists in a local vault with the type its auth method needs. */
+export async function verifyCredentialsRef(cfg: HashicorpConfig): Promise<void> {
+  if (cfg.credentialsRef) await credentialsFor({ fingerprint: 0, cfg, expiresAt: 0, loginAt: 0 })
+}
+
 /** Verifies the saved credentials. Returns the remaining token TTL when Vault reports one. */
 export async function testConnection(vault: HashicorpVaultRow): Promise<{ authMethod: HashicorpAuthMethod; ttlSeconds: number | null }> {
-  const session = sessionFor(vault)
+  return verifySession(sessionFor(vault))
+}
+
+/** Verifies connection settings that are not saved yet, without touching the session cache. */
+export async function testDraftConnection(cfg: HashicorpConfig): Promise<{ authMethod: HashicorpAuthMethod; ttlSeconds: number | null }> {
+  const agent = cfg.caCert ? new Agent({ connect: { ca: cfg.caCert } }) : undefined
+  try {
+    return await verifySession({ fingerprint: 0, cfg, agent, expiresAt: 0, loginAt: 0 })
+  } finally {
+    void agent?.close()
+  }
+}
+
+async function verifySession(session: Session): Promise<{ authMethod: HashicorpAuthMethod; ttlSeconds: number | null }> {
   session.token = undefined
   session.loginAt = 0
   const { cfg } = session
@@ -335,7 +448,7 @@ export async function testConnection(vault: HashicorpVaultRow): Promise<{ authMe
     await login(session)
     return { authMethod: 'approle', ttlSeconds: Math.max(0, Math.round((session.expiresAt - Date.now()) / 1000)) }
   }
-  const { status, json } = await call(session, 'GET', 'auth/token/lookup-self', cfg.token)
+  const { status, json } = await call(session, 'GET', 'auth/token/lookup-self', (await credentialsFor(session)).token)
   if (status === 403) throw new HashicorpVaultError('token was rejected (HTTP 403)')
   if (status !== 200) throw new HashicorpVaultError(`unexpected response from Vault (HTTP ${status})`)
   const ttl = (json as { data?: { ttl?: number } } | null)?.data?.ttl

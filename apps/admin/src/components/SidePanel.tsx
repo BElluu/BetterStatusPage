@@ -61,7 +61,7 @@ export function SideTabStrip<K extends string>({ tabs, meta, active, onToggle, l
       aria-orientation={responsive ? undefined : 'vertical'}
       className={clsx(
         'flex items-stretch border-outline-variant',
-        responsive ? 'flex-row w-full border-t lg:w-11 lg:flex-none lg:flex-col lg:border-t-0 lg:border-l' : 'flex-col flex-none w-11 border-l',
+        responsive ? 'flex-row w-full border-t overflow-hidden rounded-b-2xl lg:w-11 lg:flex-none lg:flex-col lg:border-t-0 lg:border-l lg:rounded-b-none lg:rounded-r-2xl' : 'flex-col flex-none w-11 border-l',
         className,
       )}
     >

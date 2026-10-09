@@ -198,10 +198,169 @@ describe('test connection', () => {
     assert.doesNotMatch(res.body, new RegExp(TOKEN))
   })
 
+  it('tests unsaved settings, and falls back to saved credentials only for the same target', async () => {
+    const draft = await app.inject({ method: 'POST', url: '/vaults/test-connection', payload: { connection: tokenConnection() } })
+    assert.deepEqual(draft.json(), { ok: true, authMethod: 'token', ttlSeconds: 900 })
+    assert.equal(seen[0]!.headers['x-vault-token'], TOKEN)
+
+    assert.equal((await app.inject({ method: 'POST', url: '/vaults/test-connection', payload: { connection: tokenConnection({ token: 'wrong' }) } })).statusCode, 502)
+    assert.equal((await app.inject({ method: 'POST', url: '/vaults/test-connection', payload: { connection: { address: 'nope' } } })).statusCode, 400)
+
+    const id = await setup(tokenConnection())
+    const kept = await app.inject({ method: 'POST', url: '/vaults/test-connection', payload: { vaultId: id, connection: tokenConnection({ token: '' }) } })
+    assert.equal(kept.json<{ ok: boolean }>().ok, true)
+    seen = []
+    const moved = await app.inject({ method: 'POST', url: '/vaults/test-connection', payload: { vaultId: id, connection: tokenConnection({ token: '', address: 'http://127.0.0.1:1' }) } })
+    assert.equal(moved.statusCode, 400)
+    assert.equal(seen.length, 0)
+    assert.equal((await app.inject({ method: 'POST', url: '/vaults/test-connection', payload: { vaultId: 99999, connection: tokenConnection() } })).statusCode, 404)
+  })
+
   it('sends the namespace header', async () => {
     const id = await setup(tokenConnection({ namespace: 'team/a' }))
     await app.inject({ method: 'POST', url: `/vaults/${id}/test` })
     assert.equal(seen[0]!.headers['x-vault-namespace'], 'team/a')
+  })
+})
+
+describe('credentials from a local vault', () => {
+  async function localSecret(body: Record<string, unknown>) {
+    const vault = (await app.inject({ method: 'POST', url: '/vaults', payload: { name: `Local ${Math.random()}` } })).json() as { id: number }
+    const secret = await app.inject({ method: 'POST', url: `/vaults/${vault.id}/secrets`, payload: { name: 'bootstrap', ...body } })
+    assert.equal(secret.statusCode, 200, secret.body)
+    return { vaultId: vault.id, secretId: (secret.json() as { id: number }).id }
+  }
+
+  it('reads the token from a Secure Value and never stores or returns it', async () => {
+    const ref = await localSecret({ type: 'value', value: TOKEN })
+    const id = await setup({ address, mount: 'secret', authMethod: 'token', credentialsRef: ref })
+    seen = []
+    const res = await app.inject({ method: 'POST', url: `/vaults/${id}/test` })
+    assert.deepEqual(res.json(), { ok: true, authMethod: 'token', ttlSeconds: 900 })
+    assert.equal(seen[0]!.headers['x-vault-token'], TOKEN)
+    const detail = await app.inject({ method: 'GET', url: `/vaults/${id}` })
+    assert.doesNotMatch(detail.body, new RegExp(TOKEN))
+    assert.deepEqual((detail.json() as { connection: { credentialsRef: unknown } }).connection.credentialsRef, ref)
+    const row = (await db.select().from(vaults).where(eq(vaults.id, id)))[0]!
+    assert.doesNotMatch(row.connectionConfig!, new RegExp(TOKEN))
+  })
+
+  it('reads the Role ID and Secret ID from a User / Password secret', async () => {
+    const ref = await localSecret({ type: 'userpass', userpass: { username: ROLE_ID, password: SECRET_ID } })
+    const id = await setup({ address, mount: 'secret', authMethod: 'approle', credentialsRef: ref })
+    const res = await app.inject({ method: 'POST', url: `/vaults/${id}/test` })
+    assert.equal(res.statusCode, 200, res.body)
+    assert.equal(res.json<{ authMethod: string }>().authMethod, 'approle')
+  })
+
+  it('follows a rotation in the local secret and fails clearly when it is deleted', async () => {
+    const ref = await localSecret({ type: 'value', value: 'wrong-token' })
+    const id = await setup({ address, mount: 'secret', authMethod: 'token', credentialsRef: ref })
+    assert.equal((await app.inject({ method: 'POST', url: `/vaults/${id}/test` })).statusCode, 502)
+    const fixed = await app.inject({ method: 'PATCH', url: `/vaults/${ref.vaultId}/secrets/${ref.secretId}`, payload: { value: TOKEN } })
+    assert.equal(fixed.statusCode, 200, fixed.body)
+    assert.equal((await app.inject({ method: 'POST', url: `/vaults/${id}/test` })).statusCode, 200)
+    await db.delete(vaultSecrets).where(eq(vaultSecrets.id, ref.secretId))
+    const gone = await app.inject({ method: 'POST', url: `/vaults/${id}/test` })
+    assert.equal(gone.statusCode, 502)
+    assert.match((gone.json() as { error: string }).error, /no longer exists in a local vault/)
+  })
+
+  it('refuses a missing secret, the wrong type, a HashiCorp vault secret and a bad reference', async () => {
+    const wrongType = await localSecret({ type: 'userpass', userpass: { username: 'a', password: 'b' } })
+    const refs: Array<[unknown, RegExp]> = [
+      [{ vaultId: 99999, secretId: 99999 }, /no longer exists/],
+      [wrongType, /Secure Value/],
+      [{ vaultId: 'x', secretId: 1 }, /Select a secret/],
+    ]
+    for (const [credentialsRef, message] of refs) {
+      const res = await createVault({ address, mount: 'secret', authMethod: 'token', credentialsRef })
+      assert.equal(res.statusCode, 400, JSON.stringify(credentialsRef))
+      assert.match((res.json() as { error: string }).error, message)
+    }
+    const hashicorpSecretVault = await setup(tokenConnection())
+    const [hv] = await db.insert(vaultSecrets).values({ vaultId: hashicorpSecretVault, name: 'ref', type: 'value', encryptedValue: 'x', createdAt: 1, updatedAt: 1 }).returning()
+    const res = await createVault({ address, mount: 'secret', authMethod: 'token', credentialsRef: { vaultId: hashicorpSecretVault, secretId: hv!.id } })
+    assert.equal(res.statusCode, 400)
+    assert.match((res.json() as { error: string }).error, /local vault/)
+  })
+
+  it('keeps the reference unless direct credentials are sent, and drops it when the target changes', async () => {
+    const ref = await localSecret({ type: 'value', value: TOKEN })
+    const id = await setup({ address, mount: 'secret', authMethod: 'token', credentialsRef: ref })
+    const kept = await app.inject({ method: 'PATCH', url: `/vaults/${id}`, payload: { connection: { address, mount: 'secret', authMethod: 'token' } } })
+    assert.equal(kept.statusCode, 200, kept.body)
+    assert.equal((await app.inject({ method: 'POST', url: `/vaults/${id}/test` })).statusCode, 200)
+
+    const moved = await app.inject({ method: 'PATCH', url: `/vaults/${id}`, payload: { connection: { address: 'http://127.0.0.1:1', mount: 'secret', authMethod: 'token' } } })
+    assert.equal(moved.statusCode, 400)
+
+    const direct = await app.inject({ method: 'PATCH', url: `/vaults/${id}`, payload: { connection: { address, mount: 'secret', authMethod: 'token', token: TOKEN, credentialsRef: null } } })
+    assert.equal(direct.statusCode, 200, direct.body)
+    assert.equal((await app.inject({ method: 'GET', url: `/vaults/${id}` })).json<{ connection: { credentialsRef: unknown } }>().connection.credentialsRef, null)
+  })
+
+  it('reads AppRole credentials and the token from a JSON secret, by default or mapped key names', async () => {
+    const byDefault = await localSecret({ type: 'json', json: JSON.stringify({ roleId: ROLE_ID, secretId: SECRET_ID }) })
+    const a = await setup({ address, mount: 'secret', authMethod: 'approle', credentialsRef: byDefault })
+    assert.equal((await app.inject({ method: 'POST', url: `/vaults/${a}/test` })).statusCode, 200)
+
+    const mapped = await localSecret({ type: 'json', json: JSON.stringify({ role: ROLE_ID, secret: SECRET_ID, tok: TOKEN }) })
+    const b = await setup({ address, mount: 'secret', authMethod: 'approle', credentialsRef: { ...mapped, fieldMapping: { roleId: 'role', secretId: 'secret' } } })
+    assert.equal((await app.inject({ method: 'POST', url: `/vaults/${b}/test` })).statusCode, 200)
+    const detail = await app.inject({ method: 'GET', url: `/vaults/${b}` })
+    assert.deepEqual((detail.json() as { connection: { credentialsRef: unknown } }).connection.credentialsRef, { ...mapped, fieldMapping: { roleId: 'role', secretId: 'secret' } })
+
+    const token = await setup({ address, mount: 'secret', authMethod: 'token', credentialsRef: { ...mapped, fieldMapping: { token: 'tok' } } })
+    seen = []
+    assert.equal((await app.inject({ method: 'POST', url: `/vaults/${token}/test` })).statusCode, 200)
+    assert.equal(seen[0]!.headers['x-vault-token'], TOKEN)
+
+    const missing = await createVault({ address, mount: 'secret', authMethod: 'approle', credentialsRef: { ...mapped, fieldMapping: { roleId: 'nope', secretId: 'secret' } } })
+    assert.equal(missing.statusCode, 400)
+    assert.match((missing.json() as { error: string }).error, /JSON secret with the Role ID and Secret ID keys/)
+  })
+
+  it('trims a token read from the secret', async () => {
+    const ref = await localSecret({ type: 'value', value: `${TOKEN}
+` })
+    const id = await setup({ address, mount: 'secret', authMethod: 'token', credentialsRef: ref })
+    seen = []
+    assert.equal((await app.inject({ method: 'POST', url: `/vaults/${id}/test` })).statusCode, 200)
+    assert.equal(seen[0]!.headers['x-vault-token'], TOKEN)
+  })
+
+  it('applies a rotated or deleted local secret to an AppRole session straight away', async () => {
+    const ref = await localSecret({ type: 'userpass', userpass: { username: ROLE_ID, password: SECRET_ID } })
+    const id = await setup({ address, mount: 'secret', authMethod: 'approle', credentialsRef: ref })
+    const secret = await addSecret(id, { name: 'db', type: 'userpass', path: 'bsp/db' })
+    assert.equal(secret.statusCode, 200, secret.body)
+    const secretId = (secret.json() as { id: number }).id
+    await resolveVaultSecret({ vaultId: id, secretId }) // logs in and caches the client token
+
+    await app.inject({ method: 'PATCH', url: `/vaults/${ref.vaultId}/secrets/${ref.secretId}`, payload: { userpass: { username: ROLE_ID, password: 'rotated-wrong' } } })
+    await assert.rejects(resolveVaultSecret({ vaultId: id, secretId }), /AppRole login was rejected/)
+
+    await app.inject({ method: 'PATCH', url: `/vaults/${ref.vaultId}/secrets/${ref.secretId}`, payload: { userpass: { username: ROLE_ID, password: SECRET_ID } } })
+    await resolveVaultSecret({ vaultId: id, secretId })
+    await app.inject({ method: 'DELETE', url: `/vaults/${ref.vaultId}/secrets/${ref.secretId}` })
+    await assert.rejects(resolveVaultSecret({ vaultId: id, secretId }), /no longer exists in a local vault/)
+  })
+
+  it('audits a change of the credentials secret', async () => {
+    const first = await localSecret({ type: 'value', value: TOKEN })
+    const second = await localSecret({ type: 'value', value: TOKEN })
+    const id = await setup({ address, mount: 'secret', authMethod: 'token', credentialsRef: first })
+    const before = (await db.select().from(auditLog)).length
+    const res = await app.inject({ method: 'PATCH', url: `/vaults/${id}`, payload: { connection: { address, mount: 'secret', authMethod: 'token', credentialsRef: second } } })
+    assert.equal(res.statusCode, 200, res.body)
+    assert.equal((await db.select().from(auditLog)).length, before + 1)
+  })
+
+  it('tests an unsaved connection that uses a local secret', async () => {
+    const ref = await localSecret({ type: 'value', value: TOKEN })
+    const res = await app.inject({ method: 'POST', url: '/vaults/test-connection', payload: { connection: { address, mount: 'secret', authMethod: 'token', credentialsRef: ref } } })
+    assert.deepEqual(res.json(), { ok: true, authMethod: 'token', ttlSeconds: 900 })
   })
 })
 
