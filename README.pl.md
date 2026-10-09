@@ -125,6 +125,8 @@ Trzymanie haseł w zmiennych środowiskowych jest w porządku — do czasu. Bett
 - **value** — pojedynczy sekret (token API, connection string)
 - **json** — pełny obiekt JSON z **mapowaniem pól**, by wybrać dokładnie te klucze, których potrzebujesz
 
+Wolisz trzymać sekrety gdzie indziej? Sejf może też czytać je na żywo z **HashiCorp Vault** (KV v2, token lub AppRole) zamiast je przechowywać.
+
 Twoje sekrety nigdy nie pojawiają się w logach, listach zwracanych przez API, dzienniku audytu ani w `git diff` — wartość widzi tylko administrator, który kliknie **Reveal**.
 
 > Zobacz **[docs.betterstatuspage.dev/vault](https://docs.betterstatuspage.dev/vault/)** — typy sekretów, mapowanie pól i gdzie można ich używać *(EN)*.

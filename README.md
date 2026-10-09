@@ -125,6 +125,8 @@ Storing passwords in environment variables is fine until it isn't. BetterStatusP
 - **value** — a single secret string (API token, connection string)
 - **json** — a full JSON object, with **field mapping** to pick out exactly the keys you need
 
+Prefer to keep secrets elsewhere? A vault can also read them live from **HashiCorp Vault** (KV v2, token or AppRole) instead of storing them.
+
 Your secrets never appear in logs, list responses, the audit log, or your `git diff` — only an administrator who clicks **Reveal** sees a value.
 
 > See **[docs.betterstatuspage.dev/vault](https://docs.betterstatuspage.dev/vault/)** for secret types, field mapping and where secrets can be used.

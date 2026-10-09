@@ -382,6 +382,7 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE users ADD COLUMN oidc_issuer TEXT`, desc: 'users.oidc_issuer' },
   { sql: `ALTER TABLE users ADD COLUMN oidc_subject TEXT`, desc: 'users.oidc_subject' },
   { sql: `ALTER TABLE auth_sessions ADD COLUMN verified_at INTEGER`, desc: 'auth_sessions.verified_at' },
+  { sql: `ALTER TABLE vaults ADD COLUMN connection_config TEXT`, desc: 'vaults.connection_config' },
 ]
 
 /**

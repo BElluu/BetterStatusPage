@@ -12,7 +12,7 @@ import { formatDate } from '../lib/dateFormat'
 interface Vault {
   id: number
   name: string
-  type: 'local'
+  type: 'local' | 'hashicorp'
   description: string | null
   createdAt: number
   updatedAt: number
@@ -32,7 +32,41 @@ interface RevealedSecret {
   name: string
   type: 'userpass' | 'value' | 'json'
   value: { username?: string; password?: string; value?: string }
+  /** HashiCorp vaults only: where in Vault the value was read from. */
+  source?: { path: string; key?: string }
 }
+
+interface HashicorpConnection {
+  address: string
+  namespace: string
+  mount: string
+  authMethod: 'token' | 'approle'
+  approleMount: string
+  roleId: string
+  caCert: string
+  hasToken: boolean
+  hasSecretId: boolean
+}
+
+/** What the connection form edits; credentials stay blank when unchanged. */
+interface ConnectionForm {
+  address: string
+  namespace: string
+  mount: string
+  authMethod: 'token' | 'approle'
+  token: string
+  roleId: string
+  secretId: string
+  approleMount: string
+  caCert: string
+}
+
+const EMPTY_CONNECTION: ConnectionForm = {
+  address: '', namespace: '', mount: 'secret', authMethod: 'token', token: '', roleId: '', secretId: '', approleMount: 'approle', caCert: '',
+}
+
+const VAULT_TYPE_LABELS: Record<Vault['type'], string> = { local: 'LOCAL', hashicorp: 'HASHICORP VAULT' }
+const VAULT_TYPE_ICONS: Record<Vault['type'], string> = { local: 'lock', hashicorp: 'vpn_key' }
 
 function errorMessage(err: unknown, fallback: string) {
   return err instanceof Error && err.message ? err.message : fallback
@@ -50,6 +84,7 @@ export default function VaultPage() {
   const [revealing, setRevealing] = useState<number | null>(null)
   const [deleteVaultTarget, setDeleteVaultTarget] = useState<Vault | null>(null)
   const [deleteSecretTarget, setDeleteSecretTarget] = useState<VaultSecret | null>(null)
+  const [showConnection, setShowConnection] = useState(false)
 
   const vaultsQuery = useQuery<Vault[]>({
     queryKey: ['vaults'],
@@ -91,6 +126,12 @@ export default function VaultPage() {
       setDeleteSecretTarget(null)
       toast.error(errorMessage(err, 'Failed to delete secret'))
     },
+  })
+
+  const testConnection = useMutation({
+    mutationFn: (id: number) => api.post<{ ok: boolean; ttlSeconds: number | null }>(`/admin/vaults/${id}/test`),
+    onSuccess: (res) => toast.success(res.ttlSeconds ? `Connected to HashiCorp Vault. Token valid for ${res.ttlSeconds} s.` : 'Connected to HashiCorp Vault.'),
+    onError: (err) => toast.error(`Connection failed: ${errorMessage(err, 'unknown error')}`),
   })
 
   async function handleReveal(secret: VaultSecret) {
@@ -181,18 +222,32 @@ export default function VaultPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 md:px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '20px', color: 'var(--m3-primary)' }}>lock</span>
+                  <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '20px', color: 'var(--m3-primary)' }}>{VAULT_TYPE_ICONS[selectedVault.type]}</span>
                   <h2 className="font-headline font-bold text-lg break-all" style={{ color: 'var(--m3-on-surface)' }}>{selectedVault.name}</h2>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide" style={{ background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)' }}>LOCAL</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide" style={{ background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)' }}>{VAULT_TYPE_LABELS[selectedVault.type]}</span>
                 </div>
                 {selectedVault.description && (
                   <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>{selectedVault.description}</p>
                 )}
               </div>
-              <button type="button" onClick={() => setShowCreateSecret(true)} className="btn btn-primary">
-                <span className="material-symbols-outlined" aria-hidden="true">add</span>
-                New Secret
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedVault.type === 'hashicorp' && (
+                  <>
+                    <button type="button" onClick={() => testConnection.mutate(selectedVault.id)} disabled={testConnection.isPending} className="btn btn-secondary">
+                      <span className="material-symbols-outlined" aria-hidden="true">network_check</span>
+                      {testConnection.isPending ? 'Testing…' : 'Test connection'}
+                    </button>
+                    <button type="button" onClick={() => setShowConnection(true)} className="btn btn-secondary">
+                      <span className="material-symbols-outlined" aria-hidden="true">settings</span>
+                      Connection settings
+                    </button>
+                  </>
+                )}
+                <button type="button" onClick={() => setShowCreateSecret(true)} className="btn btn-primary">
+                  <span className="material-symbols-outlined" aria-hidden="true">add</span>
+                  New Secret
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
@@ -204,7 +259,9 @@ export default function VaultPage() {
                 <EmptyState
                   icon="key_off"
                   title="No secrets in this vault"
-                  description={<><EmptyStateLink onClick={() => setShowCreateSecret(true)}>Add a secret</EmptyStateLink> to store credentials, tokens or JSON configuration that monitors can reference.</>}
+                  description={selectedVault.type === 'hashicorp'
+                    ? <><EmptyStateLink onClick={() => setShowCreateSecret(true)}>Add a secret</EmptyStateLink> to point at a path in HashiCorp Vault that monitors can reference.</>
+                    : <><EmptyStateLink onClick={() => setShowCreateSecret(true)}>Add a secret</EmptyStateLink> to store credentials, tokens or JSON configuration that monitors can reference.</>}
                 />
               ) : (
                 <div className="space-y-2">
@@ -239,8 +296,16 @@ export default function VaultPage() {
       {showCreateSecret && selectedVaultId !== null && (
         <CreateSecretModal
           vaultId={selectedVaultId}
+          vaultType={selectedVault?.type ?? 'local'}
           onClose={() => setShowCreateSecret(false)}
           onCreated={() => { qc.invalidateQueries({ queryKey: ['vault-secrets', selectedVaultId] }); setShowCreateSecret(false); toast.success('Secret saved.') }}
+        />
+      )}
+      {showConnection && selectedVault?.type === 'hashicorp' && (
+        <ConnectionSettingsModal
+          vaultId={selectedVault.id}
+          onClose={() => setShowConnection(false)}
+          onSaved={() => { qc.invalidateQueries({ queryKey: ['vaults'] }); setShowConnection(false); toast.success('Connection settings saved.') }}
         />
       )}
       {revealedSecret && (
@@ -292,7 +357,7 @@ function VaultRow({ vault, isSelected, onClick, onDelete }: {
         aria-current={isSelected ? 'true' : undefined}
         className="flex-1 min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl text-left focus-ring"
       >
-        <span className="material-symbols-outlined shrink-0" aria-hidden="true" style={{ fontSize: '18px', color: isSelected ? 'var(--m3-primary)' : 'var(--m3-secondary)', fontVariationSettings: isSelected ? "'FILL' 1" : "'FILL' 0" }}>lock</span>
+        <span className="material-symbols-outlined shrink-0" aria-hidden="true" style={{ fontSize: '18px', color: isSelected ? 'var(--m3-primary)' : 'var(--m3-secondary)', fontVariationSettings: isSelected ? "'FILL' 1" : "'FILL' 0" }}>{VAULT_TYPE_ICONS[vault.type]}</span>
         <span className="flex-1 min-w-0">
           <span className="block text-sm font-medium truncate" style={{ color: 'var(--m3-on-surface)' }}>{vault.name}</span>
           {vault.description && (
@@ -395,6 +460,7 @@ function DeleteVaultModal({ vault, secretCount, pending, onClose, onConfirm }: {
               {secretCount !== null && secretCount > 0
                 ? `This vault contains ${secretCount} secret${secretCount !== 1 ? 's' : ''}. All secrets will be permanently deleted.`
                 : 'This vault may contain secrets. All secrets will be permanently deleted.'}
+              {vault.type === 'hashicorp' && ' Only the references are deleted; nothing is removed from HashiCorp Vault.'}
             </p>
             <label className="flex items-center gap-2.5 cursor-pointer select-none">
               <input
@@ -434,6 +500,8 @@ function DeleteVaultModal({ vault, secretCount, pending, onClose, onConfirm }: {
 function CreateVaultModal({ onClose, onCreated }: { onClose: () => void; onCreated: (v: Vault) => void }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [type, setType] = useState<Vault['type']>('local')
+  const [connection, setConnection] = useState<ConnectionForm>(EMPTY_CONNECTION)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const typeLabelId = useId()
@@ -443,7 +511,11 @@ function CreateVaultModal({ onClose, onCreated }: { onClose: () => void; onCreat
     setError('')
     setLoading(true)
     try {
-      const vault = await api.post<Vault>('/admin/vaults', { name, description: description || undefined })
+      const vault = await api.post<Vault>('/admin/vaults', {
+        name,
+        description: description || undefined,
+        ...(type === 'hashicorp' ? { type, connection } : {}),
+      })
       onCreated(vault)
     } catch (err) {
       setError(errorMessage(err, 'Failed to create vault'))
@@ -465,13 +537,26 @@ function CreateVaultModal({ onClose, onCreated }: { onClose: () => void; onCreat
         <div role="group" aria-labelledby={typeLabelId}>
           <p id={typeLabelId} className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Type</p>
           <div className="flex flex-wrap items-center gap-3">
-            <div
-              className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 selection-active"
+            <button
+              type="button"
+              aria-pressed={type === 'local'}
+              onClick={() => setType('local')}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg flex-1 focus-ring ${type === 'local' ? 'selection-active' : ''}`}
               style={{ border: '1px solid var(--m3-outline-variant)' }}
             >
               <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px' }}>storage</span>
               <span className="text-sm font-medium">Local</span>
-            </div>
+            </button>
+            <button
+              type="button"
+              aria-pressed={type === 'hashicorp'}
+              onClick={() => setType('hashicorp')}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg flex-1 focus-ring ${type === 'hashicorp' ? 'selection-active' : ''}`}
+              style={{ border: '1px solid var(--m3-outline-variant)' }}
+            >
+              <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px' }}>vpn_key</span>
+              <span className="text-sm font-medium">HashiCorp Vault</span>
+            </button>
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 opacity-40 cursor-not-allowed" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }} title="Coming soon">
               <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px', color: 'var(--m3-secondary)' }}>cloud</span>
               <div>
@@ -481,6 +566,7 @@ function CreateVaultModal({ onClose, onCreated }: { onClose: () => void; onCreat
             </div>
           </div>
         </div>
+        {type === 'hashicorp' && <ConnectionFields value={connection} onChange={setConnection} />}
         <ModalActions onClose={onClose} loading={loading} submitLabel="Create Vault" />
       </form>
     </Modal>
@@ -489,8 +575,11 @@ function CreateVaultModal({ onClose, onCreated }: { onClose: () => void; onCreat
 
 // ── Create Secret modal ────────────────────────────────────────────────────────
 
-function CreateSecretModal({ vaultId, onClose, onCreated }: { vaultId: number; onClose: () => void; onCreated: () => void }) {
+function CreateSecretModal({ vaultId, vaultType, onClose, onCreated }: { vaultId: number; vaultType: Vault['type']; onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState('')
+  const [path, setPath] = useState('')
+  const [secretKey, setSecretKey] = useState('')
+  const isReference = vaultType === 'hashicorp'
   const [type, setType] = useState<'userpass' | 'value' | 'json'>('userpass')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -512,9 +601,14 @@ function CreateSecretModal({ vaultId, onClose, onCreated }: { vaultId: number; o
     setLoading(true)
     try {
       const body: Record<string, unknown> = { name, type }
-      if (type === 'userpass') body['userpass'] = { username, password }
-      if (type === 'value') body['value'] = value
-      if (type === 'json') body['json'] = json
+      if (isReference) {
+        body['path'] = path
+        if (type === 'value') body['key'] = secretKey
+      } else {
+        if (type === 'userpass') body['userpass'] = { username, password }
+        if (type === 'value') body['value'] = value
+        if (type === 'json') body['json'] = json
+      }
       await api.post(`/admin/vaults/${vaultId}/secrets`, body)
       onCreated()
     } catch (err) {
@@ -557,7 +651,19 @@ function CreateSecretModal({ vaultId, onClose, onCreated }: { vaultId: number; o
           </div>
         </div>
 
-        {type === 'userpass' && (
+        {isReference && (
+          <>
+            <Field label="Path" required hint={type === 'userpass' ? 'Reads the keys "username" and "password" at this path.' : type === 'json' ? 'Reads every key at this path.' : 'Path of the KV v2 secret, relative to the mount.'}>
+              <input value={path} onChange={(e) => setPath(e.target.value)} required className="input-sig font-mono" placeholder="bsp/database" autoComplete="off" />
+            </Field>
+            {type === 'value' && (
+              <Field label="Key" required>
+                <input value={secretKey} onChange={(e) => setSecretKey(e.target.value)} required className="input-sig font-mono" placeholder="api_key" autoComplete="off" />
+              </Field>
+            )}
+          </>
+        )}
+        {!isReference && type === 'userpass' && (
           <>
             <Field label="Username" required>
               <input value={username} onChange={(e) => setUsername(e.target.value)} required className="input-sig" placeholder="admin" autoComplete="off" />
@@ -567,12 +673,12 @@ function CreateSecretModal({ vaultId, onClose, onCreated }: { vaultId: number; o
             </Field>
           </>
         )}
-        {type === 'value' && (
+        {!isReference && type === 'value' && (
           <Field label="Value" required>
             <input value={value} onChange={(e) => setValue(e.target.value)} required className="input-sig" placeholder="Bearer eyJ…" autoComplete="off" />
           </Field>
         )}
-        {type === 'json' && (
+        {!isReference && type === 'json' && (
           <Field label="JSON" required error={jsonError || undefined}>
             <textarea
               value={json}
@@ -588,6 +694,113 @@ function CreateSecretModal({ vaultId, onClose, onCreated }: { vaultId: number; o
 
         <ModalActions onClose={onClose} loading={loading} submitLabel="Save Secret" />
       </form>
+    </Modal>
+  )
+}
+
+// ── HashiCorp connection ───────────────────────────────────────────────────────
+
+function ConnectionFields({ value, onChange, keepHint }: { value: ConnectionForm; onChange: (v: ConnectionForm) => void; keepHint?: boolean }) {
+  const set = (patch: Partial<ConnectionForm>) => onChange({ ...value, ...patch })
+  const authLabelId = useId()
+  const credentialHint = keepHint ? 'Leave blank to keep the saved value. Re-enter it when you change the address, namespace, mount, CA certificate or auth method.' : undefined
+  const insecure = value.address.trim().toLowerCase().startsWith('http://')
+  return (
+    <fieldset className="space-y-3 rounded-xl p-3" style={{ border: '1px solid var(--m3-outline-variant)' }}>
+      <legend className="px-1 font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Connection</legend>
+      <Field label="Address" required>
+        <input type="url" value={value.address} onChange={(e) => set({ address: e.target.value })} required className="input-sig font-mono" placeholder="https://vault.example.com:8200" autoComplete="off" />
+      </Field>
+      {insecure && <Alert tone="warning">The token is sent unencrypted over http://. Use https:// unless Vault is on a trusted private network.</Alert>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field label="Namespace (optional)">
+          <input value={value.namespace} onChange={(e) => set({ namespace: e.target.value })} className="input-sig font-mono" placeholder="team-a" autoComplete="off" />
+        </Field>
+        <Field label="KV v2 mount" required>
+          <input value={value.mount} onChange={(e) => set({ mount: e.target.value })} required className="input-sig font-mono" placeholder="secret" autoComplete="off" />
+        </Field>
+      </div>
+      <div role="group" aria-labelledby={authLabelId}>
+        <p id={authLabelId} className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Auth method</p>
+        <div className="flex gap-2">
+          {(['token', 'approle'] as const).map((method) => (
+            <button
+              key={method}
+              type="button"
+              aria-pressed={value.authMethod === method}
+              onClick={() => set({ authMethod: method })}
+              className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium focus-ring ${value.authMethod === method ? 'selection-active' : ''}`}
+              style={{ border: '1px solid var(--m3-outline-variant)' }}
+            >
+              {method === 'token' ? 'Token' : 'AppRole'}
+            </button>
+          ))}
+        </div>
+      </div>
+      {value.authMethod === 'token' ? (
+        <Field label="Token" required={!keepHint} hint={credentialHint}>
+          <input type="password" value={value.token} onChange={(e) => set({ token: e.target.value })} required={!keepHint} className="input-sig font-mono" autoComplete="new-password" />
+        </Field>
+      ) : (
+        <>
+          <Field label="Role ID" required>
+            <input value={value.roleId} onChange={(e) => set({ roleId: e.target.value })} required className="input-sig font-mono" autoComplete="off" />
+          </Field>
+          <Field label="Secret ID" required={!keepHint} hint={credentialHint}>
+            <input type="password" value={value.secretId} onChange={(e) => set({ secretId: e.target.value })} required={!keepHint} className="input-sig font-mono" autoComplete="new-password" />
+          </Field>
+          <Field label="AppRole mount">
+            <input value={value.approleMount} onChange={(e) => set({ approleMount: e.target.value })} className="input-sig font-mono" placeholder="approle" autoComplete="off" />
+          </Field>
+        </>
+      )}
+      <Field label="CA certificate (optional)" hint="PEM. Only for a private CA; include the full chain.">
+        <textarea value={value.caCert} onChange={(e) => set({ caCert: e.target.value })} rows={3} className="input-sig font-mono text-xs resize-none" placeholder="-----BEGIN CERTIFICATE-----" />
+      </Field>
+    </fieldset>
+  )
+}
+
+function ConnectionSettingsModal({ vaultId, onClose, onSaved }: { vaultId: number; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState<ConnectionForm | null>(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const query = useQuery<{ connection: HashicorpConnection }>({
+    queryKey: ['vault-connection', vaultId],
+    queryFn: () => api.get(`/admin/vaults/${vaultId}`),
+    gcTime: 0,
+  })
+
+  const current = form ?? (query.data ? { ...EMPTY_CONNECTION, ...query.data.connection, token: '', secretId: '' } : null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!current) return
+    setError('')
+    setLoading(true)
+    try {
+      await api.patch(`/admin/vaults/${vaultId}`, { connection: current })
+      onSaved()
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to save connection settings'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal title="Connection settings" icon="settings" onClose={onClose}>
+      {query.isError ? (
+        <ErrorState message="Could not load the connection settings." onRetry={() => void query.refetch()} />
+      ) : !current ? (
+        <LoadingState label="Loading…" />
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <Alert tone="error">{error}</Alert>}
+          <ConnectionFields value={current} onChange={setForm} keepHint />
+          <ModalActions onClose={onClose} loading={loading} submitLabel="Save" />
+        </form>
+      )}
     </Modal>
   )
 }
@@ -615,6 +828,12 @@ function RevealModal({ secret, onClose }: { secret: RevealedSecret; onClose: () 
             {TYPE_LABELS[secret.type]}
           </span>
         </div>
+
+        {secret.source && (
+          <p className="text-xs font-mono break-all" style={{ color: 'var(--m3-secondary)' }}>
+            Source: {secret.source.path}{secret.source.key ? ` (${secret.source.key})` : ''}
+          </p>
+        )}
 
         {secret.type === 'userpass' && (
           <>
