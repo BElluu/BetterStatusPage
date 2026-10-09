@@ -5,6 +5,7 @@ import type { Monitor, Incident } from '@bsp/shared'
 import { StatusBadge } from '../components/monitors/StatusBadge'
 import { useDarkMode } from '../hooks/useDarkMode'
 import { EmptyState, ErrorState, LoadingState, PageContainer, PageHeader } from '../components/ui'
+import { formatDayMonth } from '../lib/dateFormat'
 
 /** Shared surface for the summary tiles, matching the component cards below. */
 const TILE_STYLE = { background: 'var(--m3-surface-container-lowest)' } as const
@@ -260,7 +261,7 @@ export default function DashboardPage() {
                     className="font-label text-xs w-24 shrink-0 pt-1 uppercase tracking-wide"
                     style={{ color: 'var(--m3-secondary)' }}
                   >
-                    {new Date(incident.startedAt).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                    {formatDayMonth(incident.startedAt)}
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { formatDateTime } from '../lib/dateFormat'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { MaintenanceWindow, Monitor } from '@bsp/shared'
@@ -9,12 +10,6 @@ import { Alert, EmptyState, ErrorState, Field, LoadingState, PageContainer, Page
 
 type Tab = 'active' | 'upcoming' | 'past'
 
-function formatDateTime(ms: number) {
-  return new Date(ms).toLocaleString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
-}
 
 function formatDuration(startMs: number, endMs: number) {
   const diffMs = endMs - startMs

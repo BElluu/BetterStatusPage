@@ -5,6 +5,7 @@ import { SUBSCRIBER_EVENT_TYPES } from '@bsp/shared'
 import { api } from '../../api/client'
 import { SUBSCRIBER_EVENT_LABELS } from '../../pages/Subscribers'
 import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, Pagination, useToast } from '../ui'
+import { formatDateTime } from '../../lib/dateFormat'
 
 const STATUS_STYLE: Record<SubscriberDelivery['status'], { color: string; label: string }> = {
   delivered: { color: 'var(--m3-up-bar)', label: 'Delivered' },
@@ -111,11 +112,11 @@ function DeliveryRow({ delivery, expanded, onToggle, onRetry, retrying }: { deli
   const style = STATUS_STYLE[delivery.status]
   const webhook = delivery.subscriberType === 'webhook'
   const nextAttempt = delivery.status === 'pending' && delivery.nextAttemptAt
-    ? new Date(delivery.nextAttemptAt).toLocaleString()
+    ? formatDateTime(delivery.nextAttemptAt)
     : null
   return <>
     <tr className="cursor-pointer" onClick={onToggle} style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
-      <td className="px-4 py-3 whitespace-nowrap align-top" style={{ color: 'var(--m3-secondary)' }}>{new Date(delivery.createdAt).toLocaleString()}</td>
+      <td className="px-4 py-3 whitespace-nowrap align-top" style={{ color: 'var(--m3-secondary)' }}>{formatDateTime(delivery.createdAt)}</td>
       <td className="px-4 py-3 align-top">
         <div className="flex items-center gap-2">
           <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px', color: 'var(--m3-secondary)' }}>{webhook ? 'webhook' : 'mail'}</span>
@@ -148,8 +149,8 @@ function DeliveryRow({ delivery, expanded, onToggle, onRetry, retrying }: { deli
         <div className="space-y-1 flex-1 text-xs">
           <p className="font-mono uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Attempts</p>
           <p>{delivery.attemptCount === 0 ? 'Never attempted.' : `${delivery.attemptCount} of ${delivery.maxAttempts} attempts used.`}</p>
-          {delivery.deliveredAt && <p style={{ color: 'var(--m3-up)' }}>Delivered {new Date(delivery.deliveredAt).toLocaleString()}</p>}
-          {delivery.status !== 'delivered' && delivery.attemptCount > 0 && <p style={{ color: 'var(--m3-secondary)' }}>Last attempt {new Date(delivery.updatedAt).toLocaleString()}</p>}
+          {delivery.deliveredAt && <p style={{ color: 'var(--m3-up)' }}>Delivered {formatDateTime(delivery.deliveredAt)}</p>}
+          {delivery.status !== 'delivered' && delivery.attemptCount > 0 && <p style={{ color: 'var(--m3-secondary)' }}>Last attempt {formatDateTime(delivery.updatedAt)}</p>}
           <p className="pt-1" style={{ color: 'var(--m3-secondary)' }}>{webhook ? `Webhook to ${delivery.destination} with X-BSP-Event: ${delivery.eventType}` : `Email to ${delivery.destination}`}</p>
         </div>
         {delivery.status === 'failed' && <button type="button" disabled={retrying} onClick={(event) => { event.stopPropagation(); onRetry() }} className="btn btn-primary whitespace-nowrap">{retrying ? 'Retrying…' : 'Retry now'}</button>}
