@@ -62,6 +62,7 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('heading', { name: 'Recent Activity' })).toBeInTheDocument()
     expect(screen.getByText('major impact · identified')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Manage Monitors' })).toHaveAttribute('href', '/admin/monitors')
+    expect(screen.getByRole('link', { name: /Checkout API/ })).toHaveAttribute('href', '/admin/monitors/1')
     expect(screen.getByAltText('BetterStatusPage')).toHaveAttribute('src', '/admin/logo_light.png')
   })
 

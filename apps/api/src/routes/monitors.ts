@@ -11,6 +11,8 @@ import { auditActor, writeAudit, diffObjects, snapshot } from '../services/audit
 import { requestIdentity } from '../middleware/auth.js'
 import { refreshPublishedMonitorIds } from '../services/publishedMonitors.js'
 import { serveEventStream } from '../services/sse.service.js'
+import { loadMonitorStats } from '../services/monitorStats.js'
+import { getSchedulerConfig } from '../config/scheduler.js'
 import { authenticateRequest } from '../services/authSession.js'
 import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig, MonitorType } from '@bsp/shared'
 
@@ -271,6 +273,20 @@ export async function monitorRoutes(app: FastifyInstance) {
       }
     })
     return { ok: true }
+  })
+
+  app.get<{ Params: { id: string }; Querystring: { hours?: string } }>('/:id/stats', async (req, reply) => {
+    const id = Number(req.params.id)
+    const hours = req.query.hours === undefined ? 168 : Number(req.query.hours)
+    if (!Number.isInteger(id) || id < 1 || !Number.isInteger(hours) || hours < 1) {
+      return reply.code(400).send({ error: 'Invalid monitor id or hours' })
+    }
+    if (!(await db.select({ id: monitors.id }).from(monitors).where(eq(monitors.id, id)))[0]) {
+      return reply.code(404).send({ error: 'Not found' })
+    }
+    const { resultRetentionDays } = getSchedulerConfig()
+    reply.header('Cache-Control', 'no-store')
+    return loadMonitorStats(id, Math.min(hours, resultRetentionDays * 24), resultRetentionDays)
   })
 
   app.get<{ Params: { id: string }; Querystring: { days?: string } }>('/:id/history', async (req) => {

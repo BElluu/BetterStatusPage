@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { DEFAULT_CERT_WARN_DAYS } from '@bsp/shared'
 import type { HttpsConfig, Monitor, MonitorStatus, MonitorType } from '@bsp/shared'
@@ -232,7 +233,7 @@ export default function MonitorsPage() {
                   style={{ borderTop: i > 0 ? '1px solid var(--m3-outline-variant)' : 'none' }}
                 >
                   <td className="px-4 py-3">
-                    <div className="font-medium" style={{ color: 'var(--m3-on-surface)' }}>{monitor.name}</div>
+                    <Link to={`/admin/monitors/${monitor.id}`} className="font-medium hover:underline focus-ring rounded" style={{ color: 'var(--m3-on-surface)' }}>{monitor.name}</Link>
                     {monitor.type === 'https' && typeof monitor.certExpiresAt === 'number' && <CertExpiryChip monitor={monitor} />}
                     {(monitor.tags ?? []).length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">

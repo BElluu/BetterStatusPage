@@ -162,3 +162,47 @@ export interface UptimeSummary {
   }>
   overallUptimePct: number | null
 }
+
+/** Statistics of one monitor over a rolling window; `GET /admin/monitors/:id/stats`. */
+export interface MonitorStats {
+  monitorId: number
+  /** Length of the window, in hours, after clamping to the retention period. */
+  hours: number
+  from: number
+  to: number
+  /** Days check results are kept; a longer window has no data before that. */
+  retentionDays: number
+  checksTotal: number
+  checksUp: number
+  /** Failures not (yet) confirmed by the failure threshold count as up, like on the status page. */
+  uptimePct: number | null
+  /** Failed checks that were confirmed by the failure threshold. */
+  failures: number
+  /** Null when no check in the window recorded a response time. */
+  response: { avg: number; min: number; max: number; p50: number; p95: number; p99: number } | null
+  /** Evenly sized buckets from `from` to `to`; null response values mean no timed check in the bucket. */
+  buckets: Array<{
+    ts: number
+    checksTotal: number
+    checksUp: number
+    avgMs: number | null
+    minMs: number | null
+    maxMs: number | null
+    p95Ms: number | null
+    /** Checks of the bucket that were confirmed failures by status. */
+    down: number
+    degraded: number
+  }>
+  /**
+   * Uptime bars ending now: hourly for a window up to a day, 6-hourly up to a week, else one per UTC day.
+   * `ts` is the start of each bar; a bar without checks has `checksTotal` 0.
+   */
+  uptime: { stepHours: number; bars: Array<{ ts: number; checksTotal: number; checksUp: number }> }
+  incidents: {
+    total: number
+    /** Mean time from start to resolution of the resolved incidents; null when none is resolved. */
+    mttrMs: number | null
+    recent: Array<{ id: number; title: string; status: string; impact: string; startedAt: number; resolvedAt: number | null }>
+  }
+  recentFailures: Array<{ checkedAt: number; status: MonitorStatus; responseMs: number | null; errorMessage: string | null; unconfirmed: boolean }>
+}

@@ -7,6 +7,7 @@ import LoginPage from './pages/Login'
 import SetupPage from './pages/Setup'
 const DashboardPage = lazy(() => import('./pages/Dashboard'))
 const MonitorsPage = lazy(() => import('./pages/Monitors'))
+const MonitorDetailPage = lazy(() => import('./pages/MonitorDetail'))
 const IncidentsPage = lazy(() => import('./pages/Incidents'))
 const BuilderPage = lazy(() => import('./pages/Builder'))
 const BrandingPage = lazy(() => import('./pages/Branding'))
@@ -139,6 +140,7 @@ export default function App() {
         >
           <Route index element={<RoleHome />} />
           <Route path="monitors"  element={<RequireRole minRole="operator"><MonitorsPage /></RequireRole>} />
+          <Route path="monitors/:id" element={<RequireRole minRole="operator"><MonitorDetailPage /></RequireRole>} />
           <Route path="incidents" element={<RequireRole minRole="operator"><IncidentsPage /></RequireRole>} />
           <Route path="maintenance" element={<RequireRole minRole="operator"><MaintenancePage /></RequireRole>} />
           <Route path="reports" element={<RequireRole minRole="operator"><ReportsPage /></RequireRole>} />

@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Monitor } from '@bsp/shared'
@@ -50,11 +51,11 @@ const monitors = [
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><ToastProvider><MonitorsPage /></ToastProvider></QueryClientProvider>)
+  return render(<QueryClientProvider client={queryClient}><MemoryRouter><ToastProvider><MonitorsPage /></ToastProvider></MemoryRouter></QueryClientProvider>)
 }
 
 function names() {
-  return screen.getAllByRole('row').slice(1).map((row) => row.querySelector('td div')?.textContent)
+  return screen.getAllByRole('row').slice(1).map((row) => row.querySelector('td a')?.textContent)
 }
 
 describe('MonitorsPage', () => {

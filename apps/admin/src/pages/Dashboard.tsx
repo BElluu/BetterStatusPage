@@ -213,9 +213,10 @@ export default function DashboardPage() {
                 : `${monitor.type}`
 
               return (
-                <div
+                <Link
                   key={monitor.id}
-                  className="group p-6 rounded-xl flex items-center justify-between transition-all border border-transparent hover:border-outline-variant"
+                  to={`/admin/monitors/${monitor.id}`}
+                  className="group p-6 rounded-xl flex items-center justify-between transition-all border border-transparent hover:border-outline-variant focus-ring"
                   style={{ background: 'var(--m3-surface-container-lowest)' }}
                 >
                   <div className="flex items-center gap-4 min-w-0">
@@ -228,7 +229,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <StatusBadge status={monitor.currentStatus} />
-                </div>
+                </Link>
               )
             })}
           </div>
