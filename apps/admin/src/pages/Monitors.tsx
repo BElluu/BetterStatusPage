@@ -9,6 +9,7 @@ import MonitorFormModal from '../components/monitors/MonitorFormModal'
 import { MONITOR_TYPES } from '../components/monitors/monitorTypes'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, QuickStartPanel, useToast, type QuickStartOption } from '../components/ui'
+import { formatClock, formatDateTime } from '../lib/dateFormat'
 
 type SortCol = 'name' | 'type' | 'intervalSecs' | 'currentStatus' | 'lastCheckedAt'
 
@@ -265,7 +266,7 @@ export default function MonitorsPage() {
                     <StatusBadge status={monitor.currentStatus} />
                   </td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
-                    {monitor.lastCheckedAt ? new Date(monitor.lastCheckedAt).toLocaleTimeString() : '—'}
+                    {monitor.lastCheckedAt ? formatClock(monitor.lastCheckedAt, true) : '—'}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
@@ -338,7 +339,7 @@ function CertExpiryChip({ monitor }: { monitor: Monitor }) {
   const warnDays = certExpiry?.enabled ? certExpiry.warnDays : DEFAULT_CERT_WARN_DAYS
   const color = days < 0 ? 'var(--m3-down)' : days <= warnDays ? 'var(--m3-degraded)' : 'var(--m3-secondary)'
   return (
-    <div className="font-mono text-xs mt-0.5" style={{ color }} title={`TLS certificate expires ${new Date(expiresAt).toLocaleString()}`}>
+    <div className="font-mono text-xs mt-0.5" style={{ color }} title={`TLS certificate expires ${formatDateTime(expiresAt)}`}>
       {days < 0 ? 'TLS certificate expired' : `TLS certificate: ${days} ${days === 1 ? 'day' : 'days'} left`}
     </div>
   )

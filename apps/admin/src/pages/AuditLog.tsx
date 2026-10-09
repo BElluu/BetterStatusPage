@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from 'react'
+import { formatDateTime } from '../lib/dateFormat'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { EmptyState, EmptyStateLink, ErrorState, LoadingState, PageContainer, PageHeader, Pagination } from '../components/ui'
@@ -82,10 +83,7 @@ const ENTITY_ICONS: Record<AuditEntityType, string> = {
 }
 
 function formatTs(ms: number) {
-  return new Date(ms).toLocaleString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  })
+  return formatDateTime(ms, true)
 }
 
 function DiffView({ diff }: { diff: Record<string, unknown> }) {

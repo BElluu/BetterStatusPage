@@ -14,6 +14,11 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 - **Notification channel type picker**: the type in **New Notification Channel** is now a searchable dropdown, like the monitor type, instead of a row of buttons, so it stays one control tall as more channel types are added.
 
+### Fixed
+
+- **Development restart after a killed process**: starting the API no longer fails with "BetterStatusPage is still running" when the previous process was killed (Ctrl+C or a hot reload on Windows) less than 30 seconds earlier.
+- **Date and time format**: the admin panel shows dates as `dd.mm.yyyy` and 24-hour time by default, regardless of the browser language. **Settings → Date and time format** lets you pick `dd-mm-yyyy`, `mm/dd/yyyy`, `yyyy-mm-dd`, `yyyy.mm.dd` or 12-hour time; the choice is stored per browser. See [Date and time format](users-and-roles.md#date-and-time-format).
+
 ## [0.2.1] - 2026-10-08
 
 ### Added

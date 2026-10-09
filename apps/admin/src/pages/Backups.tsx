@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { Alert, EmptyState, EmptyStateLink, ErrorState, LoadingState, PageContainer, PageHeader, Switch } from '../components/ui'
+import { formatDateTime } from '../lib/dateFormat'
 
 interface BackupInfo { filename: string; size: number; createdAt: number }
 interface BackupConfig { enabled: boolean; frequency: 'daily' | 'weekly'; hour: number; minute: number; weekday: number; retention: number }
@@ -44,7 +45,7 @@ export default function BackupsPage() {
       const result = await api.upload<{ manifest: { createdAt: number }; vaultKeyMatches: boolean | null }>('/admin/backups/validate', form)
       const keyMismatch = result.vaultKeyMatches === false
       const key = keyMismatch ? ' Warning: VAULT_ENCRYPTION_KEY does not match.' : ''
-      setMessage({ tone: keyMismatch ? 'warning' : 'success', text: `Backup is valid (${new Date(result.manifest.createdAt).toLocaleString()}).${key} Stop the app and run: npm run restore -- --input <file>` })
+      setMessage({ tone: keyMismatch ? 'warning' : 'success', text: `Backup is valid (${formatDateTime(result.manifest.createdAt)}).${key} Stop the app and run: npm run restore -- --input <file>` })
     } catch (e) { setMessage({ tone: 'error', text: errorText(e) }) } finally { setBusy(null); if (file.current) file.current.value = '' }
   }
   async function removeBackup(filename: string) {
@@ -74,7 +75,7 @@ export default function BackupsPage() {
   return <PageContainer>
     {header}
     {message && <Alert tone={message.tone} onDismiss={() => setMessage(null)}>{message.text}</Alert>}
-    {state.status.lastCompletedAt && <div className="text-sm" style={{ color: state.status.state === 'error' ? 'var(--m3-down)' : 'var(--m3-secondary)' }}>Last run: {new Date(state.status.lastCompletedAt).toLocaleString()} · {state.status.state}{state.status.lastError ? ` · ${state.status.lastError}` : ''}</div>}
+    {state.status.lastCompletedAt && <div className="text-sm" style={{ color: state.status.state === 'error' ? 'var(--m3-down)' : 'var(--m3-secondary)' }}>Last run: {formatDateTime(state.status.lastCompletedAt)} · {state.status.state}{state.status.lastError ? ` · ${state.status.lastError}` : ''}</div>}
     <section className="rounded-2xl p-6 space-y-4" style={{ background: 'var(--m3-surface-container-lowest)', color: 'var(--m3-on-surface)' }}>
       <div className="flex flex-wrap gap-3">
         <button type="button" disabled={busy !== null} onClick={create} className="btn btn-primary">{busy === 'create' ? 'Creating backup…' : 'Create backup'}</button>
@@ -157,7 +158,7 @@ export default function BackupsPage() {
             action={config.enabled ? undefined : <EmptyStateLink onClick={enableAutomaticBackups}>Enable automatic backups</EmptyStateLink>}
           />
         : state.backups.map((item) => <div key={item.filename} className="p-4 px-6 flex flex-wrap items-center justify-between gap-3" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
-          <div className="min-w-0"><div className="font-mono text-sm break-all">{item.filename}</div><div className="text-xs" style={{ color: 'var(--m3-secondary)' }}>{new Date(item.createdAt).toLocaleString()} · {(item.size / 1024 / 1024).toFixed(2)} MB</div></div>
+          <div className="min-w-0"><div className="font-mono text-sm break-all">{item.filename}</div><div className="text-xs" style={{ color: 'var(--m3-secondary)' }}>{formatDateTime(item.createdAt)} · {(item.size / 1024 / 1024).toFixed(2)} MB</div></div>
           <div className="flex gap-2">
             <button type="button" onClick={() => api.download(`/admin/backups/${encodeURIComponent(item.filename)}/download`, item.filename)} aria-label={`Download ${item.filename}`} className="btn btn-secondary btn-sm">Download</button>
             <button type="button" onClick={() => setDeleteTarget(item.filename)} aria-label={`Delete ${item.filename}`} className="btn btn-danger-outline btn-sm">Delete</button>

@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom'
 import { deliveryHistoryUrl } from '../deliveryHistoryUrl'
 import { ModalHeader, ModalShell } from '../components/ModalShell'
 import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, Field, LoadingState, PageContainer, PageHeader, Pagination, QuickStartPanel, Switch, useToast, type FieldControlProps, type QuickStartOption } from '../components/ui'
+import { formatDateTime } from '../lib/dateFormat'
 
 const CHANNEL_QUICK_START: QuickStartOption<ChannelType>[] = CHANNEL_TYPE_ORDER.map((key) => ({
   key,
@@ -323,11 +324,11 @@ function DeliveryRow({ delivery, expanded, detail, onToggle, onRetry, retrying }
   const eventLabel = EVENT_LABELS[delivery.eventType] ?? delivery.eventType
   const suppression = SUPPRESSION_LABELS[delivery.suppressionReason ?? '']
   const heldUntil = delivery.status === 'pending' && delivery.attemptCount === 0 && delivery.nextAttemptAt && delivery.nextAttemptAt > Date.now()
-    ? new Date(delivery.nextAttemptAt).toLocaleString()
+    ? formatDateTime(delivery.nextAttemptAt)
     : null
   return <>
     <tr className="cursor-pointer" onClick={onToggle} style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
-      <td className="px-4 py-3 whitespace-nowrap" style={{ color: 'var(--m3-secondary)' }}>{new Date(delivery.createdAt).toLocaleString()}</td>
+      <td className="px-4 py-3 whitespace-nowrap" style={{ color: 'var(--m3-secondary)' }}>{formatDateTime(delivery.createdAt)}</td>
       <td className="px-4 py-3"><p className="font-medium">{delivery.monitorName}</p><p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>{statusName(delivery.previousStatus)} → {statusName(delivery.targetStatus)}</p></td>
       <td className="px-4 py-3"><p>{delivery.channelName}</p><p className="text-xs capitalize" style={{ color: 'var(--m3-secondary)' }}>{delivery.channelType}</p></td>
       <td className="px-4 py-3">{eventLabel}</td>
@@ -354,7 +355,7 @@ function DeliveryRow({ delivery, expanded, detail, onToggle, onRetry, retrying }
       {delivery.lastError && <Alert tone="error" className="mb-3">{delivery.lastError}</Alert>}
       {suppression && <div className="rounded-xl px-3 py-2 mb-3 text-sm" style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface-variant)' }}>{SUPPRESSION_DETAILS[delivery.suppressionReason ?? '']}</div>}
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2 flex-1"><p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Attempts</p>{!detail ? <p className="text-sm">Loading…</p> : detail.attempts.length === 0 ? <p className="text-sm" style={{ color: 'var(--m3-secondary)' }}>Never attempted.</p> : detail.attempts.map((attempt) => <div key={attempt.id} className="flex flex-wrap gap-x-4 gap-y-1 text-xs"><span className="font-semibold">#{attempt.attemptNumber}</span><span style={{ color: attempt.status === 'delivered' ? 'var(--m3-up)' : 'var(--m3-down)' }}>{attempt.status === 'delivered' ? 'Delivered' : 'Failed'}</span><span style={{ color: 'var(--m3-secondary)' }}>{new Date(attempt.completedAt).toLocaleString()}</span>{attempt.error && <span style={{ color: 'var(--m3-secondary)' }}>{attempt.error}</span>}</div>)}</div>
+        <div className="space-y-2 flex-1"><p className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Attempts</p>{!detail ? <p className="text-sm">Loading…</p> : detail.attempts.length === 0 ? <p className="text-sm" style={{ color: 'var(--m3-secondary)' }}>Never attempted.</p> : detail.attempts.map((attempt) => <div key={attempt.id} className="flex flex-wrap gap-x-4 gap-y-1 text-xs"><span className="font-semibold">#{attempt.attemptNumber}</span><span style={{ color: attempt.status === 'delivered' ? 'var(--m3-up)' : 'var(--m3-down)' }}>{attempt.status === 'delivered' ? 'Delivered' : 'Failed'}</span><span style={{ color: 'var(--m3-secondary)' }}>{formatDateTime(attempt.completedAt)}</span>{attempt.error && <span style={{ color: 'var(--m3-secondary)' }}>{attempt.error}</span>}</div>)}</div>
         {delivery.status === 'failed' && <button type="button" disabled={retrying} onClick={(event) => { event.stopPropagation(); onRetry() }} className="btn btn-primary whitespace-nowrap">{retrying ? 'Retrying…' : 'Retry now'}</button>}
       </div>
     </td></tr>}

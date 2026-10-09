@@ -1,5 +1,6 @@
 import { Area, AreaChart, CartesianGrid, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { MonitorStats } from '@bsp/shared'
+import { formatClock, formatDayMonth } from '../../lib/dateFormat'
 
 export type ChartMetric = 'avg' | 'p95' | 'max'
 
@@ -53,19 +54,14 @@ const STATUS_TONE = { up: 'var(--m3-up)', degraded: 'var(--m3-degraded)', down: 
 const STATUS_DOT = { up: 'var(--m3-up-bar)', degraded: 'var(--m3-degraded-bar)', down: 'var(--m3-down)' } as const
 
 function xTick(ts: number, hours: number): string {
-  const date = new Date(ts)
-  return hours <= 24
-    ? date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })
-    : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return hours <= 24 ? formatClock(ts) : formatDayMonth(ts)
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ChartTooltip({ active, payload, hours }: { active?: boolean; payload?: readonly any[]; hours: number }) {
   const point = payload?.[0]?.payload as Point | undefined
   if (!active || !point || point.count === 0) return null
-  const label = new Date(point.ts).toLocaleString(undefined, hours <= 24
-    ? { hour: '2-digit', minute: '2-digit', hour12: false }
-    : { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+  const label = hours <= 24 ? formatClock(point.ts) : `${formatDayMonth(point.ts)} ${formatClock(point.ts)}`
   const rows: Array<[string, number | null]> = [['Avg', point.avg], ['p95', point.p95], ['Min', point.min], ['Max', point.max]]
   return (
     <div style={{

@@ -5,6 +5,7 @@ import { ConfirmModal } from '../components/ConfirmModal'
 import { CopyButton } from '../components/CopyButton'
 import { Modal, ModalShell } from '../components/ModalShell'
 import { Alert, EmptyState, EmptyStateLink, ErrorState, Field, LoadingState, useToast } from '../components/ui'
+import { formatDate } from '../lib/dateFormat'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -332,7 +333,7 @@ function SecretRow({ secret, isRevealing, onReveal, onDelete }: {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold break-all" style={{ color: 'var(--m3-on-surface)' }}>{secret.name}</p>
         <p className="text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>
-          {TYPE_LABELS[secret.type]} · Updated {new Date(secret.updatedAt).toLocaleDateString()}
+          {TYPE_LABELS[secret.type]} · Updated {formatDate(secret.updatedAt)}
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">

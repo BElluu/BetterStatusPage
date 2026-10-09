@@ -22,8 +22,10 @@ function clearStaleMarker(options: { checkOwner: boolean }): void {
   const file = lockPath()
   if (!fs.existsSync(file)) return
   const age = Date.now() - fs.statSync(file).mtimeMs
-  if (age < FRESH_MS) throw new Error(RUNNING_MESSAGE)
-  if (options.checkOwner && age < LIVE_OWNER_MS && isOwnerAlive(readOwner(file))) throw new Error(RUNNING_MESSAGE)
+  const ownerAlive = isOwnerAlive(readOwner(file))
+  // A killed process (Ctrl+C on Windows, tsx watch restart) leaves a fresh marker; startup trusts a dead pid over the heartbeat.
+  if (age < FRESH_MS && (options.checkOwner || ownerAlive)) throw new Error(RUNNING_MESSAGE)
+  if (options.checkOwner && age < LIVE_OWNER_MS && ownerAlive) throw new Error(RUNNING_MESSAGE)
   fs.rmSync(file, { force: true })
 }
 

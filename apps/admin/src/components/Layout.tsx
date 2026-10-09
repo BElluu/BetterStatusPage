@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-dom'
 import { api, clearSession, getCurrentUser } from '../api/client'
 import { useDarkMode } from '../hooks/useDarkMode'
+import { useDatePrefs } from '../lib/dateFormat'
 import { statusPageUrl } from '../navigation'
 
 // role hierarchy: admin > operator > branding
@@ -176,6 +177,7 @@ export default function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [isDark, toggleDark] = useDarkMode()
+  const datePrefs = useDatePrefs()
   const currentUser = getCurrentUser()
   const userRank = ROLE_RANK[currentUser?.role ?? ''] ?? 0
   // The drawer remembers the path it was opened on, so navigating anywhere closes it without an effect.
@@ -235,7 +237,8 @@ export default function Layout() {
 
       {/* Main */}
       <main className="flex-1 min-h-0 min-w-0 overflow-auto" style={{ background: 'var(--m3-surface-container-low)' }}>
-        <Outlet />
+        {/* Remount the page when the date format changes so every formatted date is recomputed. */}
+        <Fragment key={`${datePrefs.date}-${datePrefs.time}`}><Outlet /></Fragment>
       </main>
     </div>
   )

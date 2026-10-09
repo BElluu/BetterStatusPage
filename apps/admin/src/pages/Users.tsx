@@ -8,6 +8,7 @@ import { SingleSignOnModal } from '../components/SingleSignOnModal'
 import { StatusPageAccessModal } from '../components/StatusPageAccessModal'
 import { useSsoConfirmation } from '../components/SsoConfirmation'
 import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
+import { formatDate } from '../lib/dateFormat'
 
 interface User {
   id: number
@@ -331,7 +332,7 @@ export default function UsersPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
-                    {new Date(user.createdAt).toLocaleDateString()}
+                    {formatDate(user.createdAt)}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
