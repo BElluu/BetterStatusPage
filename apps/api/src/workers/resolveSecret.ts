@@ -31,7 +31,7 @@ export async function loadSecretPayload(secret: SecretRow, vault: VaultRow): Pro
     }
     return { value: JSON.stringify(kv) }
   } catch (e) {
-    if (e instanceof HashicorpVaultError) throw new Error(`HashiCorp Vault "${vault.name}": ${e.message}`)
+    if (e instanceof HashicorpVaultError) throw new Error(`HashiCorp Vault "${vault.name}": ${e.message}`, { cause: e })
     throw e
   }
 }

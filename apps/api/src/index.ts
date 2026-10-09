@@ -141,8 +141,8 @@ app.addHook('onSend', (req, reply, _payload, done) => {
     isBrandingPreview ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
     "form-action 'self'",
     "script-src 'self'",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self'",
     "img-src 'self' data: blob:",
     "connect-src 'self'",
   ].join('; '))
