@@ -38,6 +38,7 @@ const SECTIONS: { label: string; items: { slug: string; label?: string }[] }[] =
       { slug: 'slack-integration', label: 'Slack' },
       { slug: 'discord-integration', label: 'Discord' },
       { slug: 'teams-integration', label: 'Microsoft Teams' },
+      { slug: 'telegram-integration', label: 'Telegram' },
     ],
   },
   {

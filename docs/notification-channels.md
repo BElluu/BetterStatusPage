@@ -1,6 +1,6 @@
 # Notification channels
 
-Notification channels tell **your team** when a monitor goes down, degrades, recovers or has a TLS certificate about to expire. A channel is one destination — an email address, an HTTP endpoint, a Slack, Discord or Microsoft Teams webhook — and you decide per monitor which channels it alerts.
+Notification channels tell **your team** when a monitor goes down, degrades, recovers or has a TLS certificate about to expire. A channel is one destination — an email address, an HTTP endpoint, a Slack, Discord or Microsoft Teams webhook, a Telegram chat — and you decide per monitor which channels it alerts.
 
 Channels live under *Admin → Configure → **Notifications*** (operator role or higher). To notify the people who read your status page instead, see [Subscriptions](subscriptions.md).
 
@@ -15,8 +15,9 @@ Channels live under *Admin → Configure → **Notifications*** (operator role o
 | **Slack** | A Slack incoming webhook | Colour-coded Block Kit card |
 | **Discord** | A Discord channel webhook | Colour-coded embed |
 | **Teams** | A Microsoft Teams webhook | Colour-coded MessageCard |
+| **Telegram** | A Telegram chat, group or channel, through your own bot | Formatted message with a severity emoji |
 
-Email and Webhook are fully templated. Slack, Discord and Teams build a rich card automatically and let you add one templated line on top.
+Email and Webhook are fully templated. Slack, Discord, Teams and Telegram build a rich message automatically and let you add one templated line on top.
 
 ## Creating a channel
 
@@ -185,7 +186,7 @@ Values are not URL-encoded, so this works best with monitor names that contain n
 
 ---
 
-## Slack, Discord and Microsoft Teams
+## Slack, Discord, Microsoft Teams and Telegram
 
 **Slack** posts a Block Kit card through an incoming webhook: a red, orange or green border by severity, the monitor name and status, fields for status, previous status, monitor type and error, and the check time. The optional **Message Text** is posted above the card and is where mentions such as `<!here>` go. See [Slack integration](slack-integration.md).
 
@@ -193,7 +194,12 @@ Values are not URL-encoded, so this works best with monitor names that contain n
 
 **Teams** posts a colour-coded MessageCard with the same facts. The optional **Summary** replaces the notification toast text. See [Microsoft Teams integration](teams-integration.md).
 
-For certificate events all three switch the headline to *TLS certificate of … expires in N days* (or *… was renewed*) and label the detail field **Details** instead of **Error**.
+> [!WARNING]
+> **Not released yet.** Telegram is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+**Telegram** sends a formatted message through the Bot API with the same facts and a 🔴, 🟡 or 🟢 emoji by severity. It needs a **Bot Token** from @BotFather and the **Chat ID** of the chat, group or channel (or `@channelusername`); the optional **Message Text** is a templated line above the message. The text is sent as HTML with every value escaped, and an oversized error message is cut to fit Telegram's 4096-character limit. See [Telegram integration](telegram-integration.md).
+
+For certificate events all four switch the headline to *TLS certificate of … expires in N days* (or *… was renewed*) and label the detail field **Details** instead of **Error**.
 
 ---
 
@@ -208,6 +214,7 @@ Any `{{name}}` in a templated field is replaced when the notification is sent. T
 | Slack | **Message Text** |
 | Discord | **Message Content** |
 | Teams | **Summary** |
+| Telegram | **Message Text** |
 
 A variable that does not exist for the event is left in the text unchanged — for example `{{cert_host}}` in an ordinary alert is sent literally as `{{cert_host}}`.
 

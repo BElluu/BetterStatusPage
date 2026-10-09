@@ -3,7 +3,7 @@ import { CHANNEL_TYPES, CHANNEL_TYPE_ORDER, buildChannelConfig, initialDrafts, i
 
 describe('channel type descriptors', () => {
   it('describes every type offered in the switcher', () => {
-    expect(CHANNEL_TYPE_ORDER.map((type) => CHANNEL_TYPES[type].label)).toEqual(['Email', 'Webhook', 'Discord', 'Teams', 'Slack'])
+    expect(CHANNEL_TYPE_ORDER.map((type) => CHANNEL_TYPES[type].label)).toEqual(['Email', 'Webhook', 'Discord', 'Teams', 'Slack', 'Telegram'])
     expect(isChannelType('slack')).toBe(true)
     expect(isChannelType('pager')).toBe(false)
   })
@@ -24,6 +24,7 @@ describe('channel type descriptors', () => {
       discord: { webhookUrl: 'https://discord.test', username: 'BSP', avatarUrl: 'https://img.test/a.png', content: 'hi' },
       teams: { webhookUrl: 'https://teams.test', summary: 'Alert' },
       slack: { webhookUrl: 'https://slack.test', text: 'Heads up' },
+      telegram: { botToken: '123:abc', chatId: '-100500', text: 'Heads up' },
     }
     for (const type of CHANNEL_TYPE_ORDER) {
       expect(buildChannelConfig(type, initialDrafts(type, configs[type]))).toEqual(configs[type])

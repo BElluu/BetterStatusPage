@@ -7,6 +7,7 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ### Added
 
+- **Telegram notification channel**: send monitor alerts, recoveries and TLS certificate warnings to a Telegram chat, group or channel through your own bot (bot token and chat ID), with the same severity emoji, optional templated line and alert hygiene as the other channels. See [Telegram integration](telegram-integration.md).
 - **Monitor details page**: click a monitor's name in **Monitoring → Monitors**, or its tile on the **Dashboard**, to see its response time chart (average, p95 or maximum, in the style of the status page), uptime bars (hourly, 6-hourly or daily, depending on the range), response percentiles (p50, p95, p99), the 10 latest failed checks with their errors, incidents with their MTTR and the monitor's configuration, for the last 24 hours, 7, 30 or 90 days. See [Monitor details](monitors.md#monitor-details).
 
 ## [0.2.1] - 2026-10-08

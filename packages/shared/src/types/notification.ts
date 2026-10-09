@@ -1,6 +1,6 @@
 import type { VaultRef } from './monitor.js'
 
-export type NotificationChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack'
+export type NotificationChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack' | 'telegram'
 
 export interface EmailNotificationConfig {
   to: string
@@ -32,7 +32,13 @@ export interface SlackNotificationConfig {
   text?: string
 }
 
-export type NotificationChannelConfig = EmailNotificationConfig | WebhookNotificationConfig | DiscordNotificationConfig | TeamsNotificationConfig | SlackNotificationConfig
+export interface TelegramNotificationConfig {
+  botToken: string
+  chatId: string
+  text?: string
+}
+
+export type NotificationChannelConfig = EmailNotificationConfig | WebhookNotificationConfig | DiscordNotificationConfig | TeamsNotificationConfig | SlackNotificationConfig | TelegramNotificationConfig
 
 /** Quiet hours silence a channel during a recurring local-time window. */
 export interface QuietHoursPolicy {

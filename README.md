@@ -88,6 +88,7 @@ When something breaks (or recovers), BetterStatusPage can shout at you via:
 - **Discord** — native integration with rich embeds; color-coded by severity (red = down, orange = degraded, green = recovery), no bot token required — just a webhook URL
 - **Microsoft Teams** — native MessageCard integration; color-coded cards, no app installation required — just an incoming webhook URL
 - **Slack** — native Block Kit integration; color-coded attachments, optional `<!here>` / `<!channel>` mentions — just an incoming webhook URL
+- **Telegram** — messages through your own bot with a severity emoji (🔴 / 🟡 / 🟢) — just a bot token and a chat ID
 
 All channels support template variables like `{{monitor_name}}`, `{{status}}`, `{{error_message}}` etc., so your alerts can say *"API Gateway is down: connection timeout"* instead of *"status changed"*.
 
@@ -101,6 +102,7 @@ Every delivery is persisted with its individual attempts. Failed sends retry aut
 > See **[docs.betterstatuspage.dev/discord-integration](https://docs.betterstatuspage.dev/discord-integration/)** for a step-by-step Discord setup guide.
 > See **[docs.betterstatuspage.dev/teams-integration](https://docs.betterstatuspage.dev/teams-integration/)** for a step-by-step Microsoft Teams setup guide.
 > See **[docs.betterstatuspage.dev/slack-integration](https://docs.betterstatuspage.dev/slack-integration/)** for a step-by-step Slack setup guide.
+> See **[docs.betterstatuspage.dev/telegram-integration](https://docs.betterstatuspage.dev/telegram-integration/)** for a step-by-step Telegram setup guide.
 
 ### 🤫 Alert hygiene — the reason people keep alerts switched on
 
@@ -583,9 +585,8 @@ If you're on AWS or GCP, stay tuned — this naturally extends to AWS Secrets Ma
 
 ### 🔔 More notification channels
 
-Email, webhook, Discord, Teams, and Slack cover the most common cases, but alerting is only as good as the channels people actually watch. Still on the list:
+Email, webhook, Discord, Teams, Slack, and Telegram cover the most common cases, but alerting is only as good as the channels people actually watch. Still on the list:
 
-- **Telegram** — for the teams that live there
 - **SMS** — via Twilio or similar, for when the internet itself is on fire and nobody's checking Slack
 - **PagerDuty / OpsGenie** — for when "someone should look at this" needs to become "wake someone up right now"
 

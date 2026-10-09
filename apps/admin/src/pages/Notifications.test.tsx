@@ -122,7 +122,7 @@ describe('NotificationsPage', () => {
     const panel = await screen.findByRole('region', { name: 'Where should alerts go?' })
     expect(within(panel).getAllByRole('button').map((tile) => tile.textContent)).toEqual([
       expect.stringContaining('Email'), expect.stringContaining('Webhook'), expect.stringContaining('Discord'),
-      expect.stringContaining('Teams'), expect.stringContaining('Slack'),
+      expect.stringContaining('Teams'), expect.stringContaining('Slack'), expect.stringContaining('Telegram'),
     ])
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
 

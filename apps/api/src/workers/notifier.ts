@@ -35,6 +35,8 @@ async function deliverToChannel(channel: ChannelRow, vars: Record<string, string
     await sendTeams(config as { webhookUrl: string; summary?: string }, vars)
   } else if (channel.type === 'slack') {
     await sendSlack(config as { webhookUrl: string; text?: string }, vars)
+  } else if (channel.type === 'telegram') {
+    await sendTelegram(config as { botToken: string; chatId: string; text?: string }, vars)
   } else {
     throw new Error(`Unsupported notification channel type: ${channel.type}`)
   }
@@ -712,6 +714,58 @@ async function sendSlack(
   if (config.text) payload['text'] = substituteVars(config.text, vars) + '\n' + fallbackText
 
   await postWebhookJson(config.webhookUrl, payload, 'Slack')
+}
+
+const TELEGRAM_MAX_LENGTH = 4096
+/** Keeps the optional Message Text from crowding out the facts; the detail field is what gets cut to fit. */
+const TELEGRAM_MAX_TEXT_LINE = 1000
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+async function sendTelegram(
+  config: { botToken: string; chatId: string; text?: string },
+  vars: Record<string, string>,
+) {
+  const statusText = vars['status'] ?? 'unknown'
+  const monitorName = vars['monitor_name'] ?? 'Unknown monitor'
+  const emoji = SEVERITY_EMOJI[severityOf(statusText)]
+
+  const headline = certificateHeadline(vars, (text) => `<b>${escapeHtml(text)}</b>`)
+    ?? `Monitor <b>${escapeHtml(monitorName)}</b> is <b>${escapeHtml(statusText.toUpperCase())}</b>`
+
+  const detail = vars['error_message'] ? escapeHtml(vars['error_message']) : ''
+  const build = (detailText: string) => [
+    ...(config.text ? [escapeHtml(Array.from(substituteVars(config.text, vars)).slice(0, TELEGRAM_MAX_TEXT_LINE).join(''))] : []),
+    `${emoji} ${headline}`,
+    '',
+    `<b>Status:</b> ${escapeHtml(statusText)}`,
+    `<b>Previous:</b> ${escapeHtml(vars['previous_status'] ?? 'unknown')}`,
+    `<b>Type:</b> ${escapeHtml(vars['monitor_type'] ?? 'unknown')}`,
+    ...(detailText ? [`<b>${detailLabel(vars)}:</b> ${detailText}`] : []),
+    `<i>Checked at ${escapeHtml(vars['checked_at'] ?? 'unknown')}</i>`,
+  ].join('\n')
+
+  // Cutting the finished message could split an HTML tag, so an oversized one loses the tail of the details field only.
+  let text = build(detail)
+  if (text.length > TELEGRAM_MAX_LENGTH && detail) {
+    const keep = Math.max(0, detail.length - (text.length - TELEGRAM_MAX_LENGTH) - 1)
+    text = build(`${detail.slice(0, keep).replace(/&[a-z]*$/, '')}…`)
+  }
+
+  // The bot token is part of the URL path. Only the status code and Telegram's own description are reported
+  // (the Bot API never echoes the token), so the token never reaches the delivery history.
+  const res = await fetch(`https://api.telegram.org/bot${config.botToken}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: config.chatId, text, parse_mode: 'HTML', link_preview_options: { is_disabled: true } }),
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
+  })
+  if (!res.ok) {
+    const description = await res.json().then((j: { description?: unknown }) => typeof j.description === 'string' ? j.description : '', () => '')
+    throw new Error(`Telegram API returned HTTP ${res.status}${description ? `: ${description.slice(0, 200)}` : ''}`)
+  }
 }
 
 /** Send a test email directly to the given address using current SMTP settings. */

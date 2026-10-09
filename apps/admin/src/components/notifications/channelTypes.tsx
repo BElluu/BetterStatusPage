@@ -1,8 +1,8 @@
 import type { ComponentType, ReactNode } from 'react'
 import { Field } from '../ui'
-import { DiscordIcon, SlackIcon, TeamsIcon } from './icons'
+import { DiscordIcon, SlackIcon, TeamsIcon, TelegramIcon } from './icons'
 
-export type ChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack'
+export type ChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack' | 'telegram'
 
 const VARS = ['{{monitor_name}}', '{{monitor_type}}', '{{status}}', '{{previous_status}}', '{{error_message}}', '{{checked_at}}', '{{monitor_list}}', '{{affected_count}}', '{{event_type}}', '{{cert_expires_in}}', '{{cert_expires_at}}']
 
@@ -27,6 +27,7 @@ interface WebhookDraft { url: string; method: string; headers: [string, string][
 interface DiscordDraft { webhookUrl: string; username: string; avatarUrl: string; content: string }
 interface TeamsDraft { webhookUrl: string; summary: string }
 interface SlackDraft { webhookUrl: string; text: string }
+interface TelegramDraft { botToken: string; chatId: string; text: string }
 
 export interface ChannelDrafts {
   email: EmailDraft
@@ -34,6 +35,7 @@ export interface ChannelDrafts {
   discord: DiscordDraft
   teams: TeamsDraft
   slack: SlackDraft
+  telegram: TelegramDraft
 }
 
 export interface ChannelFieldsProps<D> {
@@ -172,6 +174,26 @@ function SlackFields({ draft, onChange }: ChannelFieldsProps<SlackDraft>) {
   )
 }
 
+function TelegramFields({ draft, onChange }: ChannelFieldsProps<TelegramDraft>) {
+  return (
+    <>
+      <Field label="Bot Token">
+        <input value={draft.botToken} onChange={(e) => onChange({ ...draft, botToken: e.target.value })} required className="input-sig" placeholder="123456789:AA…" autoComplete="off" />
+      </Field>
+      <Field label="Chat ID">
+        <input value={draft.chatId} onChange={(e) => onChange({ ...draft, chatId: e.target.value })} required className="input-sig" placeholder="-1001234567890 or @channelname" />
+      </Field>
+      <Field label="Message Text (optional)">
+        <input value={draft.text} onChange={(e) => onChange({ ...draft, text: e.target.value })} className="input-sig" placeholder="Monitor {{monitor_name}} is {{status}}" />
+      </Field>
+      <InfoBox title="Formatted message is sent automatically">
+        Status, monitor name, error and timestamp are always included. Message Text is an optional line above them (supports variables). Create the bot with @BotFather and add it to the chat or channel first.
+      </InfoBox>
+      <VarsHint />
+    </>
+  )
+}
+
 function WebhookFields({ draft, onChange }: ChannelFieldsProps<WebhookDraft>) {
   const setHeaders = (headers: [string, string][]) => onChange({ ...draft, headers })
   const updateHeader = (i: number, field: 0 | 1, val: string) =>
@@ -295,10 +317,19 @@ export const CHANNEL_TYPES: { [K in ChannelType]: ChannelTypeDescriptor<ChannelD
     build: (d) => ({ webhookUrl: d.webhookUrl, ...(d.text ? { text: d.text } : {}) }),
     Fields: SlackFields,
   },
+  telegram: {
+    label: 'Telegram',
+    hint: 'Bot and chat ID',
+    icon: (size) => <TelegramIcon size={size} />,
+    defaultDraft: () => ({ botToken: '', chatId: '', text: '' }),
+    parse: (c) => ({ botToken: str(c['botToken']), chatId: str(c['chatId']), text: str(c['text']) }),
+    build: (d) => ({ botToken: d.botToken.trim(), chatId: d.chatId.trim(), ...(d.text ? { text: d.text } : {}) }),
+    Fields: TelegramFields,
+  },
 }
 
 /** Display order of the type switcher. */
-export const CHANNEL_TYPE_ORDER: ChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack']
+export const CHANNEL_TYPE_ORDER: ChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack', 'telegram']
 
 export function isChannelType(value: unknown): value is ChannelType {
   return typeof value === 'string' && value in CHANNEL_TYPES
@@ -312,7 +343,7 @@ export function initialDrafts(type: ChannelType | null, config: unknown): Channe
   const stored = (config && typeof config === 'object' ? config : {}) as Record<string, unknown>
   const pick = <K extends ChannelType>(k: K): ChannelDrafts[K] =>
     (type === k ? CHANNEL_TYPES[k].parse(stored) : CHANNEL_TYPES[k].defaultDraft())
-  return { email: pick('email'), webhook: pick('webhook'), discord: pick('discord'), teams: pick('teams'), slack: pick('slack') }
+  return { email: pick('email'), webhook: pick('webhook'), discord: pick('discord'), teams: pick('teams'), slack: pick('slack'), telegram: pick('telegram') }
 }
 
 export function buildChannelConfig<K extends ChannelType>(type: K, drafts: ChannelDrafts): Record<string, unknown> {

@@ -188,6 +188,16 @@ describe('ChannelFormModal', () => {
       config: { webhookUrl: 'https://slack.test/hook', text: 'Heads up' },
       bare: { webhookUrl: 'https://slack.test/hook' },
     },
+    {
+      type: 'Telegram',
+      fill: async (user: User) => {
+        await user.type(field('Bot Token'), '123:abc')
+        await user.type(field('Chat ID'), '-100500')
+        await user.type(field('Message Text (optional)'), 'Heads up')
+      },
+      config: { botToken: '123:abc', chatId: '-100500', text: 'Heads up' },
+      bare: { botToken: '123:abc', chatId: '-100500' },
+    },
   ])('builds the $type config and omits empty optional fields', async ({ type, fill, config, bare }) => {
     const user = userEvent.setup()
     renderModal()

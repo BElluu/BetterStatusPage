@@ -10,7 +10,7 @@ import { withImmediateTransaction } from '../db/transaction.js'
 import { parsePagination } from '../lib/pagination.js'
 import type { NotificationChannelType } from '@bsp/shared'
 
-const CHANNEL_TYPES: readonly NotificationChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack']
+const CHANNEL_TYPES: readonly NotificationChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack', 'telegram']
 
 export async function notificationRoutes(app: FastifyInstance) {
   app.get<{
