@@ -75,7 +75,7 @@ Pełna dokumentacja (EN): **https://docs.betterstatuspage.dev**. Zanim wystawisz
 | **MongoDB** | Wykonuje komendę testową na MongoDB i weryfikuje wynik |
 | **Webhook** *(pasywny)* | Pozwala zewnętrznym usługom pingować *Ciebie*, by zasygnalizować, że żyją — cisza oznacza kłopoty |
 
-Każdy monitor ma: konfigurowalne interwały, timeouty, ponowienia, **kolorowe tagi** do grupowania **30-dniowy pasek dostępności** na stronie statusu, a wyniki sprawdzeń są domyślnie przechowywane przez 90 dni. A, i jest wbudowany tester, więc możesz sprawdzić konfigurację, zanim klikniesz Zapisz i natychmiast tego pożałujesz.
+Każdy monitor ma: konfigurowalne interwały, timeouty, ponowienia, **kolorowe tagi** do grupowania **30-dniowy pasek dostępności** na stronie statusu, a wyniki sprawdzeń są domyślnie przechowywane przez 90 dni, a osobna strona monitora w panelu pokazuje dostępność, percentyle czasu odpowiedzi, incydenty i ostatnie błędy. A, i jest wbudowany tester, więc możesz sprawdzić konfigurację, zanim klikniesz Zapisz i natychmiast tego pożałujesz.
 
 > Zobacz **[docs.betterstatuspage.dev/monitors](https://docs.betterstatuspage.dev/monitors/)** — wszystkie typy monitorów, uwierzytelnianie, adresy heartbeat, ostrzeżenia o certyfikatach i zależności *(EN)*.
 

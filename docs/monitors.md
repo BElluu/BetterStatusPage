@@ -87,6 +87,35 @@ per monitor for any date range, with CSV export.
 The **Check now** button in the monitor list runs a check straight away. It is not offered for
 webhook monitors.
 
+### Monitor details
+
+> [!WARNING]
+> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+Click a monitor's name in the monitor list, or its tile under **System Components** on the
+**Dashboard**, to open its page (`/admin/monitors/:id`); **Monitors** above the title leads back to
+the list. The page shows the monitor over the last 24 hours, 7 days, 30 days or 90 days, up to the result retention:
+
+- **Response time** chart, drawn like the one on the status page: average, p95 or maximum per
+  period, with down and degraded periods shaded and a tooltip per point. Beside it: average,
+  fastest, slowest, p50, p95 and p99.
+- **Uptime bars** in the style of the status page, coloured by its uptime thresholds (99.9 / 99 / 95 %).
+  One bar per hour for 24 hours, per 6 hours for 7 days and per UTC day for 30 and 90 days.
+- **Summary**: uptime and the checks behind it (a failure not yet confirmed by the monitor's failure
+  threshold does not lower uptime, like on the status page), failed checks, incidents and their mean
+  time to resolve (MTTR).
+- **Recent failures**: the latest 10 failed checks in the range, with their error messages. Next to
+  them, the **incidents** linked to the monitor in that range.
+- **Configuration** of the monitor: type, target, interval, timeout, alert and recovery thresholds,
+  dependencies and, for HTTPS monitors, the days left on the certificate.
+
+**Check now** and **Edit** are available on the page too, so a monitor can be changed without
+returning to the list.
+
+The numbers are calculated from the stored check results, so a range cannot reach back further than
+`MONITOR_RESULT_RETENTION_DAYS`; the page says so when it is clamped. The same data is available as
+`GET /api/v1/admin/monitors/:id/stats?hours=168`.
+
 ---
 
 ## HTTPS

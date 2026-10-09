@@ -75,7 +75,7 @@ Full documentation: **https://docs.betterstatuspage.dev**. Before exposing a pro
 | **MongoDB** | Runs a test command against MongoDB and validates the result |
 | **Webhook** *(passive)* | Lets external services ping *you* to signal they're alive — silence means trouble |
 
-Every monitor gets: configurable intervals, timeouts, retries, **color-coded tags** for grouping, a **30-day uptime bar** on the status page, and 90 days of check results kept by default. Oh, and there's a built-in test runner so you can validate your config before hitting Save and immediately regretting it.
+Every monitor gets: configurable intervals, timeouts, retries, **color-coded tags** for grouping, a **30-day uptime bar** on the status page, and 90 days of check results kept by default, with a per-monitor admin page for uptime, response-time percentiles, incidents and recent failures. Oh, and there's a built-in test runner so you can validate your config before hitting Save and immediately regretting it.
 
 > See **[docs.betterstatuspage.dev/monitors](https://docs.betterstatuspage.dev/monitors/)** for every monitor type, auth flows, heartbeat URLs, certificate warnings and dependencies.
 
