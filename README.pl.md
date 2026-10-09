@@ -125,6 +125,8 @@ Trzymanie haseł w zmiennych środowiskowych jest w porządku — do czasu. Bett
 - **value** — pojedynczy sekret (token API, connection string)
 - **json** — pełny obiekt JSON z **mapowaniem pól**, by wybrać dokładnie te klucze, których potrzebujesz
 
+Wolisz trzymać sekrety gdzie indziej? Sejf może też czytać je na żywo z **HashiCorp Vault** (KV v2, token lub AppRole) zamiast je przechowywać.
+
 Twoje sekrety nigdy nie pojawiają się w logach, listach zwracanych przez API, dzienniku audytu ani w `git diff` — wartość widzi tylko administrator, który kliknie **Reveal**.
 
 > Zobacz **[docs.betterstatuspage.dev/vault](https://docs.betterstatuspage.dev/vault/)** — typy sekretów, mapowanie pól i gdzie można ich używać *(EN)*.
@@ -552,51 +554,6 @@ BetterStatusPage/
 └── packages/
     └── shared/        # Współdzielone typy TypeScript (@bsp/shared)
 ```
-
----
-
-## Plan rozwoju 🗺️
-
-BetterStatusPage świetnie działa jako pojedynczy proces oparty na SQLite — ale wiemy, że nie każdemu to wystarcza. Oto dokąd zmierzamy:
-
-### 🗄️ Więcej backendów bazodanowych
-
-SQLite jest idealny na start, ale jeśli BetterStatusPage działa u Ciebie jako część większej infrastruktury, w której dane już żyją w zarządzanej bazie, nie ma powodu iść na kompromisy. Dodajemy natywną obsługę:
-
-- **PostgreSQL** — dla zespołów, które już używają Postgresa, lub dla każdego, kto chce odtwarzania do punktu w czasie, replik do odczytu i prawdziwie współbieżnych zapisów
-
-Celem jest pojedynczy przełącznik konfiguracyjny `DATABASE_URL`. Bez zmian w kodzie, bez bólu głowy z migracją danych — po prostu wskaż istniejącą bazę i działaj.
-
-### 🔐 Integracja z Azure Key Vault
-
-Wbudowany sejf świetnie sprawdza się w samodzielnych wdrożeniach, ale firmy zwykle trzymają już sekrety gdzie indziej — najczęściej w Azure Key Vault. Zamiast duplikować dane uwierzytelniające, chcemy, by BetterStatusPage pobierał je bezpośrednio z AKV w czasie działania. Konkretnie:
-
-- Uwierzytelnianie przez managed identity lub service principal
-- Odwoływanie się do sekretów z Azure Key Vault po nazwie w konfiguracji monitorów i SMTP
-- Zero sekretów przechowywanych lokalnie — aplikacja jest tylko konsumentem
-
-Jeśli korzystasz z AWS lub GCP, obserwuj projekt — naturalnym rozszerzeniem będą AWS Secrets Manager i GCP Secret Manager.
-
-### 🔔 Więcej kanałów powiadomień
-
-E-mail, webhook, Discord, Teams, Slack i Telegram pokrywają najczęstsze przypadki, ale alerty są tylko tak dobre, jak kanały, które ludzie faktycznie obserwują. Wciąż na liście:
-
-- **SMS** — przez Twilio lub podobne, na wypadek gdy płonie sam internet i nikt nie zagląda na Slacka
-- **PagerDuty / OpsGenie** — gdy „ktoś powinien na to zerknąć" musi zamienić się w „obudźcie kogoś natychmiast"
-
-### 📡 Więcej typów monitorów
-
-Pięć typów monitorów pokrywa większość przypadków, ale zawsze jest coś więcej do ogarnięcia:
-
-- **gRPC** — health checki dla usług, które nie mówią po HTTP
-- **Redis / Valkey** — `PING` i sprawdzanie obecności kluczy w warstwie cache
-- **Playwright / Puppeteer** — pełny syntetyczny monitoring w przeglądarce dla przepływów wymagających renderowania JavaScriptu (logowanie, ścieżki zakupowe, SPA)
-- **Kafka / RabbitMQ** — łączność z brokerem i monitoring opóźnień
-- **Własne skryptowe sprawdzenia** — uruchom dowolny fragment Node.js, zwróć status — pełna elastyczność dla wszystkiego, co nie pasuje do predefiniowanego typu
-
----
-
-> 💡 Masz pomysł na funkcję, którego nie ma na liście? Otwórz issue — najlepsze pozycje w planie rozwoju pochodzą od ludzi, którzy faktycznie używają tego na produkcji.
 
 ---
 

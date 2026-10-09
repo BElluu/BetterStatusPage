@@ -125,6 +125,8 @@ Storing passwords in environment variables is fine until it isn't. BetterStatusP
 - **value** — a single secret string (API token, connection string)
 - **json** — a full JSON object, with **field mapping** to pick out exactly the keys you need
 
+Prefer to keep secrets elsewhere? A vault can also read them live from **HashiCorp Vault** (KV v2, token or AppRole) instead of storing them.
+
 Your secrets never appear in logs, list responses, the audit log, or your `git diff` — only an administrator who clicks **Reveal** sees a value.
 
 > See **[docs.betterstatuspage.dev/vault](https://docs.betterstatuspage.dev/vault/)** for secret types, field mapping and where secrets can be used.
@@ -558,51 +560,6 @@ BetterStatusPage/
 └── packages/
     └── shared/        # Shared TypeScript types (@bsp/shared)
 ```
-
----
-
-## Roadmap 🗺️
-
-BetterStatusPage works great as a single SQLite-backed process — but we know that's not everyone's story. Here's where we're headed:
-
-### 🗄️ More database backends
-
-SQLite is perfect for getting started, but if you're running BetterStatusPage as part of a larger infrastructure where your data already lives in a managed database, you shouldn't have to compromise. We're adding native support for:
-
-- **PostgreSQL** — for teams already running Postgres, or anyone who wants point-in-time recovery, read replicas, and proper concurrent writes
-
-The goal is a single `DATABASE_URL` config switch. No code changes, no data migration headaches — just point it at your existing database and go.
-
-### 🔐 Azure Key Vault integration
-
-The built-in vault is great for self-contained deployments, but enterprises already have their secrets somewhere else — usually Azure Key Vault. Instead of duplicating credentials, we want BetterStatusPage to pull them directly from AKV at runtime. Concretely:
-
-- Authenticate via managed identity or service principal
-- Reference secrets by name from Azure Key Vault in monitor and SMTP configs
-- Zero secrets stored locally — the application is just a consumer
-
-If you're on AWS or GCP, stay tuned — this naturally extends to AWS Secrets Manager and GCP Secret Manager down the line.
-
-### 🔔 More notification channels
-
-Email, webhook, Discord, Teams, Slack, and Telegram cover the most common cases, but alerting is only as good as the channels people actually watch. Still on the list:
-
-- **SMS** — via Twilio or similar, for when the internet itself is on fire and nobody's checking Slack
-- **PagerDuty / OpsGenie** — for when "someone should look at this" needs to become "wake someone up right now"
-
-### 📡 More monitor types
-
-Five monitor types cover most cases, but there's always more ground to cover:
-
-- **gRPC** — health check support for services that don't speak HTTP
-- **Redis / Valkey** — `PING` and key presence checks for your cache layer
-- **Playwright / Puppeteer** — full browser-based synthetic monitoring for flows that require JavaScript rendering (login flows, checkout funnels, SPAs)
-- **Kafka / RabbitMQ** — broker connectivity and lag monitoring
-- **Custom scripted checks** — run an arbitrary Node.js snippet, return a status — full flexibility for anything that doesn't fit a predefined type
-
----
-
-> 💡 Have a feature request that's not on this list? Open an issue — the best roadmap items come from people actually running the thing in production.
 
 ---
 

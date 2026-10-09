@@ -7,7 +7,7 @@ import { ToastProvider } from '../components/ui'
 import VaultPage from './Vault'
 
 vi.mock('../api/client', () => ({
-  api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }))
 
 const vaults = [
@@ -366,5 +366,196 @@ describe('VaultPage', () => {
     await user.keyboard('{Enter}')
     expect(await screen.findByText('db-login')).toBeInTheDocument()
     expect(production).toHaveAttribute('aria-current', 'true')
+  })
+})
+
+describe('VaultPage with a HashiCorp vault', () => {
+  const hashicorpVault = { id: 3, name: 'Corporate Vault', type: 'hashicorp', description: null, createdAt: 1, updatedAt: 1 }
+  const connection = {
+    address: 'https://vault.example.com:8200', namespace: 'team-a', mount: 'secret', authMethod: 'token',
+    approleMount: 'approle', roleId: '', caCert: '', hasToken: true, hasSecretId: false,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/admin/vaults') return [...vaults, hashicorpVault]
+      if (path === '/admin/vaults/1/secrets') return secrets
+      if (path === '/admin/vaults/3/secrets') return [{ id: 30, vaultId: 3, name: 'db', type: 'userpass', createdAt: 1, updatedAt: 1 }]
+      if (path === '/admin/vaults/3') return { ...hashicorpVault, connection }
+      if (path === '/admin/vaults/3/secrets/30/reveal') {
+        return { id: 30, name: 'db', type: 'userpass', value: { username: 'svc', password: 'pw' }, source: { path: 'bsp/db' } }
+      }
+      throw new Error(`Unexpected GET ${path}`)
+    })
+    vi.mocked(api.post).mockResolvedValue({})
+    vi.mocked(api.patch).mockResolvedValue({})
+  })
+
+  it('creates a HashiCorp vault with a token connection', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Create vault' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText(/Vault name/), 'Corporate Vault')
+    await user.click(within(dialog).getByRole('button', { name: /Type/ }))
+    await user.click(within(dialog).getByRole('option', { name: /HashiCorp Vault/ }))
+    await user.type(within(dialog).getByLabelText(/^Address/), 'http://vault:8200')
+    expect(within(dialog).getByText(/sent unencrypted over http/)).toBeInTheDocument()
+    await user.type(within(dialog).getByLabelText(/^Token/), 's.token')
+    await user.click(within(dialog).getByRole('button', { name: 'Create Vault' }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/vaults', expect.objectContaining({
+      name: 'Corporate Vault',
+      type: 'hashicorp',
+      connection: expect.objectContaining({ address: 'http://vault:8200', mount: 'secret', authMethod: 'token', token: 's.token' }),
+    })))
+  })
+
+  it('sends no connection for a local vault', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Create vault' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText(/Vault name/), 'Plain')
+    await user.click(within(dialog).getByRole('button', { name: 'Create Vault' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/vaults', { name: 'Plain', description: undefined }))
+  })
+
+  it('adds a secret reference with a path, and a key only for Secure Value', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await openVault(user, 'Corporate Vault')
+    await user.click(await screen.findByRole('button', { name: /Add Reference/ }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).queryByLabelText(/^Key/)).not.toBeInTheDocument()
+    expect(within(dialog).queryByLabelText(/^Password/)).not.toBeInTheDocument()
+    await user.type(within(dialog).getByLabelText(/Reference name/), 'api')
+    await user.click(within(dialog).getByRole('button', { name: /Secure Value/ }))
+    await user.type(within(dialog).getByLabelText(/^Path/), 'bsp/db')
+    await user.type(within(dialog).getByLabelText(/^Key/), 'api_key')
+    await user.click(within(dialog).getByRole('button', { name: 'Save Reference' }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/vaults/3/secrets', { name: 'api', type: 'value', path: 'bsp/db', key: 'api_key' }))
+  })
+
+  it('shows where a revealed value came from', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await openVault(user, 'Corporate Vault')
+    await user.click(await screen.findByRole('button', { name: /Reveal/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'db' })
+    expect(within(dialog).getByText(/Source: bsp\/db/)).toBeInTheDocument()
+  })
+
+  it('tests the connection and reports the result', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.post).mockResolvedValueOnce({ ok: true, ttlSeconds: 900 })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<ToastProvider><QueryClientProvider client={queryClient}><VaultPage /></QueryClientProvider></ToastProvider>)
+    await openVault(user, 'Corporate Vault')
+    await user.click(await screen.findByRole('button', { name: /Test connection/ }))
+    expect(await screen.findByText(/Connected to HashiCorp Vault. Token valid for 900 s/)).toBeInTheDocument()
+    expect(api.post).toHaveBeenCalledWith('/admin/vaults/3/test')
+
+    vi.mocked(api.post).mockRejectedValueOnce(new Error('permission denied (HTTP 403)'))
+    await user.click(screen.getByRole('button', { name: /Test connection/ }))
+    expect(await screen.findByText(/Connection failed: permission denied/)).toBeInTheDocument()
+  })
+
+  it('saves connection settings without resending stored credentials', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await openVault(user, 'Corporate Vault')
+    await user.click(await screen.findByRole('button', { name: /Connection settings/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Connection settings' })
+    const mount = await within(dialog).findByLabelText(/KV v2 mount/)
+    await user.clear(mount)
+    await user.type(mount, 'kv')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/vaults/3', {
+      connection: expect.objectContaining({ address: connection.address, mount: 'kv', token: '', secretId: '' }),
+    }))
+  })
+
+  it('reads the token from a local vault secret, offering only local vaults', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Create vault' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText(/Vault name/), 'Corporate')
+    await user.click(within(dialog).getByRole('button', { name: /Type/ }))
+    await user.click(within(dialog).getByRole('option', { name: /HashiCorp Vault/ }))
+    await user.type(within(dialog).getByLabelText(/^Address/), 'https://vault:8200')
+    await user.click(within(dialog).getByRole('button', { name: 'From Vault' }))
+
+    const vaultSelect = within(dialog).getByLabelText(/^Vault$/)
+    expect(within(vaultSelect).queryByRole('option', { name: 'Corporate Vault' })).not.toBeInTheDocument()
+    await user.selectOptions(vaultSelect, 'Production')
+    const secretSelect = within(dialog).getByLabelText(/^Secret$/)
+    await within(secretSelect).findByRole('option', { name: /api-token/ })
+    expect(within(secretSelect).queryByRole('option', { name: /db-login/ })).not.toBeInTheDocument()
+    await user.selectOptions(secretSelect, 'api-token (value)')
+    await user.click(within(dialog).getByRole('button', { name: 'Create Vault' }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/vaults', expect.objectContaining({
+      type: 'hashicorp',
+      connection: expect.objectContaining({ address: 'https://vault:8200', credentialsRef: { vaultId: 1, secretId: 11 } }),
+    })))
+  })
+
+  it('tests the unsaved connection from the form footer, between Cancel and Create', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.post).mockResolvedValueOnce({ ok: true, ttlSeconds: 900 })
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Create vault' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: /Type/ }))
+    await user.click(within(dialog).getByRole('option', { name: /HashiCorp Vault/ }))
+    await user.type(within(dialog).getByLabelText(/^Address/), 'https://vault:8200')
+    await user.type(within(dialog).getByLabelText(/^Token/), 's.token')
+
+    const labels = within(dialog).getAllByRole('button').map((b) => b.textContent?.trim())
+    const cancel = labels.indexOf('Cancel')
+    expect(labels[cancel + 1]).toMatch(/Test connection$/)
+    expect(labels[cancel + 2]).toBe('Create Vault')
+
+    await user.click(within(dialog).getByRole('button', { name: /Test connection/ }))
+    expect(await within(dialog).findByText(/Connected. Token valid for 900 s/)).toBeInTheDocument()
+    expect(api.post).toHaveBeenCalledWith('/admin/vaults/test-connection', expect.objectContaining({
+      connection: expect.objectContaining({ address: 'https://vault:8200', token: 's.token' }),
+    }))
+  })
+
+  it('drops the saved credentials secret when the address changes, so it is chosen again', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/admin/vaults') return [...vaults, hashicorpVault]
+      if (path === '/admin/vaults/1/secrets') return secrets
+      if (path === '/admin/vaults/3/secrets') return []
+      if (path === '/admin/vaults/3') return { ...hashicorpVault, connection: { ...connection, hasToken: false, credentialsRef: { vaultId: 1, secretId: 11 } } }
+      throw new Error(`Unexpected GET ${path}`)
+    })
+    renderPage()
+    await openVault(user, 'Corporate Vault')
+    await user.click(await screen.findByRole('button', { name: /Connection settings/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Connection settings' })
+    expect(await within(dialog).findByLabelText(/^Secret$/)).toHaveValue('11')
+
+    const address = within(dialog).getByLabelText(/^Address/)
+    await user.clear(address)
+    await user.type(address, 'https://other.example.com:8200')
+    expect(within(dialog).queryByLabelText(/^Secret$/)).not.toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/^Token/)).toBeInTheDocument()
+  })
+
+  it('only offers HashiCorp tools on HashiCorp vaults', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await openVault(user)
+    await screen.findByText('db-login')
+    expect(screen.queryByRole('button', { name: /Test connection/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Connection settings/ })).not.toBeInTheDocument()
   })
 })
