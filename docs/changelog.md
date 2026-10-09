@@ -7,8 +7,12 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ### Added
 
-- **Telegram notification channel**: send monitor alerts, recoveries and TLS certificate warnings to a Telegram chat, group or channel through your own bot (bot token and chat ID), with the same severity emoji, optional templated line and alert hygiene as the other channels. See [Telegram integration](telegram-integration.md).
+- **Telegram notification channel**: send monitor alerts, recoveries and TLS certificate warnings to a Telegram chat, group or channel through your own bot (bot token and chat ID), with the same severity emoji, optional templated line and alert hygiene as the other channels. A saved bot token is shown only by its last four characters, and it can be read from the vault instead of being stored in the channel. See [Telegram integration](telegram-integration.md).
 - **Monitor details page**: click a monitor's name in **Monitoring → Monitors**, or its tile on the **Dashboard**, to see its response time chart (average, p95 or maximum, in the style of the status page), uptime bars (hourly, 6-hourly or daily, depending on the range), response percentiles (p50, p95, p99), the 10 latest failed checks with their errors, incidents with their MTTR and the monitor's configuration, for the last 24 hours, 7, 30 or 90 days. See [Monitor details](monitors.md#monitor-details).
+
+### Changed
+
+- **Notification channel type picker**: the type in **New Notification Channel** is now a searchable dropdown, like the monitor type, instead of a row of buttons, so it stays one control tall as more channel types are added.
 
 ## [0.2.1] - 2026-10-08
 

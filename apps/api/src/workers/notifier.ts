@@ -36,7 +36,7 @@ async function deliverToChannel(channel: ChannelRow, vars: Record<string, string
   } else if (channel.type === 'slack') {
     await sendSlack(config as { webhookUrl: string; text?: string }, vars)
   } else if (channel.type === 'telegram') {
-    await sendTelegram(config as { botToken: string; chatId: string; text?: string }, vars)
+    await sendTelegram(config as unknown as TelegramConfig, vars)
   } else {
     throw new Error(`Unsupported notification channel type: ${channel.type}`)
   }
@@ -724,10 +724,25 @@ function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-async function sendTelegram(
-  config: { botToken: string; chatId: string; text?: string },
-  vars: Record<string, string>,
-) {
+/** "2026-10-09T17:00:22.988Z" → "2026-10-09 17:00:22 UTC"; anything that is not an ISO instant is shown as is. */
+function readableTimestamp(iso: string | undefined): string {
+  if (!iso) return 'unknown'
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.\d+)?Z$/.exec(iso)
+  return match ? `${match[1]} ${match[2]} UTC` : iso
+}
+
+interface TelegramConfig { botToken?: string; vault?: VaultRef; chatId: string; text?: string }
+
+async function resolveTelegramToken(config: TelegramConfig): Promise<string> {
+  if (!config.vault) return config.botToken ?? ''
+  const secret = await resolveVaultSecret(config.vault)
+  const token = (secret['value'] ?? '').trim()
+  if (!token) throw new Error('Telegram vault secret has no bot token: use a value secret')
+  return token
+}
+
+async function sendTelegram(config: TelegramConfig, vars: Record<string, string>) {
+  const botToken = await resolveTelegramToken(config)
   const statusText = vars['status'] ?? 'unknown'
   const monitorName = vars['monitor_name'] ?? 'Unknown monitor'
   const emoji = SEVERITY_EMOJI[severityOf(statusText)]
@@ -744,7 +759,7 @@ async function sendTelegram(
     `<b>Previous:</b> ${escapeHtml(vars['previous_status'] ?? 'unknown')}`,
     `<b>Type:</b> ${escapeHtml(vars['monitor_type'] ?? 'unknown')}`,
     ...(detailText ? [`<b>${detailLabel(vars)}:</b> ${detailText}`] : []),
-    `<i>Checked at ${escapeHtml(vars['checked_at'] ?? 'unknown')}</i>`,
+    `<i>Checked at ${escapeHtml(readableTimestamp(vars['checked_at']))}</i>`,
   ].join('\n')
 
   // Cutting the finished message could split an HTML tag, so an oversized one loses the tail of the details field only.
@@ -756,10 +771,10 @@ async function sendTelegram(
 
   // The bot token is part of the URL path. Only the status code and Telegram's own description are reported
   // (the Bot API never echoes the token), so the token never reaches the delivery history.
-  const res = await fetch(`https://api.telegram.org/bot${config.botToken}/sendMessage`, {
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: config.chatId, text, parse_mode: 'HTML', link_preview_options: { is_disabled: true } }),
+    body: JSON.stringify({ chat_id: config.chatId.trim().replace(/^#(?=-?\d)/, ''), text, parse_mode: 'HTML', link_preview_options: { is_disabled: true } }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   })
   if (!res.ok) {

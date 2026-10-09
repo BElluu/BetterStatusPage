@@ -59,13 +59,18 @@ Then get the chat ID:
    |-------|-------------|
    | **Name** | A label for this channel, e.g. `Telegram #alerts` |
    | **Type** | Select **Telegram** |
-   | **Bot Token** | The token from BotFather |
+   | **Bot Token** | The token from BotFather, entered directly or read **From Vault** (see below) |
    | **Chat ID** | The chat ID or `@channelusername` from step 2 |
    | **Message Text** *(optional)* | A line placed above the message — use it for context or mentions. Supports template variables |
 
 5. Toggle **Enabled** on.
 6. Toggle **Notify on recovery** if you want a message when the monitor comes back up.
 7. Click **Create Channel**.
+
+### Keeping the bot token safe
+
+- **Masked token.** A saved token is never shown again in full: the form displays only its last four characters, for example `••••••••MSGo`. Leave the field untouched to keep the stored token, or paste a new token to replace it.
+- **From Vault.** Choose **From Vault** above **Bot Token** to keep the token in the encrypted [vault](vault.md) instead of the channel. Pick the **Vault** and the **Secret**; only `value` secrets are offered, and the value is used as the bot token as it is. The token is read from the vault each time a message is sent, so rotating the secret needs no change to the channel.
 
 Then assign the channel to a monitor in the monitor's **Alerts** panel, exactly as for any other channel (see [Notification channels](notification-channels.md)).
 

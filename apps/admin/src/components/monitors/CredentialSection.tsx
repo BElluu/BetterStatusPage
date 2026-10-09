@@ -8,6 +8,10 @@ interface CredentialSectionProps extends VaultPickerProps {
   mappingFields: { key: string; label: string }[]
   /** Optional note shown at the top of the vault/direct section */
   note?: string
+  /** What a `value` secret is used as; defaults to the password / client secret. */
+  valueLabel?: string
+  /** Restricts the secret dropdown to these types; every type is offered when omitted. */
+  secretTypes?: string[]
   /** Direct-input fields — rendered only when not using vault */
   children: ReactNode
 }
@@ -20,7 +24,7 @@ interface CredentialSectionProps extends VaultPickerProps {
 export function CredentialSection({
   vault, onVaultChange,
   vaults, secretsByVault, onLoadSecrets,
-  mappingFields, note, children,
+  mappingFields, note, valueLabel = 'password / client secret', secretTypes, children,
 }: CredentialSectionProps) {
   const isVault = !!vault
 
@@ -28,7 +32,7 @@ export function CredentialSection({
   const selectedSecretId = vault?.secretId
   const fieldMapping     = vault?.fieldMapping ?? {}
 
-  const secrets        = selectedVaultId ? (secretsByVault[selectedVaultId] ?? null) : null
+  const secrets        = selectedVaultId ? (secretsByVault[selectedVaultId]?.filter((s) => !secretTypes || secretTypes.includes(s.type)) ?? null) : null
   const selectedSecret = secrets?.find((s) => s.id === selectedSecretId)
 
   return (
@@ -119,7 +123,7 @@ export function CredentialSection({
           {/* value — single value used as password / client secret */}
           {selectedSecret?.type === 'value' && (
             <p className="text-xs rounded-lg px-3 py-2" style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }}>
-              The secret value will be used as the <strong>password / client secret</strong>.
+              The secret value will be used as the <strong>{valueLabel}</strong>.
             </p>
           )}
 

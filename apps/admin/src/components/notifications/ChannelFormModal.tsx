@@ -1,11 +1,13 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { api } from '../../api/client'
 import { DEFAULT_ALERT_POLICY } from '@bsp/shared'
 import type { ChannelAlertPolicy, NotificationChannel } from '@bsp/shared'
-import { CHANNEL_TYPES, CHANNEL_TYPE_ORDER, Field, buildChannelConfig, initialDrafts, isChannelType, type ChannelDrafts, type ChannelType } from './channelTypes'
+import { ChannelTypePicker } from './ChannelTypePicker'
+import { CHANNEL_TYPES, Field, buildChannelConfig, initialDrafts, isChannelType, type ChannelDrafts, type ChannelType } from './channelTypes'
 import { ModalHeader, ModalShell } from '../ModalShell'
 import { SidePanelFrame, SideTabStrip, type SidePanelMeta, type SideTab } from '../SidePanel'
 import { Alert, Switch } from '../ui'
+import type { VaultPickerProps } from '../monitors/monitorFormParts'
 
 interface Props {
   channel: NotificationChannel | null
@@ -63,6 +65,24 @@ export default function ChannelFormModal({ channel, initialType, onClose, onSave
   function setDraft<K extends ChannelType>(key: K, draft: ChannelDrafts[K]) {
     setDrafts((current) => ({ ...current, [key]: draft }))
   }
+
+  // Vaults for the credential fields; secrets load per vault, the stored one right away.
+  const [vaults, setVaults] = useState<VaultPickerProps['vaults']>([])
+  const [secretsByVault, setSecretsByVault] = useState<VaultPickerProps['secretsByVault']>({})
+  async function loadSecrets(vaultId: number) {
+    if (secretsByVault[vaultId]) return
+    try {
+      const secrets = await api.get<VaultPickerProps['secretsByVault'][number]>(`/admin/vaults/${vaultId}/secrets`)
+      setSecretsByVault((prev) => ({ ...prev, [vaultId]: secrets }))
+    } catch { /* the picker shows an empty secret list */ }
+  }
+  useEffect(() => {
+    api.get<VaultPickerProps['vaults']>('/admin/vaults').then(setVaults).catch(() => {})
+    const storedVaultId = drafts.telegram.vault?.vaultId
+    if (storedVaultId) loadSecrets(storedVaultId)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const vaultPicker: VaultPickerProps = { vaults, secretsByVault, onLoadSecrets: loadSecrets }
 
   // Alert hygiene
   const initialPolicy = readAlertPolicy(channel)
@@ -164,28 +184,11 @@ export default function ChannelFormModal({ channel, initialType, onClose, onSave
             <input value={name} onChange={(e) => setName(e.target.value)} required className="input-sig" placeholder="My Email Alert" />
           </Field>
 
-          {/* Type toggle */}
-          <div role="group" aria-labelledby={`${titleId}-type`}>
-            <p id={`${titleId}-type`} className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>Type</p>
-            <div className="flex flex-wrap rounded-lg p-1 gap-1" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}>
-              {CHANNEL_TYPE_ORDER.map((id) => (
-                <button key={id} type="button" onClick={() => setType(id)} aria-pressed={type === id}
-                  className={`flex-1 min-w-[88px] text-xs font-medium py-1.5 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 focus-ring ${type === id ? 'selection-active' : ''}`}
-                  style={type === id
-                    ? { background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)', border: '1px solid color-mix(in srgb, var(--m3-primary) 25%, transparent)' }
-                    : { color: 'var(--m3-secondary)', border: '1px solid transparent' }
-                  }
-                >
-                  {CHANNEL_TYPES[id].icon(14)}
-                  {CHANNEL_TYPES[id].label}
-                </button>
-              ))}
-            </div>
-          </div>
+          <ChannelTypePicker value={type} onChange={setType} />
 
           <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
 
-          <ChannelTypeFields type={type} drafts={drafts} onChange={setDraft} />
+          <ChannelTypeFields type={type} drafts={drafts} onChange={setDraft} vaultPicker={vaultPicker} />
 
           <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
 
@@ -308,11 +311,12 @@ function PolicyBlock({ label, hint, checked, onChange, children }: {
 }
 
 /** Renders the edit fields of the selected type from its descriptor. */
-function ChannelTypeFields<K extends ChannelType>({ type, drafts, onChange }: {
+function ChannelTypeFields<K extends ChannelType>({ type, drafts, onChange, vaultPicker }: {
   type: K
   drafts: ChannelDrafts
   onChange: (type: K, draft: ChannelDrafts[K]) => void
+  vaultPicker: VaultPickerProps
 }) {
   const { Fields } = CHANNEL_TYPES[type]
-  return <Fields draft={drafts[type]} onChange={(draft) => onChange(type, draft)} />
+  return <Fields draft={drafts[type]} onChange={(draft) => onChange(type, draft)} vaultPicker={vaultPicker} />
 }

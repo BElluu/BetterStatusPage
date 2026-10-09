@@ -6,7 +6,7 @@ import { api } from '../../api/client'
 import ChannelFormModal from './ChannelFormModal'
 
 vi.mock('../../api/client', () => ({
-  api: { post: vi.fn(), patch: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(), patch: vi.fn() },
 }))
 
 type User = ReturnType<typeof userEvent.setup>
@@ -59,19 +59,20 @@ function channel(patch: Partial<NotificationChannel>): NotificationChannel {
 describe('ChannelFormModal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(api.get).mockImplementation(async (path: string) => (path === '/admin/vaults' ? [{ id: 3, name: 'Alerts' }] : [{ id: 9, name: 'telegram-bot', type: 'value' }]) as never)
     vi.mocked(api.post).mockResolvedValue({})
     vi.mocked(api.patch).mockResolvedValue({})
   })
 
   it('starts a new channel on the preselected type', () => {
     render(<ChannelFormModal channel={null} initialType="slack" onClose={vi.fn()} onSaved={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'Slack' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /Type Slack/ })).toBeInTheDocument()
     expect(screen.getByPlaceholderText('https://hooks.slack.com/services/…')).toBeInTheDocument()
   })
 
   it('ignores the preselected type when editing', () => {
     render(<ChannelFormModal channel={channel({})} initialType="slack" onClose={vi.fn()} onSaved={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'Email' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /Type Email/ })).toBeInTheDocument()
   })
 
   it('creates an email channel with the default template and policy', async () => {
@@ -100,6 +101,33 @@ describe('ChannelFormModal', () => {
     expect(policy.quietHours).toMatchObject({ enabled: false, start: '22:00', end: '07:00', mode: 'defer' })
   })
 
+  it('sends a Telegram bot token from the vault instead of a direct one', async () => {
+    const user = userEvent.setup()
+    renderModal()
+
+    await user.type(field('Name'), 'Bot')
+    await user.click(screen.getByRole('button', { name: /^Type/ }))
+    await user.click(screen.getByRole('option', { name: /^Telegram/ }))
+    await user.click(screen.getByRole('button', { name: 'From Vault' }))
+    // The first vault is preselected; its secrets load into the second dropdown.
+    await screen.findByRole('option', { name: 'telegram-bot (value)' })
+    await user.selectOptions(screen.getAllByRole('combobox')[1]!, '9')
+    await user.type(field('Chat ID'), '-100500')
+    await create(user)
+
+    expect(submittedBody()['config']).toEqual({ vault: { vaultId: 3, secretId: 9, fieldMapping: {} }, chatId: '-100500' })
+  })
+
+  it('shows a stored Telegram token masked and sends the masked value back untouched', async () => {
+    const user = userEvent.setup()
+    renderModal(channel({ type: 'telegram', config: { botToken: '••••••••MSGo', chatId: '-100500' } }))
+
+    expect(field('Bot Token')).toHaveValue('••••••••MSGo')
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledOnce())
+    expect(vi.mocked(api.patch).mock.calls[0]?.[1]).toMatchObject({ config: { botToken: '••••••••MSGo', chatId: '-100500' } })
+  })
+
   it('does not submit without a name', async () => {
     const user = userEvent.setup()
     renderModal()
@@ -115,7 +143,8 @@ describe('ChannelFormModal', () => {
     renderModal()
 
     await user.type(field('Name'), 'Hook')
-    await user.click(screen.getByRole('button', { name: /Webhook/ }))
+    await user.click(screen.getByRole('button', { name: /^Type/ }))
+    await user.click(screen.getByRole('option', { name: /Webhook/ }))
     expect(screen.getByText('No custom headers.')).toBeInTheDocument()
     await user.type(field('URL'), 'https://hooks.example.test/alert')
     await user.click(screen.getByRole('button', { name: 'Add header' }))
@@ -141,7 +170,8 @@ describe('ChannelFormModal', () => {
     renderModal()
 
     await user.type(field('Name'), 'Hook')
-    await user.click(screen.getByRole('button', { name: /Webhook/ }))
+    await user.click(screen.getByRole('button', { name: /^Type/ }))
+    await user.click(screen.getByRole('option', { name: /Webhook/ }))
     await user.type(field('URL'), 'https://hooks.example.test/alert')
     await user.click(screen.getByRole('button', { name: 'Add header' }))
     await user.click(screen.getAllByRole('button', { name: /^Remove header/ }).at(-1)!)
@@ -203,7 +233,8 @@ describe('ChannelFormModal', () => {
     renderModal()
 
     await user.type(field('Name'), type)
-    await user.click(screen.getByRole('button', { name: type }))
+    await user.click(screen.getByRole('button', { name: /^Type/ }))
+    await user.click(screen.getByRole('option', { name: new RegExp(`^${type}`) }))
     await fill(user)
     await create(user)
     expect(submittedBody()).toMatchObject({ type: type.toLowerCase(), config })

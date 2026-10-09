@@ -1,5 +1,8 @@
 import type { ComponentType, ReactNode } from 'react'
 import { Field } from '../ui'
+import type { VaultRef } from '@bsp/shared'
+import { CredentialSection } from '../monitors/CredentialSection'
+import type { VaultPickerProps } from '../monitors/monitorFormParts'
 import { DiscordIcon, SlackIcon, TeamsIcon, TelegramIcon } from './icons'
 
 export type ChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack' | 'telegram'
@@ -27,7 +30,7 @@ interface WebhookDraft { url: string; method: string; headers: [string, string][
 interface DiscordDraft { webhookUrl: string; username: string; avatarUrl: string; content: string }
 interface TeamsDraft { webhookUrl: string; summary: string }
 interface SlackDraft { webhookUrl: string; text: string }
-interface TelegramDraft { botToken: string; chatId: string; text: string }
+interface TelegramDraft { botToken: string; vault: VaultRef | undefined; chatId: string; text: string }
 
 export interface ChannelDrafts {
   email: EmailDraft
@@ -41,6 +44,8 @@ export interface ChannelDrafts {
 export interface ChannelFieldsProps<D> {
   draft: D
   onChange: (draft: D) => void
+  /** Vaults and their secrets, for the types that can read a credential from the vault. */
+  vaultPicker: VaultPickerProps
 }
 
 /**
@@ -174,12 +179,22 @@ function SlackFields({ draft, onChange }: ChannelFieldsProps<SlackDraft>) {
   )
 }
 
-function TelegramFields({ draft, onChange }: ChannelFieldsProps<TelegramDraft>) {
+function TelegramFields({ draft, onChange, vaultPicker }: ChannelFieldsProps<TelegramDraft>) {
   return (
     <>
-      <Field label="Bot Token">
-        <input value={draft.botToken} onChange={(e) => onChange({ ...draft, botToken: e.target.value })} required className="input-sig" placeholder="123456789:AA…" autoComplete="off" />
-      </Field>
+      <CredentialSection
+        {...vaultPicker}
+        vault={draft.vault}
+        onVaultChange={(vault) => onChange({ ...draft, vault })}
+        mappingFields={[]}
+        valueLabel="bot token"
+        secretTypes={['value']}
+      >
+        <Field label="Bot Token">
+          {/* A stored token comes back masked; selecting it on focus makes replacing it a single paste. */}
+          <input value={draft.botToken} onChange={(e) => onChange({ ...draft, botToken: e.target.value })} onFocus={(e) => e.target.select()} required className="input-sig" placeholder="123456789:AA…" autoComplete="off" />
+        </Field>
+      </CredentialSection>
       <Field label="Chat ID">
         <input value={draft.chatId} onChange={(e) => onChange({ ...draft, chatId: e.target.value })} required className="input-sig" placeholder="-1001234567890 or @channelname" />
       </Field>
@@ -321,9 +336,9 @@ export const CHANNEL_TYPES: { [K in ChannelType]: ChannelTypeDescriptor<ChannelD
     label: 'Telegram',
     hint: 'Bot and chat ID',
     icon: (size) => <TelegramIcon size={size} />,
-    defaultDraft: () => ({ botToken: '', chatId: '', text: '' }),
-    parse: (c) => ({ botToken: str(c['botToken']), chatId: str(c['chatId']), text: str(c['text']) }),
-    build: (d) => ({ botToken: d.botToken.trim(), chatId: d.chatId.trim(), ...(d.text ? { text: d.text } : {}) }),
+    defaultDraft: () => ({ botToken: '', vault: undefined, chatId: '', text: '' }),
+    parse: (c) => ({ botToken: str(c['botToken']), vault: (c['vault'] as VaultRef | undefined) ?? undefined, chatId: str(c['chatId']), text: str(c['text']) }),
+    build: (d) => ({ ...(d.vault ? { vault: d.vault } : { botToken: d.botToken.trim() }), chatId: d.chatId.trim(), ...(d.text ? { text: d.text } : {}) }),
     Fields: TelegramFields,
   },
 }

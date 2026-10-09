@@ -33,7 +33,10 @@ export interface SlackNotificationConfig {
 }
 
 export interface TelegramNotificationConfig {
-  botToken: string
+  /** Direct token; the API only ever returns it masked. Ignored when `vault` is set. */
+  botToken?: string
+  /** Vault secret holding the token: a `value` secret. */
+  vault?: VaultRef
   chatId: string
   text?: string
 }
