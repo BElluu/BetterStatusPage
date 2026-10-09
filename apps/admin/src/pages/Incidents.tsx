@@ -6,6 +6,7 @@ import { ConfirmModal } from '../components/ConfirmModal'
 import { NotifySubscribersCheckbox } from '../components/subscribers/NotifySubscribersCheckbox'
 import { Modal } from '../components/ModalShell'
 import { Alert, EmptyState, ErrorState, Field, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
+import { formatDate, formatDateTime } from '../lib/dateFormat'
 
 interface Tone { text: string; bar: string; bg: string }
 
@@ -144,7 +145,7 @@ export default function IncidentsPage() {
                     </span>
                   </span>
                   <span className="font-mono text-xs flex-shrink-0" style={{ color: 'var(--m3-secondary)' }}>
-                    {new Date(incident.startedAt).toLocaleDateString()}
+                    {formatDate(incident.startedAt)}
                   </span>
                 </button>
                 <button
@@ -217,7 +218,7 @@ export default function IncidentsPage() {
                                     {update.status}
                                   </span>
                                   <span className="font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
-                                    {new Date(update.postedAt).toLocaleString()}
+                                    {formatDateTime(update.postedAt)}
                                   </span>
                                 </div>
                                 <p className="text-sm" style={{ color: 'var(--m3-on-surface)' }}>{update.body}</p>

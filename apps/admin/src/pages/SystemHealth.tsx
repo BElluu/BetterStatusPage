@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { Alert, ErrorState, LoadingState, PageContainer, PageHeader } from '../components/ui'
+import { formatDateTime } from '../lib/dateFormat'
 
 type ComponentStatus = 'ok' | 'attention' | 'error' | 'disabled'
 
@@ -33,7 +34,7 @@ interface SystemHealthReport {
 }
 
 function formatDate(value: number | null) {
-  return value === null ? 'Never' : new Date(value).toLocaleString()
+  return value === null ? 'Never' : formatDateTime(value)
 }
 
 function formatUptime(totalSeconds: number) {
@@ -126,7 +127,7 @@ export default function SystemHealthPage() {
 
       {report && <>
         <div className="rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4" style={{ background: report.status === 'healthy' ? 'var(--m3-up-bg)' : 'var(--m3-error-container)' }}>
-          <div><p className="font-headline text-xl font-semibold">{report.status === 'healthy' ? 'BetterStatusPage is healthy' : 'BetterStatusPage needs attention'}</p><p className="text-sm opacity-80">Updated {new Date(report.generatedAt).toLocaleString()} · refreshes every 15 seconds</p></div>
+          <div><p className="font-headline text-xl font-semibold">{report.status === 'healthy' ? 'BetterStatusPage is healthy' : 'BetterStatusPage needs attention'}</p><p className="text-sm opacity-80">Updated {formatDateTime(report.generatedAt)} · refreshes every 15 seconds</p></div>
           <StatusBadge status={report.status} />
         </div>
 

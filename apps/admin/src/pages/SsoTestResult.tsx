@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { Alert, ErrorState, LoadingState, PageContainer, PageHeader } from '../components/ui'
+import { formatDateTime } from '../lib/dateFormat'
 
 interface TestResult {
   issuer: string
@@ -65,7 +66,7 @@ export default function SsoTestResultPage() {
               <>
                 <Outcome result={data} />
                 <p className="text-sm" style={{ color: 'var(--m3-secondary)' }}>
-                  Issuer <code>{data.issuer}</code> · tested {new Date(data.testedAt).toLocaleString()}
+                  Issuer <code>{data.issuer}</code> · tested {formatDateTime(data.testedAt)}
                 </p>
                 {ordered.length > 0 && (
                   <div className="rounded-2xl overflow-x-auto" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>

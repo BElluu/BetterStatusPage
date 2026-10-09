@@ -9,6 +9,11 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 - **Monitor details page**: click a monitor's name in **Monitoring → Monitors**, or its tile on the **Dashboard**, to see its response time chart (average, p95 or maximum, in the style of the status page), uptime bars (hourly, 6-hourly or daily, depending on the range), response percentiles (p50, p95, p99), the 10 latest failed checks with their errors, incidents with their MTTR and the monitor's configuration, for the last 24 hours, 7, 30 or 90 days. See [Monitor details](monitors.md#monitor-details).
 
+### Fixed
+
+- **Development restart after a killed process**: starting the API no longer fails with "BetterStatusPage is still running" when the previous process was killed (Ctrl+C or a hot reload on Windows) less than 30 seconds earlier.
+- **Date and time format**: the admin panel shows dates as `dd.mm.yyyy` and 24-hour time by default, regardless of the browser language. **Settings → Date and time format** lets you pick `dd-mm-yyyy`, `mm/dd/yyyy`, `yyyy-mm-dd`, `yyyy.mm.dd` or 12-hour time; the choice is stored per browser. See [Date and time format](users-and-roles.md#date-and-time-format).
+
 ## [0.2.1] - 2026-10-08
 
 ### Added

@@ -89,7 +89,7 @@ Resetting another user's 2FA, turning your own 2FA on or off, changing your pass
 
 ## Your own account
 
-**Settings** (the link at the bottom of the sidebar) is available to admins, operators and the branding role. It has three sections.
+**Settings** (the link at the bottom of the sidebar) is available to admins, operators and the branding role. It has four sections.
 
 ### Change your password
 
@@ -106,6 +106,10 @@ Viewers have no **Settings** page. They replace a temporary password on the stat
 ### Sign out everywhere
 
 **Sign out everywhere** ends this session and every other session of your account. Sessions otherwise last 12 hours from sign-in.
+
+### Date and time format
+
+Under **Date and time format**, choose how the admin panel shows dates (`dd.mm.yyyy`, the default, `dd-mm-yyyy`, `mm/dd/yyyy`, `yyyy-mm-dd` or `yyyy.mm.dd`) and whether time is 24-hour (the default) or 12-hour. The choice is stored in the browser you make it in, so it applies to every user of that browser and is not synced between devices. The public status page is not affected.
 
 ### Sign-in limits
 

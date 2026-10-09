@@ -12,6 +12,7 @@ import { ConfirmModal } from '../components/ConfirmModal'
 import { CopyButton } from '../components/CopyButton'
 import { EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, Pagination, Switch, useToast } from '../components/ui'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
+import { formatDateTime } from '../lib/dateFormat'
 
 export const SUBSCRIBER_EVENT_LABELS: Record<SubscriberEventType, { label: string; hint: string }> = {
   'incident.created':      { label: 'New incidents',         hint: 'When an incident is published' },
@@ -517,7 +518,7 @@ function SubscriberTable() {
                     </td>
                     <td className="px-4 py-3 align-top text-xs" style={{ color: 'var(--m3-on-surface-variant)' }}>{scopeLabel(s)}</td>
                     <td className="px-4 py-3 align-top text-xs" style={{ color: 'var(--m3-secondary)' }}>
-                      {s.lastNotifiedAt ? new Date(s.lastNotifiedAt).toLocaleString() : '—'}
+                      {s.lastNotifiedAt ? formatDateTime(s.lastNotifiedAt) : '—'}
                       {s.lastError && (
                         <div className="mt-0.5" style={{ color: 'var(--m3-down)' }} title={s.lastError}>
                           {s.consecutiveFailures > 0 ? `${s.consecutiveFailures} failed in a row` : 'Last attempt failed'}

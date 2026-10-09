@@ -266,6 +266,14 @@ describe('restore application check', () => {
     assert.equal(fs.existsSync(path.join(process.env['DATA_DIR']!, '.bsp-running')), false)
   })
 
+  it('lets startup replace a fresh marker whose process was killed', () => {
+    setupPaths()
+    writeMarker({ pid: deadPid(), processStartedAt: 0 }, 0)
+    const release = acquireAppLock()
+    release()
+    assert.throws(() => { writeMarker({ pid: deadPid(), processStartedAt: 0 }, 0); assertAppStopped() }, /still running/)
+  })
+
   it('does not let a long-stale marker block restore even if its pid was reused', () => {
     setupPaths()
     writeMarker({ pid: process.ppid, processStartedAt: 0 }, 60 * 60_000)

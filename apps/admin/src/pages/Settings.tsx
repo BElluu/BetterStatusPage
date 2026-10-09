@@ -5,6 +5,7 @@ import { ConfirmModal } from '../components/ConfirmModal'
 import { CopyButton } from '../components/CopyButton'
 import { SsoConfirmationNote, isSsoSession, useSsoConfirmation } from '../components/SsoConfirmation'
 import { Alert, PageContainer, PageHeader } from '../components/ui'
+import { DATE_FORMATS, TIME_FORMATS, formatDateTime, setDatePrefs, useDatePrefs, type DateFormat, type TimeFormat } from '../lib/dateFormat'
 
 interface TwoFactorSetup {
   secret: string
@@ -14,6 +15,7 @@ interface TwoFactorSetup {
 }
 
 export default function SettingsPage() {
+  const datePrefs = useDatePrefs()
   const navigate = useNavigate()
   const currentUser = getCurrentUser()
   // An SSO session confirms these actions at the identity provider instead of with a password.
@@ -122,7 +124,7 @@ export default function SettingsPage() {
         <Alert tone={error ? 'error' : 'success'} className="max-w-2xl">{error || message}</Alert>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-2 max-w-5xl">
+      <div className="grid gap-6 xl:grid-cols-3 max-w-7xl">
         <section className="rounded-2xl p-6" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
           <h2 className="font-headline font-semibold text-lg mb-1">Change password</h2>
           <p className="text-sm mb-5" style={{ color: 'var(--m3-secondary)' }}>Changing your password signs out every other active session.</p>
@@ -137,7 +139,6 @@ export default function SettingsPage() {
             </button>
           </form>
         </section>
-
         <section className="rounded-2xl p-6" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
           <div className="flex items-center justify-between gap-3 mb-1">
             <h2 className="font-headline font-semibold text-lg">Two-factor authentication</h2>
@@ -202,6 +203,24 @@ export default function SettingsPage() {
               <button type="submit" disabled={loading || (!sso && !securityPassword) || !code} className="btn btn-danger-outline">Disable 2FA</button>
             </form>
           )}
+        </section>
+        <section className="rounded-2xl p-6" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
+          <h2 className="font-headline font-semibold text-lg">Date and time format</h2>
+          <p className="text-sm mt-1 mb-4" style={{ color: 'var(--m3-secondary)' }}>Applies to this browser only. Now: {formatDateTime(Date.now())}</p>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-1">
+              <label htmlFor="date-format" className="text-sm font-medium">Date</label>
+              <select id="date-format" className="input-sig" value={datePrefs.date} onChange={(e) => setDatePrefs({ ...datePrefs, date: e.target.value as DateFormat })}>
+                {DATE_FORMATS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="time-format" className="text-sm font-medium">Time</label>
+              <select id="time-format" className="input-sig" value={datePrefs.time} onChange={(e) => setDatePrefs({ ...datePrefs, time: e.target.value as TimeFormat })}>
+                {TIME_FORMATS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+              </select>
+            </div>
+          </div>
         </section>
       </div>
 

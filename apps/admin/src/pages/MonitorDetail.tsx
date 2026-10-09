@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { formatClock, formatDate, formatDateTime, formatDayMonth } from '../lib/dateFormat'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
@@ -27,7 +28,7 @@ const CARD = { background: 'var(--m3-surface-container-low)', border: '1px solid
 const LABEL = 'font-mono text-[10px] uppercase tracking-widest'
 
 const formatPct = (value: number | null) => (value === null ? '—' : `${value.toFixed(3)}%`)
-const dateTime = (ms: number) => new Date(ms).toLocaleString()
+const dateTime = (ms: number) => formatDateTime(ms)
 
 function formatDuration(ms: number | null): string {
   if (ms === null) return '—'
@@ -105,9 +106,8 @@ const BAR_BACKGROUND: Record<UptimeDayStatus, string> = {
 const STEP_TITLE: Record<number, string> = { 1: 'Hourly uptime', 6: 'Uptime per 6 hours', 24: 'Daily uptime' }
 
 function barRange(ts: number, stepHours: number): string {
-  if (stepHours >= 24) return new Date(ts).toLocaleDateString(undefined, { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' })
-  const time = (ms: number) => new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })
-  return `${new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${time(ts)}–${time(ts + stepHours * 3_600_000)}`
+  if (stepHours >= 24) return formatDate(ts, true)
+  return `${formatDayMonth(ts)}, ${formatClock(ts)}–${formatClock(ts + stepHours * 3_600_000)}`
 }
 
 /** One bar per hour, six hours or UTC day depending on the range, in the style of the public status page. */
@@ -391,7 +391,7 @@ export default function MonitorDetailPage() {
                     <li key={incident.id} className="py-2.5" style={i > 0 ? { borderTop: '1px solid var(--m3-outline-variant)' } : undefined}>
                       <b className="text-sm" style={{ color: 'var(--m3-on-surface)' }}>{incident.title}</b>
                       <div className="mt-1 text-xs" style={{ color: 'var(--m3-secondary)' }}>
-                        {new Date(incident.startedAt).toLocaleDateString()} · {incident.impact} · {incident.resolvedAt ? formatDuration(incident.resolvedAt - incident.startedAt) : 'ongoing'}
+                        {formatDate(incident.startedAt)} · {incident.impact} · {incident.resolvedAt ? formatDuration(incident.resolvedAt - incident.startedAt) : 'ongoing'}
                       </div>
                     </li>
                   ))}
