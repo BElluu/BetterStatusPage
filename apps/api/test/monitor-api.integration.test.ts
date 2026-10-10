@@ -3,7 +3,7 @@ import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import { eq } from 'drizzle-orm'
 import { db } from '../src/db/client.js'
-import { maintenanceWindows, monitors } from '../src/db/schema.js'
+import { auditLog, maintenanceWindows, monitors } from '../src/db/schema.js'
 import { maintenanceRoutes } from '../src/routes/maintenance.js'
 import { monitorRoutes } from '../src/routes/monitors.js'
 import { SECRET_MASK } from '../src/services/secretFields.js'
@@ -173,10 +173,29 @@ describe('maintenance input validation', () => {
     }
   })
 
+  it('does not take a list of monitors too long for one statement', async () => {
+    const response = await post({ ...window, monitorIds: Array.from({ length: 1_001 }, (_, i) => i + 1) })
+    assert.equal(response.statusCode, 400)
+    assert.equal(response.json().error, 'monitorIds can name at most 1000 monitors')
+  })
+
   it('checks a moved end against the stored start', async () => {
     const created = (await post({ ...window, notifySubscribers: false })).json()
     assert.equal((await app.inject({ method: 'PATCH', url: `/maintenance/${created.id}`, payload: { endsAt: 500 } })).json().error, 'endsAt must be after startsAt')
     assert.equal((await app.inject({ method: 'PATCH', url: `/maintenance/${created.id}`, payload: { endsAt: 3_000 } })).statusCode, 200)
     assert.equal((await db.select().from(maintenanceWindows).where(eq(maintenanceWindows.id, created.id)))[0]!.endsAt, 3_000)
+  })
+})
+
+describe('resetting a heartbeat token', () => {
+  it('is recorded in the audit log, without the token', async () => {
+    const created = (await app.inject({ method: 'POST', url: '/monitors', payload: { name: 'Audited heartbeat', type: 'webhook', config: {} } })).json()
+    const reset = await app.inject({ method: 'POST', url: `/monitors/${created.id}/reset-token` })
+    assert.equal(reset.statusCode, 200)
+    assert.notEqual(reset.json().webhookToken, created.webhookToken)
+
+    const entry = (await db.select().from(auditLog).where(eq(auditLog.entityName, 'Audited heartbeat'))).find((e) => e.action === 'update')!
+    assert.deepEqual(JSON.parse(entry.diff!), { action: 'heartbeat_token_reset' })
+    assert.equal(JSON.stringify(entry).includes(reset.json().webhookToken), false)
   })
 })

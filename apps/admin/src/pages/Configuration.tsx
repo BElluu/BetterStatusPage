@@ -187,7 +187,7 @@ export default function ConfigurationPage() {
       <section className="rounded-2xl p-5 space-y-3" style={CARD} aria-labelledby="export-heading">
         <h2 id="export-heading" className="font-headline font-semibold text-sm" style={{ color: 'var(--m3-on-surface)' }}>Export</h2>
         <p className="text-sm max-w-2xl" style={{ color: 'var(--m3-secondary)' }}>
-          Download the configuration as one file for version control or another installation. Saved passwords, tokens and webhook URLs are written as <code className="font-mono">••••••••</code>, never with their value.
+          Download the configuration as one file for version control or another installation. Saved passwords, tokens and Slack, Discord and Teams webhook URLs are written as <code className="font-mono">••••••••</code>, never with their value.
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <select aria-label="Export format" value={format} onChange={(e) => setFormat(e.target.value as 'yaml' | 'json')} className="input-sig w-auto">

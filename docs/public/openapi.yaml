@@ -8,14 +8,15 @@ info:
 
     **Authentication.** Send an API token (Administration → API tokens) as `Authorization: Bearer bsp_...`. Each
     operation names the lowest role that may call it. A token carries one role: `operator` covers monitors,
-    incidents, maintenance, notification channels and the layout, `branding` covers the layout only, and `admin`
+    incidents, maintenance, notification channels and the layout, `branding` covers the layout only (of the operations listed here), and `admin`
     covers everything listed here.
 
-    **Secrets.** Passwords, client secrets, credential headers, webhook URLs and bot tokens in a `config` are never
+    **Secrets.** Passwords, client secrets, credential headers, Slack, Discord and Teams webhook URLs and bot tokens in a `config` are never
     returned: they read back as `••••••••`. Send that value back unchanged to keep the stored secret, or send a new
     value (text) to replace it. A masked value that does not match the stored secret, or one that looks like a
-    half-edited mask, is refused with `400`. A kept secret must stay where it is sent: if the `url` (or token, CAS
-    server, database `host` or `port`) changes in the same request, enter the secret again. Changing a `type`
+    half-edited mask, is refused with `400`. A kept secret must stay where it is sent: if the `url` (or the OAuth2
+    `tokenUrl`, the CAS server, a database `host` or `port`, or a webhook channel's `url`) changes in the same
+    request, enter the secret again. Changing a `type`
     needs a new `config` in the same request. Credentials written into a URL (`https://user:pass@host`), a query
     string or a request body are not recognised as secrets and are returned as stored: put them in the
     authentication fields or headers, or read them from a vault.
@@ -23,11 +24,16 @@ info:
     **Keys.** Monitors and notification channels have a unique `key` next to their numeric `id`. The key is generated
     from the name when omitted and stays the same when the name changes.
 
-    **Errors.** `{ "error": "message" }` with `400`, `401`, `403`, `404`, `409` or `429` (`Retry-After` is set; a token
-    is limited to 300 requests per minute).
+    **Errors.** `{ "error": "message" }` with `400`, `401`, `403`, `404`, `409`, `413` (a body over 2 MB), `415` (a
+    content type the endpoint does not read), `422`, `429` (`Retry-After` is set; a token is limited to 300 requests
+    per minute) or `500`. A request made with a token is audited when it changes something.
 servers:
-  - url: /api/v1/admin
-    description: This installation
+  - url: '{baseUrl}/api/v1/admin'
+    description: Your installation
+    variables:
+      baseUrl:
+        default: https://status.example.com
+        description: Where BetterStatusPage is served, without a trailing slash.
 security:
   - bearerAuth: []
 tags:
@@ -89,7 +95,7 @@ paths:
               properties:
                 type: { $ref: '#/components/schemas/MonitorType' }
                 config: { type: object }
-                timeoutMs: { type: integer, minimum: 500, maximum: 60000, default: 10000 }
+                timeoutMs: { type: integer, default: 10000, description: 'Milliseconds, used from 500 to 60000: a value outside that is clamped.' }
                 monitorId:
                   type: integer
                   description: The saved monitor being edited, so a masked secret in `config` is tested as the stored one.
@@ -679,16 +685,25 @@ paths:
       x-role: admin
       requestBody:
         required: true
-        description: 'A configuration document, as written by the export. Send it as JSON, or as YAML with `Content-Type: application/yaml` (also `text/yaml`).'
+        description: 'A configuration document, as written by the export. Send it as JSON, or as YAML with `Content-Type: application/yaml` (`text/yaml` and `application/x-yaml` also work).'
         content:
           application/json:
             schema: { $ref: '#/components/schemas/ConfigDocument' }
           application/yaml:
             schema: { $ref: '#/components/schemas/ConfigDocument' }
+          text/yaml:
+            schema: { $ref: '#/components/schemas/ConfigDocument' }
       parameters:
         - name: prune
           in: query
-          description: Also remove the monitors and notification channels the file leaves out, from the sections the file contains.
+          description: |
+            Also remove the monitors and notification channels the file leaves out, from the sections the file
+            contains. A removed monitor takes its links to channels, incidents and maintenance windows with it, and
+            its nodes are taken out of the stored layout when the file has none of its own.
+          schema: { type: boolean, default: false }
+        - name: allowEmpty
+          in: query
+          description: Lets `prune` act on a `monitors` or `channels` section that is empty, which removes every monitor or channel. Without it such a request is refused.
           schema: { type: boolean, default: false }
       responses:
         '200':
@@ -862,7 +877,7 @@ components:
         keyword: { type: string }
         headers:
           type: object
-          description: Values of credential headers (Authorization, Cookie, names containing token, secret, key or password) are masked.
+          description: Values of credential headers are masked. A header is one when its name contains auth, token, secret, key, pass, pwd, credential, cookie, session or signature.
           additionalProperties: { type: string }
         body: { type: string }
         auth:
@@ -913,7 +928,7 @@ components:
     DatabaseConfig:
       type: object
       description: Used by the `sqlserver`, `postgresql`, `mysql` and `mongodb` monitor types.
-      required: [host, port, database, user, password, query]
+      required: [query]
       properties:
         host: { type: string }
         port: { type: integer }
@@ -964,16 +979,12 @@ components:
         retries: { type: integer, minimum: 1, maximum: 10, default: 1 }
         failureThreshold:
           type: integer
-          minimum: 1
-          maximum: 20
           default: 1
-          description: Consecutive failed checks before an alert. Out-of-range values are clamped.
+          description: Consecutive failed checks before an alert, 1 to 20. A value outside that is clamped, not refused.
         recoveryThreshold:
           type: integer
-          minimum: 1
-          maximum: 20
           default: 1
-          description: Consecutive successful checks before a recovery. Out-of-range values are clamped.
+          description: Consecutive successful checks before a recovery, 1 to 20. A value outside that is clamped, not refused.
         config: { $ref: '#/components/schemas/MonitorConfig' }
         tags:
           type: array
@@ -988,8 +999,8 @@ components:
         intervalSecs: { type: integer, minimum: 10, maximum: 86400 }
         timeoutMs: { type: integer, minimum: 1000, maximum: 300000 }
         retries: { type: integer, minimum: 1, maximum: 10 }
-        failureThreshold: { type: integer, minimum: 1, maximum: 20 }
-        recoveryThreshold: { type: integer, minimum: 1, maximum: 20 }
+        failureThreshold: { type: integer, description: '1 to 20; a value outside that is clamped.' }
+        recoveryThreshold: { type: integer, description: '1 to 20; a value outside that is clamped.' }
         config: { $ref: '#/components/schemas/MonitorConfig' }
         tags:
           type: array
@@ -1083,7 +1094,7 @@ components:
       enum: [email, webhook, discord, teams, slack, telegram]
     ChannelAlertPolicy:
       type: object
-      description: Quiet hours, throttling and grouping. Missing parts take their defaults (all off).
+      description: Quiet hours, throttling and grouping. Through the API, missing parts take their defaults (all off) and values out of range are clamped; a configuration file must be in range and may not contain settings other than these.
       properties:
         quietHours:
           type: object
@@ -1097,14 +1108,14 @@ components:
           type: object
           properties:
             enabled: { type: boolean }
-            maxAlerts: { type: integer }
-            windowMinutes: { type: integer }
+            maxAlerts: { type: integer, minimum: 1, maximum: 100 }
+            windowMinutes: { type: integer, minimum: 1, maximum: 1440 }
         grouping:
           type: object
           properties:
             enabled: { type: boolean }
-            minMonitors: { type: integer }
-            windowSeconds: { type: integer }
+            minMonitors: { type: integer, minimum: 2, maximum: 100 }
+            windowSeconds: { type: integer, minimum: 10, maximum: 900 }
     NotificationChannelConfig:
       description: |
         The configuration for the channel's `type`. Webhook URLs of `slack`, `discord` and `teams`, credential headers
@@ -1140,7 +1151,7 @@ components:
         updatedAt: { type: integer }
     NotificationChannelCreate:
       type: object
-      required: [name, type, config]
+      required: [name, type]
       properties:
         name: { type: string }
         key: { $ref: '#/components/schemas/Key' }
@@ -1187,7 +1198,8 @@ components:
           additionalProperties: { type: string }
     ConfigChannel:
       type: object
-      required: [key, name, type, enabled, notifyOnRecovery, config, alertPolicy]
+      description: The export writes every field. A file that is imported needs only `key`, `name` and `type`; the rest take their defaults.
+      required: [key, name, type]
       properties:
         key: { $ref: '#/components/schemas/Key' }
         name: { type: string }
@@ -1198,14 +1210,15 @@ components:
           type: object
           additionalProperties: true
           description: |
-            The channel's configuration, as in `NotificationChannelConfig`, with secrets masked. A vault reference (`vault`, also inside `auth.basic`,
-            `auth.oauth2` and `auth.cas`) names the vault and the secret instead of numbering them.
+            The channel's configuration, as in `NotificationChannelConfig`, with secrets masked. A vault reference
+            (`vault`, for example a Telegram bot token) names the vault and the secret instead of numbering them.
           properties:
             vault: { $ref: '#/components/schemas/ConfigVaultRef' }
         alertPolicy: { $ref: '#/components/schemas/ChannelAlertPolicy' }
     ConfigMonitor:
       type: object
-      required: [key, name, type, intervalSecs, timeoutMs, retries, failureThreshold, recoveryThreshold, config, tags, notifications, dependsOn]
+      description: The export writes every field. A file that is imported needs only `key`, `name` and `type`; the rest take their defaults, and the thresholds must be whole numbers from 1 to 20.
+      required: [key, name, type]
       properties:
         key: { $ref: '#/components/schemas/Key' }
         name: { type: string }
@@ -1236,7 +1249,8 @@ components:
           items: { $ref: '#/components/schemas/Key' }
     ConfigDocument:
       type: object
-      required: [version, channels, monitors, layout]
+      description: The export always writes every section. A file that is imported needs only `version`; a section it leaves out is left alone.
+      required: [version]
       properties:
         version: { type: integer, const: 1 }
         channels:

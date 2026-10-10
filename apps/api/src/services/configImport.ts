@@ -204,7 +204,25 @@ function parseMonitors(list: unknown, problems: Problems): DesiredMonitor[] | nu
   return out
 }
 
+/** Where a name the parser would treat specially (`__proto__`) appears in the document, or null. Walks without recursion. */
+function forbiddenNameAt(document: unknown): string | null {
+  const pending: Array<[unknown, string]> = [[document, '(file)']]
+  while (pending.length) {
+    const [value, path] = pending.pop()!
+    if (!value || typeof value !== 'object') continue
+    if (!Array.isArray(value) && Object.prototype.hasOwnProperty.call(value, '__proto__')) return `${path}.__proto__`
+    const entries: Array<[string, unknown]> = Array.isArray(value) ? value.map((item, index) => [`[${index}]`, item]) : Object.entries(value)
+    for (const [name, inner] of entries) pending.push([inner, name.startsWith('[') ? `${path}${name}` : `${path}.${clip(name)}`])
+  }
+  return null
+}
+
 function parseDocument(document: unknown, problems: Problems): Desired {
+  const poisoned = forbiddenNameAt(document)
+  if (poisoned) {
+    problems.add(poisoned, '"__proto__" is not allowed as a name')
+    return { channels: null, monitors: null, layout: undefined, hasLayout: false }
+  }
   if (!isObject(document)) {
     problems.add('(file)', 'must be a configuration document: an object with version, channels, monitors and layout')
     return { channels: null, monitors: null, layout: undefined, hasLayout: false }

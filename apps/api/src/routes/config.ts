@@ -71,8 +71,12 @@ export async function configRoutes(app: FastifyInstance) {
       if (/^%YAML/m.test(document)) return reply.code(400).send({ error: 'Invalid YAML: %YAML directives are not supported' })
       try {
         document = parseYaml(document, { maxAliasCount: MAX_YAML_ALIASES })
+        // An alias inside the thing it is an alias of (`a: &x { b: *x }`) parses into a circular object, which JSON
+        // cannot hold and nothing downstream could compare or store.
+        JSON.stringify(document)
       } catch (error) {
-        return reply.code(400).send({ error: clip(`Invalid YAML: ${error instanceof Error ? error.message : String(error)}`, 300) })
+        const circular = error instanceof TypeError && /circular/i.test(error.message)
+        return reply.code(400).send({ error: circular ? 'Invalid YAML: an alias may not refer to a value that contains it' : clip(`Invalid YAML: ${error instanceof Error ? error.message : String(error)}`, 300) })
       }
     }
 

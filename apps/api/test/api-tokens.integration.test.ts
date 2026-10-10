@@ -208,6 +208,11 @@ describe('authenticating with a token', () => {
     await app.inject({ method: 'PATCH', url: `/admin/users/${creator!.id}/role`, headers: sessions['admin']!, payload: { role: 'admin' } })
     assert.equal((await get('/admin/monitors', minted.token)).statusCode, 401)
     assert.equal((await db.select().from(apiTokens).where(eq(apiTokens.userId, creator!.id))).length, 0)
+    // The tokens that went with the demotion are in the audit log, one entry each, by name and prefix, never the token.
+    const removed = (await db.select().from(auditLog).where(eq(auditLog.entityName, 'temp'))).filter((e) => e.entityType === 'api_token' && e.action === 'delete')
+    assert.equal(removed.length, 1)
+    assert.match(JSON.parse(removed[0]!.diff!).reason, /no longer an administrator/)
+    assert.equal(removed[0]!.diff!.includes(minted.token), false)
 
     // Deleting the creator removes the tokens that are left. The role change ended the old session, so sign in again.
     await db.insert(authSessions).values({ id: 'session-temp-admin-2', userId: creator!.id, csrfTokenHash: 'unused', createdAt: now, lastSeenAt: now, expiresAt: now + 60_000 })

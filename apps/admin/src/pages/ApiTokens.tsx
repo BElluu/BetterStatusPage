@@ -18,9 +18,9 @@ interface ApiToken {
 }
 
 const ROLES = [
-  { value: 'operator', label: 'Operator', desc: 'Monitors, incidents, maintenance, notifications, subscribers and reports' },
-  { value: 'branding', label: 'Branding', desc: 'Layout, branding and locales' },
-  { value: 'admin',    label: 'Admin',    desc: 'Everything an operator and branding token can do, plus the audit log and system health' },
+  { value: 'operator', label: 'Operator', desc: 'Monitors, incidents, maintenance, notifications, subscribers and reports, and also the layout, branding and languages' },
+  { value: 'branding', label: 'Branding', desc: 'The layout, branding and languages' },
+  { value: 'admin',    label: 'Admin',    desc: 'Everything an operator token can do, plus the audit log, system health and the configuration export and import' },
 ]
 
 const EXPIRIES = [

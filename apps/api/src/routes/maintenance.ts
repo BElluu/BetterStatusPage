@@ -12,6 +12,7 @@ async function withMonitorIds(win: typeof maintenanceWindows.$inferSelect) {
 }
 
 const MAX_NAME_LENGTH = 200
+const MAX_MONITOR_IDS = 1_000
 const isEpochMs = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value > 0
 
 /**
@@ -38,6 +39,7 @@ async function windowProblem(
   if (body.monitorIds !== undefined) {
     const ids = body.monitorIds
     if (!Array.isArray(ids) || !ids.every((id) => Number.isSafeInteger(id) && id > 0)) return 'monitorIds must be a list of monitor ids'
+    if (ids.length > MAX_MONITOR_IDS) return `monitorIds can name at most ${MAX_MONITOR_IDS} monitors`
     const unique = [...new Set(ids as number[])]
     if (unique.length > 0) {
       const known = await db.select({ id: monitors.id }).from(monitors).where(inArray(monitors.id, unique))

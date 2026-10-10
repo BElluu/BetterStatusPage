@@ -206,9 +206,22 @@ monitors:
         __proto__: x
 `
     const response = await post('apply', yaml, '', 'application/yaml')
-    assert.ok([200, 400].includes(response.statusCode), response.body)
+    // JSON bodies are refused such a name by the parser; a YAML file is refused it here, wherever it is.
+    assert.equal(response.statusCode, 400, response.body)
+    assert.equal(response.json().problems.length, 1)
+    assert.equal(response.json().problems[0].message, '"__proto__" is not allowed as a name')
+    assert.match(response.json().problems[0].path, /^\(file\)\.monitors\[0\]\.config(\.headers)?\.__proto__$/)
     assert.equal(({} as Doc)['polluted'], undefined)
     assert.equal(Object.prototype.hasOwnProperty.call(Object.prototype, 'polluted'), false)
+    assert.equal(rows('monitors').length, 0)
+  })
+
+  it('answers a YAML alias that contains itself with a 400, not a crash', async () => {
+    const response = await post('apply', 'version: 1\nlayout: &page\n  id: root\n  type: page\n  again: *page\n', '', 'application/yaml')
+    assert.equal(response.statusCode, 400)
+    assert.equal(response.json().error, 'Invalid YAML: an alias may not refer to a value that contains it')
+    const policy = await post('apply', 'version: 1\nchannels:\n  - key: a\n    name: A\n    type: slack\n    alertPolicy: &p\n      throttle: *p\n', '', 'application/yaml')
+    assert.equal(policy.statusCode, 400)
   })
 
   it('answers a configuration nested absurdly deep with a 400, not a crash', async () => {

@@ -213,6 +213,8 @@ Every mutation in the admin panel is recorded — who did it, when, and exactly 
 | Subscriber deliveries | Manual retry of a failed delivery |
 | Vaults & secrets | Create, update (name, value change flagged as `[redacted]`), delete |
 | Users | Create, role change, password reset, delete |
+| API tokens | Created or revoked (never the token), and every change made with one, under the creator's email and the token's name |
+| Configuration import | Each applied file with its counts, and every monitor, channel and layout it changed |
 | User security | Enable or disable TOTP two-factor authentication, password changes, SSO account linking, revoked temporary passwords |
 | SSO settings | Configure or change OpenID Connect settings |
 | Branding, page builder, translations | Branding saves, layout saves, locale and translation changes |
@@ -265,7 +267,7 @@ Status changes propagate to both the admin dashboard and the public page instant
 │                                                             │
 │   ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │   │  Admin API   │  │  Public API  │  │  Webhook API     │  │
-│   │ Session+RBAC │  │ open/session │  │  token auth      │  │
+│   │ Session/token + RBAC │  │ open/session │  │  token auth      │  │
 │   └──────────────┘  └──────────────┘  └──────────────────┘  │
 │                                                             │
 │   ┌──────────────────────────────────────────────────────┐  │
@@ -476,7 +478,7 @@ SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
 
 | Role | What they can do |
 |------|-----------------|
-| **admin** | Everything, including users, single sign-on, vaults, audit log, backups, API tokens, and configuration import |
+| **admin** | Everything, including users, single sign-on, vaults, audit log, backups, API tokens, and configuration export and import |
 | **operator** | Monitors, incidents, maintenance, notifications, page builder, branding, localization, and settings |
 | **branding** | Page builder, branding, localization, and account settings |
 | **viewer** | Views a [private status page](https://docs.betterstatuspage.dev/private-status-page/); no access to the admin console |

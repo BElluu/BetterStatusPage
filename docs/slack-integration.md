@@ -129,7 +129,7 @@ Example — ping the on-call user group for any alert:
 ## Troubleshooting
 
 **Test message does not appear in Slack**
-- Verify the webhook URL is correct and has not been deleted or revoked.
+- Paste the webhook URL again from Slack (the saved one is shown as `••••••••`, so it cannot be checked by eye), and check that the webhook has not been deleted or revoked.
 - Make sure the channel is **Enabled** in BSP.
 - Check that the webhook's Slack app is still installed in the workspace (Settings → Manage Apps).
 

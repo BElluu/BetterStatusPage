@@ -56,6 +56,7 @@ Email and webhook subscriptions keep working. Signing up needs a signed-in user,
 
 - Every public endpoint that shows status data (`/api/v1/public/status`, `layout`, `incidents`, uptime and response-time history, and the live event stream) answers `401` with the code `STATUS_PAGE_PRIVATE` without a session.
 - Responses of a private page are sent with `Cache-Control: private` and `X-Robots-Tag: noindex, nofollow`, so shared caches do not keep them and search engines do not index them.
+- An [API token](api.md) cannot be used to view a private page: the endpoints above answer it with `403`, not `401`.
 - `/api/v1/public/access` is always open. It tells the page whether it is private and whether the visitor is signed in, and returns the branding for the sign-in screen. Branding, logos and translations stay public for the same reason.
 - An SSO sign-in started on the sign-in screen comes back to the status page at `PUBLIC_URL`, also when the SSO redirect URI points to another origin. The session cookie belongs to the redirect URI's host, so use the same host name in both (not `localhost` in one and `127.0.0.1` in the other).
 - The status page and the admin console share one session. An administrator who is signed in to the console sees the private page without signing in again, and the branding preview keeps working.

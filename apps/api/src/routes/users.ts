@@ -70,8 +70,14 @@ export async function userRoutes(app: FastifyInstance) {
     if (existing) {
       await revokeUserSessions(id)
       // Tokens are an admin's; promoting the user again must not bring the old ones back to life.
-      if (req.body.role !== 'admin') await db.delete(apiTokens).where(eq(apiTokens.userId, id))
       const actor = requestIdentity(req)
+      if (req.body.role !== 'admin') {
+        const tokens = await db.select().from(apiTokens).where(eq(apiTokens.userId, id))
+        await db.delete(apiTokens).where(eq(apiTokens.userId, id))
+        for (const token of tokens) {
+          await writeAudit(auditActor(actor), 'delete', 'api_token', token.id, token.name, { reason: `creator is no longer an administrator (${existing.email})`, prefix: token.prefix })
+        }
+      }
       writeAudit(auditActor(actor), 'update', 'user', id, existing.email,
         { role: { from: existing.role, to: req.body.role } })
     }

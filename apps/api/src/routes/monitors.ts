@@ -232,6 +232,7 @@ export async function monitorRoutes(app: FastifyInstance) {
       .where(eq(monitors.id, id))
       .returning()
     const result = results[0]!
+    await writeAudit(auditActor(requestIdentity(req)), 'update', 'monitor', id, existing.name, { action: 'heartbeat_token_reset' })
     return parseMonitor(result)
   })
 

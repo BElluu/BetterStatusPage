@@ -185,7 +185,7 @@ Scheduled maintenance does not appear in the RSS and Atom incident feeds.
 
 ## API
 
-All endpoints need the operator role or higher. Timestamps are milliseconds since the epoch.
+All endpoints need the operator role or higher, as a signed-in user or with an [API token](api.md), for example to [open an incident from a pipeline](api.md#open-an-incident-from-cicd). Timestamps are milliseconds since the epoch.
 
 Incidents (`/api/v1/admin/incidents`):
 
@@ -211,4 +211,4 @@ Maintenance windows (`/api/v1/admin/maintenance`):
 | PATCH | `/:id` | `{ name?, startsAt?, endsAt?, description?, monitorIds? }` |
 | DELETE | `/:id` | — |
 
-An empty or missing `monitorIds` means all monitors.
+An empty or missing `monitorIds` means all monitors. A window needs a `name` (up to 200 characters), a `startsAt` and an `endsAt` that are positive millisecond timestamps with the end after the start (a `PATCH` that moves only one end is checked against the stored other end), a `description` that is text or `null`, and a `monitorIds` list of at most 1000 existing monitors; anything else is refused with `400`.
