@@ -54,7 +54,7 @@ export function AuthSection({ auth, onChange, vaultPicker }: { auth: HttpsAuth; 
         <CredentialSection {...vaultPicker} vault={basic?.['vault'] as VaultRef | undefined} onVaultChange={(v) => updateBasic({ vault: v })} mappingFields={JSON_MAPPING_FIELDS.basic}>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Username"><input value={text(basic, 'username')} onChange={(e) => updateBasic({ username: e.target.value })} className="input-sig" autoComplete="off" /></Field>
-            <Field label="Password"><input type="password" value={text(basic, 'password')} onChange={(e) => updateBasic({ password: e.target.value })} className="input-sig" autoComplete="new-password" /></Field>
+            <Field label="Password"><input type="password" value={text(basic, 'password')} onChange={(e) => updateBasic({ password: e.target.value })} onFocus={(e) => e.target.select()} className="input-sig" autoComplete="new-password" /></Field>
           </div>
         </CredentialSection>
       )}
@@ -68,7 +68,7 @@ export function AuthSection({ auth, onChange, vaultPicker }: { auth: HttpsAuth; 
           <CredentialSection {...vaultPicker} vault={oauth2?.['vault'] as VaultRef | undefined} onVaultChange={(v) => updateOAuth2({ vault: v })} mappingFields={JSON_MAPPING_FIELDS.oauth2}>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Client ID"><input value={text(oauth2, 'clientId')} onChange={(e) => updateOAuth2({ clientId: e.target.value })} className="input-sig" autoComplete="off" /></Field>
-              <Field label="Client Secret"><input type="password" value={text(oauth2, 'clientSecret')} onChange={(e) => updateOAuth2({ clientSecret: e.target.value })} className="input-sig" autoComplete="new-password" /></Field>
+              <Field label="Client Secret"><input type="password" value={text(oauth2, 'clientSecret')} onChange={(e) => updateOAuth2({ clientSecret: e.target.value })} onFocus={(e) => e.target.select()} className="input-sig" autoComplete="new-password" /></Field>
             </div>
           </CredentialSection>
         </>
@@ -80,7 +80,7 @@ export function AuthSection({ auth, onChange, vaultPicker }: { auth: HttpsAuth; 
           <CredentialSection {...vaultPicker} vault={cas?.['vault'] as VaultRef | undefined} onVaultChange={(v) => updateCAS({ vault: v })} mappingFields={JSON_MAPPING_FIELDS.cas}>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Username"><input value={text(cas, 'username')} onChange={(e) => updateCAS({ username: e.target.value })} className="input-sig" autoComplete="off" /></Field>
-              <Field label="Password"><input type="password" value={text(cas, 'password')} onChange={(e) => updateCAS({ password: e.target.value })} className="input-sig" autoComplete="new-password" /></Field>
+              <Field label="Password"><input type="password" value={text(cas, 'password')} onChange={(e) => updateCAS({ password: e.target.value })} onFocus={(e) => e.target.select()} className="input-sig" autoComplete="new-password" /></Field>
             </div>
           </CredentialSection>
         </>

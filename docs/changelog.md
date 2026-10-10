@@ -17,8 +17,12 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 - **API tokens**: **Administration → API tokens** creates long-lived tokens for scripts and CI/CD. A token has a role (Operator, Branding or Admin) and an optional expiry, is sent as `Authorization: Bearer <token>` to the admin API, and is shown once; only its hash is stored. A token cannot manage users, single sign-on, status page access, vaults, backups or other tokens, is deleted when its creator is removed or loses the Admin role, is limited to 300 requests per minute, and is named in the audit log. See [API](api.md).
 
+- **OpenAPI description of the admin API**: [`openapi.yaml`](https://docs.betterstatuspage.dev/openapi.yaml) documents the operations meant for scripts and CI/CD (monitors, incidents, maintenance windows, notification channels, layout) with their bodies, limits and required roles. See [API](api.md).
+
 ### Changed
 
+- **Saved secrets are masked everywhere**: a monitor's password, OAuth2 client secret, database password and credential headers, and a channel's Slack, Discord or Teams webhook URL, webhook credential headers and Telegram bot token now read back as `••••••••` in the form and in the API. Leave a field untouched to keep the stored value, or enter a new one. The **Test** button of a saved monitor uses the stored secrets. A stored secret is only kept while it is sent to the same place: changing a monitor's URL, token URL, CAS server, database host or port, or a webhook channel's URL asks you to enter the secrets again. See [Saved secrets](monitors.md#saved-secrets).
+- **Stricter input checks in the API**: a monitor's `intervalSecs` (10 to 86400), `timeoutMs` (1000 to 300000), `retries` (1 to 10), `config` (an object) and `tags` are validated, a maintenance window needs a name and a start before its end, with existing monitors, a channel's `config` must be an object, `PUT /layout` needs a `tree`, and changing the type of a monitor or channel needs a new `config` in the same request. The admin panel already stayed within these limits.
 - **Notification channel type picker**: the type in **New Notification Channel** is now a searchable dropdown, like the monitor type, instead of a row of buttons, so it stays one control tall as more channel types are added.
 
 ### Fixed

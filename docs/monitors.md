@@ -434,6 +434,20 @@ interval passes without one.
 
 ---
 
+## Saved secrets
+
+> [!WARNING]
+> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+A saved password, OAuth2 client secret, database password and credential header (`Authorization`, `Cookie`, and any
+header whose name contains `token`, `secret`, `key` or `password`) is never shown again, in the form or in the API.
+It reads back as `••••••••`. Leave the field untouched to keep the stored value, or type a new one to replace it.
+A secret read from a [vault](vault.md) is a reference, not a secret, and is shown as such.
+
+A stored secret is only kept while it is sent to the same place. If you change the **URL**, the OAuth2 token URL, the CAS server, or a database **host** or **port**, the form asks you to enter the secrets again, so a saved password cannot be redirected to a new address. Do not write credentials into a URL or request body: only the authentication fields and headers are masked.
+
+---
+
 ## Testing a monitor
 
 The **Test** button in the form runs the check once with the settings in the form, without saving
@@ -448,6 +462,9 @@ probe hop.
 
 Secrets stay out of the result: the response body is reported by size only, and cookie values are
 replaced with `[redacted]`.
+
+When you edit a saved monitor, a password, client secret or credential header that you did not change
+is tested as stored, even though the form only shows it as `••••••••`.
 
 The test uses the form's **Timeout**, limited to between 0.5 and 60 seconds. Unlike a scheduled
 check, a missing keyword or a mismatched result is shown as a failed test, not as degraded.

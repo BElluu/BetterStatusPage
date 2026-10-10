@@ -58,10 +58,10 @@ export function ScheduleSection({ values, onChange }: Props) {
       <div id={bodyId} hidden={!open} className="p-3 pt-4 space-y-4" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Interval (s)">
-            <input type="number" value={intervalSecs} onChange={(e) => onChange({ intervalSecs: Number(e.target.value) })} min={10} className="input-sig" />
+            <input type="number" value={intervalSecs} onChange={(e) => onChange({ intervalSecs: Number(e.target.value) })} min={10} max={86400} className="input-sig" />
           </Field>
           <Field label="Timeout (ms)">
-            <input type="number" value={timeoutMs} onChange={(e) => onChange({ timeoutMs: Number(e.target.value) })} min={1000} className="input-sig" />
+            <input type="number" value={timeoutMs} onChange={(e) => onChange({ timeoutMs: Number(e.target.value) })} min={1000} max={300000} className="input-sig" />
           </Field>
         </div>
 

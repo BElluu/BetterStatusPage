@@ -567,6 +567,17 @@ describe('MonitorFormModal', () => {
     expect(screen.queryByText('Authorization: none')).not.toBeInTheDocument()
   })
 
+  it('names the saved monitor when testing an edit, so a masked secret is tested as stored', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.post).mockResolvedValueOnce({ overall: 'ok', totalMs: 5, steps: [] })
+    renderModal(existingMonitor({ id: 9 }))
+
+    await user.click(screen.getByRole('button', { name: /Test$/ }))
+
+    expect(vi.mocked(api.post).mock.calls[0]?.[0]).toBe('/admin/monitors/test')
+    expect(vi.mocked(api.post).mock.calls[0]?.[1]).toMatchObject({ type: 'https', monitorId: 9 })
+  })
+
   it('downloads the full test report', async () => {
     const user = userEvent.setup()
     const createObjectURL = vi.fn(() => 'blob:report')

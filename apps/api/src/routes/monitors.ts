@@ -5,7 +5,6 @@ import { monitors, monitorResults, monitorDependencies } from '../db/schema.js'
 import { eq, desc, gte, and, inArray } from 'drizzle-orm'
 import { withImmediateTransaction } from '../db/transaction.js'
 import { runCheck } from '../workers/scheduler.js'
-import { validateDockerConfig } from '../workers/docker.js'
 import { testHttps, testSqlServer, testPostgres, testMysql, testMongo, testPing, testDns, testDocker } from '../workers/testRunner.js'
 import { auditActor, writeAudit, diffObjects, snapshot } from '../services/audit.js'
 import { requestIdentity } from '../middleware/auth.js'
@@ -15,9 +14,10 @@ import { loadMonitorStats } from '../services/monitorStats.js'
 import { getSchedulerConfig } from '../config/scheduler.js'
 import { authenticateRequest } from '../services/authSession.js'
 import { keyForNew, keyForUpdate, type KeyOwner } from '../lib/entityKey.js'
-import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig, MonitorType } from '@bsp/shared'
+import { parseMonitorPatch, parseNewMonitor } from '../services/monitorInput.js'
+import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
+import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig } from '@bsp/shared'
 
-const MONITOR_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'postgresql', 'mysql', 'mongodb', 'docker', 'webhook']
 const MIN_TEST_TIMEOUT_MS = 500
 const MAX_TEST_TIMEOUT_MS = 60_000
 
@@ -61,8 +61,9 @@ function findDependencyCycle(
 }
 
 export async function monitorRoutes(app: FastifyInstance) {
+  /** Monitors leave the API with their secrets masked; see services/secretFields.ts. */
   function parseMonitor(m: typeof monitors.$inferSelect) {
-    return { ...m, config: JSON.parse(m.config), tags: JSON.parse(m.tags ?? '[]') }
+    return { ...m, config: maskSecrets('monitor', JSON.parse(m.config)), tags: JSON.parse(m.tags ?? '[]') }
   }
 
   app.get('/', async () => {
@@ -84,12 +85,6 @@ export async function monitorRoutes(app: FastifyInstance) {
     })
   })
 
-  /** Thresholds are "consecutive checks", so anything below 1 is meaningless. */
-  function clampThreshold(value: number | undefined, fallback: number): number {
-    if (value === undefined || !Number.isFinite(value)) return fallback
-    return Math.min(20, Math.max(1, Math.round(value)))
-  }
-
   const monitorKeyOwner: KeyOwner = async (key) =>
     (await db.select({ id: monitors.id }).from(monitors).where(eq(monitors.key, key)))[0]?.id
 
@@ -99,31 +94,28 @@ export async function monitorRoutes(app: FastifyInstance) {
     failureThreshold?: number; recoveryThreshold?: number
     tags?: Array<{ label: string; color: string }>
   } }>('/', async (req, reply) => {
-    if (typeof req.body?.name !== 'string' || !req.body.name.trim()) return reply.code(400).send({ error: 'Name is required' })
-    if (!MONITOR_TYPES.includes(req.body.type as MonitorType)) {
-      return reply.code(400).send({ error: `Type must be one of: ${MONITOR_TYPES.join(', ')}` })
-    }
-    if (req.body.type === 'docker') {
-      const invalid = validateDockerConfig(req.body.config)
-      if (invalid) return reply.code(400).send({ error: invalid })
-    }
-    const resolvedKey = await keyForNew(req.body.name, req.body.key, monitorKeyOwner)
+    const parsed = parseNewMonitor(req.body)
+    if ('error' in parsed) return reply.code(400).send({ error: parsed.error })
+    const fields = parsed.value
+    const secrets = restoreSecrets('monitor', fields.config, undefined)
+    if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
+    const resolvedKey = await keyForNew(fields.name, req.body.key, monitorKeyOwner)
     if ('error' in resolvedKey) return reply.code(resolvedKey.status).send({ error: resolvedKey.error })
     const now = Date.now()
     const results = await db.insert(monitors).values({
       key: resolvedKey.key,
-      name: req.body.name,
-      type: req.body.type,
-      intervalSecs: req.body.intervalSecs ?? 60,
-      timeoutMs: req.body.timeoutMs ?? 10000,
-      retries: req.body.retries ?? 1,
-      failureThreshold: clampThreshold(req.body.failureThreshold, 1),
-      recoveryThreshold: clampThreshold(req.body.recoveryThreshold, 1),
-      config: JSON.stringify(req.body.config ?? {}),
-      tags: JSON.stringify(req.body.tags ?? []),
+      name: fields.name,
+      type: fields.type,
+      intervalSecs: fields.intervalSecs,
+      timeoutMs: fields.timeoutMs,
+      retries: fields.retries,
+      failureThreshold: fields.failureThreshold,
+      recoveryThreshold: fields.recoveryThreshold,
+      config: JSON.stringify(secrets.config),
+      tags: JSON.stringify(fields.tags),
       currentStatus: 'pending',
       alertConfirmedStatus: 'pending',
-      webhookToken: req.body.type === 'webhook' ? generateWebhookToken() : null,
+      webhookToken: fields.type === 'webhook' ? generateWebhookToken() : null,
       createdAt: now,
       updatedAt: now,
     }).returning()
@@ -153,13 +145,9 @@ export async function monitorRoutes(app: FastifyInstance) {
     const existing = (await db.select().from(monitors).where(eq(monitors.id, id)))[0]
     if (!existing) return reply.code(404).send({ error: 'Not found' })
 
-    if (req.body.type !== undefined && !MONITOR_TYPES.includes(req.body.type as MonitorType)) {
-      return reply.code(400).send({ error: `Type must be one of: ${MONITOR_TYPES.join(', ')}` })
-    }
-    if ((req.body.type ?? existing.type) === 'docker' && req.body.config !== undefined) {
-      const invalid = validateDockerConfig(req.body.config)
-      if (invalid) return reply.code(400).send({ error: invalid })
-    }
+    const parsed = parseMonitorPatch(req.body, existing)
+    if ('error' in parsed) return reply.code(400).send({ error: parsed.error })
+    const patch = parsed.value
 
     const updates: Partial<typeof monitors.$inferInsert> = { updatedAt: Date.now() }
     if (req.body.key !== undefined) {
@@ -167,24 +155,28 @@ export async function monitorRoutes(app: FastifyInstance) {
       if ('error' in resolvedKey) return reply.code(resolvedKey.status).send({ error: resolvedKey.error })
       updates.key = resolvedKey.key
     }
-    if (req.body.name !== undefined) updates.name = req.body.name
-    if (req.body.type !== undefined) updates.type = req.body.type
-    if (req.body.intervalSecs !== undefined) updates.intervalSecs = req.body.intervalSecs
-    if (req.body.timeoutMs !== undefined) updates.timeoutMs = req.body.timeoutMs
-    if (req.body.retries !== undefined) updates.retries = req.body.retries
-    if (req.body.failureThreshold !== undefined) updates.failureThreshold = clampThreshold(req.body.failureThreshold, existing.failureThreshold)
-    if (req.body.recoveryThreshold !== undefined) updates.recoveryThreshold = clampThreshold(req.body.recoveryThreshold, existing.recoveryThreshold)
-    if (req.body.config !== undefined) {
-      updates.config = JSON.stringify(req.body.config)
+    if (patch.name !== undefined) updates.name = patch.name
+    if (patch.type !== undefined) updates.type = patch.type
+    if (patch.intervalSecs !== undefined) updates.intervalSecs = patch.intervalSecs
+    if (patch.timeoutMs !== undefined) updates.timeoutMs = patch.timeoutMs
+    if (patch.retries !== undefined) updates.retries = patch.retries
+    if (patch.failureThreshold !== undefined) updates.failureThreshold = patch.failureThreshold
+    if (patch.recoveryThreshold !== undefined) updates.recoveryThreshold = patch.recoveryThreshold
+    if (patch.config !== undefined) {
+      // A masked secret means "keep the stored one", which only makes sense while the type stays the same.
+      const type = patch.type ?? existing.type
+      const secrets = restoreSecrets('monitor', patch.config, type === existing.type ? JSON.parse(existing.config) : undefined)
+      if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
+      updates.config = JSON.stringify(secrets.config)
       // Read the certificate again on the next check, so a changed warning setting takes effect
       // right away; a different endpoint also forgets what was known about the old certificate.
       updates.certCheckedAt = null
-      if (configUrl(req.body.config) !== configUrl(JSON.parse(existing.config))) {
+      if (configUrl(secrets.config) !== configUrl(JSON.parse(existing.config))) {
         updates.certExpiresAt = null
         updates.certWarnedDays = null
       }
     }
-    if (req.body.tags !== undefined) updates.tags = JSON.stringify(req.body.tags)
+    if (patch.tags !== undefined) updates.tags = JSON.stringify(patch.tags)
 
     const results = await db.update(monitors).set(updates).where(eq(monitors.id, id)).returning()
     const m = parseMonitor(results[0]!)
@@ -192,7 +184,7 @@ export async function monitorRoutes(app: FastifyInstance) {
     const before = { name: existing.name, type: existing.type, intervalSecs: existing.intervalSecs, timeoutMs: existing.timeoutMs, retries: existing.retries, failureThreshold: existing.failureThreshold, recoveryThreshold: existing.recoveryThreshold, tags: existing.tags }
     const after  = { name: m.name, type: m.type, intervalSecs: m.intervalSecs, timeoutMs: m.timeoutMs, retries: m.retries, failureThreshold: m.failureThreshold, recoveryThreshold: m.recoveryThreshold, tags: JSON.stringify(m.tags) }
     const diff = diffObjects(before as Record<string, unknown>, after as Record<string, unknown>)
-    if (req.body.config !== undefined) diff['config'] = { from: '[previous config]', to: '[updated config]' }
+    if (patch.config !== undefined) diff['config'] = { from: '[previous config]', to: '[updated config]' }
     if (Object.keys(diff).length) writeAudit(auditActor(actor), 'update', 'monitor', id, existing.name, diff)
     return m
   })
@@ -210,11 +202,16 @@ export async function monitorRoutes(app: FastifyInstance) {
     return reply.code(204).send()
   })
 
-  app.post<{ Body: { type: string; config: unknown; timeoutMs?: number } }>('/test', async (req, reply) => {
-    const { type, config, timeoutMs: requestedTimeout } = req.body ?? {}
-    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+  // `monitorId` names the saved monitor being edited, so a masked secret in `config` is tested as the stored one.
+  app.post<{ Body: { type: string; config: unknown; timeoutMs?: number; monitorId?: number } }>('/test', async (req, reply) => {
+    const { type, config: submitted, timeoutMs: requestedTimeout, monitorId } = req.body ?? {}
+    if (!submitted || typeof submitted !== 'object' || Array.isArray(submitted)) {
       return reply.code(400).send({ error: 'config must be an object' })
     }
+    const stored = monitorId === undefined ? undefined : (await db.select().from(monitors).where(eq(monitors.id, Number(monitorId))))[0]
+    const secrets = restoreSecrets('monitor', submitted, stored?.type === type ? JSON.parse(stored.config) : undefined)
+    if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
+    const config = secrets.config
     if (requestedTimeout !== undefined && !Number.isFinite(requestedTimeout)) {
       return reply.code(400).send({ error: 'timeoutMs must be a number' })
     }
@@ -236,7 +233,7 @@ export async function monitorRoutes(app: FastifyInstance) {
     if (!monitor) return reply.code(404).send({ error: 'Not found' })
     await runCheck(monitor)
     const updated = (await db.select().from(monitors).where(eq(monitors.id, monitor.id)))[0]!
-    return { ...updated, config: JSON.parse(updated.config) }
+    return parseMonitor(updated)
   })
 
   app.post<{ Params: { id: string } }>('/:id/reset-token', async (req, reply) => {
@@ -250,7 +247,7 @@ export async function monitorRoutes(app: FastifyInstance) {
       .where(eq(monitors.id, id))
       .returning()
     const result = results[0]!
-    return { ...result, config: JSON.parse(result.config) }
+    return parseMonitor(result)
   })
 
   app.get<{ Params: { id: string } }>('/:id/dependencies', async (req) => {

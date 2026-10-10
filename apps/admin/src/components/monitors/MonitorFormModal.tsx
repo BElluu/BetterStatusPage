@@ -144,7 +144,8 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     setTesting(true)
     setTestResult(null)
     try {
-      const result = await api.post<TestResult>('/admin/monitors/test', { type, config, timeoutMs })
+      // monitorId lets the server test with the stored value of a secret the form only shows masked.
+      const result = await api.post<TestResult>('/admin/monitors/test', { type, config, timeoutMs, ...(isEdit ? { monitorId: monitor.id } : {}) })
       setTestResult(result)
     } catch (err) {
       setTestResult({ overall: 'error', steps: [{ label: 'Test request failed', status: 'error', detail: err instanceof Error ? err.message : String(err) }], totalMs: 0 })

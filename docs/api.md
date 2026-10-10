@@ -14,7 +14,7 @@ Create tokens in **Administration → API tokens** (administrators only).
 | Field | Meaning |
 |---|---|
 | **Name** | A label to recognise the token by, for example `GitHub Actions`. |
-| **Role** | What the token may do. **Operator** covers monitors, incidents, maintenance, notification channels, subscribers and reports. **Branding** covers the layout, branding and languages. **Admin** adds the audit log and system health. |
+| **Role** | What the token may do. **Operator** covers monitors, incidents, maintenance, notification channels, subscribers, reports, and also the layout, branding and languages. **Branding** covers only the layout, branding and languages. **Admin** adds the audit log and system health. |
 | **Expires** | Never, or after 30 days, 90 days or 1 year. |
 
 The full token is shown **once**, when you create it. Only a hash is stored, so a lost token cannot be recovered: revoke it and create a new one. The list shows the first characters of each token, who created it, when it expires and when it was last used.
@@ -55,6 +55,22 @@ curl -H "Authorization: Bearer $BSP_TOKEN" "$BSP_URL/api/v1/admin/monitors"
 ```
 
 Errors come back as JSON: `{ "error": "..." }` with a `400`, `401`, `403`, `404`, `409` or `429` status.
+
+### Reference
+
+The operations meant for automation are described in an OpenAPI 3.1 file: [openapi.yaml](https://docs.betterstatuspage.dev/openapi.yaml). It covers monitors, incidents, maintenance windows, notification channels and the status page layout, with the request bodies, limits and the role each operation needs. Load it into any OpenAPI tool to browse the API or to generate a client.
+
+### Secrets are masked
+
+A password, client secret, credential header, webhook URL or bot token in a monitor's or channel's `config` is never returned: it reads back as `••••••••`. Send that value back unchanged to keep the stored secret, or send a new one to replace it. A masked value that does not match the stored secret, or one that looks like a half-edited mask, is refused with `400`, so a placeholder can never be saved as a password. Secrets must be text.
+
+A kept secret has to stay where it is sent. If a request keeps a stored secret and also changes the monitor's `url`, the OAuth2 `tokenUrl`, the CAS server, a database `host` or `port`, or a webhook channel's `url`, it is refused until you enter the secret again. This also applies to a monitor test that names a saved monitor. Changing the `type` of a monitor or channel needs a new `config` in the same request.
+
+Secrets read from a [vault](vault.md) are references and are returned as they are. Credentials written into a URL (`https://user:password@host`), a query string or a request body are not recognised as secrets and are returned as stored; use the authentication fields, headers or a vault instead.
+
+### Validation
+
+A monitor needs a `name`, a known `type` and a `config` object. `intervalSecs` is 10 to 86400, `timeoutMs` 1000 to 300000 and `retries` 1 to 10; values outside these ranges are refused with `400`, while `failureThreshold` and `recoveryThreshold` are clamped to 1 to 20. A maintenance window needs a `name`, a `startsAt` and an `endsAt` (milliseconds since the epoch, the end after the start), and every id in `monitorIds` must be an existing monitor.
 
 ### Monitors and notification channels have keys
 

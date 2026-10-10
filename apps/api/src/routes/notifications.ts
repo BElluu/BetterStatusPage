@@ -9,9 +9,12 @@ import { requestIdentity } from '../middleware/auth.js'
 import { withImmediateTransaction } from '../db/transaction.js'
 import { parsePagination } from '../lib/pagination.js'
 import { keyForNew, keyForUpdate, type KeyOwner } from '../lib/entityKey.js'
+import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
 import type { NotificationChannelType } from '@bsp/shared'
 
 const CHANNEL_TYPES: readonly NotificationChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack', 'telegram']
+
+const isConfigObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
 
 export async function notificationRoutes(app: FastifyInstance) {
   app.get<{
@@ -72,27 +75,13 @@ export async function notificationRoutes(app: FastifyInstance) {
 
   type ChannelRow = typeof notificationChannels.$inferSelect
 
-  /** Only the last characters of a stored token ever leave the API, e.g. `••••••••MSGo`. */
-  const maskToken = (token: string) => `${'•'.repeat(8)}${token.length >= 16 ? token.slice(-4) : ''}`
-
-  /** Channels leave the API with both JSON columns expanded, the policy filled in with defaults and secrets masked. */
-  function parseChannel(r: ChannelRow) {
-    const config = JSON.parse(r.config)
-    if (typeof config.botToken === 'string' && config.botToken) config.botToken = maskToken(config.botToken)
-    return { ...r, config, alertPolicy: parseAlertPolicy(r.alertPolicy) }
-  }
-
   /**
-   * The form sends the masked token back when it was not edited: keep the stored one, but only while the
-   * channel stays a Telegram one. The token can only ever be sent to api.telegram.org, so unlike SMTP a
-   * changed chat ID needs no re-entry.
+   * Channels leave the API with both JSON columns expanded, the policy filled in with defaults and secrets masked
+   * (see services/secretFields.ts). The form sends a mask back when the secret was not edited, and the stored
+   * value is kept, as long as the channel keeps its type.
    */
-  function keepUnchangedToken(config: unknown, existing: ChannelRow, effectiveType: string): unknown {
-    if (existing.type !== 'telegram' || effectiveType !== 'telegram' || !config || typeof config !== 'object') return config
-    const next = config as Record<string, unknown>
-    const stored = (JSON.parse(existing.config) as { botToken?: unknown }).botToken
-    if (typeof stored === 'string' && stored && next['botToken'] === maskToken(stored)) return { ...next, botToken: stored }
-    return config
+  function parseChannel(r: ChannelRow) {
+    return { ...r, config: maskSecrets('channel', JSON.parse(r.config)), alertPolicy: parseAlertPolicy(r.alertPolicy) }
   }
 
   /** Flat, auditable view of the hygiene settings — nested JSON would produce useless diffs. */
@@ -130,8 +119,13 @@ export async function notificationRoutes(app: FastifyInstance) {
     if (!CHANNEL_TYPES.includes(req.body.type as NotificationChannelType)) {
       return reply.code(400).send({ error: `Type must be one of: ${CHANNEL_TYPES.join(', ')}` })
     }
+    if (req.body.config !== undefined && req.body.config !== null && !isConfigObject(req.body.config)) {
+      return reply.code(400).send({ error: 'config must be an object' })
+    }
+    const secrets = restoreSecrets('channel', req.body.config ?? {}, undefined)
+    if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
     if (req.body.type === 'telegram') {
-      const problem = telegramConfigError(req.body.config)
+      const problem = telegramConfigError(secrets.config)
       if (problem) return reply.code(400).send({ error: problem })
     }
     const resolvedKey = await keyForNew(req.body.name, req.body.key, channelKeyOwner)
@@ -141,7 +135,7 @@ export async function notificationRoutes(app: FastifyInstance) {
       key: resolvedKey.key,
       name: req.body.name,
       type: req.body.type,
-      config: JSON.stringify(req.body.config ?? {}),
+      config: JSON.stringify(secrets.config),
       enabled: req.body.enabled ?? 1,
       notifyOnRecovery: req.body.notifyOnRecovery ?? 0,
       alertPolicy: JSON.stringify(normalizeAlertPolicy(req.body.alertPolicy)),
@@ -168,8 +162,23 @@ export async function notificationRoutes(app: FastifyInstance) {
     const existing = (await db.select().from(notificationChannels).where(eq(notificationChannels.id, id)))[0]
     if (!existing) return reply.code(404).send({ error: 'Not found' })
 
+    if (req.body.type !== undefined && !CHANNEL_TYPES.includes(req.body.type as NotificationChannelType)) {
+      return reply.code(400).send({ error: `Type must be one of: ${CHANNEL_TYPES.join(', ')}` })
+    }
+    // The stored config belongs to the old type; keeping it under another one would also change what is masked.
+    if (req.body.type !== undefined && req.body.type !== existing.type && req.body.config === undefined) {
+      return reply.code(400).send({ error: 'Changing the type needs a new config in the same request' })
+    }
+    if (req.body.config !== undefined && !isConfigObject(req.body.config)) {
+      return reply.code(400).send({ error: 'config must be an object' })
+    }
     const effectiveType = req.body.type ?? existing.type
-    const config = req.body.config !== undefined ? keepUnchangedToken(req.body.config, existing, effectiveType) : undefined
+    let config: unknown
+    if (req.body.config !== undefined) {
+      const secrets = restoreSecrets('channel', req.body.config, effectiveType === existing.type ? JSON.parse(existing.config) : undefined)
+      if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
+      config = secrets.config
+    }
     if (effectiveType === 'telegram' && (config !== undefined || req.body.type !== undefined)) {
       const problem = telegramConfigError(config ?? JSON.parse(existing.config))
       if (problem) return reply.code(400).send({ error: problem })

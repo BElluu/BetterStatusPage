@@ -216,7 +216,7 @@ function DatabaseFields({ type, config, updateConfig, onEngineChange, vaultPicke
                 <input value={(config['user'] as string) ?? ''} onChange={(e) => updateConfig('user', e.target.value)} required className="input-sig" autoComplete="off" />
               </Field>
               <Field label="Password">
-                <input type="password" value={(config['password'] as string) ?? ''} onChange={(e) => updateConfig('password', e.target.value)} required className="input-sig" autoComplete="new-password" />
+                <input type="password" value={(config['password'] as string) ?? ''} onChange={(e) => updateConfig('password', e.target.value)} onFocus={(e) => e.target.select()} required className="input-sig" autoComplete="new-password" />
               </Field>
             </div>
           </CredentialSection>

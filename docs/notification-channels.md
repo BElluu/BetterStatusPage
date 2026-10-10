@@ -247,6 +247,19 @@ Digests are described in [Alert hygiene](alert-hygiene.md#grouping-bursts-into-o
 
 ---
 
+## Saved secrets
+
+> [!WARNING]
+> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+The webhook URL of a Slack, Discord or Microsoft Teams channel is the credential for posting to it, so a saved URL is
+never shown again, in the form or in the API: it reads back as `••••••••`. The same goes for the Telegram bot token
+(which keeps its last four characters visible) and for credential headers of a webhook channel (`Authorization`,
+`Cookie`, and any header whose name contains `token`, `secret`, `key` or `password`). Leave the field untouched to keep
+the stored value, or enter a new one to replace it. To change a webhook URL you paste the new one; there is nothing to edit. For a webhook channel, changing the **URL** while keeping a stored credential header is refused: enter the header again. Credentials written into a URL or the request body are not masked.
+
+---
+
 ## Sending a test notification
 
 Open an existing channel with the edit icon and click **Send test (saved settings)**. The button is only shown for saved channels and is disabled while the form has unsaved changes — save first, because the test uses the stored configuration.
