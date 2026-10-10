@@ -7,6 +7,17 @@ The monitors, notification channels and status page layout of an installation ca
 
 ---
 
+## In the admin panel
+
+Administrators find both under **Administration → Configuration**.
+
+- **Export** downloads the file as YAML or JSON.
+- **Import** takes a YAML or JSON file (up to 2 MB). The file is checked as soon as you choose it, and nothing is written yet: the page lists what applying it would create, update and remove, and for an update which settings differ, never their values. A file with mistakes shows every problem with its place in the file instead, and cannot be applied.
+- **Apply changes** carries out what the preview showed, completely or not at all. If it would remove monitors or channels, you are asked to confirm first.
+- **Remove what the file leaves out** is the `prune` option below, and **Allow a section that is empty** is `allowEmpty`. The preview is updated when you switch them.
+
+---
+
 ## Exporting
 
 An administrator, or an [API token](api.md) with the **Admin** role, can download the document:
@@ -190,7 +201,7 @@ A secret that is read from a vault does not need this: write `vault: { vault: Pr
 
 ### A file that is not valid
 
-Nothing is changed, the answer is `400`, and `problems` lists everything that is wrong with the file, each with its place in it:
+Nothing is changed, the answer is `400`, and `problems` lists what is wrong with the file, each with its place in it. A file is checked in two steps: first its own shape (settings, keys, values, layout nodes), and only when that is right, what it refers to (channels, monitors, vaults, secrets, dependency cycles). A mistake in the shape is therefore reported before the references are looked at, and a second list can follow once the first is fixed.
 
 ```json
 {

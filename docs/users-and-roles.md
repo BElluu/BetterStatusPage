@@ -6,7 +6,7 @@ Every person who signs in to BetterStatusPage has their own account with one of 
 
 | Role | Meant for |
 |------|-----------|
-| **admin** | Full access, including users, sign-in settings, vaults, the audit log, backups and system health. |
+| **admin** | Full access, including users, sign-in settings, vaults, the audit log, backups, API tokens, configuration import and system health. |
 | **operator** | Day-to-day work: monitors, incidents, maintenance, notifications, subscribers, and the status page's look. |
 | **branding** | The status page's look only: page builder, branding and localization. |
 | **viewer** | Viewing a [private status page](private-status-page.md). No access to the admin console. |
@@ -33,6 +33,8 @@ The role is checked by the API on every request, not only by the admin panel, so
 | [**Vault**](vault.md): create and edit vaults and secrets | Yes | No | No | No |
 | **Users**, **Single sign-on**, **Status page access** | Yes | No | No | No |
 | **Audit Log** | Yes | No | No | No |
+| [**API tokens**](api.md) | Yes | No | No | No |
+| [**Configuration**](configuration-as-code.md): export and import | Yes | No | No | No |
 | [**Backups**](backup-restore.md) | Yes | No | No | No |
 | **System Health** | Yes | No | No | No |
 | [Private status page](private-status-page.md) | Yes | Yes | Yes | Yes |

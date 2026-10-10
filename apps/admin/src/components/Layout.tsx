@@ -39,6 +39,7 @@ const ALL_SECTIONS: NavSection[] = [
       { to: '/admin/users',     label: 'Users',     icon: 'group',        minRole: 'admin' },
       { to: '/admin/vault',     label: 'Vault',     icon: 'shield_lock',  minRole: 'admin' },
       { to: '/admin/api-tokens', label: 'API tokens', icon: 'key',        minRole: 'admin' },
+      { to: '/admin/configuration', label: 'Configuration', icon: 'data_object', minRole: 'admin' },
       { to: '/admin/audit-log', label: 'Audit Log', icon: 'policy',       minRole: 'admin' },
       { to: '/admin/backups',   label: 'Backups',   icon: 'backup',       minRole: 'admin' },
       { to: '/admin/system-health', label: 'System Health', icon: 'monitor_heart', minRole: 'admin' },

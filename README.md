@@ -476,7 +476,7 @@ SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
 
 | Role | What they can do |
 |------|-----------------|
-| **admin** | Everything, including users, single sign-on, vaults, audit log, and backups |
+| **admin** | Everything, including users, single sign-on, vaults, audit log, backups, API tokens, and configuration import |
 | **operator** | Monitors, incidents, maintenance, notifications, page builder, branding, localization, and settings |
 | **branding** | Page builder, branding, localization, and account settings |
 | **viewer** | Views a [private status page](https://docs.betterstatuspage.dev/private-status-page/); no access to the admin console |
@@ -491,7 +491,7 @@ Scripts and CI/CD can call the admin API with a token from **Administration → 
 
 ### Configuration as code
 
-Monitors, notification channels and the status page layout can be exported as one YAML or JSON file, with objects identified by key instead of numeric id and the known secret fields masked, for version control and review. The same file can be applied back from a pipeline: it is checked completely, applied in one transaction, and applying it twice changes nothing.
+Monitors, notification channels and the status page layout can be exported as one YAML or JSON file, with objects identified by key instead of numeric id and the known secret fields masked, for version control and review. The same file can be applied back from a pipeline or from **Administration → Configuration**, which previews what a file would change before anything is written. It is checked completely, applied in one transaction, and applying it twice changes nothing.
 
 > See **[docs.betterstatuspage.dev/configuration-as-code](https://docs.betterstatuspage.dev/configuration-as-code/)** for the format and what is included.
 
