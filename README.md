@@ -489,6 +489,12 @@ Scripts and CI/CD can call the admin API with a token from **Administration → 
 
 > See **[docs.betterstatuspage.dev/api](https://docs.betterstatuspage.dev/api/)** for the token rules and `curl` examples.
 
+### Configuration as code
+
+Monitors, notification channels and the status page layout can be exported as one YAML or JSON file, with objects identified by key instead of numeric id and the known secret fields masked, for version control and review.
+
+> See **[docs.betterstatuspage.dev/configuration-as-code](https://docs.betterstatuspage.dev/configuration-as-code/)** for the format and what is included.
+
 ---
 
 ## Deployment 📦

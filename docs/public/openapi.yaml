@@ -36,6 +36,7 @@ tags:
   - name: Maintenance
   - name: Notification channels
   - name: Layout
+  - name: Configuration
 
 paths:
   /monitors:
@@ -574,6 +575,41 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /config/export:
+    get:
+      tags: [Configuration]
+      summary: Export monitors, notification channels and the layout
+      description: |
+        One document that describes the installation without its numeric ids: monitors and channels are identified by
+        `key`, a monitor lists the keys of its channels and dependencies, and the layout names its monitors by
+        `monitorKey`. Known secret fields are written as `••••••••` and vault secrets by the names of the vault and the secret.
+        Runtime state (status, last check, heartbeat token) is not included. The output is the same for the same
+        data, so it diffs well in version control.
+
+        YAML is the default. It is written so that YAML 1.1 and 1.2 parsers read the same values (`"22:00"` and
+        `"yes"` are quoted).
+      x-role: admin
+      parameters:
+        - name: format
+          in: query
+          schema: { type: string, enum: [yaml, json], default: yaml }
+      responses:
+        '200':
+          description: The configuration.
+          content:
+            application/yaml:
+              schema: { $ref: '#/components/schemas/ConfigDocument' }
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfigDocument' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: A vault reference could not be written unambiguously, because more than one vault has that name.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /layout:
     get:
       tags: [Layout]
@@ -1039,3 +1075,78 @@ components:
         children:
           type: array
           items: { $ref: '#/components/schemas/LayoutNode' }
+
+    ConfigVaultRef:
+      type: object
+      description: A vault secret named instead of numbered. A reference to something that no longer exists reads `(deleted vault 3)`.
+      required: [vault, secret]
+      properties:
+        vault: { type: string }
+        secret: { type: string }
+        fieldMapping:
+          type: object
+          additionalProperties: { type: string }
+    ConfigChannel:
+      type: object
+      required: [key, name, type, enabled, notifyOnRecovery, config, alertPolicy]
+      properties:
+        key: { $ref: '#/components/schemas/Key' }
+        name: { type: string }
+        type: { $ref: '#/components/schemas/NotificationChannelType' }
+        enabled: { type: boolean }
+        notifyOnRecovery: { type: boolean }
+        config:
+          type: object
+          additionalProperties: true
+          description: |
+            The channel's configuration, as in `NotificationChannelConfig`, with secrets masked. A vault reference (`vault`, also inside `auth.basic`,
+            `auth.oauth2` and `auth.cas`) names the vault and the secret instead of numbering them.
+          properties:
+            vault: { $ref: '#/components/schemas/ConfigVaultRef' }
+        alertPolicy: { $ref: '#/components/schemas/ChannelAlertPolicy' }
+    ConfigMonitor:
+      type: object
+      required: [key, name, type, intervalSecs, timeoutMs, retries, failureThreshold, recoveryThreshold, config, tags, notifications, dependsOn]
+      properties:
+        key: { $ref: '#/components/schemas/Key' }
+        name: { type: string }
+        type: { $ref: '#/components/schemas/MonitorType' }
+        intervalSecs: { type: integer }
+        timeoutMs: { type: integer }
+        retries: { type: integer }
+        failureThreshold: { type: integer }
+        recoveryThreshold: { type: integer }
+        config:
+          type: object
+          additionalProperties: true
+          description: |
+            The monitor's configuration, as in `MonitorConfig`, with secrets masked. A vault reference (`vault`, also inside `auth.basic`,
+            `auth.oauth2` and `auth.cas`) names the vault and the secret instead of numbering them.
+          properties:
+            vault: { $ref: '#/components/schemas/ConfigVaultRef' }
+        tags:
+          type: array
+          items: { $ref: '#/components/schemas/MonitorTag' }
+        notifications:
+          type: array
+          description: Keys of the notification channels this monitor alerts through.
+          items: { $ref: '#/components/schemas/Key' }
+        dependsOn:
+          type: array
+          description: Keys of the monitors this monitor depends on.
+          items: { $ref: '#/components/schemas/Key' }
+    ConfigDocument:
+      type: object
+      required: [version, channels, monitors, layout]
+      properties:
+        version: { type: integer, const: 1 }
+        channels:
+          type: array
+          items: { $ref: '#/components/schemas/ConfigChannel' }
+        monitors:
+          type: array
+          items: { $ref: '#/components/schemas/ConfigMonitor' }
+        layout:
+          description: The layout tree. `monitor` and `chart` nodes carry `monitorKey` (a monitor key) in place of `monitorId`.
+          allOf:
+            - $ref: '#/components/schemas/LayoutNode'

@@ -15,6 +15,7 @@ import { adminSubscriberRoutes } from './routes/subscriptions.js'
 import { adminStatusPageAccessRoutes } from './routes/statusPageAccess.js'
 import { backupRoutes } from './routes/backups.js'
 import { apiTokenRoutes } from './routes/apiTokens.js'
+import { configRoutes } from './routes/config.js'
 import { systemHealthRoutes } from './routes/systemHealth.js'
 import { reportRoutes } from './routes/reports.js'
 
@@ -68,11 +69,12 @@ export async function adminApi(adminApp: FastifyInstance) {
     await sub.register(vaultCatalogRoutes, { prefix: '/vaults' })
   })
 
-  // audit log & system health: admin only
+  // audit log, system health & config export: admin only
   await adminApp.register(async (sub) => {
     sub.addHook('preHandler', requireRole())  // only admin passes (no allowed list)
     await sub.register(auditRoutes,  { prefix: '/audit' })
     await sub.register(systemHealthRoutes, { prefix: '/system-health' })
+    await sub.register(configRoutes, { prefix: '/config' })
   })
 
   // accounts, sign-in, who may view the page, vault management, backups & API tokens: admin only, and only from a

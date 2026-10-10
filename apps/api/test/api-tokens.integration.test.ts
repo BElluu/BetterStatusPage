@@ -63,7 +63,7 @@ const get = (url: string, token: string) => app.inject({ url, headers: withToken
 
 describe('which admin routes accept a token', () => {
   const SESSION_ONLY = ['/admin/users', '/admin/oidc', '/admin/status-page-access', '/admin/backups', '/admin/api-tokens']
-  const TOKEN_ALLOWED = ['/admin/monitors', '/admin/incidents', '/admin/notifications', '/admin/layout', '/admin/maintenance', '/admin/audit', '/admin/system-health']
+  const TOKEN_ALLOWED = ['/admin/monitors', '/admin/incidents', '/admin/notifications', '/admin/layout', '/admin/maintenance', '/admin/audit', '/admin/system-health', '/admin/config']
 
   const under = (prefix: string) => registeredRoutes.filter((route) => route.url === prefix || route.url.startsWith(`${prefix}/`))
 
@@ -143,6 +143,11 @@ describe('authenticating with a token', () => {
 
     const admin = (await createToken({ role: 'admin' })).body.token
     assert.equal((await get('/admin/audit', admin)).statusCode, 200)
+
+    // The configuration export is for administrators only, whatever the token.
+    assert.equal((await get('/admin/config/export', operator)).statusCode, 403)
+    assert.equal((await get('/admin/config/export', branding)).statusCode, 403)
+    assert.equal((await get('/admin/config/export', admin)).statusCode, 200)
   })
 
   it('records the last use', async () => {

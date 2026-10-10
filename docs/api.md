@@ -58,7 +58,7 @@ Errors come back as JSON: `{ "error": "..." }` with a `400`, `401`, `403`, `404`
 
 ### Reference
 
-The operations meant for automation are described in an OpenAPI 3.1 file: [openapi.yaml](https://docs.betterstatuspage.dev/openapi.yaml). It covers monitors, incidents, maintenance windows, notification channels and the status page layout, with the request bodies, limits and the role each operation needs. Load it into any OpenAPI tool to browse the API or to generate a client.
+The operations meant for automation are described in an OpenAPI 3.1 file: [openapi.yaml](https://docs.betterstatuspage.dev/openapi.yaml). It covers monitors, incidents, maintenance windows, notification channels, the status page layout and the [configuration export](configuration-as-code.md), with the request bodies, limits and the role each operation needs. Load it into any OpenAPI tool to browse the API or to generate a client.
 
 ### Secrets are masked
 

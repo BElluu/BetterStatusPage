@@ -19,6 +19,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 - **OpenAPI description of the admin API**: [`openapi.yaml`](https://docs.betterstatuspage.dev/openapi.yaml) documents the operations meant for scripts and CI/CD (monitors, incidents, maintenance windows, notification channels, layout) with their bodies, limits and required roles. See [API](api.md).
 
+- **Configuration export**: `GET /api/v1/admin/config/export` (administrators and Admin API tokens) writes the monitors, notification channels and status page layout as one YAML (default) or JSON document, with monitors and channels identified by key instead of numeric id. Known secret fields appear as `••••••••`, vault secrets by the names of the vault and the secret, and runtime state is left out. The output is stable, so it diffs well in version control. See [Configuration as code](configuration-as-code.md).
+
 ### Changed
 
 - **Saved secrets are masked everywhere**: a monitor's password, OAuth2 client secret, database password and credential headers, and a channel's Slack, Discord or Teams webhook URL, webhook credential headers and Telegram bot token now read back as `••••••••` in the form and in the API. Leave a field untouched to keep the stored value, or enter a new one. The **Test** button of a saved monitor uses the stored secrets. A stored secret is only kept while it is sent to the same place: changing a monitor's URL, token URL, CAS server, database host or port, or a webhook channel's URL asks you to enter the secrets again. See [Saved secrets](monitors.md#saved-secrets).
