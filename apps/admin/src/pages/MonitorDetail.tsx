@@ -7,6 +7,9 @@ import { DEFAULT_UPTIME_THRESHOLDS, classifyUptimeDay } from '@bsp/shared'
 import type { DnsConfig, DockerConfig, HttpsConfig, Monitor, MonitorStats, PingConfig, UptimeDayStatus } from '@bsp/shared'
 import { StatusBadge } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
+import { YamlViewModal } from '../components/YamlViewModal'
+import { CopyButton } from '../components/CopyButton'
+import { webhookUrl } from '../components/monitors/MonitorTypeConfigFields'
 import { MONITOR_TYPES } from '../components/monitors/monitorTypes'
 import { ResponseTimeChart, formatMs, type ChartMetric } from '../components/monitors/ResponseTimeChart'
 import { Alert, EmptyState, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
@@ -216,6 +219,7 @@ export default function MonitorDetailPage() {
   const [hours, setHours] = useState<number>(168)
   const [metric, setMetric] = useState<ChartMetric>('avg')
   const [editing, setEditing] = useState(false)
+  const [showYaml, setShowYaml] = useState(false)
 
   const monitorQuery = useQuery<Monitor>({
     queryKey: ['monitor', id],
@@ -281,6 +285,10 @@ export default function MonitorDetailPage() {
               {checkNow.isPending ? 'Checking…' : 'Check now'}
             </button>
           )}
+          <button type="button" onClick={() => setShowYaml(true)} className="btn btn-outline">
+            <span className="material-symbols-outlined" aria-hidden="true">data_object</span>
+            YAML
+          </button>
           <button type="button" className="btn btn-primary" onClick={() => setEditing(true)}>
             <span className="material-symbols-outlined" aria-hidden="true">edit</span>
             Edit
@@ -373,6 +381,12 @@ export default function MonitorDetailPage() {
               <Rows rows={[
                 ['Type', typeLabel],
                 ...(target ? [['Target', target] as [string, ReactNode]] : []),
+                ...(monitor.type === 'webhook' && monitor.webhookToken ? [['Webhook URL', (
+                  <span className="inline-flex flex-wrap items-center justify-end gap-2">
+                    <code className="font-mono text-xs break-all">{webhookUrl(monitor.webhookToken)}</code>
+                    <CopyButton value={webhookUrl(monitor.webhookToken)} label="Copy" />
+                  </span>
+                )] as [string, ReactNode]] : []),
                 ['Interval', `${monitor.intervalSecs} s`],
                 ['Timeout', `${monitor.timeoutMs / 1000} s`],
                 ['Alert after', `${monitor.failureThreshold} ${monitor.failureThreshold === 1 ? 'failure' : 'failures'}`],
@@ -414,6 +428,8 @@ export default function MonitorDetailPage() {
           }}
         />
       )}
+
+      {showYaml && <YamlViewModal kind="Monitor" objectKey={monitor.key} title={monitor.name} onClose={() => setShowYaml(false)} />}
     </PageContainer>
   )
 }

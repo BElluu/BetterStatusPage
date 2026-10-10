@@ -88,6 +88,8 @@ export type NotificationSuppressionReason = 'quiet-hours' | 'throttled' | 'group
 
 export interface NotificationChannel {
   id: number
+  /** Technical identifier used by the API and config files; unique, set when the channel is created and never changed. */
+  key: string
   name: string
   type: NotificationChannelType
   config: NotificationChannelConfig

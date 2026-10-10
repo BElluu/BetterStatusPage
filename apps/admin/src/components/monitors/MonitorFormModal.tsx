@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { api } from '../../api/client'
 import type { Monitor, MonitorType, NotificationChannel, MonitorTag } from '@bsp/shared'
 import { ModalHeader, ModalShell } from '../ModalShell'
+import { YamlViewModal } from '../YamlViewModal'
 import { AuthSection, readAuth } from './AuthSection'
 import { SidePanelFrame, SideTabStrip, type SideTab } from '../SidePanel'
 import { ChannelsSection, DependenciesSection, PANEL_META, RequestSection, type SidePanelKey } from './MonitorSidePanel'
@@ -37,6 +38,7 @@ const defaultConfigs: Record<MonitorType, Record<string, unknown>> = {
 
 export default function MonitorFormModal({ monitor, initialType = 'https', allTags = [], onClose, onSaved }: Props) {
   const isEdit = !!monitor
+  const [showYaml, setShowYaml] = useState(false)
   const [name, setName]               = useState(monitor?.name ?? '')
   const [type, setType]               = useState<MonitorType>(monitor?.type as MonitorType ?? initialType)
   const [intervalSecs, setIntervalSecs] = useState(monitor?.intervalSecs ?? 60)
@@ -143,7 +145,8 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     setTesting(true)
     setTestResult(null)
     try {
-      const result = await api.post<TestResult>('/admin/monitors/test', { type, config, timeoutMs })
+      // monitorId lets the server test with the stored value of a secret the form only shows masked.
+      const result = await api.post<TestResult>('/admin/monitors/test', { type, config, timeoutMs, ...(isEdit ? { monitorId: monitor.id } : {}) })
       setTestResult(result)
     } catch (err) {
       setTestResult({ overall: 'error', steps: [{ label: 'Test request failed', status: 'error', detail: err instanceof Error ? err.message : String(err) }], totalMs: 0 })
@@ -222,6 +225,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
             <input value={name} onChange={(e) => setName(e.target.value)} required className="input-sig" placeholder="My Service" />
           </Field>
 
+
           <MonitorTypePicker value={type} onChange={handleTypeChange} />
 
           <MonitorTypeConfigFields
@@ -249,21 +253,31 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
           {/* ── Test result panel ─────────────────────────────────────────── */}
           {testResult && <TestResultPanel result={testResult} />}
 
-          <div className="flex flex-wrap justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="btn btn-secondary">
-              {webhookCreated ? 'Close' : 'Cancel'}
-            </button>
-            {isTestable && (
-              <button type="button" onClick={handleTest} disabled={testing || loading} className="btn btn-outline">
-                {testing
-                  ? <><span className="material-symbols-outlined animate-spin" aria-hidden="true">progress_activity</span> Testing…</>
-                  : <><span className="material-symbols-outlined" aria-hidden="true">play_arrow</span> Test</>
-                }
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+            <div className="flex flex-wrap gap-3">
+              {isEdit && (
+                <button type="button" onClick={() => setShowYaml(true)} title="The saved monitor as YAML" className="btn btn-secondary">
+                  <span className="material-symbols-outlined" aria-hidden="true">data_object</span>
+                  YAML
+                </button>
+              )}
+              {isTestable && (
+                <button type="button" onClick={handleTest} disabled={testing || loading} className="btn btn-outline">
+                  {testing
+                    ? <><span className="material-symbols-outlined animate-spin" aria-hidden="true">progress_activity</span> Testing…</>
+                    : <><span className="material-symbols-outlined" aria-hidden="true">play_arrow</span> Test</>
+                  }
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-3 ml-auto">
+              <button type="button" onClick={onClose} className="btn btn-secondary">
+                {webhookCreated ? 'Close' : 'Cancel'}
               </button>
-            )}
-            <button type="submit" disabled={loading} className="btn btn-primary">
-              {loading ? 'Saving…' : webhookCreated ? 'Done' : isEdit ? 'Save Changes' : 'Create Monitor'}
-            </button>
+              <button type="submit" disabled={loading} className="btn btn-primary">
+                {loading ? 'Saving…' : webhookCreated ? 'Done' : isEdit ? 'Save Changes' : 'Create Monitor'}
+              </button>
+            </div>
           </div>
         </form>
       </div>{/* inner scrollable column */}
@@ -289,6 +303,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
       <SideTabStrip tabs={sideTabs} meta={PANEL_META} active={sidePanel} onToggle={setSidePanel} layout="responsive" />
 
       </div>{/* outer flex row */}
+      {showYaml && monitor && <YamlViewModal kind="Monitor" objectKey={monitor.key} title={monitor.name} onClose={() => setShowYaml(false)} />}
     </ModalShell>
   )
 }

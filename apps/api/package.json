@@ -36,7 +36,8 @@
     "pg": "^8.23.1",
     "ping": "^0.4.4",
     "qrcode": "^1.5.4",
-    "undici": "^7.4.0"
+    "undici": "^7.4.0",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

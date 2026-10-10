@@ -21,6 +21,8 @@ const VaultPage = lazy(() => import('./pages/Vault'))
 const NotificationsPage = lazy(() => import('./pages/Notifications'))
 const SubscribersPage = lazy(() => import('./pages/Subscribers'))
 const MaintenancePage = lazy(() => import('./pages/Maintenance'))
+const ApiTokensPage = lazy(() => import('./pages/ApiTokens'))
+const ImportPage = lazy(() => import('./pages/Import'))
 const AuditLogPage = lazy(() => import('./pages/AuditLog'))
 const BackupsPage = lazy(() => import('./pages/Backups'))
 const SystemHealthPage = lazy(() => import('./pages/SystemHealth'))
@@ -154,6 +156,8 @@ export default function App() {
           <Route path="users"     element={<RequireRole minRole="admin"><UsersPage /></RequireRole>} />
           <Route path="sso-test"  element={<RequireRole minRole="admin"><SsoTestResultPage /></RequireRole>} />
           <Route path="vault"      element={<RequireRole minRole="admin"><VaultPage /></RequireRole>} />
+          <Route path="import" element={<RequireRole minRole="operator"><ImportPage /></RequireRole>} />
+          <Route path="api-tokens" element={<RequireRole minRole="admin"><ApiTokensPage /></RequireRole>} />
           <Route path="audit-log" element={<RequireRole minRole="admin"><AuditLogPage /></RequireRole>} />
           <Route path="backups" element={<RequireRole minRole="admin"><BackupsPage /></RequireRole>} />
           <Route path="system-health" element={<RequireRole minRole="admin"><SystemHealthPage /></RequireRole>} />

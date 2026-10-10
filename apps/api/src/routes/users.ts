@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import bcrypt from 'bcryptjs'
 import { randomInt } from 'node:crypto'
 import { db } from '../db/client.js'
-import { users } from '../db/schema.js'
+import { apiTokens, users } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
 import { auditActor, writeAudit, snapshot } from '../services/audit.js'
 import { requestIdentity } from '../middleware/auth.js'
@@ -69,7 +69,15 @@ export async function userRoutes(app: FastifyInstance) {
     if (!result.length) return reply.code(404).send({ error: 'User not found' })
     if (existing) {
       await revokeUserSessions(id)
+      // Tokens are an admin's; promoting the user again must not bring the old ones back to life.
       const actor = requestIdentity(req)
+      if (req.body.role !== 'admin') {
+        const tokens = await db.select().from(apiTokens).where(eq(apiTokens.userId, id))
+        await db.delete(apiTokens).where(eq(apiTokens.userId, id))
+        for (const token of tokens) {
+          await writeAudit(auditActor(actor), 'delete', 'api_token', token.id, token.name, { reason: `creator is no longer an administrator (${existing.email})`, prefix: token.prefix })
+        }
+      }
       writeAudit(auditActor(actor), 'update', 'user', id, existing.email,
         { role: { from: existing.role, to: req.body.role } })
     }

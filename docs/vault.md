@@ -191,7 +191,23 @@ A **User / Password** secret cannot be used for **Connection string**; the form 
 | **operator** | No | Yes: sees vault and secret names and types, never values |
 | **branding**, **viewer** | No | No |
 
+The vault does not decide which secret may be used where. Anyone who can create or edit a monitor, a notification channel or the SMTP settings (operators and administrators in the panel, or an [API token](api.md#permissions) with the `vault:use` permission) can point it at any secret of any vault and at any address, and the secret is then sent there when the monitor runs or is tested. Give the operator role, and `vault:use` to a token, only to people and pipelines you trust with every vault secret.
+
+An [API token](api.md#permissions) with the `vault:use` permission can list vault and secret names, like an operator in the panel, and attach a secret to a monitor or channel, but it can never manage vaults or read a value. A token without `vault:use` can do none of this.
+
 See [Users and roles](users-and-roles.md) for the roles in general.
+
+### Vaults in configuration files
+
+> [!WARNING]
+> **Not released yet.** Importing and exporting configuration is available only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+A [configuration document](configuration-as-code.md#secrets) refers to a secret by the names of the vault and of the secret, and the vault has to exist when the file is imported.
+
+- Vault names are not unique. If a document would have to name a vault whose name another vault also has, the export is refused with `409` and an import refuses the reference. Rename one of the vaults.
+- Renaming a vault or a secret breaks documents that name it; change them with it.
+- A vault or secret that was deleted is exported as `(deleted vault 3)` or `(deleted secret 9)`, and an import refuses that.
+- An import never creates a vault or a secret and never reads a value. A token needs `vault:use` to import a document that names a vault.
 
 ### Audit log
 

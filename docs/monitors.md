@@ -42,10 +42,10 @@ These fields are in the form for every type. **Name** and **Type** come first, f
 
 | Field | Default | What it does |
 | --- | --- | --- |
-| **Name** | — | Shown in the admin console, in notifications and on the status page. Required. |
+| **Name** | — | Shown in the admin console, in notifications and on the status page. Required, up to 200 characters. A technical [key](api.md#monitors-and-notification-channels-have-keys) is generated from it; it is not shown in the form and never changes. |
 | **Type** | HTTPS | Chosen from a searchable list grouped by area (Web, Network, Data, Infrastructure, Inbound). Switching type resets the type-specific settings. |
-| **Interval (s)** | `60` | How often the check runs. Minimum `10`. For a webhook monitor, how long silence may last. |
-| **Timeout (ms)** | `10000` | How long one attempt may take, authentication and redirects included. Minimum `1000`. |
+| **Interval (s)** | `60` | How often the check runs. `10`–`86400`. For a webhook monitor, how long silence may last. |
+| **Timeout (ms)** | `10000` | How long one attempt may take, authentication and redirects included. `1000`–`300000`. |
 | **Attempts** | `1` | How many times one check is tried before it counts as down. `1–10`. |
 | **Alert after (checks)** | `1` | Consecutive failed checks before an alert is sent. `1–20`. |
 | **Recover after (checks)** | `1` | Consecutive successful checks before a recovery is sent. `1–20`. |
@@ -107,7 +107,8 @@ the list. The page shows the monitor over the last 24 hours, 7 days, 30 days or 
 - **Recent failures**: the latest 10 failed checks in the range, with their error messages. Next to
   them, the **incidents** linked to the monitor in that range.
 - **Configuration** of the monitor: type, target, interval, timeout, alert and recovery thresholds,
-  dependencies and, for HTTPS monitors, the days left on the certificate.
+  dependencies and, for HTTPS monitors, the days left on the certificate. A webhook monitor shows its
+  **Webhook URL** here, with a **Copy** button.
 
 **Check now** and **Edit** are available on the page too, so a monitor can be changed without
 returning to the list.
@@ -434,6 +435,20 @@ interval passes without one.
 
 ---
 
+## Saved secrets
+
+> [!WARNING]
+> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+A saved password, OAuth2 client secret, database password and credential header are never shown again, in the form or in the API.
+A header counts as a credential when its name contains `auth`, `token`, `secret`, `key`, `pass`, `pwd`, `credential`, `cookie`, `session` or `signature` (so `Authorization`, `Cookie` and `X-Api-Key` do).
+A secret reads back as `••••••••`. Leave the field untouched to keep the stored value, or type a new one to replace it.
+A secret read from a [vault](vault.md) is a reference, not a secret, and is shown as such.
+
+A stored secret is only kept while it is sent to the same place. If you change the **URL**, the OAuth2 token URL, the CAS server, or a database **host** or **port** while a secret still shows as `••••••••`, saving is refused with a message asking you to enter the secrets again, so a saved password cannot be redirected to a new address. A **Test** run with such a change is refused the same way. Do not write credentials into a URL or request body: only the authentication fields and headers are masked.
+
+---
+
 ## Testing a monitor
 
 The **Test** button in the form runs the check once with the settings in the form, without saving
@@ -448,6 +463,9 @@ probe hop.
 
 Secrets stay out of the result: the response body is reported by size only, and cookie values are
 replaced with `[redacted]`.
+
+When you edit a saved monitor, a password, client secret or credential header that you did not change
+is tested as stored, even though the form only shows it as `••••••••`.
 
 The test uses the form's **Timeout**, limited to between 0.5 and 60 seconds. Unlike a scheduled
 check, a missing keyword or a mismatched result is shown as a failed test, not as degraded.

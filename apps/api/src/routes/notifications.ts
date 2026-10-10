@@ -8,9 +8,15 @@ import { auditActor, writeAudit, diffObjects, snapshot } from '../services/audit
 import { requestIdentity } from '../middleware/auth.js'
 import { withImmediateTransaction } from '../db/transaction.js'
 import { parsePagination } from '../lib/pagination.js'
+import { keyForNew, type KeyOwner } from '../lib/entityKey.js'
+import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
+import { tokenAllows, VAULT_USE_SCOPE } from '@bsp/shared'
+import { canonical, VAULT_USE_REFUSED, vaultUseProblem } from '../services/vaultUse.js'
+import { CHANNEL_TYPES, telegramConfigError } from '../services/channelInput.js'
 import type { NotificationChannelType } from '@bsp/shared'
 
-const CHANNEL_TYPES: readonly NotificationChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack', 'telegram']
+
+const isConfigObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
 
 export async function notificationRoutes(app: FastifyInstance) {
   app.get<{
@@ -71,27 +77,13 @@ export async function notificationRoutes(app: FastifyInstance) {
 
   type ChannelRow = typeof notificationChannels.$inferSelect
 
-  /** Only the last characters of a stored token ever leave the API, e.g. `••••••••MSGo`. */
-  const maskToken = (token: string) => `${'•'.repeat(8)}${token.length >= 16 ? token.slice(-4) : ''}`
-
-  /** Channels leave the API with both JSON columns expanded, the policy filled in with defaults and secrets masked. */
-  function parseChannel(r: ChannelRow) {
-    const config = JSON.parse(r.config)
-    if (typeof config.botToken === 'string' && config.botToken) config.botToken = maskToken(config.botToken)
-    return { ...r, config, alertPolicy: parseAlertPolicy(r.alertPolicy) }
-  }
-
   /**
-   * The form sends the masked token back when it was not edited: keep the stored one, but only while the
-   * channel stays a Telegram one. The token can only ever be sent to api.telegram.org, so unlike SMTP a
-   * changed chat ID needs no re-entry.
+   * Channels leave the API with both JSON columns expanded, the policy filled in with defaults and secrets masked
+   * (see services/secretFields.ts). The form sends a mask back when the secret was not edited, and the stored
+   * value is kept, as long as the channel keeps its type.
    */
-  function keepUnchangedToken(config: unknown, existing: ChannelRow, effectiveType: string): unknown {
-    if (existing.type !== 'telegram' || effectiveType !== 'telegram' || !config || typeof config !== 'object') return config
-    const next = config as Record<string, unknown>
-    const stored = (JSON.parse(existing.config) as { botToken?: unknown }).botToken
-    if (typeof stored === 'string' && stored && next['botToken'] === maskToken(stored)) return { ...next, botToken: stored }
-    return config
+  function parseChannel(r: ChannelRow) {
+    return { ...r, config: maskSecrets('channel', JSON.parse(r.config)), alertPolicy: parseAlertPolicy(r.alertPolicy) }
   }
 
   /** Flat, auditable view of the hygiene settings — nested JSON would produce useless diffs. */
@@ -104,37 +96,41 @@ export async function notificationRoutes(app: FastifyInstance) {
     }
   }
 
-  /** Telegram needs a chat and a token, direct or from the vault; an edited mask is not a token. */
-  function telegramConfigError(config: unknown): string | null {
-    const c = (config && typeof config === 'object' ? config : {}) as { botToken?: unknown; vault?: { vaultId?: unknown; secretId?: unknown }; chatId?: unknown }
-    if (typeof c.chatId !== 'string' || !c.chatId.trim()) return 'Telegram needs a Chat ID'
-    if (c.vault) return Number.isInteger(c.vault.vaultId) && Number.isInteger(c.vault.secretId) && Number(c.vault.secretId) > 0 ? null : 'Pick a vault secret for the bot token'
-    if (typeof c.botToken !== 'string' || !c.botToken.trim()) return 'Telegram needs a Bot Token'
-    return c.botToken.includes('•') ? 'Paste the full bot token to replace the stored one' : null
-  }
-
   app.get('/channels', async () => {
     const rows = await db.select().from(notificationChannels)
     return rows.map(parseChannel)
   })
 
+  const channelKeyOwner: KeyOwner = async (key) =>
+    (await db.select({ id: notificationChannels.id }).from(notificationChannels).where(eq(notificationChannels.key, key)))[0]?.id
+
   app.post<{ Body: {
-    name: string; type: string
+    name: string; key?: string; type: string
     config: unknown; enabled?: number; notifyOnRecovery?: number; alertPolicy?: unknown
   } }>('/channels', async (req, reply) => {
     if (typeof req.body?.name !== 'string' || !req.body.name.trim()) return reply.code(400).send({ error: 'Name is required' })
     if (!CHANNEL_TYPES.includes(req.body.type as NotificationChannelType)) {
       return reply.code(400).send({ error: `Type must be one of: ${CHANNEL_TYPES.join(', ')}` })
     }
+    if (req.body.config !== undefined && req.body.config !== null && !isConfigObject(req.body.config)) {
+      return reply.code(400).send({ error: 'config must be an object' })
+    }
+    const secrets = restoreSecrets('channel', req.body.config ?? {}, undefined)
+    if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
+    const vaultProblem = vaultUseProblem(requestIdentity(req).apiToken, secrets.config, undefined)
+    if (vaultProblem) return reply.code(403).send({ error: vaultProblem })
     if (req.body.type === 'telegram') {
-      const problem = telegramConfigError(req.body.config)
+      const problem = telegramConfigError(secrets.config)
       if (problem) return reply.code(400).send({ error: problem })
     }
+    const resolvedKey = await keyForNew(req.body.name, req.body.key, channelKeyOwner)
+    if ('error' in resolvedKey) return reply.code(resolvedKey.status).send({ error: resolvedKey.error })
     const now = Date.now()
     const results = await db.insert(notificationChannels).values({
+      key: resolvedKey.key,
       name: req.body.name,
       type: req.body.type,
-      config: JSON.stringify(req.body.config ?? {}),
+      config: JSON.stringify(secrets.config),
       enabled: req.body.enabled ?? 1,
       notifyOnRecovery: req.body.notifyOnRecovery ?? 0,
       alertPolicy: JSON.stringify(normalizeAlertPolicy(req.body.alertPolicy)),
@@ -155,14 +151,32 @@ export async function notificationRoutes(app: FastifyInstance) {
   })
 
   app.patch<{ Params: { id: string }; Body: Partial<{
-    name: string; type: string; config: unknown; enabled: number; notifyOnRecovery: number; alertPolicy: unknown
+    name: string; key: string; type: string; config: unknown; enabled: number; notifyOnRecovery: number; alertPolicy: unknown
   }> }>('/channels/:id', async (req, reply) => {
     const id = Number(req.params.id)
     const existing = (await db.select().from(notificationChannels).where(eq(notificationChannels.id, id)))[0]
     if (!existing) return reply.code(404).send({ error: 'Not found' })
 
+    if (req.body.type !== undefined && !CHANNEL_TYPES.includes(req.body.type as NotificationChannelType)) {
+      return reply.code(400).send({ error: `Type must be one of: ${CHANNEL_TYPES.join(', ')}` })
+    }
+    // The stored config belongs to the old type; keeping it under another one would also change what is masked.
+    if (req.body.type !== undefined && req.body.type !== existing.type && req.body.config === undefined) {
+      return reply.code(400).send({ error: 'Changing the type needs a new config in the same request' })
+    }
+    if (req.body.config !== undefined && !isConfigObject(req.body.config)) {
+      return reply.code(400).send({ error: 'config must be an object' })
+    }
+    if (req.body.key !== undefined) return reply.code(400).send({ error: 'The key is set when the object is created and cannot be changed' })
     const effectiveType = req.body.type ?? existing.type
-    const config = req.body.config !== undefined ? keepUnchangedToken(req.body.config, existing, effectiveType) : undefined
+    let config: unknown
+    if (req.body.config !== undefined) {
+      const secrets = restoreSecrets('channel', req.body.config, effectiveType === existing.type ? JSON.parse(existing.config) : undefined)
+      if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
+      const vaultProblem = vaultUseProblem(requestIdentity(req).apiToken, secrets.config, effectiveType === existing.type ? JSON.parse(existing.config) : undefined)
+      if (vaultProblem) return reply.code(403).send({ error: vaultProblem })
+      config = secrets.config
+    }
     if (effectiveType === 'telegram' && (config !== undefined || req.body.type !== undefined)) {
       const problem = telegramConfigError(config ?? JSON.parse(existing.config))
       if (problem) return reply.code(400).send({ error: problem })
@@ -258,6 +272,17 @@ export async function notificationRoutes(app: FastifyInstance) {
   } }>('/smtp', async (req, reply) => {
     const now = Date.now()
     const existing = (await db.select().from(smtpSettings))[0]
+
+    // A vault secret is sent to the SMTP server: a token without the permission to use vault secrets may keep the
+    // reference and server that are saved, but not set or change them.
+    const token = requestIdentity(req).apiToken
+    if (token && req.body.vault && !tokenAllows(token.scopes, VAULT_USE_SCOPE)) {
+      const saved = existing?.vaultConfig ?? null
+      const sameReference = saved !== null && canonical(JSON.parse(saved)) === canonical(req.body.vault)
+      const sameServer = !!existing && req.body.host === existing.host && Number(req.body.port) === existing.port
+      const sameTransport = !!existing && Number(req.body.secure) === Number(existing.secure) && (req.body.user ?? '') === existing.user
+      if (!sameReference || !sameServer || !sameTransport) return reply.code(403).send({ error: VAULT_USE_REFUSED })
+    }
 
     const passwordSupplied = !!req.body.password && req.body.password !== '••••••••'
     // Never forward the stored password to a different server or account: changing where it goes

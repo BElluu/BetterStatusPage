@@ -12,7 +12,7 @@ bsp-backup-TIMESTAMP.backup
 
 It contains:
 
-- a consistent SQLite snapshot created with `VACUUM INTO`,
+- a consistent SQLite snapshot created with `VACUUM INTO`, which includes the [API tokens](api.md#api-tokens) (as hashes),
 - `setup.json`,
 - uploaded files,
 - a versioned manifest,
@@ -108,6 +108,7 @@ Before relying on backups in production:
 - restore with the original `VAULT_ENCRYPTION_KEY`,
 - start the test app,
 - verify login,
+- review **Administration → API tokens**: a restored backup brings back every token that was revoked after it was taken,
 - verify monitors,
 - reveal or resolve one test vault secret,
 - verify uploads/branding,

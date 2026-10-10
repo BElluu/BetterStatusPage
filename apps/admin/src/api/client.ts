@@ -56,9 +56,12 @@ export function mustChangePassword(): boolean {
   return !!getCurrentUser()?.mustChangePassword
 }
 
-/** A failed API call: `message` is the server's error text, `code` its machine-readable code when it sent one. */
+/**
+ * A failed API call: `message` is the server's error text, `code` its machine-readable code when it sent one, and
+ * `body` the whole JSON answer, for the endpoints that say more than a message (a list of problems, say).
+ */
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number, readonly code?: string) {
+  constructor(message: string, readonly status: number, readonly code?: string, readonly body?: unknown) {
     super(message)
     this.name = 'ApiError'
   }
@@ -75,15 +78,20 @@ async function request<T>(
   path: string,
   body?: unknown,
   isFormData = false,
+  /** Sends `body` (a string) as it is with this content type, instead of as JSON. */
+  contentType?: string,
+  /** Reads the answer as text instead of JSON. */
+  asText = false,
 ): Promise<T> {
   const headers: Record<string, string> = {}
-  if (!isFormData && body !== undefined) headers['Content-Type'] = 'application/json'
+  if (contentType) headers['Content-Type'] = contentType
+  else if (!isFormData && body !== undefined) headers['Content-Type'] = 'application/json'
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
     const csrf = cookie('bsp_csrf')
     if (csrf) headers['X-CSRF-Token'] = csrf
   }
 
-  const fetchBody = isFormData ? (body as FormData) : body !== undefined ? JSON.stringify(body) : null
+  const fetchBody = contentType ? (body as string) : isFormData ? (body as FormData) : body !== undefined ? JSON.stringify(body) : null
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers,
@@ -107,20 +115,24 @@ async function request<T>(
         window.location.href = '/admin/login'
       }
     }
-    throw new ApiError(err.error ?? res.statusText, res.status, err.code)
+    throw new ApiError(err.error ?? res.statusText, res.status, err.code, err)
   }
 
   if (res.status === 204) return undefined as T
-  return res.json() as Promise<T>
+  return (asText ? res.text() : res.json()) as Promise<T>
 }
 
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
+  /** GET an answer that is text, for example a YAML document. */
+  getText: (path: string) => request<string>('GET', path, undefined, false, undefined, true),
   post: <T>(path: string, body: unknown = {}) => request<T>('POST', path, body),
   patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
   put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
   delete: (path: string) => request<void>('DELETE', path),
   upload: <T>(path: string, formData: FormData) => request<T>('POST', path, formData, true),
+  /** POST a text body as it is, for example a YAML file, with the given content type. */
+  postText: <T>(path: string, text: string, contentType: string) => request<T>('POST', path, text, false, contentType),
   download: async (path: string, filename: string) => {
     const res = await fetch(`${BASE}${path}`, { credentials: 'same-origin' })
     if (!res.ok) throw new Error('Download failed')

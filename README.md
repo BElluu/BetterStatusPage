@@ -213,6 +213,8 @@ Every mutation in the admin panel is recorded — who did it, when, and exactly 
 | Subscriber deliveries | Manual retry of a failed delivery |
 | Vaults & secrets | Create, update (name, value change flagged as `[redacted]`), delete |
 | Users | Create, role change, password reset, delete |
+| API tokens | Created or revoked (never the token), and every change made with one, under the creator's email and the token's name |
+| Import | Each import with its counts, and every monitor and channel it changed |
 | User security | Enable or disable TOTP two-factor authentication, password changes, SSO account linking, revoked temporary passwords |
 | SSO settings | Configure or change OpenID Connect settings |
 | Branding, page builder, translations | Branding saves, layout saves, locale and translation changes |
@@ -265,7 +267,7 @@ Status changes propagate to both the admin dashboard and the public page instant
 │                                                             │
 │   ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │   │  Admin API   │  │  Public API  │  │  Webhook API     │  │
-│   │ Session+RBAC │  │ open/session │  │  token auth      │  │
+│   │ Session/token + RBAC │  │ open/session │  │  token auth      │  │
 │   └──────────────┘  └──────────────┘  └──────────────────┘  │
 │                                                             │
 │   ┌──────────────────────────────────────────────────────┐  │
@@ -476,12 +478,24 @@ SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
 
 | Role | What they can do |
 |------|-----------------|
-| **admin** | Everything, including users, single sign-on, vaults, audit log, and backups |
-| **operator** | Monitors, incidents, maintenance, notifications, page builder, branding, localization, and settings |
+| **admin** | Everything, including users, single sign-on, vaults, audit log, backups and API tokens |
+| **operator** | Monitors, incidents, maintenance, notifications, import, page builder, branding, localization, and settings |
 | **branding** | Page builder, branding, localization, and account settings |
 | **viewer** | Views a [private status page](https://docs.betterstatuspage.dev/private-status-page/); no access to the admin console |
 
 Administrator sessions are stored server-side and authenticated with an `HttpOnly`, `SameSite=Strict` cookie. State-changing browser requests require a matching CSRF token. Users of the admin console can enable TOTP two-factor authentication from **Settings** and receive eight single-use recovery codes; it applies to password and SSO sign-ins alike. Administrators can also enable [OpenID Connect single sign-on](https://docs.betterstatuspage.dev/single-sign-on/) from **Users → Single sign-on**. Sensitive actions (sign-in settings, 2FA, password changes) are confirmed the way the session signed in: with the current password, or by signing in again at the identity provider in a pop-up.
+
+### API tokens
+
+Scripts and CI/CD can call the admin API with a token from **Administration → API tokens**, for example to open an incident from a pipeline. A token carries only the permissions you tick (read or write for monitors, notification channels, incidents, maintenance, subscribers and the page's appearance, read for reports, the audit log and system health, and a separate one for using vault secrets) and expires after 90 days unless you choose otherwise. It is shown once, and cannot manage users, single sign-on, status page access, vaults, backups or other tokens.
+
+> See **[docs.betterstatuspage.dev/api](https://docs.betterstatuspage.dev/api/)** for the token rules and `curl` examples.
+
+### Configuration as code
+
+Every monitor and notification channel can be written as a YAML document with a `kind`, identified by a key instead of a numeric id and with the known secret fields masked, for version control and review. A **YAML** button on a monitor and a channel shows that object; **Import** in the left menu (and the API) creates or updates objects from pasted or uploaded documents, with a preview before anything is written. Documents are checked completely, applied in one transaction, and applying them twice changes nothing. An import never deletes anything.
+
+> See **[docs.betterstatuspage.dev/configuration-as-code](https://docs.betterstatuspage.dev/configuration-as-code/)** for the format and what is included.
 
 ---
 

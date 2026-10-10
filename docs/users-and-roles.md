@@ -6,7 +6,7 @@ Every person who signs in to BetterStatusPage has their own account with one of 
 
 | Role | Meant for |
 |------|-----------|
-| **admin** | Full access, including users, sign-in settings, vaults, the audit log, backups and system health. |
+| **admin** | Full access, including users, sign-in settings, vaults, the audit log, backups, API tokens and system health. |
 | **operator** | Day-to-day work: monitors, incidents, maintenance, notifications, subscribers, and the status page's look. |
 | **branding** | The status page's look only: page builder, branding and localization. |
 | **viewer** | Viewing a [private status page](private-status-page.md). No access to the admin console. |
@@ -33,9 +33,14 @@ The role is checked by the API on every request, not only by the admin panel, so
 | [**Vault**](vault.md): create and edit vaults and secrets | Yes | No | No | No |
 | **Users**, **Single sign-on**, **Status page access** | Yes | No | No | No |
 | **Audit Log** | Yes | No | No | No |
+| [**API tokens**](api.md) | Yes | No | No | No |
+| [**Import**](configuration-as-code.md): monitors and notification channels | Yes | Yes | No | No |
 | [**Backups**](backup-restore.md) | Yes | No | No | No |
 | **System Health** | Yes | No | No | No |
 | [Private status page](private-status-page.md) | Yes | Yes | Yes | Yes |
+
+> [!WARNING]
+> **Not released yet.** The **API tokens** and **Import** rows are only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 The sidebar shows only the pages a role can open. Opening another page's address sends the user back to their start page: **Dashboard** for admins and operators, **Branding** for the branding role. A viewer who signs in on the admin sign-in page, or opens any admin address, is taken to the status page.
 
@@ -65,7 +70,7 @@ Each email can have only one account.
 
 ### Change a role
 
-Click another role in the user's row. Moving a user to a role with less access asks for confirmation first. The change ends all of the user's sessions at once, so they sign in again with the new role.
+Click another role in the user's row. Moving a user to a role with less access asks for confirmation first. The change ends all of the user's sessions at once, so they sign in again with the new role. Moving an administrator to another role also deletes every [API token](api.md#api-tokens) they created, for good: promoting them again does not bring the tokens back.
 
 ### Reset a password
 
@@ -77,7 +82,7 @@ When a user has lost their authenticator app and their recovery codes, click **R
 
 ### Delete a user
 
-Click **Delete user** and confirm. The account is removed and all of its sessions end immediately. There is no separate "disabled" state: to take access away, delete the account. Audit-log entries the user made stay, with their email.
+Click **Delete user** and confirm. The account is removed and all of its sessions and API tokens end immediately. There is no separate "disabled" state: to take access away, delete the account. Audit-log entries the user made stay, with their email.
 
 ### Protection against locking yourself out
 
@@ -160,10 +165,15 @@ The **Audit Log** (administrators only) records who changed what and when. Each 
 | Vault, Vault Secret | Create, update, delete (secret values never) |
 | Branding, Status Page Layout, Language | Branding and page builder saves, translation changes |
 | User | Create (also viewer accounts created through SSO), role change, password reset, delete |
+| API Token | Created or revoked: name, permissions, the first characters of the token and its expiry, never the token. Tokens removed because their creator lost the Admin role have an entry each. |
+| Import | One entry for each import that changed something, with the counts (created, updated, unchanged). Every monitor and channel it changed also has an entry of its own. |
+| Monitor (heartbeat token) | Resetting the heartbeat token of a webhook monitor is recorded as `heartbeat_token_reset`, never the token. |
 | User Security | Password changed, 2FA turned on or off, 2FA reset by an administrator (`admin_recovery`) or from the command line (`emergency_cli`), SSO account linked, temporary password revoked by an SSO sign-in |
 | SSO Settings, Status Page Access | Settings changes |
 | Backup, Backup Schedule | Backup created or deleted, schedule changes |
 | Sign-in | Every sign-in with a password or SSO: **Allowed** (with the method and whether a 2FA code was used) or **Denied** (with the reason) |
+
+A change made with an [API token](api.md#api-tokens) shows the email of the token's creator followed by `(token: <name>)`.
 
 Refused sign-ins have no signed-in user, so they are recorded as user 0 with the email that was entered or that the identity provider sent. The reason codes are listed in [Why a sign-in was refused](single-sign-on.md#why-a-sign-in-was-refused).
 
@@ -171,7 +181,7 @@ Refused sign-ins have no signed-in user, so they are recorded as user 0 with the
 
 Click a row to expand it:
 
-- **Updates** show a table of the changed fields with **Before** and **After** values. The row says how many fields changed.
+- **Updates** show a table of the changed fields with **Before** and **After** values. The row says how many fields changed. An update made by a [configuration import](configuration-as-code.md) lists the names of the changed settings (`changed`) instead, without values.
 - **Creates and deletes** show a snapshot of the main fields.
 - **Sign-ins** show **Show details** (allowed) or **Show reason** (denied).
 

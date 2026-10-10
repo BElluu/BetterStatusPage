@@ -47,11 +47,15 @@ const SECTIONS: { label: string; items: { slug: string; label?: string }[] }[] =
       { slug: 'users-and-roles', label: 'Users and roles' },
       { slug: 'single-sign-on' },
       { slug: 'vault', label: 'Secrets vault' },
+      { slug: 'api', label: 'API and tokens' },
     ],
   },
   {
     label: 'Operate',
-    items: [{ slug: 'backup-restore', label: 'Backup and restore' }],
+    items: [
+      { slug: 'configuration-as-code', label: 'Configuration as code' },
+      { slug: 'backup-restore', label: 'Backup and restore' },
+    ],
   },
   {
     label: 'Releases',
