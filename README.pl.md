@@ -317,7 +317,17 @@ Zmiany statusu docierają zarówno do panelu admina, jak i do strony publicznej 
 
 ## Szybki start produkcyjny
 
-Zalecaną ścieżką wdrożenia jest Docker Compose z opublikowanym obrazem z GHCR. Klonowanie repozytorium nie jest potrzebne — serwer potrzebuje tylko plików `docker-compose.yml` i `.env`:
+Zalecaną ścieżką wdrożenia jest Docker Compose z opublikowanym obrazem z GHCR. Klonowanie repozytorium nie jest potrzebne — serwer potrzebuje tylko plików `docker-compose.yml` i `.env`.
+
+### Instalacja jednym poleceniem
+
+Na serwerze z Linuksem, Dockerem i Docker Compose v2:
+
+```bash
+curl -fsSL https://betterstatuspage.dev/install.sh | sh
+```
+
+Skrypt pobiera `docker-compose.yml` i `.env.example`, generuje `JWT_SECRET` i `VAULT_ENCRYPTION_KEY`, pobiera obraz i uruchamia kontener na `127.0.0.1:3000`. Instaluje do `/opt/bsp` jako root, a w pozostałych przypadkach do `~/bsp` (zmienisz to przez `BSP_DIR`). Można go bezpiecznie uruchomić ponownie: istniejący `.env` nigdy nie jest nadpisywany. Zachowaj kopię `VAULT_ENCRYPTION_KEY` — kopie zapasowe jej nie zawierają. Wolisz widzieć każdy krok? Zrób to ręcznie:
 
 ```bash
 mkdir -p /opt/bsp && cd /opt/bsp

@@ -323,7 +323,17 @@ Status changes propagate to both the admin dashboard and the public page instant
 
 ## Quick production start
 
-Docker Compose with the published GHCR image is the recommended deployment path. No clone is needed — the server only needs `docker-compose.yml` and `.env`:
+Docker Compose with the published GHCR image is the recommended deployment path. No clone is needed — the server only needs `docker-compose.yml` and `.env`.
+
+### One-line install
+
+On a Linux server with Docker and Docker Compose v2:
+
+```bash
+curl -fsSL https://betterstatuspage.dev/install.sh | sh
+```
+
+The script downloads `docker-compose.yml` and `.env.example`, generates `JWT_SECRET` and `VAULT_ENCRYPTION_KEY`, pulls the image and starts the container on `127.0.0.1:3000`. It installs into `/opt/bsp` as root and `~/bsp` otherwise (override with `BSP_DIR`), and is safe to run again: an existing `.env` is never overwritten. Keep a copy of `VAULT_ENCRYPTION_KEY` — backups do not include it. Prefer to see every step? Do it manually:
 
 ```bash
 mkdir -p /opt/bsp && cd /opt/bsp

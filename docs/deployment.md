@@ -13,6 +13,29 @@ Two paths: **Docker Compose** (recommended — zero dependencies, five commands)
 
 The published image on GHCR contains the compiled API and both built frontends, so the server does not need the source code. It needs only two files in one directory: `docker-compose.yml` and `.env`.
 
+### Quick install (script)
+
+To skip steps 1 to 3, run the installer on the server:
+
+```bash
+curl -fsSL https://betterstatuspage.dev/install.sh | sh
+```
+
+It checks for `curl`, Docker and Docker Compose v2, downloads `docker-compose.yml` and `.env.example`, generates `JWT_SECRET` and `VAULT_ENCRYPTION_KEY` into a `.env` readable only by its owner (`chmod 600`), then runs `docker compose pull` and `docker compose up -d`. The application listens on `127.0.0.1:3000`; continue with [step 4](#4-open-the-setup-wizard) and put [Nginx](#nginx-reverse-proxy) in front for remote access.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BSP_DIR` | `/opt/bsp` as root, otherwise `~/bsp` | Install directory. |
+| `BSP_REF` | `main` | Branch or tag the files are downloaded from. Use a release tag to get the Compose file that matches it. |
+
+```bash
+curl -fsSL https://betterstatuspage.dev/install.sh | BSP_DIR=/srv/bsp sh
+```
+
+Running it again is safe: the Compose file is refreshed, an existing `.env` is kept (so the secrets stay), and the image is pulled and the container started again. To update, change `BSP_IMAGE` in `.env` as described in [Updates](#updates).
+
+Store `VAULT_ENCRYPTION_KEY` from the generated `.env` outside the server as well — backups never include it. To read the script before running it, download it first: `curl -fsSLO https://betterstatuspage.dev/install.sh`. The manual steps below do the same thing.
+
 ### 1. Download the Compose file and the environment template
 
 ```bash
