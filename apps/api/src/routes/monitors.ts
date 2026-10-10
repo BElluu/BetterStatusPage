@@ -14,6 +14,7 @@ import { serveEventStream } from '../services/sse.service.js'
 import { loadMonitorStats } from '../services/monitorStats.js'
 import { getSchedulerConfig } from '../config/scheduler.js'
 import { authenticateRequest } from '../services/authSession.js'
+import { keyForNew, keyForUpdate, type KeyOwner } from '../lib/entityKey.js'
 import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig, MonitorType } from '@bsp/shared'
 
 const MONITOR_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'postgresql', 'mysql', 'mongodb', 'docker', 'webhook']
@@ -89,8 +90,11 @@ export async function monitorRoutes(app: FastifyInstance) {
     return Math.min(20, Math.max(1, Math.round(value)))
   }
 
+  const monitorKeyOwner: KeyOwner = async (key) =>
+    (await db.select({ id: monitors.id }).from(monitors).where(eq(monitors.key, key)))[0]?.id
+
   app.post<{ Body: {
-    name: string; type: string
+    name: string; key?: string; type: string
     intervalSecs?: number; timeoutMs?: number; retries?: number; config: unknown
     failureThreshold?: number; recoveryThreshold?: number
     tags?: Array<{ label: string; color: string }>
@@ -103,8 +107,11 @@ export async function monitorRoutes(app: FastifyInstance) {
       const invalid = validateDockerConfig(req.body.config)
       if (invalid) return reply.code(400).send({ error: invalid })
     }
+    const resolvedKey = await keyForNew(req.body.name, req.body.key, monitorKeyOwner)
+    if ('error' in resolvedKey) return reply.code(resolvedKey.status).send({ error: resolvedKey.error })
     const now = Date.now()
     const results = await db.insert(monitors).values({
+      key: resolvedKey.key,
       name: req.body.name,
       type: req.body.type,
       intervalSecs: req.body.intervalSecs ?? 60,
@@ -137,7 +144,7 @@ export async function monitorRoutes(app: FastifyInstance) {
   })
 
   app.patch<{ Params: { id: string }; Body: Partial<{
-    name: string; type: string
+    name: string; key: string; type: string
     intervalSecs: number; timeoutMs: number; retries: number; config: unknown
     failureThreshold: number; recoveryThreshold: number
     tags: Array<{ label: string; color: string }>
@@ -155,6 +162,11 @@ export async function monitorRoutes(app: FastifyInstance) {
     }
 
     const updates: Partial<typeof monitors.$inferInsert> = { updatedAt: Date.now() }
+    if (req.body.key !== undefined) {
+      const resolvedKey = await keyForUpdate(id, req.body.key, monitorKeyOwner)
+      if ('error' in resolvedKey) return reply.code(resolvedKey.status).send({ error: resolvedKey.error })
+      updates.key = resolvedKey.key
+    }
     if (req.body.name !== undefined) updates.name = req.body.name
     if (req.body.type !== undefined) updates.type = req.body.type
     if (req.body.intervalSecs !== undefined) updates.intervalSecs = req.body.intervalSecs

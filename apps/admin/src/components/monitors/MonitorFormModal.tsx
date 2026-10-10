@@ -38,6 +38,7 @@ const defaultConfigs: Record<MonitorType, Record<string, unknown>> = {
 export default function MonitorFormModal({ monitor, initialType = 'https', allTags = [], onClose, onSaved }: Props) {
   const isEdit = !!monitor
   const [name, setName]               = useState(monitor?.name ?? '')
+  const [key, setKey]                 = useState(monitor?.key ?? '')
   const [type, setType]               = useState<MonitorType>(monitor?.type as MonitorType ?? initialType)
   const [intervalSecs, setIntervalSecs] = useState(monitor?.intervalSecs ?? 60)
   const [timeoutMs, setTimeoutMs]     = useState(monitor?.timeoutMs ?? 10000)
@@ -160,7 +161,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     setError('')
     setLoading(true)
     try {
-      const body = { name, type, intervalSecs, timeoutMs, retries, failureThreshold, recoveryThreshold, config, tags }
+      const body = { name, ...(key.trim() ? { key: key.trim() } : {}), type, intervalSecs, timeoutMs, retries, failureThreshold, recoveryThreshold, config, tags }
       if (isEdit) {
         await api.patch(`/admin/monitors/${monitor.id}`, body)
         await api.put(`/admin/notifications/monitor/${monitor.id}/channels`, { channelIds: [...selectedChannelIds] })
@@ -220,6 +221,10 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
 
           <Field label="Name">
             <input value={name} onChange={(e) => setName(e.target.value)} required className="input-sig" placeholder="My Service" />
+          </Field>
+
+          <Field label="Key" hint="Stable identifier for the API and config files. Lowercase letters, digits, - and _. Generated from the name when empty.">
+            <input value={key} onChange={(e) => setKey(e.target.value)} className="input-sig" placeholder="my-service" maxLength={64} />
           </Field>
 
           <MonitorTypePicker value={type} onChange={handleTypeChange} />

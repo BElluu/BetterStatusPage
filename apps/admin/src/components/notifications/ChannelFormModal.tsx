@@ -56,6 +56,7 @@ function readAlertPolicy(channel: NotificationChannel | null): ChannelAlertPolic
 export default function ChannelFormModal({ channel, initialType, onClose, onSaved }: Props) {
   const isEdit = !!channel
   const [name, setName]   = useState(channel?.name ?? '')
+  const [key, setKey]     = useState(channel?.key ?? '')
   const [type, setType]   = useState<ChannelType>(isChannelType(channel?.type) ? channel.type : (initialType ?? 'email'))
   const [enabled, setEnabled]               = useState((channel?.enabled ?? 1) === 1)
   const [notifyOnRecovery, setNotifyOnRecovery] = useState((channel?.notifyOnRecovery ?? 0) === 1)
@@ -130,7 +131,7 @@ export default function ChannelFormModal({ channel, initialType, onClose, onSave
     setLoading(true)
     try {
       const body = {
-        name, type, config: buildChannelConfig(type, drafts),
+        name, ...(key.trim() ? { key: key.trim() } : {}), type, config: buildChannelConfig(type, drafts),
         enabled: enabled ? 1 : 0,
         notifyOnRecovery: notifyOnRecovery ? 1 : 0,
         alertPolicy: buildAlertPolicy(),
@@ -182,6 +183,10 @@ export default function ChannelFormModal({ channel, initialType, onClose, onSave
 
           <Field label="Name">
             <input value={name} onChange={(e) => setName(e.target.value)} required className="input-sig" placeholder="My Email Alert" />
+          </Field>
+
+          <Field label="Key" hint="Stable identifier for the API and config files. Lowercase letters, digits, - and _. Generated from the name when empty.">
+            <input value={key} onChange={(e) => setKey(e.target.value)} className="input-sig" placeholder="my-email-alert" maxLength={64} />
           </Field>
 
           <ChannelTypePicker value={type} onChange={setType} />

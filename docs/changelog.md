@@ -13,6 +13,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 - **Monitor details page**: click a monitor's name in **Monitoring → Monitors**, or its tile on the **Dashboard**, to see its response time chart (average, p95 or maximum, in the style of the status page), uptime bars (hourly, 6-hourly or daily, depending on the range), response percentiles (p50, p95, p99), the 10 latest failed checks with their errors, incidents with their MTTR and the monitor's configuration, for the last 24 hours, 7, 30 or 90 days. See [Monitor details](monitors.md#monitor-details).
 
+- **Keys for monitors and notification channels**: every monitor and notification channel now has a unique **Key** (lowercase letters, digits, `-` and `_`) next to its name, in the form and in the API. It is generated from the name when left empty and can be edited at any time. The key stays the same when the name changes; it will identify the object in API clients and configuration files.
+
 ### Changed
 
 - **Notification channel type picker**: the type in **New Notification Channel** is now a searchable dropdown, like the monitor type, instead of a row of buttons, so it stays one control tall as more channel types are added.

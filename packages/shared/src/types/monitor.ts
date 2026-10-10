@@ -119,6 +119,8 @@ export interface MonitorTag {
 
 export interface Monitor {
   id: number
+  /** Stable identifier used by the API and config files; unique, editable. */
+  key: string
   name: string
   type: MonitorType
   intervalSecs: number

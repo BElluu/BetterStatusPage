@@ -1,5 +1,6 @@
 import { sqliteTable, integer, text, real, primaryKey } from 'drizzle-orm/sqlite-core'
 import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
+import { randomEntityKey } from '../lib/entityKey.js'
 
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -41,6 +42,8 @@ export const monitors = sqliteTable('monitors', {
   lastCheckedAt: integer('last_checked_at'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  /** Stable identifier for config-as-code and API clients; unlike `id` it survives export/import. */
+  key: text('key').notNull().unique().$defaultFn(randomEntityKey),
   // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
   retries: integer('retries').notNull().default(1),
   webhookToken: text('webhook_token'),
@@ -142,6 +145,8 @@ export const notificationChannels = sqliteTable('notification_channels', {
   notifyOnRecovery: integer('notify_on_recovery').notNull().default(0),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  /** Stable identifier for config-as-code and API clients; unlike `id` it survives export/import. */
+  key: text('key').notNull().unique().$defaultFn(randomEntityKey),
   // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
   alertPolicy: text('alert_policy').notNull().default('{}'), // JSON ChannelAlertPolicy
 })

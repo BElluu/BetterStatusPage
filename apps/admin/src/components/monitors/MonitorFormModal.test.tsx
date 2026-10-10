@@ -60,6 +60,7 @@ function createdBody() {
 function existingMonitor(patch: Partial<Monitor> = {}): Monitor {
   return {
     id: 2,
+    key: 'edge',
     name: 'Edge',
     type: 'https',
     intervalSecs: 120,

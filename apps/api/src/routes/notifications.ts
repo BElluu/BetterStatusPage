@@ -8,6 +8,7 @@ import { auditActor, writeAudit, diffObjects, snapshot } from '../services/audit
 import { requestIdentity } from '../middleware/auth.js'
 import { withImmediateTransaction } from '../db/transaction.js'
 import { parsePagination } from '../lib/pagination.js'
+import { keyForNew, keyForUpdate, type KeyOwner } from '../lib/entityKey.js'
 import type { NotificationChannelType } from '@bsp/shared'
 
 const CHANNEL_TYPES: readonly NotificationChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack', 'telegram']
@@ -118,8 +119,11 @@ export async function notificationRoutes(app: FastifyInstance) {
     return rows.map(parseChannel)
   })
 
+  const channelKeyOwner: KeyOwner = async (key) =>
+    (await db.select({ id: notificationChannels.id }).from(notificationChannels).where(eq(notificationChannels.key, key)))[0]?.id
+
   app.post<{ Body: {
-    name: string; type: string
+    name: string; key?: string; type: string
     config: unknown; enabled?: number; notifyOnRecovery?: number; alertPolicy?: unknown
   } }>('/channels', async (req, reply) => {
     if (typeof req.body?.name !== 'string' || !req.body.name.trim()) return reply.code(400).send({ error: 'Name is required' })
@@ -130,8 +134,11 @@ export async function notificationRoutes(app: FastifyInstance) {
       const problem = telegramConfigError(req.body.config)
       if (problem) return reply.code(400).send({ error: problem })
     }
+    const resolvedKey = await keyForNew(req.body.name, req.body.key, channelKeyOwner)
+    if ('error' in resolvedKey) return reply.code(resolvedKey.status).send({ error: resolvedKey.error })
     const now = Date.now()
     const results = await db.insert(notificationChannels).values({
+      key: resolvedKey.key,
       name: req.body.name,
       type: req.body.type,
       config: JSON.stringify(req.body.config ?? {}),
@@ -155,7 +162,7 @@ export async function notificationRoutes(app: FastifyInstance) {
   })
 
   app.patch<{ Params: { id: string }; Body: Partial<{
-    name: string; type: string; config: unknown; enabled: number; notifyOnRecovery: number; alertPolicy: unknown
+    name: string; key: string; type: string; config: unknown; enabled: number; notifyOnRecovery: number; alertPolicy: unknown
   }> }>('/channels/:id', async (req, reply) => {
     const id = Number(req.params.id)
     const existing = (await db.select().from(notificationChannels).where(eq(notificationChannels.id, id)))[0]
@@ -169,6 +176,11 @@ export async function notificationRoutes(app: FastifyInstance) {
     }
 
     const updates: Partial<typeof notificationChannels.$inferInsert> = { updatedAt: Date.now() }
+    if (req.body.key !== undefined) {
+      const resolvedKey = await keyForUpdate(id, req.body.key, channelKeyOwner)
+      if ('error' in resolvedKey) return reply.code(resolvedKey.status).send({ error: resolvedKey.error })
+      updates.key = resolvedKey.key
+    }
     if (req.body.name !== undefined)              updates.name = req.body.name
     if (req.body.type !== undefined)              updates.type = req.body.type
     if (req.body.config !== undefined)            updates.config = JSON.stringify(config)

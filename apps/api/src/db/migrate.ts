@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS monitors (
   current_status TEXT NOT NULL DEFAULT 'pending',
   last_checked_at INTEGER,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  key TEXT NOT NULL UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS monitor_results (
@@ -76,7 +77,8 @@ CREATE TABLE IF NOT EXISTS notification_channels (
   enabled INTEGER NOT NULL DEFAULT 1,
   notify_on_recovery INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  key TEXT NOT NULL UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS monitor_notification_channels (

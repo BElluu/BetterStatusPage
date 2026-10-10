@@ -44,6 +44,7 @@ async function create(user: User) {
 function channel(patch: Partial<NotificationChannel>): NotificationChannel {
   return {
     id: 5,
+    key: 'ops-mail',
     name: 'Ops mail',
     type: 'email',
     config: { to: 'ops@example.test', subject: 'S', body: 'B' },
