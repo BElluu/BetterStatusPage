@@ -58,8 +58,6 @@ export const monitors = sqliteTable('monitors', {
   lastCheckedAt: integer('last_checked_at'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
-  /** Stable identifier for config-as-code and API clients; unlike `id` it survives export/import. */
-  key: text('key').notNull().unique().$defaultFn(randomEntityKey),
   // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
   retries: integer('retries').notNull().default(1),
   webhookToken: text('webhook_token'),
@@ -76,6 +74,8 @@ export const monitors = sqliteTable('monitors', {
   certCheckedAt: integer('cert_checked_at'),
   /** Smallest days-before-expiry milestone already warned about for the current certificate. */
   certWarnedDays: integer('cert_warned_days'),
+  /** Stable identifier for config-as-code and API clients; unlike `id` it survives export/import. */
+  key: text('key').notNull().unique().$defaultFn(randomEntityKey),
 })
 
 export const monitorResults = sqliteTable('monitor_results', {
@@ -161,10 +161,10 @@ export const notificationChannels = sqliteTable('notification_channels', {
   notifyOnRecovery: integer('notify_on_recovery').notNull().default(0),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
-  /** Stable identifier for config-as-code and API clients; unlike `id` it survives export/import. */
-  key: text('key').notNull().unique().$defaultFn(randomEntityKey),
   // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
   alertPolicy: text('alert_policy').notNull().default('{}'), // JSON ChannelAlertPolicy
+  /** Stable identifier for config-as-code and API clients; unlike `id` it survives export/import. */
+  key: text('key').notNull().unique().$defaultFn(randomEntityKey),
 })
 
 export const monitorNotificationChannels = sqliteTable('monitor_notification_channels', {
