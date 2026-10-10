@@ -5,6 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../api/client'
 import ChannelFormModal from './ChannelFormModal'
 
+vi.mock('../YamlViewModal', () => ({
+  YamlViewModal: ({ kind, objectKey, onClose }: { kind: string; objectKey?: string; onClose: () => void }) => (
+    <div role="dialog" aria-label="YAML view">{kind} {objectKey ?? ''}<button type="button" onClick={onClose}>Close YAML</button></div>
+  ),
+}))
+
 vi.mock('../../api/client', () => ({
   api: { get: vi.fn(), post: vi.fn(), patch: vi.fn() },
 }))
@@ -398,5 +404,24 @@ describe('ChannelFormModal', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalledOnce()
+  })
+})
+
+describe('ChannelFormModal YAML view', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(api.get).mockResolvedValue([] as never)
+  })
+
+  it('opens the saved channel as YAML, by its key', async () => {
+    const user = userEvent.setup()
+    renderModal(channel({}))
+    await user.click(screen.getByRole('button', { name: 'YAML' }))
+    expect(screen.getByRole('dialog', { name: 'YAML view' })).toHaveTextContent('NotificationChannel ops-mail')
+  })
+
+  it('has no YAML for a channel that does not exist yet', () => {
+    renderModal(null)
+    expect(screen.queryByRole('button', { name: 'YAML' })).not.toBeInTheDocument()
   })
 })

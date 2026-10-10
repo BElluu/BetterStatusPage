@@ -12,7 +12,9 @@ import { serveEventStream } from '../services/sse.service.js'
 import { loadMonitorStats } from '../services/monitorStats.js'
 import { getSchedulerConfig } from '../config/scheduler.js'
 import { authenticateRequest } from '../services/authSession.js'
-import { keyForNew, keyForUpdate, type KeyOwner } from '../lib/entityKey.js'
+import { tokenAllows } from '@bsp/shared'
+import { keyForNew, type KeyOwner } from '../lib/entityKey.js'
+import { vaultUseProblem } from '../services/vaultUse.js'
 import { certResetsFor, generateWebhookToken, parseMonitorPatch, parseNewMonitor } from '../services/monitorInput.js'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
 import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig } from '@bsp/shared'
@@ -71,7 +73,7 @@ export async function monitorRoutes(app: FastifyInstance) {
       session: { sessionId, userId },
       stillAllowed: async () => {
         const identity = await authenticateRequest(req, { allowApiToken: true })
-        return identity.role === 'admin' || identity.role === 'operator'
+        return identity.apiToken ? tokenAllows(identity.apiToken.scopes, 'monitors:read') : identity.role === 'admin' || identity.role === 'operator'
       },
     })
   })
@@ -90,6 +92,8 @@ export async function monitorRoutes(app: FastifyInstance) {
     const fields = parsed.value
     const secrets = restoreSecrets('monitor', fields.config, undefined)
     if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
+    const vaultProblem = vaultUseProblem(requestIdentity(req).apiToken, secrets.config, undefined)
+    if (vaultProblem) return reply.code(403).send({ error: vaultProblem })
     const resolvedKey = await keyForNew(fields.name, req.body.key, monitorKeyOwner)
     if ('error' in resolvedKey) return reply.code(resolvedKey.status).send({ error: resolvedKey.error })
     const now = Date.now()
@@ -136,16 +140,12 @@ export async function monitorRoutes(app: FastifyInstance) {
     const existing = (await db.select().from(monitors).where(eq(monitors.id, id)))[0]
     if (!existing) return reply.code(404).send({ error: 'Not found' })
 
+    if (req.body.key !== undefined) return reply.code(400).send({ error: 'The key is set when the object is created and cannot be changed' })
     const parsed = parseMonitorPatch(req.body, existing)
     if ('error' in parsed) return reply.code(400).send({ error: parsed.error })
     const patch = parsed.value
 
     const updates: Partial<typeof monitors.$inferInsert> = { updatedAt: Date.now() }
-    if (req.body.key !== undefined) {
-      const resolvedKey = await keyForUpdate(id, req.body.key, monitorKeyOwner)
-      if ('error' in resolvedKey) return reply.code(resolvedKey.status).send({ error: resolvedKey.error })
-      updates.key = resolvedKey.key
-    }
     if (patch.name !== undefined) updates.name = patch.name
     if (patch.type !== undefined) updates.type = patch.type
     if (patch.intervalSecs !== undefined) updates.intervalSecs = patch.intervalSecs
@@ -158,6 +158,8 @@ export async function monitorRoutes(app: FastifyInstance) {
       const type = patch.type ?? existing.type
       const secrets = restoreSecrets('monitor', patch.config, type === existing.type ? JSON.parse(existing.config) : undefined)
       if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
+      const vaultProblem = vaultUseProblem(requestIdentity(req).apiToken, secrets.config, type === existing.type ? JSON.parse(existing.config) : undefined)
+      if (vaultProblem) return reply.code(403).send({ error: vaultProblem })
       updates.config = JSON.stringify(secrets.config)
       Object.assign(updates, certResetsFor(JSON.parse(existing.config), secrets.config))
     }
@@ -196,6 +198,8 @@ export async function monitorRoutes(app: FastifyInstance) {
     const stored = monitorId === undefined ? undefined : (await db.select().from(monitors).where(eq(monitors.id, Number(monitorId))))[0]
     const secrets = restoreSecrets('monitor', submitted, stored?.type === type ? JSON.parse(stored.config) : undefined)
     if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
+    const vaultProblem = vaultUseProblem(requestIdentity(req).apiToken, secrets.config, stored?.type === type ? JSON.parse(stored.config) : undefined)
+    if (vaultProblem) return reply.code(403).send({ error: vaultProblem })
     const config = secrets.config
     if (requestedTimeout !== undefined && !Number.isFinite(requestedTimeout)) {
       return reply.code(400).send({ error: 'timeoutMs must be a number' })

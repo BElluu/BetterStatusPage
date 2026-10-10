@@ -22,7 +22,7 @@ Email and Webhook are fully templated. Slack, Discord, Teams and Telegram build 
 ## Creating a channel
 
 1. Go to **Notifications** and click **Add Channel** (or pick a type from the quick-start tiles while you have no channels yet).
-2. Enter a **Name**, optionally a **Key** (the identifier used by the [API](api.md#monitors-and-notification-channels-have-keys) and [configuration files](configuration-as-code.md); generated from the name when left empty), and pick the **Type**.
+2. Enter a **Name** and pick the **Type**. A technical [key](api.md#monitors-and-notification-channels-have-keys) is generated from the name; it is not shown in the form and never changes.
 3. Fill in the type-specific fields (see below).
 4. Set the two switches:
    - **Enabled** — a disabled channel sends nothing. On by default.

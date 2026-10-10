@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import Fastify from 'fastify'
-import { parse, stringify } from 'yaml'
+import { parseAllDocuments, stringify } from 'yaml'
 import { db, sqlite } from '../src/db/client.js'
 import { vaultSecrets, vaults } from '../src/db/schema.js'
 import { configRoutes } from '../src/routes/config.js'
@@ -13,6 +13,8 @@ const app = Fastify({ logger: false })
 
 before(async () => {
   initTestDb()
+  // How the admin API reaches a handler: a token is allowed here and checked by the handler itself.
+  app.addHook('onRoute', (route) => { route.config = { ...route.config, allowApiToken: true, tokenScope: 'custom' } })
   app.addHook('onRequest', async (request) => {
     request.user = { userId: 1, email: 'admin@example.test', role: 'admin', sessionId: 'test-session' }
   })
@@ -28,7 +30,7 @@ after(async () => {
 beforeEach(() => {
   sqlite.exec(`
     DELETE FROM monitor_notification_channels; DELETE FROM monitor_dependencies; DELETE FROM monitors;
-    DELETE FROM notification_channels; DELETE FROM layout; DELETE FROM audit_log;
+    DELETE FROM notification_channels; DELETE FROM audit_log;
     DELETE FROM vault_secrets; DELETE FROM vaults;
   `)
 })
@@ -37,61 +39,52 @@ beforeEach(() => {
 
 type Doc = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 
-const baseline = (): Doc => ({
-  version: 1,
-  channels: [
-    { key: 'ops-slack', name: 'Ops Slack', type: 'slack', notifyOnRecovery: true, config: { webhookUrl: 'https://hooks.test/real-secret' } },
-    { key: 'pager', name: 'Pager', type: 'webhook', enabled: false, config: { url: 'https://pager.test/hook', method: 'POST', headers: { Authorization: 'Bearer pager-secret' } } },
-  ],
-  monitors: [
-    { key: 'billing-db', name: 'Billing DB', type: 'postgresql', config: { host: 'db.internal', port: 5432, database: 'billing', user: 'app', password: 'db-secret', query: 'select 1', mode: 'fields' } },
-    {
-      key: 'public-site', name: 'Public site', type: 'https', intervalSecs: 30, tags: [{ label: 'prod', color: '#00ff00' }],
-      config: { url: 'https://example.test', method: 'GET', expectedStatus: 200, auth: { type: 'basic', basic: { username: 'svc', password: 'p4ss' } } },
-      notifications: ['ops-slack', 'pager'], dependsOn: ['billing-db'],
-    },
-    { key: 'nightly-job', name: 'Nightly job', type: 'webhook', config: {} },
-  ],
-  layout: {
-    id: 'root', type: 'page', children: [
-      { id: 'm1', type: 'monitor', monitorKey: 'public-site', showUptimeBar: true },
-      { id: 'c1', type: 'chart', monitorKey: 'billing-db' },
-    ],
-  },
+const channel = (patch: Doc = {}): Doc => ({ kind: 'NotificationChannel', key: 'ops-slack', name: 'Ops Slack', type: 'slack', notifyOnRecovery: true, config: { webhookUrl: 'https://hooks.test/real-secret' }, ...patch })
+const pager = (): Doc => ({ kind: 'NotificationChannel', key: 'pager', name: 'Pager', type: 'webhook', enabled: false, config: { url: 'https://pager.test/hook', method: 'POST', headers: { Authorization: 'Bearer pager-secret' } } })
+const database = (patch: Doc = {}): Doc => ({ kind: 'Monitor', key: 'billing-db', name: 'Billing DB', type: 'postgresql', config: { host: 'db.internal', port: 5432, database: 'billing', user: 'app', password: 'db-secret', query: 'select 1', mode: 'fields' }, ...patch })
+const site = (patch: Doc = {}): Doc => ({
+  kind: 'Monitor', key: 'public-site', name: 'Public site', type: 'https', intervalSecs: 30, tags: [{ label: 'prod', color: '#00ff00' }],
+  config: { url: 'https://example.test', method: 'GET', expectedStatus: 200, auth: { type: 'basic', basic: { username: 'svc', password: 'p4ss' } } },
+  notifications: ['ops-slack', 'pager'], dependsOn: ['billing-db'], ...patch,
 })
+const heartbeat = (): Doc => ({ kind: 'Monitor', key: 'nightly-job', name: 'Nightly job', type: 'webhook', config: {} })
+/** Two channels and three monitors that refer to each other. */
+const baseline = (): Doc[] => [channel(), pager(), database(), site(), heartbeat()]
 
 // A Bearer header is how an API token calls this, and it is what lets the request skip the CSRF check a browser needs.
 const bearer = { authorization: 'Bearer test' }
-const post = (path: string, payload: unknown, query = '', contentType?: string) => app.inject({
-  method: 'POST', url: `/config/${path}${query}`,
-  ...(contentType ? { headers: { ...bearer, 'content-type': contentType }, payload: payload as string } : { headers: bearer, payload: payload as Doc }),
+const post = (path: string, payload: unknown, contentType = 'application/yaml') => app.inject({
+  method: 'POST', url: `/config/${path}`,
+  headers: { ...bearer, 'content-type': contentType },
+  // JSON is YAML, and a list is a stream of documents.
+  payload: typeof payload === 'string' ? payload : Array.isArray(payload) ? payload.map((d) => JSON.stringify(d)).join('\n---\n') : JSON.stringify(payload),
 })
-const apply = (doc: unknown, query = '') => post('apply', doc, query)
-const validate = (doc: unknown, query = '') => post('validate', doc, query)
-const exported = async () => (await app.inject({ url: '/config/export?format=json' })).json() as Doc
+const apply = (documents: unknown) => post('apply', documents)
+const validate = (documents: unknown) => post('validate', documents)
+const exported = async () => parseAllDocuments((await app.inject({ url: '/config/export', headers: bearer })).body).map((document) => document.toJS() as Doc)
 
-async function applied(doc: Doc, query = '') {
-  const response = await apply(doc, query)
+async function applied(documents: unknown): Promise<Doc> {
+  const response = await apply(documents)
   assert.equal(response.statusCode, 200, response.body)
-  return response.json() as Doc
+  return response.json()
 }
 
 const rows = (table: string) => sqlite.prepare(`SELECT * FROM ${table} ORDER BY 1, 2`).all() as Array<Record<string, any>> // eslint-disable-line @typescript-eslint/no-explicit-any
 const stored = (key: string) => JSON.parse((sqlite.prepare('SELECT config FROM monitors WHERE key = ?').get(key) as { config: string }).config)
-const everything = () => JSON.stringify(['monitors', 'notification_channels', 'monitor_notification_channels', 'monitor_dependencies', 'layout'].map(rows))
+const everything = () => JSON.stringify(['monitors', 'notification_channels', 'monitor_notification_channels', 'monitor_dependencies'].map(rows))
 const change = (result: Doc, kind: string, key?: string) => result['changes'].find((c: Doc) => c['kind'] === kind && c['key'] === key)
 
 // ── creating ────────────────────────────────────────────────────────────────────────────────────────────────────
 
 describe('importing into an empty installation', () => {
-  it('creates channels, monitors, their links and the layout', async () => {
+  it('creates channels, monitors and their links', async () => {
     const result = await applied(baseline())
-    assert.deepEqual(result['summary'], { create: 6, update: 0, unchanged: 0, delete: 0 })
+    assert.deepEqual(result['summary'], { create: 5, update: 0, unchanged: 0 })
     assert.equal(result['dryRun'], false)
 
-    const site = rows('monitors').find((m) => m['key'] === 'public-site')!
-    assert.deepEqual([site['name'], site['type'], site['interval_secs'], site['current_status']], ['Public site', 'https', 30, 'pending'])
-    assert.deepEqual(JSON.parse(site['tags']), [{ label: 'prod', color: '#00ff00' }])
+    const row = rows('monitors').find((m) => m['key'] === 'public-site')!
+    assert.deepEqual([row['name'], row['type'], row['interval_secs'], row['current_status']], ['Public site', 'https', 30, 'pending'])
+    assert.deepEqual(JSON.parse(row['tags']), [{ label: 'prod', color: '#00ff00' }])
     assert.equal(stored('public-site').auth.basic.password, 'p4ss', 'secrets are stored as given')
 
     const keyOf = (table: string, id: number) => (sqlite.prepare(`SELECT key FROM ${table} WHERE id = ?`).get(id) as { key: string }).key
@@ -99,20 +92,21 @@ describe('importing into an empty installation', () => {
       [['public-site', 'ops-slack'], ['public-site', 'pager']])
     assert.deepEqual(rows('monitor_dependencies').map((d) => [keyOf('monitors', d['dependent_id']), keyOf('monitors', d['depends_on_id'])]), [['public-site', 'billing-db']])
 
-    const channel = rows('notification_channels').find((c) => c['key'] === 'pager')!
-    assert.deepEqual([channel['enabled'], channel['notify_on_recovery']], [0, 0])
+    const pagerRow = rows('notification_channels').find((c) => c['key'] === 'pager')!
+    assert.deepEqual([pagerRow['enabled'], pagerRow['notify_on_recovery']], [0, 0])
     assert.equal(rows('notification_channels').find((c) => c['key'] === 'ops-slack')!['notify_on_recovery'], 1)
   })
 
-  it('gives a new webhook monitor a heartbeat token and points the layout at the new ids', async () => {
+  it('lists the changes with channels first, then monitors', async () => {
+    const result = await applied(baseline())
+    assert.deepEqual(result['changes'].map((c: Doc) => `${c['kind']}:${c['key'] ?? ''}`), [
+      'NotificationChannel:ops-slack', 'NotificationChannel:pager', 'Monitor:billing-db', 'Monitor:nightly-job', 'Monitor:public-site',
+    ])
+  })
+
+  it('gives a new webhook monitor a heartbeat token', async () => {
     await applied(baseline())
     assert.match(rows('monitors').find((m) => m['key'] === 'nightly-job')!['webhook_token'], /^[0-9a-f]{48}$/)
-    const tree = JSON.parse(rows('layout')[0]!['tree'])
-    const idOf = (key: string) => rows('monitors').find((m) => m['key'] === key)!['id']
-    assert.deepEqual(tree.children, [
-      { id: 'm1', type: 'monitor', monitorId: idOf('public-site'), showUptimeBar: true },
-      { id: 'c1', type: 'chart', monitorId: idOf('billing-db') },
-    ])
   })
 
   it('records the import and what it changed in the audit log', async () => {
@@ -122,8 +116,14 @@ describe('importing into an empty installation', () => {
     assert.equal(entries.filter((e) => e['entity_type'] === 'notification_channel').length, 2)
     const summary = entries.find((e) => e['entity_type'] === 'config')!
     assert.equal(summary['user_email'], 'admin@example.test')
-    assert.deepEqual(JSON.parse(summary['diff']), { created: 6, updated: 0, deleted: 0, unchanged: 0, prune: false })
+    assert.deepEqual(JSON.parse(summary['diff']), { created: 5, updated: 0, unchanged: 0 })
     assert.equal(JSON.stringify(entries).includes('p4ss'), false, 'no secret in the audit log')
+  })
+
+  it('takes a single object, which is how one monitor is added', async () => {
+    const result = await applied(heartbeat())
+    assert.deepEqual(result['summary'], { create: 1, update: 0, unchanged: 0 })
+    assert.equal(rows('monitors').length, 1)
   })
 })
 
@@ -135,7 +135,7 @@ describe('importing what is already there', () => {
     const before = everything()
     const auditCount = rows('audit_log').length
     const result = await applied(baseline())
-    assert.deepEqual(result['summary'], { create: 0, update: 0, unchanged: 6, delete: 0 })
+    assert.deepEqual(result['summary'], { create: 0, update: 0, unchanged: 5 })
     assert.equal(everything(), before)
     assert.equal(rows('audit_log').length, auditCount)
   })
@@ -144,20 +144,33 @@ describe('importing what is already there', () => {
     await applied(baseline())
     const before = everything()
     const file = await exported()
-    assert.equal(file.monitors.find((m: Doc) => m['key'] === 'public-site').config.auth.basic.password, SECRET_MASK)
+    assert.equal(file.find((d) => d['key'] === 'public-site')!['config'].auth.basic.password, SECRET_MASK)
     const result = await applied(file)
-    assert.deepEqual(result['summary'], { create: 0, update: 0, unchanged: 6, delete: 0 })
+    assert.deepEqual(result['summary'], { create: 0, update: 0, unchanged: 5 })
     assert.equal(everything(), before)
     assert.equal(stored('public-site').auth.basic.password, 'p4ss')
     assert.equal(stored('billing-db').password, 'db-secret')
   })
 
-  it('reads the YAML export back the same way', async () => {
+  it('reads the YAML export, several documents in one file, back the same way', async () => {
     await applied(baseline())
-    const yaml = (await app.inject({ url: '/config/export' })).body
-    const result = await post('apply', yaml, '', 'application/yaml')
+    const yaml = (await app.inject({ url: '/config/export', headers: bearer })).body
+    assert.equal((yaml.match(/^---$/gm) ?? []).length, 4)
+    const result = await post('apply', yaml, 'application/yaml')
     assert.equal(result.statusCode, 200, result.body)
-    assert.deepEqual(result.json().summary, { create: 0, update: 0, unchanged: 6, delete: 0 })
+    assert.deepEqual(result.json().summary, { create: 0, update: 0, unchanged: 5 })
+  })
+
+  it('reads a single exported object back, which is how one object is edited and put back', async () => {
+    await applied(baseline())
+    const one = (await app.inject({ url: '/config/export?kind=Monitor&key=public-site', headers: bearer })).body
+    const edited = one.replace('intervalSecs: 30', 'intervalSecs: 45')
+    assert.notEqual(edited, one)
+    const result = await post('apply', edited, 'application/yaml')
+    assert.deepEqual(result.json().summary, { create: 0, update: 1, unchanged: 0 })
+    assert.deepEqual(change(result.json(), 'Monitor', 'public-site').fields, ['intervalSecs'])
+    assert.equal(rows('monitors').find((m) => m['key'] === 'public-site')!['interval_secs'], 45)
+    assert.equal(stored('public-site').auth.basic.password, 'p4ss', 'the masked secret stayed')
   })
 })
 
@@ -170,58 +183,54 @@ describe('importing a changed file', () => {
     const untouched = rows('monitors').find((m) => m['key'] === 'billing-db')!['updated_at']
     await new Promise((resolve) => setTimeout(resolve, 5))
 
-    const doc = baseline()
-    doc['monitors'][1].intervalSecs = 45
-    doc['monitors'][1].dependsOn = []
-    doc['channels'][0].name = 'Operations Slack'
-    const result = await applied(doc)
+    const result = await applied([channel({ name: 'Operations Slack' }), pager(), database(), site({ intervalSecs: 45, dependsOn: [] }), heartbeat()])
 
-    assert.deepEqual(result['summary'], { create: 0, update: 2, unchanged: 4, delete: 0 })
-    assert.deepEqual(change(result, 'monitor', 'public-site').fields, ['intervalSecs', 'dependsOn'])
-    assert.deepEqual(change(result, 'channel', 'ops-slack').fields, ['name'])
+    assert.deepEqual(result['summary'], { create: 0, update: 2, unchanged: 3 })
+    assert.deepEqual(change(result, 'Monitor', 'public-site').fields, ['intervalSecs', 'dependsOn'])
+    assert.deepEqual(change(result, 'NotificationChannel', 'ops-slack').fields, ['name'])
     assert.equal(JSON.stringify(result).includes('p4ss'), false)
 
-    const site = rows('monitors').find((m) => m['key'] === 'public-site')!
-    assert.equal(site['interval_secs'], 45)
+    assert.equal(rows('monitors').find((m) => m['key'] === 'public-site')!['interval_secs'], 45)
     assert.equal(rows('monitor_dependencies').length, 0)
     assert.equal(rows('monitors').find((m) => m['key'] === 'nightly-job')!['webhook_token'], token, 'the heartbeat URL does not change')
     assert.equal(rows('monitors').find((m) => m['key'] === 'billing-db')!['updated_at'], untouched, 'an unchanged monitor is not touched')
     assert.equal(rows('notification_channels').find((c) => c['key'] === 'ops-slack')!['name'], 'Operations Slack')
   })
 
-  it('keeps what the file does not mention: omitted sections are left alone', async () => {
+  it('never removes anything: what the file does not mention stays', async () => {
     await applied(baseline())
-    const before = everything()
-    const result = await applied({ version: 1 }, '?prune=true')
-    assert.deepEqual(result['summary'], { create: 0, update: 0, unchanged: 0, delete: 0 })
-    assert.equal(everything(), before)
-
-    await applied({ version: 1, monitors: [{ key: 'extra', name: 'Extra', type: 'webhook', config: {} }] })
-    assert.equal(rows('monitors').length, 4, 'a monitor missing from the file stays unless prune is set')
+    const result = await applied(heartbeat())
+    assert.deepEqual(result['summary'], { create: 0, update: 0, unchanged: 1 })
+    await applied({ kind: 'Monitor', key: 'extra', name: 'Extra', type: 'webhook', config: {} })
+    assert.equal(rows('monitors').length, 4)
     assert.equal(rows('notification_channels').length, 2)
+  })
+
+  it('takes a settings left out as its default, but keeps the links of nothing else', async () => {
+    await applied(baseline())
+    const result = await applied({ ...site(), intervalSecs: undefined, notifications: undefined })
+    assert.deepEqual(change(result, 'Monitor', 'public-site').fields, ['intervalSecs', 'notifications'])
+    assert.equal(rows('monitors').find((m) => m['key'] === 'public-site')!['interval_secs'], 60)
+    assert.equal(rows('monitor_notification_channels').length, 0)
   })
 
   it('resets what was known about the certificate when the endpoint changes', async () => {
     await applied(baseline())
     sqlite.exec("UPDATE monitors SET cert_expires_at = 123, cert_checked_at = 5, cert_warned_days = 7 WHERE key = 'public-site'")
-    const same = baseline()
-    same['monitors'][1].intervalSecs = 60
-    await applied(same)
+    await applied(site({ intervalSecs: 60 }))
     assert.deepEqual(rows('monitors').find((m) => m['key'] === 'public-site')!['cert_expires_at'], 123, 'unrelated change keeps it')
 
-    const moved = baseline()
-    moved['monitors'][1].config.url = 'https://moved.test'
+    const moved = site()
+    moved['config'].url = 'https://moved.test'
     await applied(moved)
-    const site = rows('monitors').find((m) => m['key'] === 'public-site')!
-    assert.deepEqual([site['cert_expires_at'], site['cert_checked_at'], site['cert_warned_days']], [null, null, null])
+    const row = rows('monitors').find((m) => m['key'] === 'public-site')!
+    assert.deepEqual([row['cert_expires_at'], row['cert_checked_at'], row['cert_warned_days']], [null, null, null])
   })
 
   it('changes the type of a monitor when the file says so', async () => {
     await applied(baseline())
-    const doc = baseline()
-    doc['monitors'][2] = { key: 'nightly-job', name: 'Nightly job', type: 'ping', config: { host: 'h', mode: 'tcp', port: 22 } }
-    const result = await applied(doc)
-    assert.deepEqual(change(result, 'monitor', 'nightly-job').fields, ['type', 'config'])
+    const result = await applied({ kind: 'Monitor', key: 'nightly-job', name: 'Nightly job', type: 'ping', config: { host: 'h', mode: 'tcp', port: 22 } })
+    assert.deepEqual(change(result, 'Monitor', 'nightly-job').fields, ['type', 'config'])
     assert.equal(rows('monitors').find((m) => m['key'] === 'nightly-job')!['webhook_token'], null)
   })
 })
@@ -234,7 +243,7 @@ describe('validating without applying', () => {
     const preview = await validate(baseline())
     assert.equal(preview.statusCode, 200)
     assert.equal(preview.json().dryRun, true)
-    assert.deepEqual(preview.json().summary, { create: 6, update: 0, unchanged: 0, delete: 0 })
+    assert.deepEqual(preview.json().summary, { create: 5, update: 0, unchanged: 0 })
     assert.equal(everything(), before)
     assert.equal(rows('audit_log').length, 0)
 
@@ -243,55 +252,7 @@ describe('validating without applying', () => {
   })
 
   it('refuses an invalid file the same way', async () => {
-    const response = await validate({ version: 2 })
-    assert.equal(response.statusCode, 400)
-  })
-})
-
-// ── prune ───────────────────────────────────────────────────────────────────────────────────────────────────────
-
-describe('pruning', () => {
-  it('removes monitors and channels the file leaves out, only when asked to, and only from sections it contains', async () => {
-    await applied(baseline())
-    const slim = { version: 1, monitors: baseline()['monitors'].slice(0, 1) } // billing-db only; channels and layout not mentioned
-
-    const preview = (await validate(slim, '?prune=true')).json()
-    assert.deepEqual(preview.summary, { create: 0, update: 1, unchanged: 1, delete: 2 })
-    assert.deepEqual(preview.changes.find((c: Doc) => c['kind'] === 'layout'), { kind: 'layout', action: 'update', fields: ['nodes of removed monitors'] })
-    assert.equal(rows('monitors').length, 3, 'a dry run deletes nothing')
-
-    const result = await applied(slim, '?prune=true')
-    assert.equal(result['prune'], true)
-    assert.deepEqual(rows('monitors').map((m) => m['key']), ['billing-db'])
-    assert.equal(rows('monitor_notification_channels').length, 0, 'links of a removed monitor go with it')
-    assert.equal(rows('notification_channels').length, 2, 'channels were not in the file')
-    const left = JSON.parse(rows('layout')[0]!['tree']).children.map((node: Doc) => node['id'])
-    assert.deepEqual(left, ['c1'], 'the layout is not file-managed here, but it no longer shows the removed monitor')
-    assert.deepEqual(rows('audit_log').filter((e) => e['action'] === 'delete').map((e) => e['entity_type']), ['monitor', 'monitor'])
-  })
-
-  it('removes a channel and the links to it', async () => {
-    await applied(baseline())
-    const doc = baseline()
-    doc['channels'] = [doc['channels'][0]]
-    doc['monitors'][1].notifications = ['ops-slack']
-    await applied({ version: 1, channels: doc['channels'], monitors: doc['monitors'] }, '?prune=true')
-    assert.deepEqual(rows('notification_channels').map((c) => c['key']), ['ops-slack'])
-    assert.equal(rows('monitor_notification_channels').length, 1)
-  })
-
-  it('does not let a layout point at a monitor the same import removes', async () => {
-    await applied(baseline())
-    const doc = baseline()
-    doc['monitors'] = doc['monitors'].slice(0, 1)
-    const response = await apply(doc, '?prune=true')
-    assert.equal(response.statusCode, 400)
-    assert.ok(response.json().problems.some((p: Doc) => p['path'] === 'layout.children[0].monitorKey' && /unknown monitor "public-site"/.test(p['message'])))
-    assert.equal(rows('monitors').length, 3, 'nothing was removed')
-  })
-
-  it('refuses anything but true or false', async () => {
-    assert.equal((await apply(baseline(), '?prune=yes')).statusCode, 400)
+    assert.equal((await validate([{ kind: 'Carousel' }])).statusCode, 400)
   })
 })
 
@@ -299,48 +260,42 @@ describe('pruning', () => {
 
 describe('secrets in a file', () => {
   it('refuses a mask for something that has no stored secret', async () => {
-    const doc = baseline()
-    doc['monitors'][0].config.password = SECRET_MASK
-    const response = await apply(doc)
+    const response = await apply(database({ config: { ...database()['config'], password: SECRET_MASK } }))
     assert.equal(response.statusCode, 400)
-    assert.deepEqual(response.json().problems.map((p: Doc) => p['path']), ['monitors[billing-db].config'])
+    assert.deepEqual(response.json().problems.map((p: Doc) => p['path']), ['Monitor[billing-db].config'])
     assert.match(response.json().problems[0].message, /^password is a masked placeholder/)
     assert.equal(rows('monitors').length, 0)
   })
 
   it('does not keep a stored secret while the monitor is pointed somewhere else', async () => {
     await applied(baseline())
-    const file = await exported()
-    file['monitors'].find((m: Doc) => m['key'] === 'public-site').config.url = 'https://attacker.test'
+    const file = (await exported()).filter((d) => d['key'] === 'public-site')
+    file[0]!['config'].url = 'https://attacker.test'
     const response = await apply(file)
     assert.equal(response.statusCode, 400)
     assert.match(response.json().problems[0].message, /^url changed, so the stored secrets cannot be kept/)
     assert.equal(stored('public-site').url, 'https://example.test')
 
-    file['monitors'].find((m: Doc) => m['key'] === 'public-site').config.auth.basic.password = 'entered-again'
-    file['monitors'].find((m: Doc) => m['key'] === 'public-site').config.headers = undefined
+    file[0]!['config'].auth.basic.password = 'entered-again'
     assert.equal((await apply(file)).statusCode, 200)
     assert.deepEqual([stored('public-site').url, stored('public-site').auth.basic.password], ['https://attacker.test', 'entered-again'])
   })
 
   it('replaces a secret that is typed in, and clears one that is left out', async () => {
     await applied(baseline())
-    const doc = baseline()
-    doc['monitors'][0].config.password = 'rotated'
-    delete doc['monitors'][1].config.auth.basic.password
-    const result = await applied(doc)
-    assert.deepEqual(change(result, 'monitor', 'billing-db').fields, ['config'])
+    const clear = site()
+    delete clear['config'].auth.basic.password
+    const result = await applied([database({ config: { ...database()['config'], password: 'rotated' } }), clear])
+    assert.deepEqual(change(result, 'Monitor', 'billing-db').fields, ['config'])
     assert.equal(stored('billing-db').password, 'rotated')
     assert.equal('password' in stored('public-site').auth.basic, false)
   })
 
   it('refuses a half-edited mask and a secret that is not text', async () => {
     await applied(baseline())
-    const doc = baseline()
-    doc['monitors'][0].config.password = '•••••••'
-    assert.equal((await apply(doc)).statusCode, 400)
-    doc['monitors'][0].config.password = 123456
-    assert.equal((await apply(doc)).json().problems[0].message, 'password must be text')
+    assert.equal((await apply(database({ config: { ...database()['config'], password: '•••••••' } }))).statusCode, 400)
+    const response = await apply(database({ config: { ...database()['config'], password: 123456 } }))
+    assert.equal(response.json().problems[0].message, 'password must be text')
     assert.equal(stored('billing-db').password, 'db-secret')
   })
 })
@@ -357,11 +312,7 @@ describe('vault references', () => {
     }
     return { id: row!.id, secrets: created }
   }
-  const withVault = (reference: unknown): Doc => {
-    const doc = baseline()
-    doc['monitors'][0].config = { host: 'db', port: 1, database: 'd', user: 'u', password: '', query: 'select 1', mode: 'fields', vault: reference }
-    return { version: 1, monitors: [doc['monitors'][0]] }
-  }
+  const withVault = (reference: unknown): Doc => database({ config: { host: 'db', port: 1, database: 'd', user: 'u', password: '', query: 'select 1', mode: 'fields', vault: reference } })
   const problem = async (reference: unknown) => (await apply(withVault(reference))).json().problems?.[0]
 
   it('turns the names of a vault and a secret into the ids stored here', async () => {
@@ -374,7 +325,7 @@ describe('vault references', () => {
     await vault('Production', ['db-login'])
     await applied(withVault({ vault: 'Production', secret: 'db-login' }))
     const result = await applied(await exported())
-    assert.deepEqual(result['summary'], { create: 0, update: 0, unchanged: 2, delete: 0 }, JSON.stringify(result))
+    assert.deepEqual(result['summary'], { create: 0, update: 0, unchanged: 1 }, JSON.stringify(result))
   })
 
   it('says what is wrong with a reference', async () => {
@@ -395,134 +346,69 @@ describe('vault references', () => {
 // ── references between things ───────────────────────────────────────────────────────────────────────────────────
 
 describe('references', () => {
-  const problems = async (mutate: (doc: Doc) => void) => {
-    const doc = baseline()
-    mutate(doc)
-    const response = await apply(doc)
+  const problems = async (documents: Doc[]) => {
+    const response = await apply(documents)
     assert.equal(response.statusCode, 400, response.body)
     assert.equal(rows('monitors').length, 0, 'nothing was written')
     return response.json().problems as Array<{ path: string; message: string }>
   }
 
   it('refuses channels and dependencies that do not exist', async () => {
-    const list = await problems((doc) => { doc['monitors'][1].notifications = ['nobody']; doc['monitors'][1].dependsOn = ['ghost', 'public-site'] })
+    const list = await problems([channel(), pager(), database(), site({ notifications: ['nobody'], dependsOn: ['ghost', 'public-site'] })])
     assert.deepEqual(list.map((p) => `${p.path}: ${p.message}`), [
-      'monitors[public-site].notifications: unknown channel "nobody"',
-      'monitors[public-site].dependsOn: unknown monitor "ghost"',
-      'monitors[public-site].dependsOn: a monitor cannot depend on itself',
+      'Monitor[public-site].notifications: unknown channel "nobody"',
+      'Monitor[public-site].dependsOn: unknown monitor "ghost"',
+      'Monitor[public-site].dependsOn: a monitor cannot depend on itself',
     ])
   })
 
   it('refuses a dependency cycle, also through monitors the file does not mention', async () => {
-    const [cycle] = await problems((doc) => { doc['monitors'][0].dependsOn = ['public-site'] })
+    const [cycle] = await problems([channel(), pager(), database({ dependsOn: ['public-site'] }), site()])
     assert.match(cycle!.message, /^dependency cycle: (billing-db → public-site → billing-db|public-site → billing-db → public-site)$/)
 
     await applied(baseline()) // public-site depends on billing-db
-    const response = await apply({ version: 1, monitors: [{ ...baseline()['monitors'][0], dependsOn: ['public-site'] }] })
+    const response = await apply(database({ dependsOn: ['public-site'] }))
     assert.equal(response.statusCode, 400)
     assert.match(response.json().problems[0].message, /^dependency cycle/)
   })
 
   it('lets a file refer to monitors and channels it does not contain, if they exist', async () => {
     await applied(baseline())
-    const result = await applied({
-      version: 1,
-      monitors: [{ key: 'extra', name: 'Extra', type: 'webhook', config: {}, notifications: ['pager'], dependsOn: ['billing-db'] }],
-    })
-    assert.deepEqual(result['summary'], { create: 1, update: 0, unchanged: 0, delete: 0 })
+    const result = await applied({ kind: 'Monitor', key: 'extra', name: 'Extra', type: 'webhook', config: {}, notifications: ['pager'], dependsOn: ['billing-db'] })
+    assert.deepEqual(result['summary'], { create: 1, update: 0, unchanged: 0 })
   })
 })
-
-// ── layout ──────────────────────────────────────────────────────────────────────────────────────────────────────
-
-describe('the layout in a file', () => {
-  const problems = async (layout: unknown) => {
-    const doc = baseline()
-    doc['layout'] = layout
-    const response = await apply(doc)
-    assert.equal(response.statusCode, 400, response.body)
-    return response.json().problems as Array<{ path: string; message: string }>
-  }
-
-  it('is checked node by node', async () => {
-    const list = await problems({
-      id: 'root', type: 'page', children: [
-        { id: 'a', type: 'monitor', monitorKey: 'ghost' },
-        { id: 'a', type: 'text' },
-        { id: 'b', type: 'carousel' },
-        { id: 'c', type: 'monitor', monitorId: 3 },
-        { id: 'd', type: 'chart', monitorKey: '(deleted monitor 12)' },
-        { id: 'e', type: 'text', children: [] },
-        { id: 'f', type: 'page', children: [] },
-      ],
-    })
-    const byPath = Object.fromEntries(list.map((p) => [p.path, p.message]))
-    assert.match(byPath['layout.children[0].monitorKey']!, /unknown monitor "ghost"/)
-    assert.match(byPath['layout.children[1].id']!, /"a" is used by another node/)
-    assert.match(byPath['layout.children[2].type']!, /must be one of/)
-    assert.match(byPath['layout.children[3].monitorId']!, /names the monitor with monitorKey/)
-    assert.match(byPath['layout.children[4].monitorKey']!, /no longer exists/)
-    assert.match(byPath['layout.children[5].children']!, /cannot have children/)
-    assert.match(byPath['layout.children[6].type']!, /only be the root/)
-  })
-
-  it('must start with a page', async () => {
-    assert.match((await problems({ id: 'root', type: 'group', children: [] }))[0]!.message, /must be a page/)
-    assert.match((await problems('page'))[0]!.message, /must be an object/)
-  })
-
-  it('is replaced as a whole, and left alone when the file has none', async () => {
-    await applied(baseline())
-    const before = rows('layout')[0]!['tree']
-    const noLayout = baseline()
-    delete noLayout['layout']
-    assert.equal((await applied(noLayout))['summary'].unchanged, 5)
-    assert.equal(rows('layout')[0]!['tree'], before)
-
-    const doc = baseline()
-    doc['layout'] = { id: 'root', type: 'page', children: [{ id: 'only', type: 'text', text: 'Hello' }] }
-    const result = await applied(doc)
-    assert.equal(change(result, 'layout').action, 'update')
-    assert.deepEqual(JSON.parse(rows('layout')[0]!['tree']).children, [{ id: 'only', type: 'text', text: 'Hello' }])
-  })
-
-  it('may be the only thing in the file', async () => {
-    const result = await applied({ version: 1, layout: { id: 'root', type: 'page', children: [{ id: 'note', type: 'text', text: 'Hi' }] } })
-    assert.deepEqual(result['summary'], { create: 1, update: 0, unchanged: 0, delete: 0 })
-    assert.deepEqual(JSON.parse(rows('layout')[0]!['tree']).children, [{ id: 'note', type: 'text', text: 'Hi' }])
-  })
-
-  it('treats an empty page as what an installation without a saved layout already shows', async () => {
-    const result = await applied({ version: 1, layout: { id: 'root', type: 'page' } })
-    assert.deepEqual(result['summary'], { create: 0, update: 0, unchanged: 1, delete: 0 })
-    assert.equal(rows('layout').length, 0)
-  })
-})
-
-// ── a bad file ──────────────────────────────────────────────────────────────────────────────────────────────────
 
 describe('a file that is not valid', () => {
   it('lists every problem with its place instead of stopping at the first', async () => {
-    const response = await apply({
-      version: 2, colour: 'blue',
-      channels: [{ key: 'Bad Key', name: '', type: 'sms', enabled: 'yes', config: [] }, { key: 'dup', name: 'A', type: 'slack' }, { key: 'dup', name: 'B', type: 'slack' }],
-      monitors: [{ key: 'm', name: 'M', type: 'https', intervalSecs: 5, timeout: 10, config: 'url', tags: 'x' }, 'text'],
-    })
+    const response = await apply([
+      { kind: 'NotificationChannel', key: 'Bad Key', name: '', type: 'sms', enabled: 'yes', config: [] },
+      { kind: 'NotificationChannel', key: 'dup', name: 'A', type: 'slack', colour: 'blue' },
+      { kind: 'NotificationChannel', key: 'dup', name: 'B', type: 'slack' },
+      { kind: 'Monitor', key: 'm', name: 'M', type: 'https', intervalSecs: 5, timeout: 10, config: 'url', tags: 'x' },
+      'text',
+      { kind: 'Carousel' },
+      { name: 'no kind' },
+    ])
     assert.equal(response.statusCode, 400)
     const list = response.json().problems as Array<{ path: string; message: string }>
     const paths = list.map((p) => p.path)
-    for (const expected of ['version', '(file).colour', 'channels[0].key', 'channels[0].name', 'channels[0].type', 'channels[0].enabled', 'channels[0].config', 'channels[2].key', 'monitors[m].timeout', 'monitors[m]', 'monitors[1]']) {
+    for (const expected of ['document 1.key', 'document 1.name', 'document 1.type', 'document 1.enabled', 'document 1.config', 'NotificationChannel[dup].colour', 'document 3.key',
+      'Monitor[m].timeout', 'Monitor[m]', 'document 5', 'document 6.kind', 'document 7.kind']) {
       assert.ok(paths.includes(expected), `${expected} in ${paths.join(', ')}`)
     }
     assert.equal(response.json().error, `${list[0]!.path}: ${list[0]!.message}`)
+    assert.match(list.find((p) => p.path === 'document 6.kind')!.message, /is not a kind; use one of Monitor, NotificationChannel\b/)
   })
 
-  it('needs a document with the right version', async () => {
-    for (const body of [[], 'text', 7, {}, { version: '1' }]) {
-      const response = await post('apply', JSON.stringify(body), '', 'application/json')
+  it('needs documents, each with a kind', async () => {
+    assert.equal((await apply([])).json().error, 'The file contains no documents')
+    for (const body of ['text', 7, [[]], [null]]) {
+      const response = await post('apply', JSON.stringify(body))
       assert.equal(response.statusCode, 400, JSON.stringify(body))
     }
-    assert.match((await apply({ version: 1, channels: 'x', monitors: {} })).json().problems.map((p: Doc) => p['message']).join(), /must be a list/)
+    const layout = await apply({ kind: 'StatusPageLayout', root: { id: 'root', type: 'page' } })
+    assert.match(layout.json().problems[0].message, /is not a kind/)
   })
 
   it('applies none of a file when one part of it cannot be written', async () => {
@@ -542,63 +428,82 @@ describe('a file that is not valid', () => {
   })
 
   it('does not accept a channel the API would not accept', async () => {
-    const response = await apply({ version: 1, channels: [{ key: 'tg', name: 'Bot', type: 'telegram', config: { chatId: '1' } }] })
+    const response = await apply({ kind: 'NotificationChannel', key: 'tg', name: 'Bot', type: 'telegram', config: { chatId: '1' } })
     assert.equal(response.statusCode, 400)
     assert.equal(response.json().problems[0].message, 'Telegram needs a Bot Token')
+  })
+
+  it('does not accept a key that belongs to a different kind of object in the same file', async () => {
+    const response = await apply([channel({ key: 'same' }), database({ key: 'same' })])
+    assert.equal(response.statusCode, 200, 'a monitor and a channel may share a key: they are different namespaces')
   })
 })
 
 // ── YAML and JSON ───────────────────────────────────────────────────────────────────────────────────────────────
 
 describe('request bodies', () => {
-  it('reads a hand-written YAML file, comments and quoted times included', async () => {
+  it('reads a hand-written YAML file with several documents, comments and quoted times included', async () => {
     const yaml = `# Production status page
-version: 1
-channels:
-  - key: ops-slack
-    name: Ops Slack
-    type: slack
-    config:
-      webhookUrl: https://hooks.test/real-secret   # keep out of git: inject it before posting
-    alertPolicy:
-      quietHours: { enabled: true, start: "22:00", end: "07:00", timezone: Europe/Warsaw, mode: defer }
-monitors:
-  - key: site
-    name: Site
-    type: https
-    config:
-      url: https://example.test
-      method: GET
-      expectedStatus: 200
+kind: NotificationChannel
+key: ops-slack
+name: Ops Slack
+type: slack
+config:
+  webhookUrl: https://hooks.test/real-secret   # keep out of git: inject it before posting
+alertPolicy:
+  quietHours: { enabled: true, start: "22:00", end: "07:00", timezone: Europe/Warsaw, mode: defer }
+---
+kind: Monitor
+key: site
+name: Site
+type: https
+config:
+  url: https://example.test
+  method: GET
+  expectedStatus: 200
 `
-    const response = await post('apply', yaml, '', 'application/yaml')
+    const response = await post('apply', yaml, 'application/yaml')
     assert.equal(response.statusCode, 200, response.body)
-    assert.deepEqual(response.json().summary, { create: 2, update: 0, unchanged: 0, delete: 0 })
+    assert.deepEqual(response.json().summary, { create: 2, update: 0, unchanged: 0 })
     const policy = JSON.parse(rows('notification_channels')[0]!['alert_policy'])
     assert.deepEqual([policy.quietHours.enabled, policy.quietHours.start, policy.quietHours.timezone], [true, '22:00', 'Europe/Warsaw'])
   })
 
-  it('accepts the other YAML media types and JSON', async () => {
-    const yaml = stringify({ version: 1, monitors: [{ key: 'one', name: 'One', type: 'webhook', config: {} }] })
-    assert.equal((await post('validate', yaml, '', 'text/yaml')).statusCode, 200)
-    assert.equal((await post('validate', yaml, '', 'application/x-yaml')).statusCode, 200)
-    assert.equal((await validate(parse(yaml))).statusCode, 200)
+  it('accepts the other YAML media types, and nothing but YAML', async () => {
+    const one = { kind: 'Monitor', key: 'one', name: 'One', type: 'webhook', config: {} }
+    const yaml = stringify(one)
+    assert.equal((await post('validate', yaml, 'text/yaml')).statusCode, 200)
+    assert.equal((await post('validate', yaml, 'application/x-yaml')).statusCode, 200)
+    assert.equal((await post('validate', yaml, 'application/yaml; charset=utf-8')).statusCode, 200)
+    // JSON is refused before it is read, whatever it holds; so is a body with no type.
+    for (const type of ['application/json', 'text/plain']) {
+      const refused = await post('validate', JSON.stringify(one), type)
+      assert.equal(refused.statusCode, 415, type)
+      assert.match(refused.json().error, /Send the documents as YAML/)
+    }
+    assert.equal((await app.inject({ method: 'POST', url: '/config/apply', headers: bearer })).statusCode, 415)
+    assert.equal(rows('monitors').length, 0)
+  })
+
+  it('ignores empty documents, such as a trailing separator', async () => {
+    const response = await post('validate', 'kind: Monitor\nkey: one\nname: One\ntype: webhook\n---\n---\n', 'application/yaml')
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(response.json().summary, { create: 1, update: 0, unchanged: 0 })
   })
 
   it('answers a broken YAML file with the place of the mistake', async () => {
-    const broken = await post('apply', 'version: 1\nmonitors: [\n', '', 'application/yaml')
+    const broken = await post('apply', 'kind: Monitor\nname: [\n', 'application/yaml')
     assert.equal(broken.statusCode, 400)
     assert.match(broken.json().error, /^Invalid YAML: .*line/s)
-    const duplicate = await post('apply', 'version: 1\nversion: 1\n', '', 'application/yaml')
+    const duplicate = await post('apply', 'kind: Monitor\nkind: Monitor\n', 'application/yaml')
     assert.equal(duplicate.statusCode, 400)
     assert.match(duplicate.json().error, /^Invalid YAML/)
-    assert.equal((await post('apply', '', '', 'application/yaml')).statusCode, 400)
+    assert.equal((await post('apply', '', 'application/yaml')).json().error, 'The file contains no documents')
   })
 
   it('refuses a flood of aliases', async () => {
     const aliases = Array.from({ length: 40 }, () => '  - *a').join('\n')
-    const bomb = `version: 1\nanchors: &a [1, 2, 3]\nlist:\n${aliases}\n`
-    const response = await post('apply', bomb, '', 'application/yaml')
+    const response = await post('apply', `kind: Monitor\nanchors: &a [1, 2, 3]\nlist:\n${aliases}\n`, 'application/yaml')
     assert.equal(response.statusCode, 400)
   })
 })

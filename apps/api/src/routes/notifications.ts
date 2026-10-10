@@ -8,8 +8,10 @@ import { auditActor, writeAudit, diffObjects, snapshot } from '../services/audit
 import { requestIdentity } from '../middleware/auth.js'
 import { withImmediateTransaction } from '../db/transaction.js'
 import { parsePagination } from '../lib/pagination.js'
-import { keyForNew, keyForUpdate, type KeyOwner } from '../lib/entityKey.js'
+import { keyForNew, type KeyOwner } from '../lib/entityKey.js'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
+import { tokenAllows, VAULT_USE_SCOPE } from '@bsp/shared'
+import { VAULT_USE_REFUSED, vaultUseProblem } from '../services/vaultUse.js'
 import { CHANNEL_TYPES, telegramConfigError } from '../services/channelInput.js'
 import type { NotificationChannelType } from '@bsp/shared'
 
@@ -115,6 +117,8 @@ export async function notificationRoutes(app: FastifyInstance) {
     }
     const secrets = restoreSecrets('channel', req.body.config ?? {}, undefined)
     if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
+    const vaultProblem = vaultUseProblem(requestIdentity(req).apiToken, secrets.config, undefined)
+    if (vaultProblem) return reply.code(403).send({ error: vaultProblem })
     if (req.body.type === 'telegram') {
       const problem = telegramConfigError(secrets.config)
       if (problem) return reply.code(400).send({ error: problem })
@@ -163,11 +167,14 @@ export async function notificationRoutes(app: FastifyInstance) {
     if (req.body.config !== undefined && !isConfigObject(req.body.config)) {
       return reply.code(400).send({ error: 'config must be an object' })
     }
+    if (req.body.key !== undefined) return reply.code(400).send({ error: 'The key is set when the object is created and cannot be changed' })
     const effectiveType = req.body.type ?? existing.type
     let config: unknown
     if (req.body.config !== undefined) {
       const secrets = restoreSecrets('channel', req.body.config, effectiveType === existing.type ? JSON.parse(existing.config) : undefined)
       if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
+      const vaultProblem = vaultUseProblem(requestIdentity(req).apiToken, secrets.config, effectiveType === existing.type ? JSON.parse(existing.config) : undefined)
+      if (vaultProblem) return reply.code(403).send({ error: vaultProblem })
       config = secrets.config
     }
     if (effectiveType === 'telegram' && (config !== undefined || req.body.type !== undefined)) {
@@ -176,11 +183,6 @@ export async function notificationRoutes(app: FastifyInstance) {
     }
 
     const updates: Partial<typeof notificationChannels.$inferInsert> = { updatedAt: Date.now() }
-    if (req.body.key !== undefined) {
-      const resolvedKey = await keyForUpdate(id, req.body.key, channelKeyOwner)
-      if ('error' in resolvedKey) return reply.code(resolvedKey.status).send({ error: resolvedKey.error })
-      updates.key = resolvedKey.key
-    }
     if (req.body.name !== undefined)              updates.name = req.body.name
     if (req.body.type !== undefined)              updates.type = req.body.type
     if (req.body.config !== undefined)            updates.config = JSON.stringify(config)
@@ -270,6 +272,17 @@ export async function notificationRoutes(app: FastifyInstance) {
   } }>('/smtp', async (req, reply) => {
     const now = Date.now()
     const existing = (await db.select().from(smtpSettings))[0]
+
+    // A vault secret is sent to the SMTP server: a token without the permission to use vault secrets may keep the
+    // reference and server that are saved, but not set or change them.
+    const token = requestIdentity(req).apiToken
+    if (token && req.body.vault && !tokenAllows(token.scopes, VAULT_USE_SCOPE)) {
+      const saved = existing?.vaultConfig ?? null
+      const sameReference = saved !== null && JSON.stringify(JSON.parse(saved)) === JSON.stringify(req.body.vault)
+      const sameServer = !!existing && req.body.host === existing.host && Number(req.body.port) === existing.port
+      const sameTransport = !!existing && Number(req.body.secure) === Number(existing.secure) && (req.body.user ?? '') === existing.user
+      if (!sameReference || !sameServer || !sameTransport) return reply.code(403).send({ error: VAULT_USE_REFUSED })
+    }
 
     const passwordSupplied = !!req.body.password && req.body.password !== '••••••••'
     // Never forward the stored password to a different server or account: changing where it goes

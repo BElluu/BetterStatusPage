@@ -185,7 +185,7 @@ Scheduled maintenance does not appear in the RSS and Atom incident feeds.
 
 ## API
 
-All endpoints need the operator role or higher, as a signed-in user or with an [API token](api.md), for example to [open an incident from a pipeline](api.md#open-an-incident-from-cicd). Timestamps are milliseconds since the epoch.
+All endpoints need the operator role or higher as a signed-in user, or an [API token](api.md#permissions) with `incidents` (or `maintenance`) permission, `write` to change and `read` to look, for example to [open an incident from a pipeline](api.md#open-an-incident-from-cicd). Timestamps are milliseconds since the epoch.
 
 Incidents (`/api/v1/admin/incidents`):
 

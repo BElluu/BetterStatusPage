@@ -5,7 +5,7 @@ import { db } from '../db/client.js'
 import { authSessions, users } from '../db/schema.js'
 import { normalizeRole } from './roles.js'
 import { sseService } from './sse.service.js'
-import { findUsableApiToken, isApiToken } from './apiTokens.js'
+import { findUsableApiToken, isApiToken, parseScopes } from './apiTokens.js'
 
 export const SESSION_COOKIE = 'bsp_session'
 export const CSRF_COOKIE = 'bsp_csrf'
@@ -23,9 +23,11 @@ export interface AuthIdentity {
   authMethod: AuthMethod
   /**
    * Set when the request is authenticated by an API token instead of a session. `userId` and `email` are then the
-   * token's creator, `role` is the token's role and `sessionId` is a synthetic `api-token:<id>`.
+   * token's creator and `sessionId` is a synthetic `api-token:<id>`. A token has no role: `role` is a placeholder
+   * that lets it through the role checks, and what it may do is decided by `scopes`, checked for every request in
+   * authenticateOrReject.
    */
-  apiToken?: { id: number; name: string }
+  apiToken?: { id: number; name: string; scopes: string[] }
 }
 
 export interface AuthenticateOptions {
@@ -125,12 +127,12 @@ async function authenticateApiToken(req: FastifyRequest, token: string): Promise
   const identity: AuthIdentity = {
     userId: found.owner.id,
     email: found.owner.email,
-    role: normalizeRole(found.token.role),
+    role: 'admin',
     sessionId: `api-token:${found.token.id}`,
     mustChangePassword: false,
     twoFactorEnabled: false,
     authMethod: 'password',
-    apiToken: { id: found.token.id, name: found.token.name },
+    apiToken: { id: found.token.id, name: found.token.name, scopes: parseScopes(found.token.scopes) },
   }
   req.user = identity
   return identity

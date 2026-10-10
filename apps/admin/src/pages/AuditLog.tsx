@@ -39,7 +39,7 @@ const ENTITY_LABELS: Record<AuditEntityType, string> = {
   'user-security':      'User Security',
   branding:             'Branding',
   layout:               'Status Page Layout',
-  config:               'Configuration Import',
+  config:               'Import',
   locale:               'Language',
   backup:               'Backup',
   'backup-config':      'Backup Schedule',

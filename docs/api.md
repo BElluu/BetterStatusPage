@@ -9,26 +9,55 @@ The admin panel is a client of the same REST API you can call from scripts, CI/C
 
 ## API tokens
 
-Create tokens in **Administration → API tokens** (administrators only). Click **New token**, enter a **Name**, pick the **Role** and when it **Expires**, click **Create**, and copy the token.
+Create tokens in **Administration → API tokens** (administrators only). Click **New token**, enter a **Name**, tick the **Permissions** and choose when it **Expires**, click **Create**, and copy the token.
 
 | Field | Meaning |
 |---|---|
 | **Name** | A label to recognise the token by, for example `GitHub Actions` (up to 80 characters). |
-| **Role** | What the token may do. **Operator** covers monitors, incidents, maintenance, notification channels, subscribers, reports, and also the layout, branding and languages. **Branding** covers only the layout, branding and languages. **Admin** adds the audit log, system health and the [configuration export and import](configuration-as-code.md). |
-| **Expires** | **Never expires**, or after 30 days, 90 days or 1 year. |
+| **Permissions** | What the token may do, [part by part](#permissions). At least one is required. The buttons **Report incidents**, **Deploy monitoring** and **Read only** fill in the usual sets. |
+| **Expires** | After 90 days unless you choose otherwise: 30 days, 1 year, or **Never expires**, which has to be chosen on purpose. |
 
-The full token is shown **once**, when you create it. Only a hash is stored, so a lost token cannot be recovered: revoke it and create a new one. The list shows the first characters of each token, who created it, when it expires and when it was last used.
+The full token is shown **once**, when you create it. Only a hash is stored, so a lost token cannot be recovered: revoke it and create a new one. The list shows the permissions of each token, the first characters of it, who created it, when it expires and when it was last used. The permissions of a token cannot be changed afterwards; create another token with the ones you want.
 
 To revoke a token click the bin icon and confirm with **Revoke**. It stops working immediately, and so does any live event stream opened with it.
 
+### Permissions
+
+A token has a list of permissions instead of a role. Each names a part of the application and whether the token may read it (`read`) or change it (`write`). Writing a part includes reading it. A request without the permission it needs is answered `403`, and the message names the permission (`This token does not have the "monitors:write" permission`). `GET` needs `read`, every other method `write`.
+
+| Part | What it covers | Levels |
+|---|---|---|
+| `monitors` | Monitors, their tests, checks and dependencies | read, write |
+| `channels` | Notification channels, the SMTP settings and the delivery history | read, write |
+| `incidents` | Incidents, their updates and affected monitors | read, write |
+| `maintenance` | Maintenance windows | read, write |
+| `subscribers` | Subscribers and subscription settings | read, write |
+| `reports` | Uptime reports | read |
+| `appearance` | The layout, branding and languages | read, write |
+| `audit` | The audit log | read |
+| `system` | System health | read |
+| `vault:use` | Secrets of a [vault](vault.md) in a monitor, channel or SMTP configuration | – |
+
+The [configuration documents](configuration-as-code.md) follow the part of each kind: `monitors` for a `Monitor`, and `channels` for a `NotificationChannel`. The export needs `read` for each kind in it, an import `write`.
+
+**`vault:use`.** A vault secret is sent wherever the configuration that uses it points, and what the target answers (a query result, an error message) comes back to whoever asked. Without this permission a token cannot list the vaults and secrets, cannot add a vault reference to a monitor, channel or the SMTP settings, and cannot change the configuration of one that already has a reference (a monitor's name, schedule, tags and links stay editable, and removing the reference is allowed). With it, a token can point those at any vault secret by name; it still never reads a value. Give it only to a token that has to create things that use a vault. Vault and secret names still appear in exported documents to a token that may read the monitor or channel.
+
+The three presets:
+
+| Preset | Permissions |
+|---|---|
+| **Report incidents** | `incidents:write`, `monitors:read` |
+| **Deploy monitoring** | `monitors:write`, `channels:write` |
+| **Read only** | `read` on every part |
+
 ### What a token cannot do
 
-A token is meant for automation, so it never reaches account or credential management, even with the Admin role:
+A token is meant for automation, so it never reaches account or credential management, whatever permissions it has:
 
 - users, passwords and two-factor authentication,
 - single sign-on settings,
 - who may view a private status page (status page access),
-- vault settings and secret values (a token can still list vault and secret names, which is what the monitor form needs to pick one),
+- vault settings and secret values (a token with `vault:use` can list vault and secret names, which is what the monitor form needs to pick one),
 - backups,
 - creating, listing or revoking API tokens,
 - the sign-in endpoints under `/api/v1/auth`,
@@ -45,11 +74,11 @@ Every change a token makes is recorded in the audit log (**Administration → Au
 ### Handling tokens
 
 - Keep a token in the secret store of your pipeline, never in the repository or in a log.
-- Give it the lowest **Role** that does the job and an expiry. A pipeline that only opens incidents needs **Operator**, not **Admin**.
+- Give it only the **Permissions** the job needs, and an expiry. A pipeline that only opens incidents needs `incidents:write`, not write access to everything.
 - Send it over HTTPS only. A token sent to an `http://` address crosses the network in clear.
 - A token is not tied to an address or to a pipeline: whoever has the text can use it.
 - If a token may have leaked, revoke it at once in **Administration → API tokens**, then filter the **Audit Log** for `(token: <name>)` to see what it did.
-- An Operator or Admin token, like an operator in the panel, can point a monitor, a test or the SMTP settings at any [vault](vault.md#who-can-use-the-vault) secret and at any address, and whoever can apply a [configuration file](configuration-as-code.md) can do it by name. A token never reads a vault value, but a vault secret can be sent where the token's holder chooses. Treat these tokens like the people they stand for.
+- A token with `vault:use`, like an operator in the panel, can point a monitor, a test or the SMTP settings at any [vault](vault.md#who-can-use-the-vault) secret and at any address, and whoever can apply a [configuration document](configuration-as-code.md) can do it by name. A token never reads a vault value, but a vault secret can be sent where the token's holder chooses. Without `vault:use` a token cannot do this. Treat a token that has it like the people it stands for.
 
 ---
 
@@ -72,20 +101,20 @@ Errors come back as JSON, `{ "error": "..." }`:
 
 | Status | Meaning |
 |---|---|
-| `400` | The request is not valid; `error` says what. For a [configuration file](configuration-as-code.md#a-file-that-is-not-valid) the answer also lists every `problems` entry with its place in the file. |
+| `400` | The request is not valid; `error` says what. For [configuration documents](configuration-as-code.md#documents-that-are-not-valid) the answer also lists every `problems` entry with its place. |
 | `401` | The token is missing, unknown, expired or revoked, or its creator is no longer an administrator. |
-| `403` | The token's role is too low, or the endpoint does not accept API tokens (`API tokens cannot call this endpoint`). |
+| `403` | The token does not have the permission the endpoint needs (the message names it), or the endpoint does not accept API tokens (`API tokens cannot call this endpoint`). |
 | `404` | There is no such object. |
 | `409` | The key is already used by another object, or an export cannot name a vault because another vault has the same name. |
 | `413` | The body is too large; a configuration file may be up to 2 MB. Behind nginx, see `client_max_body_size` in [Deployment](deployment.md). |
-| `415` | The `Content-Type` is not supported: send `application/json`, or `application/yaml` for a configuration file. |
+| `415` | The `Content-Type` is not supported: send `application/json`, or `application/yaml` for configuration documents (the only type an import reads). |
 | `422` | A notification channel could not deliver its test message. |
 | `429` | The token sent more than 300 requests in a minute; wait for `Retry-After` seconds. |
 | `500` | The server failed. Nothing is half-applied: a configuration file is applied completely or not at all. |
 
 ### Reference
 
-The operations meant for automation are described in an OpenAPI 3.1 file: [openapi.yaml](https://docs.betterstatuspage.dev/openapi.yaml). It covers monitors, incidents, maintenance windows, notification channels, the status page layout and the [configuration export and import](configuration-as-code.md), with the request bodies, limits and the role each operation needs. Load it into any OpenAPI tool to browse the API or to generate a client.
+The operations meant for automation are described in an OpenAPI 3.1 file: [openapi.yaml](https://docs.betterstatuspage.dev/openapi.yaml). It covers monitors, incidents, maintenance windows, notification channels, the status page layout and the [configuration export and import](configuration-as-code.md), with the request bodies, limits and the permission each operation needs. Load it into any OpenAPI tool to browse the API or to generate a client.
 
 ### Secrets are masked
 
@@ -103,7 +132,7 @@ A maintenance window needs a `name` (up to 200 characters), a `startsAt` and an 
 
 ### Monitors and notification channels have keys
 
-Every monitor and notification channel has a unique **Key** next to its numeric `id`: 1 to 64 lowercase letters, digits, `-` and `_`, starting with a letter or digit. It is generated from the name when you do not send one (`Public site` becomes `public-site`, a second one `public-site-2`), and you can change it later. The `id` is specific to one installation, the key is what you refer to from your own tooling.
+Every monitor and notification channel has a unique **Key** next to its numeric `id`: 1 to 64 lowercase letters, digits, `-` and `_`, starting with a letter or digit. It is a technical value, not a setting: the admin panel does not show it in its forms. It is generated from the name when you do not send one (`Public site` becomes `public-site`, a second one `public-site-2`), or you give it when you create the object through the API. It never changes after that, not even when the name does, and an update that sends a `key` is refused with `400`. The `id` is specific to one installation, the key is what you refer to from your own tooling.
 
 ```bash
 curl -fsS -X POST -H "Authorization: Bearer $BSP_TOKEN" -H "Content-Type: application/json" \

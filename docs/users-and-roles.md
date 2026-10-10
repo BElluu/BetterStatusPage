@@ -6,7 +6,7 @@ Every person who signs in to BetterStatusPage has their own account with one of 
 
 | Role | Meant for |
 |------|-----------|
-| **admin** | Full access, including users, sign-in settings, vaults, the audit log, backups, API tokens, configuration import and system health. |
+| **admin** | Full access, including users, sign-in settings, vaults, the audit log, backups, API tokens and system health. |
 | **operator** | Day-to-day work: monitors, incidents, maintenance, notifications, subscribers, and the status page's look. |
 | **branding** | The status page's look only: page builder, branding and localization. |
 | **viewer** | Viewing a [private status page](private-status-page.md). No access to the admin console. |
@@ -34,7 +34,7 @@ The role is checked by the API on every request, not only by the admin panel, so
 | **Users**, **Single sign-on**, **Status page access** | Yes | No | No | No |
 | **Audit Log** | Yes | No | No | No |
 | [**API tokens**](api.md) | Yes | No | No | No |
-| [**Configuration**](configuration-as-code.md): export and import | Yes | No | No | No |
+| [**Import**](configuration-as-code.md): monitors and notification channels | Yes | Yes | No | No |
 | [**Backups**](backup-restore.md) | Yes | No | No | No |
 | **System Health** | Yes | No | No | No |
 | [Private status page](private-status-page.md) | Yes | Yes | Yes | Yes |
@@ -162,8 +162,8 @@ The **Audit Log** (administrators only) records who changed what and when. Each 
 | Vault, Vault Secret | Create, update, delete (secret values never) |
 | Branding, Status Page Layout, Language | Branding and page builder saves, translation changes |
 | User | Create (also viewer accounts created through SSO), role change, password reset, delete |
-| API Token | Created or revoked: name, role, the first characters of the token and its expiry, never the token. Tokens removed because their creator lost the Admin role have an entry each. |
-| Configuration Import | One entry for each applied file that changed something, with the counts (created, updated, removed, unchanged) and whether it pruned. Every monitor, channel and layout it changed also has an entry of its own. |
+| API Token | Created or revoked: name, permissions, the first characters of the token and its expiry, never the token. Tokens removed because their creator lost the Admin role have an entry each. |
+| Import | One entry for each import that changed something, with the counts (created, updated, unchanged). Every monitor and channel it changed also has an entry of its own. |
 | Monitor (heartbeat token) | Resetting the heartbeat token of a webhook monitor is recorded as `heartbeat_token_reset`, never the token. |
 | User Security | Password changed, 2FA turned on or off, 2FA reset by an administrator (`admin_recovery`) or from the command line (`emergency_cli`), SSO account linked, temporary password revoked by an SSO sign-in |
 | SSO Settings, Status Page Access | Settings changes |

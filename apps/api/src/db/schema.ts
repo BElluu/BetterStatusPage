@@ -38,13 +38,13 @@ export const apiTokens = sqliteTable('api_tokens', {
   tokenHash: text('token_hash').notNull().unique(),
   /** Leading characters of the token, so it can be recognised in the list. */
   prefix: text('prefix').notNull(),
-  /** 'admin' | 'operator' | 'branding'. */
-  role: text('role').notNull(),
   /** The admin who created it; the token stops working when this user is gone or no longer an admin. */
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: integer('created_at').notNull(),
   expiresAt: integer('expires_at'),
   lastUsedAt: integer('last_used_at'),
+  /** JSON list of what the token may do, e.g. `["monitors:write","incidents:write"]` (see @bsp/shared apiToken). */
+  scopes: text('scopes').notNull(),
 })
 
 export const monitors = sqliteTable('monitors', {

@@ -151,11 +151,16 @@ export function restoreSecrets(kind: ConfigKind, incoming: unknown, stored: unkn
     }
   }
   if (kept) {
-    for (const path of kind === 'monitor' ? MONITOR_DESTINATIONS : CHANNEL_DESTINATIONS) {
-      if (JSON.stringify(valueAt(copy, path) ?? null) !== JSON.stringify(valueAt(stored, path) ?? null)) {
-        return { error: `${path.join('.')} changed, so the stored secrets cannot be kept; enter them again` }
-      }
-    }
+    const moved = changedDestination(kind, copy, stored)
+    if (moved) return { error: `${moved} changed, so the stored secrets cannot be kept; enter them again` }
   }
   return { config: copy }
+}
+
+/** The first place a configuration is sent to (URL, host, port) that differs between `incoming` and `stored`, or null. */
+export function changedDestination(kind: ConfigKind, incoming: unknown, stored: unknown): string | null {
+  for (const path of kind === 'monitor' ? MONITOR_DESTINATIONS : CHANNEL_DESTINATIONS) {
+    if (JSON.stringify(valueAt(incoming, path) ?? null) !== JSON.stringify(valueAt(stored, path) ?? null)) return path.join('.')
+  }
+  return null
 }

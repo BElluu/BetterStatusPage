@@ -1,35 +1,38 @@
-import { eq, inArray } from 'drizzle-orm'
-import type { ChannelAlertPolicy, NotificationChannelType } from '@bsp/shared'
+import { eq } from 'drizzle-orm'
+import { tokenAllows, type ChannelAlertPolicy, type NotificationChannelType } from '@bsp/shared'
 import { db } from '../db/client.js'
 import { withImmediateTransaction } from '../db/transaction.js'
 import {
-  incidentMonitors, layout, maintenanceWindowMonitors, monitorDependencies, monitorNotificationChannels, monitors, notificationChannels, vaultSecrets, vaults,
+  monitorDependencies, monitorNotificationChannels, monitors, notificationChannels, vaultSecrets, vaults,
 } from '../db/schema.js'
 import { clip, nestedDeeperThan } from '../lib/clip.js'
 import { isValidEntityKey, ENTITY_KEY_ERROR } from '../lib/entityKey.js'
 import { normalizeAlertPolicy, parseAlertPolicy } from './alertPolicy.js'
 import { writeAudit, type Actor } from './audit.js'
 import { CHANNEL_TYPES, telegramConfigError } from './channelInput.js'
-import { CONFIG_VERSION } from './configExport.js'
-import { layoutFromConfig } from './layoutTree.js'
 import { certResetsFor, generateWebhookToken, parseNewMonitor, THRESHOLD_RANGE, type MonitorFields } from './monitorInput.js'
 import { refreshPublishedMonitorIds } from './publishedMonitors.js'
 import { restoreSecrets } from './secretFields.js'
+import { vaultUseProblem } from './vaultUse.js'
 
 export interface ConfigProblem { path: string; message: string }
 
-/** The file is not a valid configuration; `problems` lists everything wrong with it, not just the first. */
+/** The file is not valid; `problems` lists what is wrong with it, not just the first thing. */
 export class ConfigInvalidError extends Error {
   constructor(readonly problems: ConfigProblem[]) {
     super(problems[0] ? `${problems[0].path}: ${problems[0].message}` : 'Invalid configuration')
   }
 }
 
-export type ChangeKind = 'channel' | 'monitor' | 'layout'
-export type ChangeAction = 'create' | 'update' | 'unchanged' | 'delete'
+/** What a document describes. A file is a stream of documents, each with a `kind`. */
+export const DOCUMENT_KINDS = ['Monitor', 'NotificationChannel'] as const
+export type DocumentKind = typeof DOCUMENT_KINDS[number]
+
+export type ChangeAction = 'create' | 'update' | 'unchanged'
 
 export interface ConfigChange {
-  kind: ChangeKind
+  kind: DocumentKind
+  /** The key of the monitor or channel. */
   key?: string
   action: ChangeAction
   /** For an update: which settings differ. Never their values, which may be secrets. */
@@ -38,17 +41,15 @@ export interface ConfigChange {
 
 export interface ImportResult {
   dryRun: boolean
-  prune: boolean
   summary: Record<ChangeAction, number>
   changes: ConfigChange[]
 }
 
 export interface ImportOptions {
-  prune: boolean
-  /** Lets `prune` empty a section that is present but has nothing in it (and so would remove every monitor or channel). */
-  allowEmpty?: boolean
   dryRun: boolean
   actor: Actor
+  /** Set when the request is made with an API token: what it may do decides if vault references may be used. */
+  token?: { scopes: readonly string[] } | undefined
 }
 
 type Json = Record<string, unknown>
@@ -57,9 +58,17 @@ const isObject = (value: unknown): value is Json => !!value && typeof value === 
 const MAX_PROBLEMS = 100
 const MAX_NAME_LENGTH = 200
 const MAX_CONFIG_DEPTH = 20
-const ROOT_FIELDS = ['version', 'channels', 'monitors', 'layout']
-const CHANNEL_FIELDS = ['key', 'name', 'type', 'enabled', 'notifyOnRecovery', 'config', 'alertPolicy']
-const MONITOR_FIELDS = ['key', 'name', 'type', 'intervalSecs', 'timeoutMs', 'retries', 'failureThreshold', 'recoveryThreshold', 'config', 'tags', 'notifications', 'dependsOn']
+const CHANNEL_FIELDS = ['kind', 'key', 'name', 'type', 'enabled', 'notifyOnRecovery', 'config', 'alertPolicy']
+const MONITOR_FIELDS = ['kind', 'key', 'name', 'type', 'intervalSecs', 'timeoutMs', 'retries', 'failureThreshold', 'recoveryThreshold', 'config', 'tags', 'notifications', 'dependsOn']
+
+/** The kinds a list of documents contains, so that the caller can check it may import each. Documents of no known kind are ignored here. */
+export function kindsIn(documents: unknown[]): Set<DocumentKind> {
+  const found = new Set<DocumentKind>()
+  for (const document of documents) {
+    if (isObject(document) && (DOCUMENT_KINDS as readonly unknown[]).includes(document['kind'])) found.add(document['kind'] as DocumentKind)
+  }
+  return found
+}
 
 /** The same value written with its keys in a fixed order, so equal settings compare equal whatever their order. */
 function canonical(value: unknown): string {
@@ -72,7 +81,7 @@ class Problems {
   get any() { return this.list.length > 0 }
 }
 
-// ── The document ────────────────────────────────────────────────────────────────────────────────────────────────
+// ── The documents ───────────────────────────────────────────────────────────────────────────────────────────────
 
 interface DesiredChannel {
   path: string
@@ -93,12 +102,9 @@ interface DesiredMonitor {
   dependsOn: string[]
 }
 
-/** `null` means the file does not mention that part, so it is left alone. */
 interface Desired {
-  channels: DesiredChannel[] | null
-  monitors: DesiredMonitor[] | null
-  layout: unknown
-  hasLayout: boolean
+  channels: DesiredChannel[]
+  monitors: DesiredMonitor[]
 }
 
 function unknownFields(entry: Json, allowed: readonly string[], path: string, problems: Problems) {
@@ -115,13 +121,14 @@ function keyList(value: unknown, path: string, problems: Problems): string[] {
   return [...new Set(value as string[])]
 }
 
-function entryKey(entry: Json, path: string, seen: Set<string>, problems: Problems): string {
+/** The key of a monitor or channel document, or '' (with a problem) when it has none that is usable. */
+function documentKey(entry: Json, path: string, seen: Set<string>, problems: Problems): string {
   const key = entry['key']
   if (!isValidEntityKey(key)) {
     problems.add(`${path}.key`, key === undefined ? 'is required' : ENTITY_KEY_ERROR)
     return ''
   }
-  if (seen.has(key)) problems.add(`${path}.key`, `"${clip(key)}" is used twice`)
+  if (seen.has(key)) problems.add(`${path}.key`, `"${clip(key)}" is used by another document`)
   seen.add(key)
   return key
 }
@@ -137,76 +144,57 @@ function policyProblems(given: unknown, normalized: unknown, path: string, probl
   }
 }
 
-function parseChannels(list: unknown, problems: Problems): DesiredChannel[] | null {
-  if (list === undefined) return null
-  if (!Array.isArray(list)) { problems.add('channels', 'must be a list'); return null }
-  const seen = new Set<string>()
-  const out: DesiredChannel[] = []
-  list.forEach((entry, index) => {
-    let path = `channels[${index}]`
-    if (!isObject(entry)) { problems.add(path, 'must be an object'); return }
-    const key = entryKey(entry, path, seen, problems)
-    if (key) path = `channels[${key}]`
-    unknownFields(entry, CHANNEL_FIELDS, path, problems)
+function parseChannel(entry: Json, index: number, seen: Set<string>, problems: Problems): DesiredChannel | null {
+  const key = documentKey(entry, `document ${index + 1}`, seen, problems)
+  const path = key ? `NotificationChannel[${key}]` : `document ${index + 1}`
+  unknownFields(entry, CHANNEL_FIELDS, path, problems)
 
-    const name = entry['name']
-    if (typeof name !== 'string' || !name.trim()) problems.add(`${path}.name`, 'is required')
-    else if (name.length > MAX_NAME_LENGTH) problems.add(`${path}.name`, `must be at most ${MAX_NAME_LENGTH} characters`)
-    const type = entry['type']
-    if (!CHANNEL_TYPES.includes(type as NotificationChannelType)) problems.add(`${path}.type`, `must be one of: ${CHANNEL_TYPES.join(', ')}`)
-    for (const flag of ['enabled', 'notifyOnRecovery'] as const) {
-      if (entry[flag] !== undefined && typeof entry[flag] !== 'boolean') problems.add(`${path}.${flag}`, 'must be true or false')
-    }
-    const config = entry['config'] ?? {}
-    if (!isObject(config)) problems.add(`${path}.config`, 'must be an object')
-    else if (nestedDeeperThan(config, MAX_CONFIG_DEPTH)) problems.add(`${path}.config`, `is nested deeper than ${MAX_CONFIG_DEPTH} levels`)
-    const alertPolicy = normalizeAlertPolicy(entry['alertPolicy'])
-    if (entry['alertPolicy'] !== undefined) policyProblems(entry['alertPolicy'], alertPolicy, `${path}.alertPolicy`, problems)
+  const name = entry['name']
+  if (typeof name !== 'string' || !name.trim()) problems.add(`${path}.name`, 'is required')
+  else if (name.length > MAX_NAME_LENGTH) problems.add(`${path}.name`, `must be at most ${MAX_NAME_LENGTH} characters`)
+  const type = entry['type']
+  if (!CHANNEL_TYPES.includes(type as NotificationChannelType)) problems.add(`${path}.type`, `must be one of: ${CHANNEL_TYPES.join(', ')}`)
+  for (const flag of ['enabled', 'notifyOnRecovery'] as const) {
+    if (entry[flag] !== undefined && typeof entry[flag] !== 'boolean') problems.add(`${path}.${flag}`, 'must be true or false')
+  }
+  const config = entry['config'] ?? {}
+  if (!isObject(config)) problems.add(`${path}.config`, 'must be an object')
+  else if (nestedDeeperThan(config, MAX_CONFIG_DEPTH)) problems.add(`${path}.config`, `is nested deeper than ${MAX_CONFIG_DEPTH} levels`)
+  const alertPolicy = normalizeAlertPolicy(entry['alertPolicy'])
+  if (entry['alertPolicy'] !== undefined) policyProblems(entry['alertPolicy'], alertPolicy, `${path}.alertPolicy`, problems)
 
-    if (key && typeof name === 'string' && CHANNEL_TYPES.includes(type as NotificationChannelType) && isObject(config)) {
-      out.push({
-        path, key, name, type: type as NotificationChannelType, config,
-        enabled: entry['enabled'] !== false,
-        notifyOnRecovery: entry['notifyOnRecovery'] === true,
-        alertPolicy,
-      })
-    }
-  })
-  return out
+  if (!key || typeof name !== 'string' || !CHANNEL_TYPES.includes(type as NotificationChannelType) || !isObject(config)) return null
+  return {
+    path, key, name, type: type as NotificationChannelType, config,
+    enabled: entry['enabled'] !== false,
+    notifyOnRecovery: entry['notifyOnRecovery'] === true,
+    alertPolicy,
+  }
 }
 
-function parseMonitors(list: unknown, problems: Problems): DesiredMonitor[] | null {
-  if (list === undefined) return null
-  if (!Array.isArray(list)) { problems.add('monitors', 'must be a list'); return null }
-  const seen = new Set<string>()
-  const out: DesiredMonitor[] = []
-  list.forEach((entry, index) => {
-    let path = `monitors[${index}]`
-    if (!isObject(entry)) { problems.add(path, 'must be an object'); return }
-    const key = entryKey(entry, path, seen, problems)
-    if (key) path = `monitors[${key}]`
-    unknownFields(entry, MONITOR_FIELDS, path, problems)
+function parseMonitor(entry: Json, index: number, seen: Set<string>, problems: Problems): DesiredMonitor | null {
+  const key = documentKey(entry, `document ${index + 1}`, seen, problems)
+  const path = key ? `Monitor[${key}]` : `document ${index + 1}`
+  unknownFields(entry, MONITOR_FIELDS, path, problems)
 
-    const parsed = parseNewMonitor(entry)
-    if ('error' in parsed) problems.add(path, parsed.error)
-    // The API clamps a threshold into range; a file that asks for 50 or "3" has made a mistake worth saying so.
-    for (const field of ['failureThreshold', 'recoveryThreshold'] as const) {
-      const value = entry[field]
-      if (value !== undefined && !(Number.isInteger(value) && (value as number) >= THRESHOLD_RANGE[0] && (value as number) <= THRESHOLD_RANGE[1])) {
-        problems.add(`${path}.${field}`, `must be a whole number from ${THRESHOLD_RANGE[0]} to ${THRESHOLD_RANGE[1]}`)
-      }
+  const parsed = parseNewMonitor(entry)
+  if ('error' in parsed) problems.add(path, parsed.error)
+  // The API clamps a threshold into range; a file that asks for 50 or "3" has made a mistake worth saying so.
+  for (const field of ['failureThreshold', 'recoveryThreshold'] as const) {
+    const value = entry[field]
+    if (value !== undefined && !(Number.isInteger(value) && (value as number) >= THRESHOLD_RANGE[0] && (value as number) <= THRESHOLD_RANGE[1])) {
+      problems.add(`${path}.${field}`, `must be a whole number from ${THRESHOLD_RANGE[0]} to ${THRESHOLD_RANGE[1]}`)
     }
-    if (nestedDeeperThan(entry['config'], MAX_CONFIG_DEPTH)) problems.add(`${path}.config`, `is nested deeper than ${MAX_CONFIG_DEPTH} levels`)
-    const notifications = keyList(entry['notifications'], `${path}.notifications`, problems)
-    const dependsOn = keyList(entry['dependsOn'], `${path}.dependsOn`, problems)
-    if (key && 'value' in parsed) out.push({ path, key, fields: parsed.value, notifications, dependsOn })
-  })
-  return out
+  }
+  if (nestedDeeperThan(entry['config'], MAX_CONFIG_DEPTH)) problems.add(`${path}.config`, `is nested deeper than ${MAX_CONFIG_DEPTH} levels`)
+  const notifications = keyList(entry['notifications'], `${path}.notifications`, problems)
+  const dependsOn = keyList(entry['dependsOn'], `${path}.dependsOn`, problems)
+  return key && 'value' in parsed ? { path, key, fields: parsed.value, notifications, dependsOn } : null
 }
 
-/** Where a name the parser would treat specially (`__proto__`) appears in the document, or null. Walks without recursion. */
-function forbiddenNameAt(document: unknown): string | null {
-  const pending: Array<[unknown, string]> = [[document, '(file)']]
+/** Where a name the parser would treat specially (`__proto__`) appears in a document, or null. Walks without recursion. */
+function forbiddenNameAt(document: unknown, label: string): string | null {
+  const pending: Array<[unknown, string]> = [[document, label]]
   while (pending.length) {
     const [value, path] = pending.pop()!
     if (!value || typeof value !== 'object') continue
@@ -217,24 +205,33 @@ function forbiddenNameAt(document: unknown): string | null {
   return null
 }
 
-function parseDocument(document: unknown, problems: Problems): Desired {
-  const poisoned = forbiddenNameAt(document)
-  if (poisoned) {
-    problems.add(poisoned, '"__proto__" is not allowed as a name')
-    return { channels: null, monitors: null, layout: undefined, hasLayout: false }
-  }
-  if (!isObject(document)) {
-    problems.add('(file)', 'must be a configuration document: an object with version, channels, monitors and layout')
-    return { channels: null, monitors: null, layout: undefined, hasLayout: false }
-  }
-  unknownFields(document, ROOT_FIELDS, '(file)', problems)
-  if (document['version'] !== CONFIG_VERSION) problems.add('version', `must be ${CONFIG_VERSION}`)
-  return {
-    channels: parseChannels(document['channels'], problems),
-    monitors: parseMonitors(document['monitors'], problems),
-    layout: document['layout'],
-    hasLayout: 'layout' in document && document['layout'] !== undefined,
-  }
+function parseDocuments(documents: unknown[], problems: Problems): Desired {
+  const desired: Desired = { channels: [], monitors: [] }
+  const channelKeys = new Set<string>()
+  const monitorKeys = new Set<string>()
+
+  documents.forEach((document, index) => {
+    const label = `document ${index + 1}`
+    const poisoned = forbiddenNameAt(document, label)
+    if (poisoned) { problems.add(poisoned, '"__proto__" is not allowed as a name'); return }
+    if (!isObject(document)) { problems.add(label, 'must be an object with a kind'); return }
+
+    switch (document['kind']) {
+      case 'Monitor': {
+        const monitor = parseMonitor(document, index, monitorKeys, problems)
+        if (monitor) desired.monitors.push(monitor)
+        break
+      }
+      case 'NotificationChannel': {
+        const channel = parseChannel(document, index, channelKeys, problems)
+        if (channel) desired.channels.push(channel)
+        break
+      }
+      default:
+        problems.add(`${label}.kind`, document['kind'] === undefined ? `is required: one of ${DOCUMENT_KINDS.join(', ')}` : `"${clip(String(document['kind']))}" is not a kind; use one of ${DOCUMENT_KINDS.join(', ')}`)
+    }
+  })
+  return desired
 }
 
 // ── The installation ────────────────────────────────────────────────────────────────────────────────────────────
@@ -243,16 +240,15 @@ type MonitorRow = typeof monitors.$inferSelect
 type ChannelRow = typeof notificationChannels.$inferSelect
 
 async function loadState() {
-  const [monitorRows, channelRows, linkRows, dependencyRows, layoutRows, vaultRows, secretRows] = await Promise.all([
+  const [monitorRows, channelRows, linkRows, dependencyRows, vaultRows, secretRows] = await Promise.all([
     db.select().from(monitors),
     db.select().from(notificationChannels),
     db.select().from(monitorNotificationChannels),
     db.select().from(monitorDependencies),
-    db.select().from(layout),
     db.select({ id: vaults.id, name: vaults.name }).from(vaults),
     db.select({ id: vaultSecrets.id, vaultId: vaultSecrets.vaultId, name: vaultSecrets.name }).from(vaultSecrets),
   ])
-  return { monitorRows, channelRows, linkRows, dependencyRows, layoutRow: layoutRows[0], vaultRows, secretRows }
+  return { monitorRows, channelRows, linkRows, dependencyRows, vaultRows, secretRows }
 }
 
 type State = Awaited<ReturnType<typeof loadState>>
@@ -298,14 +294,8 @@ interface PlannedMonitor { desired: DesiredMonitor; config: Json; existing: Moni
 interface Planned {
   channels: PlannedChannel[]
   monitors: PlannedMonitor[]
-  pruneChannels: ChannelRow[]
-  pruneMonitors: MonitorRow[]
-  /** `file`: the layout section of the file. `cleanup`: the stored layout without the nodes of monitors this import removes. */
-  layout: { tree: Json; exists: boolean; mode: 'file' | 'cleanup' } | null
   changes: ConfigChange[]
 }
-
-const EMPTY_LAYOUT = { id: 'root', type: 'page', children: [] }
 
 /** A dependency cycle among the monitors as they will be, as `a → b → a`, or null. */
 function findCycle(edges: Map<string, string[]>): string | null {
@@ -331,25 +321,9 @@ function findCycle(edges: Map<string, string[]>): string | null {
   return null
 }
 
-/** The tree without the monitor and chart nodes of the monitors in `gone`, and how many nodes that took out. */
-function withoutMonitors(node: unknown, gone: Set<number>): { tree: unknown; removed: number } {
-  if (!isObject(node)) return { tree: node, removed: 0 }
-  const children = node['children']
-  if (!Array.isArray(children)) return { tree: node, removed: 0 }
-  let removed = 0
-  const kept = children.flatMap((child) => {
-    if (isObject(child) && (child['type'] === 'monitor' || child['type'] === 'chart') && typeof child['monitorId'] === 'number' && gone.has(child['monitorId'])) {
-      removed += 1
-      return []
-    }
-    const inner = withoutMonitors(child, gone)
-    removed += inner.removed
-    return [inner.tree]
-  })
-  return { tree: { ...node, children: kept }, removed }
-}
+const byKey = (a: { key: string }, b: { key: string }) => (a.key < b.key ? -1 : 1)
 
-function plan(state: State, desired: Desired, prune: boolean, allowEmpty: boolean): Planned {
+function plan(state: State, desired: Desired, token: ImportOptions['token']): Planned {
   const problems = new Problems()
   const resolveVaults = vaultResolver(state)
 
@@ -358,25 +332,12 @@ function plan(state: State, desired: Desired, prune: boolean, allowEmpty: boolea
   const monitorKeyById = new Map(state.monitorRows.map((row) => [row.id, row.key]))
   const channelKeyById = new Map(state.channelRows.map((row) => [row.id, row.key]))
 
-  const desiredMonitorKeys = new Set(desired.monitors?.map((m) => m.key))
-  const desiredChannelKeys = new Set(desired.channels?.map((c) => c.key))
-  if (prune && !allowEmpty) {
-    for (const [name, wanted, existing] of [['monitors', desired.monitors, state.monitorRows], ['channels', desired.channels, state.channelRows]] as const) {
-      if (wanted && wanted.length === 0 && existing.length > 0) {
-        problems.add(name, `is empty, so pruning would remove every one of the ${existing.length} ${name}; add allowEmpty=true if that is what you want`)
-      }
-    }
-  }
-  const pruneMonitors = prune && desired.monitors ? state.monitorRows.filter((row) => !desiredMonitorKeys.has(row.key)) : []
-  const pruneChannels = prune && desired.channels ? state.channelRows.filter((row) => !desiredChannelKeys.has(row.key)) : []
-  const prunedMonitorKeys = new Set(pruneMonitors.map((row) => row.key))
-  const prunedChannelKeys = new Set(pruneChannels.map((row) => row.key))
-  // What exists afterwards: everything in the file, plus what the file does not delete.
-  const finalMonitorKeys = new Set([...desiredMonitorKeys, ...state.monitorRows.map((r) => r.key).filter((k) => !prunedMonitorKeys.has(k))])
-  const finalChannelKeys = new Set([...desiredChannelKeys, ...state.channelRows.map((r) => r.key).filter((k) => !prunedChannelKeys.has(k))])
+  // What exists afterwards: everything that is there now, and everything the file adds.
+  const finalMonitorKeys = new Set([...state.monitorRows.map((row) => row.key), ...desired.monitors.map((monitor) => monitor.key)])
+  const finalChannelKeys = new Set([...state.channelRows.map((row) => row.key), ...desired.channels.map((channel) => channel.key)])
 
-  const currentKeys = (monitorId: number, rows: Array<{ monitorId: number; channelId: number }>) =>
-    rows.filter((link) => link.monitorId === monitorId).flatMap((link) => channelKeyById.get(link.channelId) ?? []).sort()
+  const currentChannelKeys = (monitorId: number) =>
+    state.linkRows.filter((link) => link.monitorId === monitorId).flatMap((link) => channelKeyById.get(link.channelId) ?? []).sort()
   const currentDependencies = (monitorId: number) =>
     state.dependencyRows.filter((edge) => edge.dependentId === monitorId).flatMap((edge) => monitorKeyById.get(edge.dependsOnId) ?? []).sort()
 
@@ -384,18 +345,21 @@ function plan(state: State, desired: Desired, prune: boolean, allowEmpty: boolea
   const plannedChannels: PlannedChannel[] = []
   const plannedMonitors: PlannedMonitor[] = []
 
-  for (const channel of [...(desired.channels ?? [])].sort((a, b) => (a.key < b.key ? -1 : 1))) {
+  for (const channel of [...desired.channels].sort(byKey)) {
     const existing = channelByKey.get(channel.key)
-    const secrets = restoreSecrets('channel', channel.config, existing && existing.type === channel.type ? JSON.parse(existing.config) : undefined)
+    const stored = existing && existing.type === channel.type ? JSON.parse(existing.config) : undefined
+    const secrets = restoreSecrets('channel', channel.config, stored)
     if ('error' in secrets) { problems.add(`${channel.path}.config`, secrets.error); continue }
     const config = resolveVaults(secrets.config, `${channel.path}.config`, problems) as Json
+    const vaultProblem = vaultUseProblem(token, config, stored)
+    if (vaultProblem) problems.add(`${channel.path}.config`, vaultProblem)
     if (channel.type === 'telegram') {
       const problem = telegramConfigError(config)
       if (problem) problems.add(`${channel.path}.config`, problem)
     }
     if (!existing) {
       plannedChannels.push({ desired: channel, config, existing, fields: [] })
-      changes.push({ kind: 'channel', key: channel.key, action: 'create' })
+      changes.push({ kind: 'NotificationChannel', key: channel.key, action: 'create' })
       continue
     }
     const current: Json = {
@@ -405,18 +369,21 @@ function plan(state: State, desired: Desired, prune: boolean, allowEmpty: boolea
     const wanted: Json = { name: channel.name, type: channel.type, enabled: channel.enabled, notifyOnRecovery: channel.notifyOnRecovery, config, alertPolicy: channel.alertPolicy }
     const fields = Object.keys(wanted).filter((field) => canonical(current[field]) !== canonical(wanted[field]))
     if (fields.length) plannedChannels.push({ desired: channel, config, existing, fields })
-    changes.push({ kind: 'channel', key: channel.key, action: fields.length ? 'update' : 'unchanged', ...(fields.length ? { fields } : {}) })
+    changes.push({ kind: 'NotificationChannel', key: channel.key, action: fields.length ? 'update' : 'unchanged', ...(fields.length ? { fields } : {}) })
   }
 
   const edges = new Map<string, string[]>()
-  for (const row of state.monitorRows) if (finalMonitorKeys.has(row.key)) edges.set(row.key, currentDependencies(row.id).filter((key) => finalMonitorKeys.has(key)))
+  for (const row of state.monitorRows) edges.set(row.key, currentDependencies(row.id))
 
-  for (const monitor of [...(desired.monitors ?? [])].sort((a, b) => (a.key < b.key ? -1 : 1))) {
+  for (const monitor of [...desired.monitors].sort(byKey)) {
     const existing = monitorByKey.get(monitor.key)
     const { fields: values } = monitor
-    const secrets = restoreSecrets('monitor', values.config, existing && existing.type === values.type ? JSON.parse(existing.config) : undefined)
+    const stored = existing && existing.type === values.type ? JSON.parse(existing.config) : undefined
+    const secrets = restoreSecrets('monitor', values.config, stored)
     if ('error' in secrets) problems.add(`${monitor.path}.config`, secrets.error)
     const config = 'config' in secrets ? resolveVaults(secrets.config, `${monitor.path}.config`, problems) as Json : values.config
+    const vaultProblem = vaultUseProblem(token, config, stored)
+    if (vaultProblem) problems.add(`${monitor.path}.config`, vaultProblem)
 
     for (const key of monitor.notifications) if (!finalChannelKeys.has(key)) problems.add(`${monitor.path}.notifications`, `unknown channel "${clip(key)}"`)
     for (const key of monitor.dependsOn) {
@@ -425,16 +392,19 @@ function plan(state: State, desired: Desired, prune: boolean, allowEmpty: boolea
     }
     edges.set(monitor.key, monitor.dependsOn.filter((key) => finalMonitorKeys.has(key) && key !== monitor.key))
 
+    const mayLink = !token || tokenAllows(token.scopes, 'channels:write')
+    const refuseLinks = () => problems.add(`${monitor.path}.notifications`, 'a token needs the "channels:write" permission to change which channels a monitor alerts through')
     if (!existing) {
+      if (monitor.notifications.length && !mayLink) refuseLinks()
       plannedMonitors.push({ desired: monitor, config, existing, fields: [] })
-      changes.push({ kind: 'monitor', key: monitor.key, action: 'create' })
+      changes.push({ kind: 'Monitor', key: monitor.key, action: 'create' })
       continue
     }
     const current: Json = {
       name: existing.name, type: existing.type, intervalSecs: existing.intervalSecs, timeoutMs: existing.timeoutMs, retries: existing.retries,
       failureThreshold: existing.failureThreshold, recoveryThreshold: existing.recoveryThreshold,
       config: JSON.parse(existing.config), tags: JSON.parse(existing.tags ?? '[]'),
-      notifications: currentKeys(existing.id, state.linkRows), dependsOn: currentDependencies(existing.id),
+      notifications: currentChannelKeys(existing.id), dependsOn: currentDependencies(existing.id),
     }
     const wanted: Json = {
       name: values.name, type: values.type, intervalSecs: values.intervalSecs, timeoutMs: values.timeoutMs, retries: values.retries,
@@ -442,46 +412,23 @@ function plan(state: State, desired: Desired, prune: boolean, allowEmpty: boolea
       config, tags: values.tags, notifications: [...monitor.notifications].sort(), dependsOn: [...monitor.dependsOn].sort(),
     }
     const fields = Object.keys(wanted).filter((field) => canonical(current[field]) !== canonical(wanted[field]))
+    if (fields.includes('notifications') && !mayLink) refuseLinks()
     if (fields.length) plannedMonitors.push({ desired: monitor, config, existing, fields })
-    changes.push({ kind: 'monitor', key: monitor.key, action: fields.length ? 'update' : 'unchanged', ...(fields.length ? { fields } : {}) })
+    changes.push({ kind: 'Monitor', key: monitor.key, action: fields.length ? 'update' : 'unchanged', ...(fields.length ? { fields } : {}) })
   }
 
   const cycle = findCycle(edges)
-  if (cycle) problems.add('monitors', `dependency cycle: ${cycle}`)
-
-  let plannedLayout: Planned['layout'] = null
-  if (desired.hasLayout) {
-    const idByKey = new Map(state.monitorRows.filter((row) => finalMonitorKeys.has(row.key)).map((row) => [row.key, row.id]))
-    // Monitors that are about to be created have no id yet; the tree only needs to know that the key will exist.
-    // A monitor this import is about to create has no id yet; 0 stands in, which differs from any stored tree.
-    const tree = layoutFromConfig(desired.layout, (key) => (finalMonitorKeys.has(key) ? idByKey.get(key) ?? 0 : undefined), problems.add)
-    if (!problems.any) {
-      const stored = state.layoutRow ? JSON.parse(state.layoutRow.tree) : EMPTY_LAYOUT
-      const same = canonical(stored) === canonical(tree)
-      if (!same) plannedLayout = { tree, exists: !!state.layoutRow, mode: 'file' }
-      changes.push({ kind: 'layout', action: same ? 'unchanged' : state.layoutRow ? 'update' : 'create' })
-    }
-  } else if (pruneMonitors.length && state.layoutRow) {
-    // The file does not describe the layout, but it must not be left showing monitors that no longer exist.
-    const { tree, removed } = withoutMonitors(JSON.parse(state.layoutRow.tree), new Set(pruneMonitors.map((row) => row.id)))
-    if (removed) {
-      plannedLayout = { tree: tree as Json, exists: true, mode: 'cleanup' }
-      changes.push({ kind: 'layout', action: 'update', fields: ['nodes of removed monitors'] })
-    }
-  }
-
-  for (const row of pruneChannels) changes.push({ kind: 'channel', key: row.key, action: 'delete' })
-  for (const row of pruneMonitors) changes.push({ kind: 'monitor', key: row.key, action: 'delete' })
+  if (cycle) problems.add('Monitor', `dependency cycle: ${cycle}`)
 
   if (problems.any) throw new ConfigInvalidError(problems.list)
-  return { channels: plannedChannels, monitors: plannedMonitors, pruneChannels, pruneMonitors, layout: plannedLayout, changes }
+  return { channels: plannedChannels, monitors: plannedMonitors, changes }
 }
 
 // ── The write ───────────────────────────────────────────────────────────────────────────────────────────────────
 
-interface AuditEntry { action: 'create' | 'update' | 'delete'; entity: 'monitor' | 'notification_channel' | 'layout'; id: number | string; name: string; diff: Json }
+interface AuditEntry { action: 'create' | 'update'; entity: 'monitor' | 'notification_channel'; id: number | string; name: string; diff: Json }
 
-async function execute(state: State, planned: Planned, desired: Desired): Promise<AuditEntry[]> {
+async function execute(state: State, planned: Planned): Promise<AuditEntry[]> {
   const now = Date.now()
   const audit: AuditEntry[] = []
   const source = 'configuration import'
@@ -504,7 +451,7 @@ async function execute(state: State, planned: Planned, desired: Desired): Promis
     }
   }
 
-  // Monitors first without their links: a link may point at a monitor created later in the same list.
+  // Monitors first without their links: a link may point at a monitor created later in the same stream.
   for (const { desired: monitor, config, existing, fields } of planned.monitors) {
     const values = monitor.fields
     if (existing) {
@@ -559,68 +506,36 @@ async function execute(state: State, planned: Planned, desired: Desired): Promis
     }
   }
 
-  if (planned.pruneMonitors.length) {
-    const ids = planned.pruneMonitors.map((row) => row.id)
-    await db.delete(monitorNotificationChannels).where(inArray(monitorNotificationChannels.monitorId, ids))
-    // These two tables have no foreign key to monitors, so nothing else would remove the rows that name a removed monitor.
-    await db.delete(incidentMonitors).where(inArray(incidentMonitors.monitorId, ids))
-    await db.delete(maintenanceWindowMonitors).where(inArray(maintenanceWindowMonitors.monitorId, ids))
-    await db.delete(monitors).where(inArray(monitors.id, ids))
-    for (const row of planned.pruneMonitors) audit.push({ action: 'delete', entity: 'monitor', id: row.id, name: row.name, diff: { key: row.key, source } })
-  }
-  if (planned.pruneChannels.length) {
-    const ids = planned.pruneChannels.map((row) => row.id)
-    await db.delete(monitorNotificationChannels).where(inArray(monitorNotificationChannels.channelId, ids))
-    await db.delete(notificationChannels).where(inArray(notificationChannels.id, ids))
-    for (const row of planned.pruneChannels) audit.push({ action: 'delete', entity: 'notification_channel', id: row.id, name: row.name, diff: { key: row.key, source } })
-  }
-
-  if (planned.layout) {
-    let tree: unknown = planned.layout.tree
-    if (planned.layout.mode === 'file') {
-      // The tree was resolved against ids that did not exist yet for new monitors; resolve it again now that they do.
-      const problems = new Problems()
-      tree = layoutFromConfig(desired.layout, (key) => monitorId.get(key), problems.add)
-      if (problems.any) throw new ConfigInvalidError(problems.list)
-    }
-    const json = JSON.stringify(tree)
-    if (planned.layout.exists) await db.update(layout).set({ tree: json, updatedAt: now }).where(eq(layout.id, state.layoutRow!.id))
-    else await db.insert(layout).values({ id: 1, tree: json, updatedAt: now })
-    audit.push({ action: planned.layout.exists ? 'update' : 'create', entity: 'layout', id: 1, name: 'Status page layout', diff: planned.layout.mode === 'cleanup' ? { source, changed: 'nodes of removed monitors' } : { source } })
-  }
   return audit
 }
 
 // ── Entry point ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 function summarise(changes: ConfigChange[]): ImportResult['summary'] {
-  const summary = { create: 0, update: 0, unchanged: 0, delete: 0 }
+  const summary = { create: 0, update: 0, unchanged: 0 }
   for (const change of changes) summary[change.action] += 1
   return summary
 }
 
 /**
- * Makes the installation match the document: creates and updates what the file describes, and with `prune` removes
- * monitors and channels the file leaves out (only from sections the file contains). Everything is checked before
- * anything is written, and the writes are one transaction, so a file is applied completely or not at all. With
- * `dryRun` nothing is written and the result says what would happen.
+ * Makes the installation match the documents: a monitor or channel whose key exists is updated, one whose key does
+ * not is created. Nothing is ever removed. Everything is checked before anything is
+ * written, and the writes are one transaction, so a stream is applied completely or not at all. With `dryRun`
+ * nothing is written and the result says what would happen.
  */
-export async function importConfig(document: unknown, options: ImportOptions): Promise<ImportResult> {
+export async function importConfig(documents: unknown[], options: ImportOptions): Promise<ImportResult> {
   const problems = new Problems()
-  const desired = parseDocument(document, problems)
+  const desired = parseDocuments(documents, problems)
   if (problems.any) throw new ConfigInvalidError(problems.list)
 
-  const result = (planned: Planned): ImportResult => ({
-    dryRun: options.dryRun, prune: options.prune, summary: summarise(planned.changes), changes: planned.changes,
-  })
+  const result = (planned: Planned): ImportResult => ({ dryRun: options.dryRun, summary: summarise(planned.changes), changes: planned.changes })
 
-  const allowEmpty = options.allowEmpty === true
-  if (options.dryRun) return result(plan(await loadState(), desired, options.prune, allowEmpty))
+  if (options.dryRun) return result(plan(await loadState(), desired, options.token))
 
   const { planned, audit } = await withImmediateTransaction(async () => {
     const state = await loadState()
-    const planned = plan(state, desired, options.prune, allowEmpty)
-    const audit = planned.changes.some((change) => change.action !== 'unchanged') ? await execute(state, planned, desired) : []
+    const planned = plan(state, desired, options.token)
+    const audit = planned.changes.some((change) => change.action !== 'unchanged') ? await execute(state, planned) : []
     return { planned, audit }
   })
 
@@ -632,7 +547,7 @@ export async function importConfig(document: unknown, options: ImportOptions): P
       for (const entry of audit) await writeAudit(options.actor, entry.action, entry.entity, entry.id, entry.name, entry.diff)
       const summary = summarise(planned.changes)
       await writeAudit(options.actor, 'update', 'config', null, 'Configuration import', {
-        created: summary.create, updated: summary.update, deleted: summary.delete, unchanged: summary.unchanged, prune: options.prune,
+        created: summary.create, updated: summary.update, unchanged: summary.unchanged,
       })
     } catch (error) {
       console.error('[config] Imported, but could not finish the follow-up work:', error)
@@ -640,4 +555,3 @@ export async function importConfig(document: unknown, options: ImportOptions): P
   }
   return result(planned)
 }
-

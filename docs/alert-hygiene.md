@@ -187,7 +187,7 @@ PATCH /api/v1/admin/monitors/:id
 ```
 
 The channel policy is one nested object; omitted fields fall back to defaults, and out-of-range
-values are clamped rather than rejected. A [configuration file](configuration-as-code.md#a-file-that-is-not-valid) is stricter: an unknown setting or a value out of range is refused.
+values are clamped rather than rejected. A [configuration document](configuration-as-code.md#documents-that-are-not-valid) is stricter: an unknown setting or a value out of range is refused.
 
 ```http
 PATCH /api/v1/admin/notifications/channels/:id

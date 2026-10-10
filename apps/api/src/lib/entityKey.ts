@@ -42,10 +42,3 @@ export async function keyForNew(name: string, requested: unknown, ownerOf: KeyOw
   for (let n = 2; (await ownerOf(candidate)) !== undefined; n++) candidate = `${base}-${n}`
   return { key: candidate }
 }
-
-/** Key for an existing row `id` being renamed; its own current key is not a conflict. */
-export async function keyForUpdate(id: number, requested: unknown, ownerOf: KeyOwner): Promise<KeyResult> {
-  if (!isValidEntityKey(requested)) return { status: 400, error: ENTITY_KEY_ERROR }
-  const owner = await ownerOf(requested)
-  return owner === undefined || owner === id ? { key: requested } : { status: 409, error: `Key "${requested}" is already in use` }
-}

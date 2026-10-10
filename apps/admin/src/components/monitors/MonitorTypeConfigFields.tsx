@@ -208,7 +208,11 @@ function DatabaseFields({ type, config, updateConfig, onEngineChange, vaultPicke
           <CredentialSection
             {...vaultPicker}
             vault={sqlVault}
-            onVaultChange={(v) => updateConfig('vault', v)}
+            onVaultChange={(v) => {
+              updateConfig('vault', v)
+              // Switching to a vault drops what was typed in directly, so the two never exist together.
+              if (v) { updateConfig('user', undefined); updateConfig('password', undefined) }
+            }}
             mappingFields={JSON_MAPPING_FIELDS.database}
           >
             <div className="grid grid-cols-2 gap-3">

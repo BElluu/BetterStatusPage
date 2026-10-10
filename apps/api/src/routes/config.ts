@@ -1,15 +1,19 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { Document, parse as parseYaml, visit } from 'yaml'
+import { Document, parseAllDocuments, visit } from 'yaml'
+import { tokenAllows } from '@bsp/shared'
 import { requestIdentity, requireRole } from '../middleware/auth.js'
 import { clip } from '../lib/clip.js'
 import { auditActor } from '../services/audit.js'
-import { buildConfigDocument, ConfigExportError } from '../services/configExport.js'
-import { ConfigInvalidError, importConfig } from '../services/configImport.js'
+import type { AuthIdentity } from '../services/authSession.js'
+import { buildConfigDocuments, ConfigExportError, pickDocument, type ConfigDocument } from '../services/configExport.js'
+import { ConfigInvalidError, DOCUMENT_KINDS, importConfig, kindsIn, type DocumentKind } from '../services/configImport.js'
 
 /** A configuration is a few hundred kilobytes at most; this leaves room without letting a request tie up the parser. */
 const BODY_LIMIT = 2 * 1024 * 1024
 /** Anchors are legitimate in a hand-written file, but a few are plenty and unbounded aliases are a decompression bomb. */
 const MAX_YAML_ALIASES = 20
+const MAX_DOCUMENTS = 2_000
+const YAML_TYPES = ['application/yaml', 'application/x-yaml', 'text/yaml']
 
 /**
  * Strings the library leaves bare although a parser reads them as something else: `<<` is the YAML 1.1 merge key (as a
@@ -36,62 +40,118 @@ function toYaml(value: unknown): string {
   return document.toString({ lineWidth: 0 })
 }
 
-type ImportRequest = FastifyRequest<{ Querystring: { prune?: string; allowEmpty?: string }; Body: unknown }>
+/** Several documents in one YAML file, separated the usual way. */
+const toYamlStream = (documents: unknown[]) => documents.map(toYaml).join('---\n')
 
-const isFlag = (value: string | undefined) => value === undefined || value === 'true' || value === 'false'
+/** What a token must be allowed to do with each kind of document. */
+const TOKEN_RESOURCE: Record<DocumentKind, string> = { Monitor: 'monitors', NotificationChannel: 'channels' }
+/** Who may edit each kind in the admin panel: the same people may import it. */
+const SESSION_ROLES: Record<DocumentKind, readonly string[]> = {
+  Monitor: ['admin', 'operator'],
+  NotificationChannel: ['admin', 'operator'],
+}
+
+/** The kinds `identity` may not read (or write), with the reason, or null when it may do all of them. */
+function refusal(identity: AuthIdentity, kinds: Iterable<DocumentKind>, access: 'read' | 'write'): string | null {
+  const refused: string[] = []
+  for (const kind of kinds) {
+    if (identity.apiToken) {
+      const needed = `${TOKEN_RESOURCE[kind]}:${access}`
+      if (!tokenAllows(identity.apiToken.scopes, needed)) refused.push(`${kind} (the token needs "${needed}")`)
+    } else if (!SESSION_ROLES[kind].includes(identity.role)) {
+      refused.push(`${kind} (needs the ${SESSION_ROLES[kind].filter((role) => role !== 'admin').join(' or ')} role)`)
+    }
+  }
+  return refused.length ? `You may not ${access === 'read' ? 'export' : 'import'}: ${refused.join(', ')}` : null
+}
+
+/** The documents of an import request: a YAML text with one or more documents. */
+function readDocuments(body: unknown): { documents: unknown[] } | { error: string } {
+  if (typeof body !== 'string') return { error: 'Send the documents as YAML' }
+  // A `%YAML 1.1` line would switch the parser to rules under which `yes` is a boolean and `22:00` a number.
+  if (/^%YAML/m.test(body)) return { error: 'Invalid YAML: %YAML directives are not supported' }
+  try {
+    const documents: unknown[] = []
+    for (const document of parseAllDocuments(body)) {
+      if (document.errors.length) throw document.errors[0]
+      const value: unknown = document.toJS({ maxAliasCount: MAX_YAML_ALIASES })
+      // An alias inside the thing it is an alias of (`a: &x { b: *x }`) parses into a circular object, which JSON
+      // cannot hold and nothing downstream could compare or store.
+      JSON.stringify(value)
+      if (value !== null && value !== undefined) documents.push(value)
+      if (documents.length > MAX_DOCUMENTS) return { error: `Too many documents: at most ${MAX_DOCUMENTS}` }
+    }
+    return { documents }
+  } catch (error) {
+    const circular = error instanceof TypeError && /circular/i.test(error.message)
+    return { error: circular ? 'Invalid YAML: an alias may not refer to a value that contains it' : clip(`Invalid YAML: ${error instanceof Error ? error.message : String(error)}`, 300) }
+  }
+}
+
+type ImportRequest = FastifyRequest<{ Body: unknown }>
 
 export async function configRoutes(app: FastifyInstance) {
   // A YAML body is handed to the handler as text and parsed there, after the request has been authenticated.
-  app.addContentTypeParser(['application/yaml', 'application/x-yaml', 'text/yaml'], { parseAs: 'string', bodyLimit: BODY_LIMIT }, (_req, body, done) => done(null, body))
+  app.addContentTypeParser(YAML_TYPES, { parseAs: 'string', bodyLimit: BODY_LIMIT }, (_req, body, done) => done(null, body))
 
-  // Monitors, notification channels and the status page layout as YAML (default) or JSON.
-  app.get<{ Querystring: { format?: string } }>('/export', async (req, reply) => {
-    const format = req.query.format ?? 'yaml'
-    if (format !== 'yaml' && format !== 'json') return reply.code(400).send({ error: 'format must be yaml or json' })
+  // One monitor or channel (`?kind=Monitor&key=public-site`), or all of them, as YAML.
+  app.get<{ Querystring: { kind?: string; key?: string } }>('/export', async (req, reply) => {
+    const { kind, key } = req.query
+    if (kind !== undefined && !(DOCUMENT_KINDS as readonly string[]).includes(kind)) {
+      return reply.code(400).send({ error: `kind must be one of: ${DOCUMENT_KINDS.join(', ')}` })
+    }
+    if (kind !== undefined && !key) return reply.code(400).send({ error: `key is required to export a ${kind}` })
 
-    let document
+    const denied = refusal(requestIdentity(req), kind ? [kind as DocumentKind] : DOCUMENT_KINDS, 'read')
+    if (denied) return reply.code(403).send({ error: denied })
+
+    let documents: ConfigDocument[]
     try {
-      document = await buildConfigDocument()
+      documents = await buildConfigDocuments()
     } catch (error) {
       if (error instanceof ConfigExportError) return reply.code(409).send({ error: error.message })
       throw error
     }
-    if (format === 'json') return document
-    return reply.type('application/yaml; charset=utf-8').send(toYaml(document))
+    if (kind) {
+      const found = pickDocument(documents, kind as DocumentKind, key)
+      if (!found) return reply.code(404).send({ error: `There is no ${kind} with the key "${clip(String(key))}"` })
+      return reply.type('application/yaml; charset=utf-8').send(toYaml(found))
+    }
+    return reply.type('application/yaml; charset=utf-8').send(toYamlStream(documents))
   })
 
   async function run(req: ImportRequest, reply: FastifyReply, dryRun: boolean) {
-    const { prune, allowEmpty } = req.query
-    if (!isFlag(prune)) return reply.code(400).send({ error: 'prune must be true or false' })
-    if (!isFlag(allowEmpty)) return reply.code(400).send({ error: 'allowEmpty must be true or false' })
-
-    let document: unknown = req.body
-    if (typeof document === 'string') {
-      // A `%YAML 1.1` line would switch the parser to rules under which `yes` is a boolean and `22:00` a number.
-      if (/^%YAML/m.test(document)) return reply.code(400).send({ error: 'Invalid YAML: %YAML directives are not supported' })
-      try {
-        document = parseYaml(document, { maxAliasCount: MAX_YAML_ALIASES })
-        // An alias inside the thing it is an alias of (`a: &x { b: *x }`) parses into a circular object, which JSON
-        // cannot hold and nothing downstream could compare or store.
-        JSON.stringify(document)
-      } catch (error) {
-        const circular = error instanceof TypeError && /circular/i.test(error.message)
-        return reply.code(400).send({ error: circular ? 'Invalid YAML: an alias may not refer to a value that contains it' : clip(`Invalid YAML: ${error instanceof Error ? error.message : String(error)}`, 300) })
-      }
-    }
+    const read = readDocuments(req.body)
+    if ('error' in read) return reply.code(400).send({ error: read.error })
+    if (read.documents.length === 0) return reply.code(400).send({ error: 'The file contains no documents' })
+    const identity = requestIdentity(req)
+    const denied = refusal(identity, kindsIn(read.documents), 'write')
+    if (denied) return reply.code(403).send({ error: denied })
 
     try {
-      return await importConfig(document, { dryRun, prune: prune === 'true', allowEmpty: allowEmpty === 'true', actor: auditActor(requestIdentity(req)) })
+      return await importConfig(read.documents, { dryRun, actor: auditActor(identity), token: identity.apiToken })
     } catch (error) {
       if (error instanceof ConfigInvalidError) return reply.code(400).send({ error: error.message, problems: error.problems })
       throw error
     }
   }
 
-  // Both check the caller before the body is read: parsing a 2 MiB document is work only an administrator may ask for.
-  const options = { onRequest: requireRole(), bodyLimit: BODY_LIMIT }
-  // What importing the document would change, without changing anything.
-  app.post<{ Querystring: { prune?: string; allowEmpty?: string }; Body: unknown }>('/validate', options, (req, reply) => run(req, reply, true))
-  // Makes the installation match the document, completely or not at all.
-  app.post<{ Querystring: { prune?: string; allowEmpty?: string }; Body: unknown }>('/apply', options, (req, reply) => run(req, reply, false))
+  // Both check the caller before the body is read: parsing a 2 MiB file is work only someone who may import it may ask for.
+  // What the caller may import is decided per kind of document once the file is read.
+  const mayWriteSomething = async (req: FastifyRequest, reply: FastifyReply) => {
+    const token = requestIdentity(req).apiToken
+    if (token && !Object.values(TOKEN_RESOURCE).some((resource) => tokenAllows(token.scopes, `${resource}:write`))) {
+      return reply.code(403).send({ error: 'This token has no permission to import: it needs "monitors:write" or "channels:write"' })
+    }
+  }
+  // Only YAML is read, and this is checked before the body is, so a JSON body is never parsed.
+  const onlyYaml = async (req: FastifyRequest, reply: FastifyReply) => {
+    const type = (req.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase()
+    if (!YAML_TYPES.includes(type)) return reply.code(415).send({ error: 'Send the documents as YAML, with Content-Type: application/yaml' })
+  }
+  const options = { onRequest: [requireRole('operator'), mayWriteSomething, onlyYaml], bodyLimit: BODY_LIMIT }
+  // What importing the documents would change, without changing anything.
+  app.post<{ Body: unknown }>('/validate', options, (req, reply) => run(req, reply, true))
+  // Makes the installation match the documents, completely or not at all.
+  app.post<{ Body: unknown }>('/apply', options, (req, reply) => run(req, reply, false))
 }

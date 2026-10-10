@@ -42,8 +42,7 @@ These fields are in the form for every type. **Name** and **Type** come first, f
 
 | Field | Default | What it does |
 | --- | --- | --- |
-| **Name** | — | Shown in the admin console, in notifications and on the status page. Required, up to 200 characters. |
-| **Key** | from the name | Stable identifier for the [API](api.md#monitors-and-notification-channels-have-keys) and [configuration files](configuration-as-code.md): 1–64 lowercase letters, digits, `-` and `_`, starting with a letter or digit, unique. Generated from the name when left empty; it keeps its value when the name changes. |
+| **Name** | — | Shown in the admin console, in notifications and on the status page. Required, up to 200 characters. A technical [key](api.md#monitors-and-notification-channels-have-keys) is generated from it; it is not shown in the form and never changes. |
 | **Type** | HTTPS | Chosen from a searchable list grouped by area (Web, Network, Data, Infrastructure, Inbound). Switching type resets the type-specific settings. |
 | **Interval (s)** | `60` | How often the check runs. `10`–`86400`. For a webhook monitor, how long silence may last. |
 | **Timeout (ms)** | `10000` | How long one attempt may take, authentication and redirects included. `1000`–`300000`. |
@@ -108,7 +107,8 @@ the list. The page shows the monitor over the last 24 hours, 7 days, 30 days or 
 - **Recent failures**: the latest 10 failed checks in the range, with their error messages. Next to
   them, the **incidents** linked to the monitor in that range.
 - **Configuration** of the monitor: type, target, interval, timeout, alert and recovery thresholds,
-  dependencies and, for HTTPS monitors, the days left on the certificate.
+  dependencies and, for HTTPS monitors, the days left on the certificate. A webhook monitor shows its
+  **Webhook URL** here, with a **Copy** button.
 
 **Check now** and **Edit** are available on the page too, so a monitor can be changed without
 returning to the list.

@@ -2,12 +2,19 @@ import { createHash, randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { apiTokens, users } from '../db/schema.js'
+import { API_TOKEN_SCOPES } from '@bsp/shared'
 import { normalizeRole } from './roles.js'
 
 export const API_TOKEN_PREFIX = 'bsp_'
-/** Roles a token can carry; `viewer` has no admin access, so there is nothing to grant. */
-export const API_TOKEN_ROLES = ['admin', 'operator', 'branding'] as const
-export type ApiTokenRole = typeof API_TOKEN_ROLES[number]
+/** The permissions stored with a token. Anything that is not a known permission is dropped. */
+export function parseScopes(stored: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(stored)
+    return Array.isArray(parsed) ? parsed.filter((scope): scope is string => typeof scope === 'string' && API_TOKEN_SCOPES.includes(scope)) : []
+  } catch {
+    return []
+  }
+}
 
 const LAST_USED_RESOLUTION_MS = 60_000
 const RATE_LIMIT_PER_MINUTE = 300

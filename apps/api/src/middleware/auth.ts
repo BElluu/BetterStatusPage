@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { API_TOKEN_NOT_ACCEPTED, authenticateRequest, verifyCsrf, type AuthIdentity } from '../services/authSession.js'
+import { requiredScope, tokenAllows } from '@bsp/shared'
 import { consumeApiTokenBudget } from '../services/apiTokens.js'
 
 declare module 'fastify' {
@@ -7,6 +8,12 @@ declare module 'fastify' {
     allowPendingPasswordChange?: boolean
     /** Routes that accept an API token. Everything else answers 403 to one, so tokens never reach account security. */
     allowApiToken?: boolean
+    /**
+     * The part of the admin API a route belongs to (a key of TOKEN_RESOURCES, or `vault`). A token needs `<part>:read`
+     * for GET and `<part>:write` for anything else. `custom` means the handler checks the token itself. A route a
+     * token may reach but that names no part is refused: tokens fail closed.
+     */
+    tokenScope?: string
   }
 }
 
@@ -70,6 +77,16 @@ export async function authenticateOrReject(
   if (identity.apiToken && !existing && !consumeApiTokenBudget(identity.apiToken.id)) {
     reply.code(429).header('retry-after', '60').send({ error: 'Too many requests' })
     return null
+  }
+  if (identity.apiToken) {
+    const resource = req.routeOptions.config?.tokenScope
+    if (resource !== 'custom') {
+      const required = resource ? requiredScope(resource, req.method) : null
+      if (!required || !tokenAllows(identity.apiToken.scopes, required)) {
+        reply.code(403).send({ error: required ? `This token does not have the "${required}" permission` : 'API tokens cannot call this endpoint' })
+        return null
+      }
+    }
   }
   if (passwordChangeBlocks(req, identity)) {
     sendPasswordChangeRequired(reply)

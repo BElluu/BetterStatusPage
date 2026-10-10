@@ -80,6 +80,8 @@ async function request<T>(
   isFormData = false,
   /** Sends `body` (a string) as it is with this content type, instead of as JSON. */
   contentType?: string,
+  /** Reads the answer as text instead of JSON. */
+  asText = false,
 ): Promise<T> {
   const headers: Record<string, string> = {}
   if (contentType) headers['Content-Type'] = contentType
@@ -117,11 +119,13 @@ async function request<T>(
   }
 
   if (res.status === 204) return undefined as T
-  return res.json() as Promise<T>
+  return (asText ? res.text() : res.json()) as Promise<T>
 }
 
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
+  /** GET an answer that is text, for example a YAML document. */
+  getText: (path: string) => request<string>('GET', path, undefined, false, undefined, true),
   post: <T>(path: string, body: unknown = {}) => request<T>('POST', path, body),
   patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
   put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),

@@ -1,17 +1,15 @@
 import { db } from '../db/client.js'
 import {
-  layout, monitorDependencies, monitorNotificationChannels, monitors, notificationChannels, vaultSecrets, vaults,
+  monitorDependencies, monitorNotificationChannels, monitors, notificationChannels, vaultSecrets, vaults,
 } from '../db/schema.js'
 import { parseAlertPolicy } from './alertPolicy.js'
 import { maskSecrets } from './secretFields.js'
 
-/** Bumped when the file format changes in a way an older reader would misread. */
-export const CONFIG_VERSION = 1
-
 /** A vault secret named instead of numbered, so the file means the same on another installation. */
 export interface ConfigVaultRef { vault: string; secret: string; fieldMapping?: Record<string, string> }
 
-export interface ConfigChannel {
+export interface ChannelDocument {
+  kind: 'NotificationChannel'
   key: string
   name: string
   type: string
@@ -21,7 +19,8 @@ export interface ConfigChannel {
   alertPolicy: unknown
 }
 
-export interface ConfigMonitor {
+export interface MonitorDocument {
+  kind: 'Monitor'
   key: string
   name: string
   type: string
@@ -38,13 +37,7 @@ export interface ConfigMonitor {
   dependsOn: string[]
 }
 
-export interface ConfigDocument {
-  version: typeof CONFIG_VERSION
-  channels: ConfigChannel[]
-  monitors: ConfigMonitor[]
-  /** The status page tree; monitor and chart nodes name their monitor by `monitorKey` instead of `monitorId`. */
-  layout: Record<string, unknown>
-}
+export type ConfigDocument = ChannelDocument | MonitorDocument
 
 /** The file would refer to something it cannot name unambiguously, so it could not be read back. */
 export class ConfigExportError extends Error {}
@@ -97,37 +90,25 @@ function exportVaultRefs(value: unknown, names: VaultNames): unknown {
     [key, key === 'vault' && isVaultRef(inner) ? exportVaultRef(inner, names) : exportVaultRefs(inner, names)]))
 }
 
-/** The same tree with `monitorId` replaced by the key of that monitor, in the same place of each node. */
-function exportLayout(node: unknown, keyById: Map<number, string>): unknown {
-  if (Array.isArray(node)) return node.map((child) => exportLayout(child, keyById))
-  if (!isObject(node)) return node
-  return Object.fromEntries(Object.entries(node).map(([key, value]) => {
-    if (key === 'monitorId' && typeof value === 'number') return ['monitorKey', keyById.get(value) ?? deleted('monitor', value)]
-    return [key, key === 'children' ? exportLayout(value, keyById) : value]
-  }))
-}
-
-const EMPTY_LAYOUT = { id: 'root', type: 'page', children: [] }
-
 /**
- * The monitors, notification channels and status page layout as a document that does not depend on this
- * installation's numeric ids. Secrets are masked exactly as the API masks them, and runtime state (current status,
- * last check, heartbeat token) is left out.
+ * The notification channels and monitors as documents that do not depend on this installation's
+ * numeric ids, in a fixed order: channels, then monitors (each sorted by key). Secrets are masked
+ * exactly as the API masks them, and runtime state (current status, last check, heartbeat token) is left out.
  */
-export async function buildConfigDocument(): Promise<ConfigDocument> {
-  const [monitorRows, channelRows, dependencyRows, linkRows, layoutRows, names] = await Promise.all([
+export async function buildConfigDocuments(): Promise<ConfigDocument[]> {
+  const [monitorRows, channelRows, dependencyRows, linkRows, names] = await Promise.all([
     db.select().from(monitors),
     db.select().from(notificationChannels),
     db.select().from(monitorDependencies),
     db.select().from(monitorNotificationChannels),
-    db.select().from(layout),
     loadVaultNames(),
   ])
   const monitorKey = new Map(monitorRows.map((row) => [row.id, row.key]))
   const channelKey = new Map(channelRows.map((row) => [row.id, row.key]))
   const keysOf = (ids: number[], lookup: Map<number, string>) => ids.flatMap((id) => lookup.get(id) ?? []).sort()
 
-  const exportedChannels: ConfigChannel[] = channelRows.map((row) => ({
+  const channelDocuments: ChannelDocument[] = channelRows.map((row) => ({
+    kind: 'NotificationChannel' as const,
     key: row.key,
     name: row.name,
     type: row.type,
@@ -137,7 +118,8 @@ export async function buildConfigDocument(): Promise<ConfigDocument> {
     alertPolicy: parseAlertPolicy(row.alertPolicy),
   })).sort(byKey)
 
-  const exportedMonitors: ConfigMonitor[] = monitorRows.map((row) => ({
+  const monitorDocuments: MonitorDocument[] = monitorRows.map((row) => ({
+    kind: 'Monitor' as const,
     key: row.key,
     name: row.name,
     type: row.type,
@@ -152,10 +134,10 @@ export async function buildConfigDocument(): Promise<ConfigDocument> {
     dependsOn: keysOf(dependencyRows.filter((dependency) => dependency.dependentId === row.id).map((dependency) => dependency.dependsOnId), monitorKey),
   })).sort(byKey)
 
-  return {
-    version: CONFIG_VERSION,
-    channels: exportedChannels,
-    monitors: exportedMonitors,
-    layout: exportLayout(layoutRows[0] ? JSON.parse(layoutRows[0].tree) : EMPTY_LAYOUT, monitorKey) as Json,
-  }
+  return [...channelDocuments, ...monitorDocuments]
+}
+
+/** The one document of a kind and key, or undefined when there is none. */
+export function pickDocument(documents: ConfigDocument[], kind: ConfigDocument['kind'], key: string | undefined): ConfigDocument | undefined {
+  return documents.find((document) => document.kind === kind && document.key === key)
 }

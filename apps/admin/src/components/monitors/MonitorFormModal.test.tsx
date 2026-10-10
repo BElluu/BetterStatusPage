@@ -5,6 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../api/client'
 import MonitorFormModal from './MonitorFormModal'
 
+vi.mock('../YamlViewModal', () => ({
+  YamlViewModal: ({ kind, objectKey, onClose }: { kind: string; objectKey?: string; onClose: () => void }) => (
+    <div role="dialog" aria-label="YAML view">{kind} {objectKey ?? ''}<button type="button" onClick={onClose}>Close YAML</button></div>
+  ),
+}))
+
 vi.mock('../../api/client', () => ({
   api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn() },
 }))
@@ -463,6 +469,26 @@ describe('MonitorFormModal', () => {
     expect(field<HTMLSelectElement>('Secret')).toHaveValue('11')
   })
 
+  it('drops what was typed in directly when the credentials come from a vault instead', async () => {
+    mockGets({
+      '/admin/notifications/monitor/2/channels': [],
+      '/admin/monitors/2/dependencies': { dependsOnIds: [] },
+    })
+    const user = userEvent.setup()
+    const { onSaved } = renderModal(existingMonitor({
+      config: { url: 'https://edge.example.test', method: 'GET', expectedStatus: 200, auth: { type: 'basic', basic: { username: 'svc', password: '••••••••' } } },
+    }))
+
+    await user.click(screen.getByTitle('Auth'))
+    await user.click(screen.getByRole('button', { name: 'From Vault' }))
+    await user.selectOptions(field<HTMLSelectElement>('Secret'), '11')
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+    const body = vi.mocked(api.patch).mock.calls[0]![1] as { config: { auth: { basic: Record<string, unknown> } } }
+    expect(body.config.auth.basic).toEqual({ vault: { vaultId: 7, secretId: 11, fieldMapping: {} } })
+  })
+
   it('shows the save error without closing', async () => {
     const user = userEvent.setup()
     vi.mocked(api.post).mockRejectedValueOnce(new Error('Name already exists'))
@@ -621,5 +647,23 @@ describe('MonitorFormModal', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalledOnce()
+  })
+})
+
+describe('MonitorFormModal YAML view', () => {
+  beforeEach(() => { vi.clearAllMocks(); mockGets() })
+
+  it('opens the saved monitor as YAML, by its key', async () => {
+    const user = userEvent.setup()
+    renderModal(existingMonitor())
+    await user.click(screen.getByRole('button', { name: 'YAML' }))
+    expect(screen.getByRole('dialog', { name: 'YAML view' })).toHaveTextContent('Monitor edge')
+    await user.click(screen.getByRole('button', { name: 'Close YAML' }))
+    expect(screen.queryByRole('dialog', { name: 'YAML view' })).not.toBeInTheDocument()
+  })
+
+  it('has no YAML for a monitor that does not exist yet', () => {
+    renderModal(null)
+    expect(screen.queryByRole('button', { name: 'YAML' })).not.toBeInTheDocument()
   })
 })

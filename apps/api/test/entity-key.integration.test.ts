@@ -57,27 +57,28 @@ describe('monitor key', () => {
     assert.equal((await createMonitor({ name: 'Other', key: 'billing-prod' })).statusCode, 409)
   })
 
-  it('renames the key and keeps it when only the name changes', async () => {
+  it('keeps the key when the name changes, and refuses any attempt to change it', async () => {
     const monitor = (await createMonitor({ name: 'Search', key: 'search' })).json()
     const renamed = await app.inject({ method: 'PATCH', url: `/monitors/${monitor.id}`, payload: { name: 'Search v2' } })
     assert.equal(renamed.json().key, 'search')
-    const rekeyed = await app.inject({ method: 'PATCH', url: `/monitors/${monitor.id}`, payload: { key: 'search-v2' } })
-    assert.equal(rekeyed.json().key, 'search-v2')
-    const same = await app.inject({ method: 'PATCH', url: `/monitors/${monitor.id}`, payload: { key: 'search-v2' } })
-    assert.equal(same.statusCode, 200)
-    const clash = await app.inject({ method: 'PATCH', url: `/monitors/${monitor.id}`, payload: { key: 'billing-prod' } })
-    assert.equal(clash.statusCode, 409)
+    for (const key of ['search-v2', 'search', 'billing-prod']) {
+      const refused = await app.inject({ method: 'PATCH', url: `/monitors/${monitor.id}`, payload: { key } })
+      assert.equal(refused.statusCode, 400, key)
+      assert.equal(refused.json().error, 'The key is set when the object is created and cannot be changed')
+    }
+    assert.equal((await app.inject({ url: `/monitors/${monitor.id}` })).json().key, 'search')
   })
 })
 
 describe('channel key', () => {
-  it('derives, validates and updates the key like monitors do', async () => {
+  it('derives and validates the key like monitors do, and never changes it', async () => {
     const created = (await createChannel({ name: 'On-call Slack' })).json()
     assert.equal(created.key, 'on-call-slack')
     assert.equal((await createChannel({ name: 'Dup', key: 'on-call-slack' })).statusCode, 409)
     assert.equal((await createChannel({ name: 'Dup', key: 'NOPE' })).statusCode, 400)
-    const rekeyed = await app.inject({ method: 'PATCH', url: `/notifications/channels/${created.id}`, payload: { key: 'oncall' } })
-    assert.equal(rekeyed.json().key, 'oncall')
+    const refused = await app.inject({ method: 'PATCH', url: `/notifications/channels/${created.id}`, payload: { key: 'oncall' } })
+    assert.equal(refused.statusCode, 400)
+    assert.equal((await app.inject({ url: `/notifications/channels/${created.id}` })).json().key, 'on-call-slack')
   })
 
   it('keeps key namespaces separate between monitors and channels', async () => {
