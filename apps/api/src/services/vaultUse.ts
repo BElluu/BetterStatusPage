@@ -14,7 +14,7 @@ function holdsVault(value: unknown): boolean {
 }
 
 /** The same text for the same value, whatever the order of keys. */
-function canonical(value: unknown): string {
+export function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
   if (isObject(value)) return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`
   return JSON.stringify(value) ?? 'null'

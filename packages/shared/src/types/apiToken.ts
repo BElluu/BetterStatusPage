@@ -36,7 +36,7 @@ export interface TokenPreset { label: string; description: string; scopes: reado
 
 export const TOKEN_PRESETS: readonly TokenPreset[] = [
   { label: 'Report incidents', description: 'Open and update incidents from a pipeline', scopes: ['incidents:write', 'monitors:read'] },
-  { label: 'Deploy monitoring', description: 'Create and update monitors, channels and the layout from files', scopes: ['monitors:write', 'channels:write', 'appearance:write'] },
+  { label: 'Deploy monitoring', description: 'Create and update monitors and channels from files', scopes: ['monitors:write', 'channels:write'] },
   { label: 'Read only', description: 'Read everything, change nothing', scopes: API_TOKEN_SCOPES.filter((scope) => scope.endsWith(':read')) },
 ]
 

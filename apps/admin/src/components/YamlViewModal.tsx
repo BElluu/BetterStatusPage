@@ -5,7 +5,7 @@ import { CopyButton } from './CopyButton'
 import { ModalShell } from './ModalShell'
 import { ErrorState, LoadingState } from './ui'
 
-export type YamlKind = 'Monitor' | 'NotificationChannel'
+type YamlKind = 'Monitor' | 'NotificationChannel'
 
 interface YamlViewModalProps {
   kind: YamlKind
@@ -16,11 +16,11 @@ interface YamlViewModalProps {
   onClose: () => void
 }
 
-/** The file name offered for download: the key, or the kind for the layout. */
+/** The file name offered for download: the key of the object. */
 const fileName = (objectKey: string) => `${objectKey}.yaml`
 
 /**
- * One monitor, channel or the layout as the YAML the Import page and the API read. It is a view, not an editor:
+ * One monitor or channel as the YAML the Import page and the API read. It is a view, not an editor:
  * passwords and tokens are written as ••••••••, so a copy of it is safe to keep in version control.
  */
 export function YamlViewModal({ kind, objectKey, title, onClose }: YamlViewModalProps) {

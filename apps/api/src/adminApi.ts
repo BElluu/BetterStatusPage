@@ -113,7 +113,7 @@ export async function adminApi(adminApp: FastifyInstance) {
   // configuration export and import: the handler checks what the caller may do with each kind of object
   await adminApp.register(async (sub) => {
     belongsTo(sub, 'custom')
-    sub.addHook('preHandler', requireRole('operator', 'branding'))
+    sub.addHook('preHandler', requireRole('operator'))
     await sub.register(configRoutes, { prefix: '/config' })
   })
 

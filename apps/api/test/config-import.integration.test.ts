@@ -206,7 +206,7 @@ describe('importing a changed file', () => {
     assert.equal(rows('notification_channels').length, 2)
   })
 
-  it('takes a settings left out as its default, but keeps the links of nothing else', async () => {
+  it('takes a setting that is left out as its default, but keeps the links of nothing else', async () => {
     await applied(baseline())
     const result = await applied({ ...site(), intervalSecs: undefined, notifications: undefined })
     assert.deepEqual(change(result, 'Monitor', 'public-site').fields, ['intervalSecs', 'notifications'])
@@ -482,6 +482,13 @@ config:
       assert.match(refused.json().error, /Send the documents as YAML/)
     }
     assert.equal((await app.inject({ method: 'POST', url: '/config/apply', headers: bearer })).statusCode, 415)
+    assert.equal(rows('monitors').length, 0)
+  })
+
+  it('refuses a top-level YAML list: documents are separated by ---', async () => {
+    const response = await post('apply', '- kind: Monitor\n  key: one\n  name: One\n  type: webhook\n', 'application/yaml')
+    assert.equal(response.statusCode, 400)
+    assert.equal(response.json().problems[0].path, 'document 1')
     assert.equal(rows('monitors').length, 0)
   })
 

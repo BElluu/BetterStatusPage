@@ -56,6 +56,19 @@ describe('ImportPage', () => {
     expect(rows[1]).toHaveTextContent('UpdateMonitorpublic-siteintervalSecs, dependsOn')
   })
 
+  it('hides the preview and Apply as soon as the text changes, until the new text is checked', async () => {
+    postText().mockResolvedValueOnce(result({ create: 1 }, [{ kind: 'Monitor', key: 'a', action: 'create' }]))
+    postText().mockImplementationOnce(() => new Promise(() => {}))
+    renderPage()
+    paste()
+    await appears('Apply changes')
+
+    paste(YAML + 'intervalSecs: 30\n')
+    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+    await waitFor(() => expect(postText()).toHaveBeenCalledTimes(2), { timeout: 2000 })
+    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+  })
+
   it('checks once after a pause, not for every change', async () => {
     postText().mockResolvedValue(result({ create: 1 }, [{ kind: 'Monitor', key: 'a', action: 'create' }]))
     renderPage()

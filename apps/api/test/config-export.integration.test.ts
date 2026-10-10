@@ -62,21 +62,21 @@ after(async () => {
   teardownTestDb(testDb)
 })
 
-const exportJson = async () => parseAllDocuments((await app.inject({ url: '/config/export' })).body).map((document) => document.toJS() as Doc)
-const monitorsOf = async () => (await exportJson()).filter((d) => d['kind'] === 'Monitor')
-const channelsOf = async () => (await exportJson()).filter((d) => d['kind'] === 'NotificationChannel')
+const exportDocuments = async () => parseAllDocuments((await app.inject({ url: '/config/export' })).body).map((document) => document.toJS() as Doc)
+const monitorsOf = async () => (await exportDocuments()).filter((d) => d['kind'] === 'Monitor')
+const channelsOf = async () => (await exportDocuments()).filter((d) => d['kind'] === 'NotificationChannel')
 const one = (documents: Doc[], key: string) => documents.find((d) => d['key'] === key)!
 
 describe('config export', () => {
   it('is a list of documents with a kind: channels, then monitors (each sorted by key)', async () => {
-    const documents = await exportJson()
+    const documents = await exportDocuments()
     assert.deepEqual(documents.map((d) => `${d['kind']}:${d['key'] ?? ''}`), [
       'NotificationChannel:ops-slack', 'NotificationChannel:tg', 'Monitor:billing-db', 'Monitor:nightly-job', 'Monitor:public-site',
     ])
   })
 
   it('describes monitors and channels by key, without numeric ids or runtime state', async () => {
-    const documents = await exportJson()
+    const documents = await exportDocuments()
     const text = JSON.stringify(documents)
     for (const forbidden of ['"id":', 'currentStatus', 'lastCheckedAt', 'webhookToken', 'createdAt', 'updatedAt', 'certExpiresAt', 'version']) {
       assert.equal(text.includes(forbidden), false, forbidden)
@@ -95,7 +95,7 @@ describe('config export', () => {
   })
 
   it('never writes a secret, only where one belongs', async () => {
-    const text = JSON.stringify(await exportJson())
+    const text = JSON.stringify(await exportDocuments())
     for (const secret of ['plaintext-pass', 'plaintext-token', 'secretpart']) assert.equal(text.includes(secret), false, secret)
     const site = one(await monitorsOf(), 'public-site')
     assert.equal(site['config'].auth.basic.password, SECRET_MASK)
@@ -118,17 +118,17 @@ describe('config export', () => {
     assert.deepEqual([heartbeat['notifications'], heartbeat['dependsOn'], heartbeat['config']], [[], [], {}])
   })
 
-  it('is YAML by default: one document per object, separated by ---, the same as the JSON, and reproducible', async () => {
+  it('is YAML by default: one document per object, separated by ---, the same documents as the parsed stream, and reproducible', async () => {
     const response = await app.inject({ url: '/config/export' })
     assert.equal(response.statusCode, 200)
     assert.match(response.headers['content-type'] as string, /^application\/yaml/)
-    assert.deepEqual(parseAllDocuments(response.body).map((d) => d.toJS()), await exportJson())
+    assert.deepEqual(parseAllDocuments(response.body).map((d) => d.toJS()), await exportDocuments())
     assert.equal((response.body.match(/^---$/gm) ?? []).length, 4)
     assert.equal((await app.inject({ url: '/config/export' })).body, response.body)
     assert.match(response.body, /^kind: NotificationChannel\n/)
   })
 
-  it('exports one object: by kind and key, as YAML or JSON', async () => {
+  it('exports one object: by kind and key', async () => {
     const yaml = await app.inject({ url: '/config/export?kind=Monitor&key=public-site' })
     assert.equal(yaml.statusCode, 200)
     assert.match(yaml.body, /^kind: Monitor\nkey: public-site\n/)
@@ -158,7 +158,7 @@ describe('config export', () => {
   it('quotes what an older YAML parser would misread, so every tool reads the same file', async () => {
     const response = await app.inject({ url: '/config/export' })
     assert.match(response.body, /^\s+start: "22:00"$/m)
-    const expected = await exportJson()
+    const expected = await exportDocuments()
     for (const version of ['1.1', '1.2'] as const) {
       assert.deepEqual(parseAllDocuments(response.body, { version }).map((d) => d.toJS()), expected, `read as YAML ${version}`)
     }
@@ -173,7 +173,7 @@ describe('config export', () => {
     assert.match(response.body, /^\s+!!str "<<": merge$/m)
     assert.match(response.body, /^\s+keyword: "0o17"$/m)
     assert.match(response.body, /^\s+Accept: "="$/m)
-    const expected = await exportJson()
+    const expected = await exportDocuments()
     for (const version of ['1.1', '1.2'] as const) {
       const read = parseAllDocuments(response.body, { version }).map((d) => d.toJS() as Doc)
       assert.deepEqual(read, expected, `read as YAML ${version}`)
@@ -205,5 +205,10 @@ describe('config export with ambiguous vault names', () => {
     const response = await app.inject({ url: '/config/export' })
     assert.equal(response.statusCode, 409)
     assert.match(response.json().error, /More than one vault is named "Twin"/)
+
+    // Another object's YAML does not depend on it.
+    const other = await app.inject({ url: '/config/export?kind=Monitor&key=public-site' })
+    assert.equal(other.statusCode, 200)
+    assert.match(other.body, /^kind: Monitor\nkey: public-site\n/)
   })
 })

@@ -199,6 +199,9 @@ See [Users and roles](users-and-roles.md) for the roles in general.
 
 ### Vaults in configuration files
 
+> [!WARNING]
+> **Not released yet.** Importing and exporting configuration is available only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
 A [configuration document](configuration-as-code.md#secrets) refers to a secret by the names of the vault and of the secret, and the vault has to exist when the file is imported.
 
 - Vault names are not unique. If a document would have to name a vault whose name another vault also has, the export is refused with `409` and an import refuses the reference. Rename one of the vaults.

@@ -6,9 +6,9 @@ import { parseAlertPolicy } from './alertPolicy.js'
 import { maskSecrets } from './secretFields.js'
 
 /** A vault secret named instead of numbered, so the file means the same on another installation. */
-export interface ConfigVaultRef { vault: string; secret: string; fieldMapping?: Record<string, string> }
+interface ConfigVaultRef { vault: string; secret: string; fieldMapping?: Record<string, string> }
 
-export interface ChannelDocument {
+interface ChannelDocument {
   kind: 'NotificationChannel'
   key: string
   name: string
@@ -19,7 +19,7 @@ export interface ChannelDocument {
   alertPolicy: unknown
 }
 
-export interface MonitorDocument {
+interface MonitorDocument {
   kind: 'Monitor'
   key: string
   name: string
@@ -95,7 +95,7 @@ function exportVaultRefs(value: unknown, names: VaultNames): unknown {
  * numeric ids, in a fixed order: channels, then monitors (each sorted by key). Secrets are masked
  * exactly as the API masks them, and runtime state (current status, last check, heartbeat token) is left out.
  */
-export async function buildConfigDocuments(): Promise<ConfigDocument[]> {
+export async function buildConfigDocuments(only?: { kind: ConfigDocument['kind']; key: string }): Promise<ConfigDocument[]> {
   const [monitorRows, channelRows, dependencyRows, linkRows, names] = await Promise.all([
     db.select().from(monitors),
     db.select().from(notificationChannels),
@@ -107,7 +107,10 @@ export async function buildConfigDocuments(): Promise<ConfigDocument[]> {
   const channelKey = new Map(channelRows.map((row) => [row.id, row.key]))
   const keysOf = (ids: number[], lookup: Map<number, string>) => ids.flatMap((id) => lookup.get(id) ?? []).sort()
 
-  const channelDocuments: ChannelDocument[] = channelRows.map((row) => ({
+  // Only the rows asked for are written out, so a vault name that is ambiguous for some other object does not matter.
+  const wanted = <T extends { key: string }>(rows: T[], kind: ConfigDocument['kind']) => (only ? rows.filter((row) => only.kind === kind && row.key === only.key) : rows)
+
+  const channelDocuments: ChannelDocument[] = wanted(channelRows, 'NotificationChannel').map((row) => ({
     kind: 'NotificationChannel' as const,
     key: row.key,
     name: row.name,
@@ -118,7 +121,7 @@ export async function buildConfigDocuments(): Promise<ConfigDocument[]> {
     alertPolicy: parseAlertPolicy(row.alertPolicy),
   })).sort(byKey)
 
-  const monitorDocuments: MonitorDocument[] = monitorRows.map((row) => ({
+  const monitorDocuments: MonitorDocument[] = wanted(monitorRows, 'Monitor').map((row) => ({
     kind: 'Monitor' as const,
     key: row.key,
     name: row.name,

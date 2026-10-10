@@ -123,7 +123,7 @@ curl -fsS -H "Authorization: Bearer $BSP_TOKEN" "$BSP_URL/api/v1/admin/config/ex
 
 `-fsS` makes `curl` fail on an error status instead of saving the error message as the file.
 
-YAML is the default. The output is the same every time for the same data: documents come channels first, then monitors, each sorted by key, so two exports differ only where the configuration differs. A token needs the read permission of every kind the export holds, or of the one kind it is asked for.
+The export is always YAML. The output is the same every time for the same data: documents come channels first, then monitors, each sorted by key, so two exports differ only where the configuration differs. A token needs the read permission of every kind the export holds, or of the one kind it is asked for.
 
 ---
 
@@ -228,7 +228,7 @@ A document is refused when:
 
 Text that cannot be read at all (a YAML syntax error, a `%YAML` directive, an alias that contains itself, more than 2000 documents, or nothing in it) is refused with `400` and only an `error` message. YAML is read as YAML 1.2, and at most 20 alias references (`*name`) are accepted. A request body is limited to 2 MB.
 
-Who is asking and their role are checked before the body is read, and so is whether a token has any write permission for a document at all; the permission for each kind is checked once the body is parsed. Whoever can import can create a monitor that uses any secret of any vault, by name, so a token gets that only with the separate `vault:use` permission, and a user with the Operator role has it as they do in the panel; see [Handling tokens](api.md#handling-tokens) and [the vault](vault.md#who-can-use-a-secret).
+Who is asking and their role are checked before the body is read, and so is whether a token has any write permission for a document at all; the permission for each kind is checked once the body is parsed. Whoever can import can create a monitor that uses any secret of any vault, by name, so a token gets that only with the separate `vault:use` permission, and a user with the Operator role has it as they do in the panel; see [Handling tokens](api.md#handling-tokens) and [the vault](vault.md#who-can-use-the-vault).
 
 ---
 

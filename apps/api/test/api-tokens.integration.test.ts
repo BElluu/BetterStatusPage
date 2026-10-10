@@ -341,6 +341,18 @@ describe('using vault secrets', () => {
     // Now saved: the same settings go through, another server does not.
     assert.equal((await put({ ...withReference, fromName: 'Renamed' }, token)).statusCode, 200)
     assert.equal((await put({ ...withReference, host: 'attacker.test' }, token)).statusCode, 403)
+    // Nor does the transport it travels over, or who it logs in as.
+    assert.equal((await put({ ...withReference, secure: 1 }, token)).statusCode, 403)
+    assert.equal((await put({ ...withReference, user: 'someone' }, token)).statusCode, 403)
+  })
+
+  it('compares the SMTP vault reference whatever the order of its keys', async () => {
+    const reference = { vaultId: 1, secretId: 2, fieldMapping: { user: 'u', password: 'p' } }
+    const base = { host: 'smtp.example.test', port: 587, secure: 0, user: '', fromAddress: 'a@example.test', fromName: 'Alerts' }
+    const put = (vault: Record<string, unknown>, bearer: string) => app.inject({ method: 'PUT', url: '/admin/notifications/smtp', headers: withToken(bearer), payload: { ...base, vault } })
+    assert.equal((await put(reference, await tokenWith('channels:write', 'vault:use'))).statusCode, 200)
+    const reordered = { fieldMapping: { password: 'p', user: 'u' }, secretId: 2, vaultId: 1 }
+    assert.equal((await put(reordered, await tokenWith('channels:write'))).statusCode, 200)
   })
 })
 

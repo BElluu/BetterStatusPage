@@ -45,11 +45,8 @@ const toYamlStream = (documents: unknown[]) => documents.map(toYaml).join('---\n
 
 /** What a token must be allowed to do with each kind of document. */
 const TOKEN_RESOURCE: Record<DocumentKind, string> = { Monitor: 'monitors', NotificationChannel: 'channels' }
-/** Who may edit each kind in the admin panel: the same people may import it. */
-const SESSION_ROLES: Record<DocumentKind, readonly string[]> = {
-  Monitor: ['admin', 'operator'],
-  NotificationChannel: ['admin', 'operator'],
-}
+/** Who may export and import: the people who may edit monitors and channels in the panel (administrators always may). */
+const SESSION_ROLES = ['admin', 'operator']
 
 /** The kinds `identity` may not read (or write), with the reason, or null when it may do all of them. */
 function refusal(identity: AuthIdentity, kinds: Iterable<DocumentKind>, access: 'read' | 'write'): string | null {
@@ -58,8 +55,8 @@ function refusal(identity: AuthIdentity, kinds: Iterable<DocumentKind>, access: 
     if (identity.apiToken) {
       const needed = `${TOKEN_RESOURCE[kind]}:${access}`
       if (!tokenAllows(identity.apiToken.scopes, needed)) refused.push(`${kind} (the token needs "${needed}")`)
-    } else if (!SESSION_ROLES[kind].includes(identity.role)) {
-      refused.push(`${kind} (needs the ${SESSION_ROLES[kind].filter((role) => role !== 'admin').join(' or ')} role)`)
+    } else if (!SESSION_ROLES.includes(identity.role)) {
+      refused.push(`${kind} (needs the operator role)`)
     }
   }
   return refused.length ? `You may not ${access === 'read' ? 'export' : 'import'}: ${refused.join(', ')}` : null
@@ -107,7 +104,7 @@ export async function configRoutes(app: FastifyInstance) {
 
     let documents: ConfigDocument[]
     try {
-      documents = await buildConfigDocuments()
+      documents = await buildConfigDocuments(kind ? { kind: kind as DocumentKind, key: key! } : undefined)
     } catch (error) {
       if (error instanceof ConfigExportError) return reply.code(409).send({ error: error.message })
       throw error

@@ -39,6 +39,9 @@ The role is checked by the API on every request, not only by the admin panel, so
 | **System Health** | Yes | No | No | No |
 | [Private status page](private-status-page.md) | Yes | Yes | Yes | Yes |
 
+> [!WARNING]
+> **Not released yet.** The **API tokens** and **Import** rows are only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
 The sidebar shows only the pages a role can open. Opening another page's address sends the user back to their start page: **Dashboard** for admins and operators, **Branding** for the branding role. A viewer who signs in on the admin sign-in page, or opens any admin address, is taken to the status page.
 
 ## The first administrator

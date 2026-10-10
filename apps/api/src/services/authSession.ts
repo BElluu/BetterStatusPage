@@ -30,7 +30,7 @@ export interface AuthIdentity {
   apiToken?: { id: number; name: string; scopes: string[] }
 }
 
-export interface AuthenticateOptions {
+interface AuthenticateOptions {
   /** API tokens are only accepted on routes that opt in; everywhere else they are refused. */
   allowApiToken?: boolean
 }

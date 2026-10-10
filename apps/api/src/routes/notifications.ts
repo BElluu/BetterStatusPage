@@ -11,7 +11,7 @@ import { parsePagination } from '../lib/pagination.js'
 import { keyForNew, type KeyOwner } from '../lib/entityKey.js'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
 import { tokenAllows, VAULT_USE_SCOPE } from '@bsp/shared'
-import { VAULT_USE_REFUSED, vaultUseProblem } from '../services/vaultUse.js'
+import { canonical, VAULT_USE_REFUSED, vaultUseProblem } from '../services/vaultUse.js'
 import { CHANNEL_TYPES, telegramConfigError } from '../services/channelInput.js'
 import type { NotificationChannelType } from '@bsp/shared'
 
@@ -278,7 +278,7 @@ export async function notificationRoutes(app: FastifyInstance) {
     const token = requestIdentity(req).apiToken
     if (token && req.body.vault && !tokenAllows(token.scopes, VAULT_USE_SCOPE)) {
       const saved = existing?.vaultConfig ?? null
-      const sameReference = saved !== null && JSON.stringify(JSON.parse(saved)) === JSON.stringify(req.body.vault)
+      const sameReference = saved !== null && canonical(JSON.parse(saved)) === canonical(req.body.vault)
       const sameServer = !!existing && req.body.host === existing.host && Number(req.body.port) === existing.port
       const sameTransport = !!existing && Number(req.body.secure) === Number(existing.secure) && (req.body.user ?? '') === existing.user
       if (!sameReference || !sameServer || !sameTransport) return reply.code(403).send({ error: VAULT_USE_REFUSED })

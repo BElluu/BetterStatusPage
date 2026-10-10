@@ -15,7 +15,7 @@ import { refreshPublishedMonitorIds } from './publishedMonitors.js'
 import { restoreSecrets } from './secretFields.js'
 import { vaultUseProblem } from './vaultUse.js'
 
-export interface ConfigProblem { path: string; message: string }
+interface ConfigProblem { path: string; message: string }
 
 /** The file is not valid; `problems` lists what is wrong with it, not just the first thing. */
 export class ConfigInvalidError extends Error {
@@ -28,9 +28,9 @@ export class ConfigInvalidError extends Error {
 export const DOCUMENT_KINDS = ['Monitor', 'NotificationChannel'] as const
 export type DocumentKind = typeof DOCUMENT_KINDS[number]
 
-export type ChangeAction = 'create' | 'update' | 'unchanged'
+type ChangeAction = 'create' | 'update' | 'unchanged'
 
-export interface ConfigChange {
+interface ConfigChange {
   kind: DocumentKind
   /** The key of the monitor or channel. */
   key?: string

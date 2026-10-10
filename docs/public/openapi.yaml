@@ -595,7 +595,7 @@ paths:
         output is the same for the same data, so it diffs well in version control.
 
         Without `kind` the response holds every document: a YAML stream separated by `---`. With
-        `kind` and `key` it is that one document. YAML is the default, written so that
+        `kind` and `key` it is that one document. The export is always YAML, written so that
         YAML 1.1 and 1.2 parsers read the same values (`"22:00"` and `"yes"` are quoted).
 
         Needs the read permission for every kind it returns: `monitors` and `channels`, or the one of
@@ -615,11 +615,7 @@ paths:
           description: The documents.
           content:
             application/yaml:
-              schema:
-                oneOf:
-                  - $ref: '#/components/schemas/ConfigDocument'
-                  - type: array
-                    items: { $ref: '#/components/schemas/ConfigDocument' }
+              schema: { type: string, description: 'One document, or all of them as a stream separated by `---`. Each is a ConfigDocument.' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -1247,11 +1243,8 @@ components:
       discriminator:
         propertyName: kind
     ConfigDocuments:
-      description: One document, or a list of documents.
-      oneOf:
-        - $ref: '#/components/schemas/ConfigDocument'
-        - type: array
-          items: { $ref: '#/components/schemas/ConfigDocument' }
+      type: string
+      description: One or more YAML documents separated by `---`. Each is a ConfigDocument. A top-level YAML list is refused.
 
     ConfigImportChange:
       type: object

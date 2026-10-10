@@ -214,7 +214,7 @@ Every mutation in the admin panel is recorded — who did it, when, and exactly 
 | Vaults & secrets | Create, update (name, value change flagged as `[redacted]`), delete |
 | Users | Create, role change, password reset, delete |
 | API tokens | Created or revoked (never the token), and every change made with one, under the creator's email and the token's name |
-| Configuration import | Each applied file with its counts, and every monitor and channel it changed |
+| Import | Each import with its counts, and every monitor and channel it changed |
 | User security | Enable or disable TOTP two-factor authentication, password changes, SSO account linking, revoked temporary passwords |
 | SSO settings | Configure or change OpenID Connect settings |
 | Branding, page builder, translations | Branding saves, layout saves, locale and translation changes |

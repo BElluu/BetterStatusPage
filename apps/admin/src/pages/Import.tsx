@@ -132,6 +132,10 @@ export default function ImportPage() {
   function edit(next: string) {
     setApplied(null)
     setFailure('')
+    // What was previewed is no longer what is in the box: hide it, and drop an answer that is still on its way.
+    latest.current += 1
+    setPreview(null)
+    setRejected(null)
     if (next.length > MAX_BYTES) {
       setFailure(`That is larger than ${MAX_BYTES / 1024 / 1024} MB, which is more than a configuration needs.`)
       return

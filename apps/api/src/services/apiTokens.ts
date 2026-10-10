@@ -5,7 +5,7 @@ import { apiTokens, users } from '../db/schema.js'
 import { API_TOKEN_SCOPES } from '@bsp/shared'
 import { normalizeRole } from './roles.js'
 
-export const API_TOKEN_PREFIX = 'bsp_'
+const API_TOKEN_PREFIX = 'bsp_'
 /** The permissions stored with a token. Anything that is not a known permission is dropped. */
 export function parseScopes(stored: string): string[] {
   try {

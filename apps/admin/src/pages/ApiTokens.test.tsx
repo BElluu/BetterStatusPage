@@ -117,7 +117,7 @@ describe('ApiTokensPage', () => {
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/api-tokens', {
       name: 'Terraform',
-      scopes: expect.arrayContaining(['monitors:write', 'channels:write', 'appearance:write', 'vault:use']),
+      scopes: expect.arrayContaining(['monitors:write', 'channels:write', 'vault:use']),
       expiresInDays: null,
     }))
   })

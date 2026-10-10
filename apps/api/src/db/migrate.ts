@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import bcrypt from 'bcryptjs'
 import { sqlite } from './client.js'
-import { API_TOKEN_SCOPES, DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
+import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 import { slugifyKey } from '../lib/entityKey.js'
 
 const migrations = `
@@ -517,40 +517,11 @@ function backfillEntityKeys(): void {
   })
 }
 
-/**
- * Tokens used to carry a role. A token of that kind keeps what the role could do, now written as permissions, and
- * the `role` column goes. Column order matches a fresh database: `scopes` is added last.
- */
-function migrateTokenRolesToScopes(): void {
-  const columns = (sqlite.prepare('PRAGMA table_info(api_tokens)').all() as Array<{ name: string }>).map((column) => column.name)
-  if (!columns.includes('role')) return
-  const everythingButAdministration = API_TOKEN_SCOPES.filter((scope) => !scope.startsWith('audit:') && !scope.startsWith('system:'))
-  const byRole: Record<string, readonly string[]> = {
-    admin: API_TOKEN_SCOPES,
-    operator: everythingButAdministration,
-    branding: ['appearance:read', 'appearance:write'],
-  }
-  sqlite.exec('BEGIN IMMEDIATE')
-  try {
-    if (!columns.includes('scopes')) sqlite.exec(`ALTER TABLE api_tokens ADD COLUMN scopes TEXT NOT NULL DEFAULT '[]'`)
-    const update = sqlite.prepare('UPDATE api_tokens SET scopes = ? WHERE id = ?')
-    for (const { id, role } of sqlite.prepare('SELECT id, role FROM api_tokens').all() as Array<{ id: number; role: string }>) {
-      update.run(JSON.stringify(byRole[role] ?? []), id)
-    }
-    sqlite.exec('ALTER TABLE api_tokens DROP COLUMN role')
-    sqlite.exec('COMMIT')
-  } catch (error) {
-    sqlite.exec('ROLLBACK')
-    throw error
-  }
-}
-
 /** Runs all migrations against the already-initialized DB. */
 export function runMigrations(): void {
   sqlite.exec(migrations)
   sqlite.exec(auditMigration)
   sqlite.exec(apiTokensMigration)
-  migrateTokenRolesToScopes()
   sqlite.exec(maintenanceMigration)
   sqlite.exec(dependenciesMigration)
   sqlite.exec(subscriptionsMigration)
