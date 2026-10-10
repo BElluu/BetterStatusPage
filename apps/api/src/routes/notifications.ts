@@ -10,9 +10,9 @@ import { withImmediateTransaction } from '../db/transaction.js'
 import { parsePagination } from '../lib/pagination.js'
 import { keyForNew, keyForUpdate, type KeyOwner } from '../lib/entityKey.js'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
+import { CHANNEL_TYPES, telegramConfigError } from '../services/channelInput.js'
 import type { NotificationChannelType } from '@bsp/shared'
 
-const CHANNEL_TYPES: readonly NotificationChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack', 'telegram']
 
 const isConfigObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
 
@@ -92,15 +92,6 @@ export async function notificationRoutes(app: FastifyInstance) {
       throttle: p.throttle.enabled ? `${p.throttle.maxAlerts} alerts / ${p.throttle.windowMinutes} min` : 'off',
       grouping: p.grouping.enabled ? `${p.grouping.minMonitors}+ monitors / ${p.grouping.windowSeconds} s` : 'off',
     }
-  }
-
-  /** Telegram needs a chat and a token, direct or from the vault; an edited mask is not a token. */
-  function telegramConfigError(config: unknown): string | null {
-    const c = (config && typeof config === 'object' ? config : {}) as { botToken?: unknown; vault?: { vaultId?: unknown; secretId?: unknown }; chatId?: unknown }
-    if (typeof c.chatId !== 'string' || !c.chatId.trim()) return 'Telegram needs a Chat ID'
-    if (c.vault) return Number.isInteger(c.vault.vaultId) && Number.isInteger(c.vault.secretId) && Number(c.vault.secretId) > 0 ? null : 'Pick a vault secret for the bot token'
-    if (typeof c.botToken !== 'string' || !c.botToken.trim()) return 'Telegram needs a Bot Token'
-    return c.botToken.includes('•') ? 'Paste the full bot token to replace the stored one' : null
   }
 
   app.get('/channels', async () => {

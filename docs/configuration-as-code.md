@@ -3,7 +3,7 @@
 > [!WARNING]
 > **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
-The monitors, notification channels and status page layout of an installation can be exported as one YAML or JSON document. It does not depend on the numeric ids of the installation, so it reads the same anywhere, diffs well in version control, and can be reviewed like any other configuration file.
+The monitors, notification channels and status page layout of an installation can be exported as one YAML or JSON document, and applied to an installation again. It does not depend on the numeric ids of the installation, so it reads the same anywhere, diffs well in version control, and can be reviewed like any other configuration file. A pipeline that applies it on every merge keeps the installation in step with the repository.
 
 ---
 
@@ -106,6 +106,105 @@ vault: { vault: Production, secret: db-login, fieldMapping: { user: u, password:
 Vault names are not unique. If a monitor or channel refers to a vault whose name another vault also has, the export is refused with `409`, because the file could not say which one is meant. Rename one of the vaults.
 
 A layout node or a vault reference that points at something that no longer exists is written as a placeholder, for example `(deleted monitor 12)` or `(deleted vault 3)`, so the broken reference is visible in the file instead of being dropped.
+
+---
+
+## Importing
+
+The same document can be applied to an installation: from a pipeline after a pull request is merged, or to bring a second installation in line with the first. An administrator, or an [API token](api.md) with the **Admin** role, sends it as JSON or as YAML (`Content-Type: application/yaml`):
+
+```bash
+# What would change? Nothing is written.
+curl -X POST -H "Authorization: Bearer $BSP_TOKEN" -H "Content-Type: application/yaml" \
+  --data-binary @bsp.yaml "$BSP_URL/api/v1/admin/config/validate"
+
+# Apply it.
+curl -X POST -H "Authorization: Bearer $BSP_TOKEN" -H "Content-Type: application/yaml" \
+  --data-binary @bsp.yaml "$BSP_URL/api/v1/admin/config/apply"
+
+# Apply it, and remove the monitors and channels the file leaves out.
+curl -X POST -H "Authorization: Bearer $BSP_TOKEN" -H "Content-Type: application/yaml" \
+  --data-binary @bsp.yaml "$BSP_URL/api/v1/admin/config/apply?prune=true"
+```
+
+Both answer with what was, or would be, done. A settings change lists the names of the settings that differ, never their values:
+
+```json
+{
+  "dryRun": false,
+  "prune": false,
+  "summary": { "create": 1, "update": 1, "unchanged": 4, "delete": 0 },
+  "changes": [
+    { "kind": "channel", "key": "pager", "action": "create" },
+    { "kind": "monitor", "key": "public-site", "action": "update", "fields": ["intervalSecs", "dependsOn"] },
+    { "kind": "layout", "action": "unchanged" }
+  ]
+}
+```
+
+### How a file is applied
+
+- **By key.** A monitor or channel whose key exists is updated; a key that does not exist is created. Changing a key in the file is therefore a new object, and the old one stays until you prune. To rename something, change its `name`, not its key.
+- **The file is the whole truth for what it describes.** A setting that is left out takes its default (a monitor without `intervalSecs` checks every 60 seconds), it does not keep its current value. The notification channels and dependencies of a monitor are replaced by the lists in the file.
+- **Sections you leave out are left alone.** A file with only `layout` changes only the layout. With `prune=true`, monitors and channels are removed only when the file has a `monitors` or a `channels` section, and only those missing from it. Removing a monitor removes its history and its links to channels, incidents and maintenance windows. A `layout` in the same file that still shows a monitor the import removes is refused. If the file has no `layout`, the nodes of the removed monitors are taken out of the stored one, so that the page does not keep showing them, and the answer lists that as a change to the layout.
+- **A section that is empty is not an instruction to empty the installation.** `monitors: []` or `channels: []` together with `prune=true` is refused, because it would remove every monitor or channel (an export of an installation without channels contains `channels: []`). Add `allowEmpty=true` if that is what you want.
+- **All or nothing.** The whole file is checked before anything is written, and the changes are made in one transaction. Applying the same file again changes nothing.
+- **Heartbeat tokens stay.** A webhook monitor keeps its token, so the URL it is called on does not change; a new one gets a token.
+- **Everything is audited.** Each change appears in the audit log under the object it changed, with one entry for the import itself. An entry lists the names of the settings that changed, not their old and new values, so a secret never ends up in the log.
+- **Not part of the file:** vaults and their secrets, users, branding, languages, maintenance windows and subscribers. A file can refer to a vault by name, but the vault has to exist.
+
+### Secrets in a file
+
+| In the file | Result |
+|---|---|
+| `••••••••` for an existing monitor or channel | The stored secret is kept. This is what the export writes, so exporting a file and importing it again changes nothing. |
+| A new value | The secret is replaced. |
+| The field is left out | The secret is cleared. |
+| `••••••••` for an object that does not exist yet | Refused: there is nothing to keep. Write the value. |
+| A kept secret, but a different URL, OAuth2 token URL, CAS server, database host or port | Refused. A saved secret is never sent somewhere new; enter it again. |
+
+A file in version control should not contain the values, so put placeholders in it and fill them in from the environment of the pipeline before sending it:
+
+```yaml
+# bsp.template.yaml
+version: 1
+monitors:
+  - key: billing-db
+    name: Billing DB
+    type: postgresql
+    config:
+      host: db.internal
+      port: 5432
+      database: billing
+      user: app
+      password: "${BILLING_DB_PASSWORD}"
+      query: select 1
+```
+
+```bash
+envsubst < bsp.template.yaml | curl -X POST -H "Authorization: Bearer $BSP_TOKEN" \
+  -H "Content-Type: application/yaml" --data-binary @- "$BSP_URL/api/v1/admin/config/apply"
+```
+
+A secret that is read from a vault does not need this: write `vault: { vault: Production, secret: db-login }`. Both names must match exactly one vault and one of its secrets.
+
+### A file that is not valid
+
+Nothing is changed, the answer is `400`, and `problems` lists everything that is wrong with the file, each with its place in it:
+
+```json
+{
+  "error": "monitors[public-site].dependsOn: unknown monitor \"ghost\"",
+  "problems": [
+    { "path": "monitors[public-site].dependsOn", "message": "unknown monitor \"ghost\"" },
+    { "path": "layout.children[2].monitorKey", "message": "unknown monitor \"old-api\"" }
+  ]
+}
+```
+
+A file is refused when it has a setting the format does not know (a typo is not ignored, also inside an `alertPolicy`), a key that is not valid or is used twice, a value outside the limits the [API](api.md#validation) has (where the API clamps a threshold or an alert policy value into range, a file has to be in range itself), a reference to a channel, monitor, vault or secret that does not exist, a dependency cycle, a layout node of an unknown type or with a repeated `id`, a placeholder such as `(deleted monitor 12)`, a configuration nested more than 20 levels deep, a YAML `%YAML` directive, or a masked secret that has nothing to keep. A YAML file is read as YAML 1.2; at most 20 anchors and aliases are accepted.
+
+Importing is for administrators and is checked before the file is read. Whoever can apply a file can create a monitor that uses any secret of any vault, by name, so treat an Admin API token like the administrator it stands for.
 
 ---
 

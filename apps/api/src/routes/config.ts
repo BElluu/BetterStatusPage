@@ -1,6 +1,15 @@
-import type { FastifyInstance } from 'fastify'
-import { Document, visit } from 'yaml'
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { Document, parse as parseYaml, visit } from 'yaml'
+import { requestIdentity, requireRole } from '../middleware/auth.js'
+import { clip } from '../lib/clip.js'
+import { auditActor } from '../services/audit.js'
 import { buildConfigDocument, ConfigExportError } from '../services/configExport.js'
+import { ConfigInvalidError, importConfig } from '../services/configImport.js'
+
+/** A configuration is a few hundred kilobytes at most; this leaves room without letting a request tie up the parser. */
+const BODY_LIMIT = 2 * 1024 * 1024
+/** Anchors are legitimate in a hand-written file, but a few are plenty and unbounded aliases are a decompression bomb. */
+const MAX_YAML_ALIASES = 20
 
 /**
  * Strings the library leaves bare although a parser reads them as something else: `<<` is the YAML 1.1 merge key (as a
@@ -27,7 +36,14 @@ function toYaml(value: unknown): string {
   return document.toString({ lineWidth: 0 })
 }
 
+type ImportRequest = FastifyRequest<{ Querystring: { prune?: string; allowEmpty?: string }; Body: unknown }>
+
+const isFlag = (value: string | undefined) => value === undefined || value === 'true' || value === 'false'
+
 export async function configRoutes(app: FastifyInstance) {
+  // A YAML body is handed to the handler as text and parsed there, after the request has been authenticated.
+  app.addContentTypeParser(['application/yaml', 'application/x-yaml', 'text/yaml'], { parseAs: 'string', bodyLimit: BODY_LIMIT }, (_req, body, done) => done(null, body))
+
   // Monitors, notification channels and the status page layout as YAML (default) or JSON.
   app.get<{ Querystring: { format?: string } }>('/export', async (req, reply) => {
     const format = req.query.format ?? 'yaml'
@@ -43,4 +59,35 @@ export async function configRoutes(app: FastifyInstance) {
     if (format === 'json') return document
     return reply.type('application/yaml; charset=utf-8').send(toYaml(document))
   })
+
+  async function run(req: ImportRequest, reply: FastifyReply, dryRun: boolean) {
+    const { prune, allowEmpty } = req.query
+    if (!isFlag(prune)) return reply.code(400).send({ error: 'prune must be true or false' })
+    if (!isFlag(allowEmpty)) return reply.code(400).send({ error: 'allowEmpty must be true or false' })
+
+    let document: unknown = req.body
+    if (typeof document === 'string') {
+      // A `%YAML 1.1` line would switch the parser to rules under which `yes` is a boolean and `22:00` a number.
+      if (/^%YAML/m.test(document)) return reply.code(400).send({ error: 'Invalid YAML: %YAML directives are not supported' })
+      try {
+        document = parseYaml(document, { maxAliasCount: MAX_YAML_ALIASES })
+      } catch (error) {
+        return reply.code(400).send({ error: clip(`Invalid YAML: ${error instanceof Error ? error.message : String(error)}`, 300) })
+      }
+    }
+
+    try {
+      return await importConfig(document, { dryRun, prune: prune === 'true', allowEmpty: allowEmpty === 'true', actor: auditActor(requestIdentity(req)) })
+    } catch (error) {
+      if (error instanceof ConfigInvalidError) return reply.code(400).send({ error: error.message, problems: error.problems })
+      throw error
+    }
+  }
+
+  // Both check the caller before the body is read: parsing a 2 MiB document is work only an administrator may ask for.
+  const options = { onRequest: requireRole(), bodyLimit: BODY_LIMIT }
+  // What importing the document would change, without changing anything.
+  app.post<{ Querystring: { prune?: string; allowEmpty?: string }; Body: unknown }>('/validate', options, (req, reply) => run(req, reply, true))
+  // Makes the installation match the document, completely or not at all.
+  app.post<{ Querystring: { prune?: string; allowEmpty?: string }; Body: unknown }>('/apply', options, (req, reply) => run(req, reply, false))
 }

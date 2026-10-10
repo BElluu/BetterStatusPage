@@ -610,6 +610,105 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /config/validate:
+    post:
+      tags: [Configuration]
+      summary: Check a configuration file and show what applying it would change
+      description: |
+        Runs every check of an import and reports the changes it would make, without making any. Use it to review a
+        file in a pull request or a pipeline before `apply`.
+      x-role: admin
+      requestBody:
+        required: true
+        description: 'A configuration document, as written by the export. Send it as JSON, or as YAML with `Content-Type: application/yaml` (`text/yaml` and `application/x-yaml` also work).'
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfigDocument' }
+          application/yaml:
+            schema: { $ref: '#/components/schemas/ConfigDocument' }
+          text/yaml:
+            schema: { $ref: '#/components/schemas/ConfigDocument' }
+      parameters:
+        - name: prune
+          in: query
+          description: |
+            Also remove the monitors and notification channels the file leaves out, from the sections the file
+            contains. A removed monitor takes its links to channels, incidents and maintenance windows with it, and
+            its nodes are taken out of the stored layout when the file has none of its own.
+          schema: { type: boolean, default: false }
+        - name: allowEmpty
+          in: query
+          description: Lets `prune` act on a `monitors` or `channels` section that is empty, which removes every monitor or channel. Without it such a request is refused.
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: What was (or, for a dry run, would be) changed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfigImportResult' }
+        '400':
+          description: The file is not valid. Nothing was changed; `problems` lists everything wrong with it.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfigImportError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '415':
+          description: The body is neither JSON nor YAML.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /config/apply:
+    post:
+      tags: [Configuration]
+      summary: Make the installation match a configuration file
+      description: |
+        Creates and updates the monitors and notification channels the file describes, with their links, and replaces
+        the layout. Monitors and channels are matched by `key`; a key that is not in the installation creates a new
+        one. A section the file does not contain is left alone, and with `prune` the objects missing from a section
+        that is there are removed.
+
+        The file is checked completely before anything is written and applied in one transaction, so it takes effect
+        entirely or not at all. Applying it again changes nothing.
+
+        A secret written as `••••••••` keeps the stored one (the export writes secrets that way); a new value replaces
+        it; leaving a secret out clears it. A kept secret has to stay where it is sent: changing a URL, token URL, CAS
+        server, database host or port while keeping a stored secret is refused. A new object cannot have a masked
+        secret, since there is nothing to keep.
+      x-role: admin
+      requestBody:
+        required: true
+        description: 'A configuration document, as written by the export. Send it as JSON, or as YAML with `Content-Type: application/yaml` (also `text/yaml`).'
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfigDocument' }
+          application/yaml:
+            schema: { $ref: '#/components/schemas/ConfigDocument' }
+      parameters:
+        - name: prune
+          in: query
+          description: Also remove the monitors and notification channels the file leaves out, from the sections the file contains.
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: What was (or, for a dry run, would be) changed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfigImportResult' }
+        '400':
+          description: The file is not valid. Nothing was changed; `problems` lists everything wrong with it.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfigImportError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '415':
+          description: The body is neither JSON nor YAML.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /layout:
     get:
       tags: [Layout]
@@ -1150,3 +1249,46 @@ components:
           description: The layout tree. `monitor` and `chart` nodes carry `monitorKey` (a monitor key) in place of `monitorId`.
           allOf:
             - $ref: '#/components/schemas/LayoutNode'
+
+    ConfigImportChange:
+      type: object
+      required: [kind, action]
+      properties:
+        kind: { type: string, enum: [channel, monitor, layout] }
+        key: { $ref: '#/components/schemas/Key' }
+        action: { type: string, enum: [create, update, unchanged, delete] }
+        fields:
+          type: array
+          description: For an update, the names of the settings that differ. Never their values, which may be secrets.
+          items: { type: string }
+    ConfigImportResult:
+      type: object
+      required: [dryRun, prune, summary, changes]
+      properties:
+        dryRun: { type: boolean }
+        prune: { type: boolean }
+        summary:
+          type: object
+          required: [create, update, unchanged, delete]
+          properties:
+            create: { type: integer }
+            update: { type: integer }
+            unchanged: { type: integer }
+            delete: { type: integer }
+        changes:
+          type: array
+          items: { $ref: '#/components/schemas/ConfigImportChange' }
+    ConfigImportError:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string, description: The first problem. }
+        problems:
+          type: array
+          description: Everything wrong with the file, up to 100 problems.
+          items:
+            type: object
+            required: [path, message]
+            properties:
+              path: { type: string, description: 'Where, for example `monitors[public-site].dependsOn`.' }
+              message: { type: string }

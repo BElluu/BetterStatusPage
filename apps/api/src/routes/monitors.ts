@@ -1,5 +1,4 @@
 import type { FastifyInstance } from 'fastify'
-import { randomBytes } from 'crypto'
 import { db } from '../db/client.js'
 import { monitors, monitorResults, monitorDependencies } from '../db/schema.js'
 import { eq, desc, gte, and, inArray } from 'drizzle-orm'
@@ -14,20 +13,12 @@ import { loadMonitorStats } from '../services/monitorStats.js'
 import { getSchedulerConfig } from '../config/scheduler.js'
 import { authenticateRequest } from '../services/authSession.js'
 import { keyForNew, keyForUpdate, type KeyOwner } from '../lib/entityKey.js'
-import { parseMonitorPatch, parseNewMonitor } from '../services/monitorInput.js'
+import { certResetsFor, generateWebhookToken, parseMonitorPatch, parseNewMonitor } from '../services/monitorInput.js'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
 import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig } from '@bsp/shared'
 
 const MIN_TEST_TIMEOUT_MS = 500
 const MAX_TEST_TIMEOUT_MS = 60_000
-
-function configUrl(config: unknown): unknown {
-  return config && typeof config === 'object' ? (config as { url?: unknown }).url : undefined
-}
-
-function generateWebhookToken(): string {
-  return randomBytes(24).toString('hex')
-}
 
 /**
  * A monitor that (transitively) depends on itself would keep the whole loop 'affected' forever.
@@ -168,13 +159,7 @@ export async function monitorRoutes(app: FastifyInstance) {
       const secrets = restoreSecrets('monitor', patch.config, type === existing.type ? JSON.parse(existing.config) : undefined)
       if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
       updates.config = JSON.stringify(secrets.config)
-      // Read the certificate again on the next check, so a changed warning setting takes effect
-      // right away; a different endpoint also forgets what was known about the old certificate.
-      updates.certCheckedAt = null
-      if (configUrl(secrets.config) !== configUrl(JSON.parse(existing.config))) {
-        updates.certExpiresAt = null
-        updates.certWarnedDays = null
-      }
+      Object.assign(updates, certResetsFor(JSON.parse(existing.config), secrets.config))
     }
     if (patch.tags !== undefined) updates.tags = JSON.stringify(patch.tags)
 

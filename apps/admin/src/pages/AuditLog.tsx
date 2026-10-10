@@ -39,6 +39,7 @@ const ENTITY_LABELS: Record<AuditEntityType, string> = {
   'user-security':      'User Security',
   branding:             'Branding',
   layout:               'Status Page Layout',
+  config:               'Configuration Import',
   locale:               'Language',
   backup:               'Backup',
   'backup-config':      'Backup Schedule',
@@ -53,7 +54,7 @@ const ENTITY_GROUPS = [
   { label: 'Notifications', types: ['notification_channel', 'notification_delivery', 'smtp_settings', 'subscriber', 'subscriber_delivery', 'subscription_settings'] },
   { label: 'Access & security', types: ['sign_in', 'user', 'user-security', 'api_token', 'oidc_settings', 'status_page_access', 'vault', 'vault_secret'] },
   { label: 'Appearance', types: ['branding', 'layout', 'locale'] },
-  { label: 'System', types: ['backup', 'backup-config'] },
+  { label: 'System', types: ['backup', 'backup-config', 'config'] },
 ] as const satisfies readonly { label: string; types: readonly AuditEntityType[] }[]
 
 // Compile error here means an AuditEntityType is missing from ENTITY_GROUPS.
@@ -76,6 +77,7 @@ const ENTITY_ICONS: Record<AuditEntityType, string> = {
   'user-security':      'manage_accounts',
   branding:             'palette',
   layout:               'dashboard',
+  config:               'upload_file',
   locale:               'translate',
   backup:               'backup',
   'backup-config':      'schedule',

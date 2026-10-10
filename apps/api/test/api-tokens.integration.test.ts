@@ -148,6 +148,14 @@ describe('authenticating with a token', () => {
     assert.equal((await get('/admin/config/export', operator)).statusCode, 403)
     assert.equal((await get('/admin/config/export', branding)).statusCode, 403)
     assert.equal((await get('/admin/config/export', admin)).statusCode, 200)
+
+    // Importing changes the installation, so it is an administrator's too.
+    const importAs = (token: string, path: string) => app.inject({ method: 'POST', url: `/admin/config/${path}`, headers: withToken(token), payload: { version: 1 } })
+    for (const path of ['validate', 'apply']) {
+      assert.equal((await importAs(operator, path)).statusCode, 403, path)
+      assert.equal((await importAs(branding, path)).statusCode, 403, path)
+      assert.equal((await importAs(admin, path)).statusCode, 200, path)
+    }
   })
 
   it('records the last use', async () => {

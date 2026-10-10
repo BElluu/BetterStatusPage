@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import type { MonitorTag, MonitorType } from '@bsp/shared'
 import { validateDockerConfig } from '../workers/docker.js'
 
@@ -9,6 +10,24 @@ export const RETRIES_RANGE = [1, 10] as const
 export const THRESHOLD_RANGE = [1, 20] as const
 const MAX_NAME_LENGTH = 200
 const MAX_TAGS = 20
+
+/** The secret part of a webhook monitor's heartbeat URL. */
+export function generateWebhookToken(): string {
+  return randomBytes(24).toString('hex')
+}
+
+const configUrl = (config: unknown): unknown => (config && typeof config === 'object' ? (config as { url?: unknown }).url : undefined)
+
+/**
+ * What a changed monitor configuration resets: the certificate is read again on the next check, so a changed
+ * warning setting takes effect right away, and a different endpoint also forgets what was known about the old one.
+ */
+export function certResetsFor(previousConfig: unknown, nextConfig: unknown):
+  { certCheckedAt: null; certExpiresAt?: null; certWarnedDays?: null } {
+  return configUrl(previousConfig) === configUrl(nextConfig)
+    ? { certCheckedAt: null }
+    : { certCheckedAt: null, certExpiresAt: null, certWarnedDays: null }
+}
 
 export interface MonitorFields {
   name: string

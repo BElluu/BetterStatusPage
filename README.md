@@ -491,7 +491,7 @@ Scripts and CI/CD can call the admin API with a token from **Administration → 
 
 ### Configuration as code
 
-Monitors, notification channels and the status page layout can be exported as one YAML or JSON file, with objects identified by key instead of numeric id and the known secret fields masked, for version control and review.
+Monitors, notification channels and the status page layout can be exported as one YAML or JSON file, with objects identified by key instead of numeric id and the known secret fields masked, for version control and review. The same file can be applied back from a pipeline: it is checked completely, applied in one transaction, and applying it twice changes nothing.
 
 > See **[docs.betterstatuspage.dev/configuration-as-code](https://docs.betterstatuspage.dev/configuration-as-code/)** for the format and what is included.
 

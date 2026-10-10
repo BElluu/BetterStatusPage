@@ -19,6 +19,8 @@ export type AuditEntityType =
   | 'user-security'
   | 'branding'
   | 'layout'
+  /** A configuration import; the entities it changed have entries of their own. */
+  | 'config'
   | 'locale'
   | 'backup'
   | 'backup-config'
