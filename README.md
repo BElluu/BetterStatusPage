@@ -483,6 +483,12 @@ SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
 
 Administrator sessions are stored server-side and authenticated with an `HttpOnly`, `SameSite=Strict` cookie. State-changing browser requests require a matching CSRF token. Users of the admin console can enable TOTP two-factor authentication from **Settings** and receive eight single-use recovery codes; it applies to password and SSO sign-ins alike. Administrators can also enable [OpenID Connect single sign-on](https://docs.betterstatuspage.dev/single-sign-on/) from **Users → Single sign-on**. Sensitive actions (sign-in settings, 2FA, password changes) are confirmed the way the session signed in: with the current password, or by signing in again at the identity provider in a pop-up.
 
+### API tokens
+
+Scripts and CI/CD can call the admin API with a token from **Administration → API tokens**, for example to open an incident from a pipeline. Tokens carry a role and an optional expiry, are shown once, and cannot manage users, single sign-on, status page access, vaults, backups or other tokens.
+
+> See **[docs.betterstatuspage.dev/api](https://docs.betterstatuspage.dev/api/)** for the token rules and `curl` examples.
+
 ---
 
 ## Deployment 📦

@@ -5,6 +5,7 @@ import { db } from '../db/client.js'
 import { authSessions, users } from '../db/schema.js'
 import { normalizeRole } from './roles.js'
 import { sseService } from './sse.service.js'
+import { findUsableApiToken, isApiToken } from './apiTokens.js'
 
 export const SESSION_COOKIE = 'bsp_session'
 export const CSRF_COOKIE = 'bsp_csrf'
@@ -20,7 +21,19 @@ export interface AuthIdentity {
   mustChangePassword: boolean
   twoFactorEnabled: boolean
   authMethod: AuthMethod
+  /**
+   * Set when the request is authenticated by an API token instead of a session. `userId` and `email` are then the
+   * token's creator, `role` is the token's role and `sessionId` is a synthetic `api-token:<id>`.
+   */
+  apiToken?: { id: number; name: string }
 }
+
+export interface AuthenticateOptions {
+  /** API tokens are only accepted on routes that opt in; everywhere else they are refused. */
+  allowApiToken?: boolean
+}
+
+export const API_TOKEN_NOT_ACCEPTED = 'API token not accepted here'
 
 interface SessionClaims {
   userId: number
@@ -106,9 +119,30 @@ function requestToken(req: FastifyRequest): string | null {
   return req.cookies[SESSION_COOKIE] ?? null
 }
 
-export async function authenticateRequest(req: FastifyRequest): Promise<AuthIdentity> {
+async function authenticateApiToken(req: FastifyRequest, token: string): Promise<AuthIdentity> {
+  const found = await findUsableApiToken(token)
+  if (!found) throw new Error('Invalid API token')
+  const identity: AuthIdentity = {
+    userId: found.owner.id,
+    email: found.owner.email,
+    role: normalizeRole(found.token.role),
+    sessionId: `api-token:${found.token.id}`,
+    mustChangePassword: false,
+    twoFactorEnabled: false,
+    authMethod: 'password',
+    apiToken: { id: found.token.id, name: found.token.name },
+  }
+  req.user = identity
+  return identity
+}
+
+export async function authenticateRequest(req: FastifyRequest, options: AuthenticateOptions = {}): Promise<AuthIdentity> {
   const token = requestToken(req)
   if (!token) throw new Error('Missing session')
+  if (isApiToken(token)) {
+    if (!options.allowApiToken) throw new Error(API_TOKEN_NOT_ACCEPTED)
+    return authenticateApiToken(req, token)
+  }
   const claims = req.server.jwt.verify<SessionClaims>(token)
   if (!claims.sessionId || !Number.isInteger(claims.userId)) throw new Error('Invalid session')
 

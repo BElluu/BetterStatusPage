@@ -78,7 +78,7 @@ export async function monitorRoutes(app: FastifyInstance) {
     await serveEventStream(req, reply, {
       session: { sessionId, userId },
       stillAllowed: async () => {
-        const identity = await authenticateRequest(req)
+        const identity = await authenticateRequest(req, { allowApiToken: true })
         return identity.role === 'admin' || identity.role === 'operator'
       },
     })

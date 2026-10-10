@@ -31,6 +31,22 @@ export const authSessions = sqliteTable('auth_sessions', {
   verifiedAt: integer('verified_at'),
 })
 
+/** Long-lived bearer credentials for scripts and CI. Only the SHA-256 of the token is stored; revoking deletes the row. */
+export const apiTokens = sqliteTable('api_tokens', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  /** Leading characters of the token, so it can be recognised in the list. */
+  prefix: text('prefix').notNull(),
+  /** 'admin' | 'operator' | 'branding'. */
+  role: text('role').notNull(),
+  /** The admin who created it; the token stops working when this user is gone or no longer an admin. */
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at').notNull(),
+  expiresAt: integer('expires_at'),
+  lastUsedAt: integer('last_used_at'),
+})
+
 export const monitors = sqliteTable('monitors', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),

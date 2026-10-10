@@ -1,9 +1,12 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import { authenticateRequest, verifyCsrf, type AuthIdentity } from '../services/authSession.js'
+import { API_TOKEN_NOT_ACCEPTED, authenticateRequest, verifyCsrf, type AuthIdentity } from '../services/authSession.js'
+import { consumeApiTokenBudget } from '../services/apiTokens.js'
 
 declare module 'fastify' {
   interface FastifyContextConfig {
     allowPendingPasswordChange?: boolean
+    /** Routes that accept an API token. Everything else answers 403 to one, so tokens never reach account security. */
+    allowApiToken?: boolean
   }
 }
 
@@ -49,14 +52,23 @@ export async function authenticateOrReject(
   reply: FastifyReply,
   unauthorized: Record<string, string> = { error: 'Unauthorized' },
 ): Promise<AuthIdentity | null> {
+  const allowApiToken = req.routeOptions.config?.allowApiToken === true
+  const existing = existingIdentity(req)
   let identity: AuthIdentity
   try {
-    identity = existingIdentity(req) ?? await authenticateRequest(req)
+    identity = existing ?? await authenticateRequest(req, { allowApiToken })
+    if (identity.apiToken && !allowApiToken) throw new Error(API_TOKEN_NOT_ACCEPTED)
     await verifyCsrf(req, identity)
   } catch (error) {
-    const csrf = error instanceof Error && error.message === 'Invalid CSRF token'
-    if (csrf) reply.code(403).send({ error: 'Invalid CSRF token' })
+    const message = error instanceof Error ? error.message : ''
+    if (message === 'Invalid CSRF token') reply.code(403).send({ error: 'Invalid CSRF token' })
+    else if (message === API_TOKEN_NOT_ACCEPTED) reply.code(403).send({ error: 'API tokens cannot call this endpoint' })
     else reply.code(401).send(unauthorized)
+    return null
+  }
+  // Only a request that just authenticated spends budget; the later hooks of the same request reuse the identity.
+  if (identity.apiToken && !existing && !consumeApiTokenBudget(identity.apiToken.id)) {
+    reply.code(429).header('retry-after', '60').send({ error: 'Too many requests' })
     return null
   }
   if (passwordChangeBlocks(req, identity)) {

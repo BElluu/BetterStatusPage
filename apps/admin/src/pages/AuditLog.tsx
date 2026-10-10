@@ -33,6 +33,7 @@ const ENTITY_LABELS: Record<AuditEntityType, string> = {
   vault:                'Vault',
   vault_secret:         'Vault Secret',
   user:                 'User',
+  api_token:            'API Token',
   oidc_settings:        'SSO Settings',
   status_page_access:   'Status Page Access',
   'user-security':      'User Security',
@@ -50,7 +51,7 @@ const ENTITY_LABELS: Record<AuditEntityType, string> = {
 const ENTITY_GROUPS = [
   { label: 'Monitoring', types: ['monitor', 'incident', 'maintenance'] },
   { label: 'Notifications', types: ['notification_channel', 'notification_delivery', 'smtp_settings', 'subscriber', 'subscriber_delivery', 'subscription_settings'] },
-  { label: 'Access & security', types: ['sign_in', 'user', 'user-security', 'oidc_settings', 'status_page_access', 'vault', 'vault_secret'] },
+  { label: 'Access & security', types: ['sign_in', 'user', 'user-security', 'api_token', 'oidc_settings', 'status_page_access', 'vault', 'vault_secret'] },
   { label: 'Appearance', types: ['branding', 'layout', 'locale'] },
   { label: 'System', types: ['backup', 'backup-config'] },
 ] as const satisfies readonly { label: string; types: readonly AuditEntityType[] }[]
@@ -69,6 +70,7 @@ const ENTITY_ICONS: Record<AuditEntityType, string> = {
   vault:                'shield_lock',
   vault_secret:         'key',
   user:                 'person',
+  api_token:            'key',
   oidc_settings:        'admin_panel_settings',
   status_page_access:   'lock',
   'user-security':      'manage_accounts',

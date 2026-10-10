@@ -227,6 +227,21 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
 `
 
+const apiTokensMigration = `
+CREATE TABLE IF NOT EXISTS api_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  prefix TEXT NOT NULL,
+  role TEXT NOT NULL,
+  user_id INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER,
+  last_used_at INTEGER,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`
+
 const maintenanceMigration = `
 CREATE TABLE IF NOT EXISTS maintenance_windows (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -483,6 +498,7 @@ function revokeTemporaryPasswordsOfSsoUsers(): void {
 export function runMigrations(): void {
   sqlite.exec(migrations)
   sqlite.exec(auditMigration)
+  sqlite.exec(apiTokensMigration)
   sqlite.exec(maintenanceMigration)
   sqlite.exec(dependenciesMigration)
   sqlite.exec(subscriptionsMigration)

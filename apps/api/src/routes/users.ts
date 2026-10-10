@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import bcrypt from 'bcryptjs'
 import { randomInt } from 'node:crypto'
 import { db } from '../db/client.js'
-import { users } from '../db/schema.js'
+import { apiTokens, users } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
 import { auditActor, writeAudit, snapshot } from '../services/audit.js'
 import { requestIdentity } from '../middleware/auth.js'
@@ -69,6 +69,8 @@ export async function userRoutes(app: FastifyInstance) {
     if (!result.length) return reply.code(404).send({ error: 'User not found' })
     if (existing) {
       await revokeUserSessions(id)
+      // Tokens are an admin's; promoting the user again must not bring the old ones back to life.
+      if (req.body.role !== 'admin') await db.delete(apiTokens).where(eq(apiTokens.userId, id))
       const actor = requestIdentity(req)
       writeAudit(auditActor(actor), 'update', 'user', id, existing.email,
         { role: { from: existing.role, to: req.body.role } })

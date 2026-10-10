@@ -15,6 +15,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 - **Keys for monitors and notification channels**: every monitor and notification channel now has a unique **Key** (lowercase letters, digits, `-` and `_`) next to its name, in the form and in the API. It is generated from the name when left empty and can be edited at any time. The key stays the same when the name changes; it will identify the object in API clients and configuration files.
 
+- **API tokens**: **Administration → API tokens** creates long-lived tokens for scripts and CI/CD. A token has a role (Operator, Branding or Admin) and an optional expiry, is sent as `Authorization: Bearer <token>` to the admin API, and is shown once; only its hash is stored. A token cannot manage users, single sign-on, status page access, vaults, backups or other tokens, is deleted when its creator is removed or loses the Admin role, is limited to 300 requests per minute, and is named in the audit log. See [API](api.md).
+
 ### Changed
 
 - **Notification channel type picker**: the type in **New Notification Channel** is now a searchable dropdown, like the monitor type, instead of a row of buttons, so it stays one control tall as more channel types are added.
