@@ -72,3 +72,22 @@ export function compareVersions(a: string, b: string): number {
 export function releasesBetween(releases: ReleaseNotes[], seen: string, current: string): ReleaseNotes[] {
   return releases.filter((r) => compareVersions(r.version, seen) > 0 && compareVersions(r.version, current) <= 0)
 }
+
+export interface ReleaseSummary {
+  version: string
+  added: ReleaseItem[]
+  /** Changed, Removed and any other kind of entry that is not new or a fix. */
+  changed: ReleaseItem[]
+  fixed: ReleaseItem[]
+}
+
+/** One release sorted by the kind of change; fixes are only counted. */
+export function summarizeRelease(release: ReleaseNotes): ReleaseSummary {
+  const summary: ReleaseSummary = { version: release.version, added: [], changed: [], fixed: [] }
+  for (const group of release.groups) {
+    if (group.heading === 'Added') summary.added.push(...group.items)
+    else if (group.heading === 'Fixed') summary.fixed.push(...group.items)
+    else summary.changed.push(...group.items)
+  }
+  return summary
+}

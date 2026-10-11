@@ -126,7 +126,7 @@ export async function getSystemHealthReport(now = Date.now()): Promise<SystemHea
       ? 'healthy'
       : 'degraded',
     generatedAt: now,
-    application: { status: 'ok', version: resolveAppVersion(), uptimeSeconds: Math.floor(process.uptime()), update: await getAvailableUpdate() },
+    application: { status: 'ok', version: resolveAppVersion(), uptimeSeconds: Math.floor(process.uptime()), update: getAvailableUpdate() },
     database,
     monitoring: {
       status: monitoringStatus,

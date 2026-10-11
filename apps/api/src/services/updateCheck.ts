@@ -1,8 +1,8 @@
 import { resolveAppVersion } from '../version.js'
 
 const RELEASES_API = 'https://api.github.com/repos/BElluu/BetterStatusPage/releases/latest'
-const CACHE_MS = 6 * 60 * 60 * 1000
-const RETRY_MS = 15 * 60 * 1000
+const REFRESH_MS = 6 * 60 * 60 * 1000
+const RETRY_MS = 5 * 60 * 1000
 const TIMEOUT_MS = 5_000
 
 export interface LatestRelease {
@@ -10,8 +10,10 @@ export interface LatestRelease {
   url: string
 }
 
-let cache: { release: LatestRelease | null; checkedAt: number; ttl: number } | null = null
-let inFlight: Promise<LatestRelease | null> | null = null
+let latest: LatestRelease | null = null
+let timer: NodeJS.Timeout | undefined
+/** Bumped by every start and stop, so a check still in flight when the service stops cannot schedule another. */
+let generation = 0
 
 /** `UPDATE_CHECK=false` keeps the instance from contacting GitHub (air-gapped or privacy-minded installs). */
 export function updateCheckEnabled(environment: { UPDATE_CHECK?: string | undefined } = process.env): boolean {
@@ -34,12 +36,13 @@ export function isNewerVersion(candidate: string, current: string): boolean {
   return false
 }
 
+/** The newest published release, null when there is none a user should be pointed at; throws when GitHub cannot be asked. */
 async function fetchLatestRelease(): Promise<LatestRelease | null> {
   const response = await fetch(RELEASES_API, {
     headers: { Accept: 'application/vnd.github+json', 'User-Agent': `BetterStatusPage/${resolveAppVersion()}` },
     signal: AbortSignal.timeout(TIMEOUT_MS),
   })
-  if (!response.ok) return null
+  if (!response.ok) throw new Error(`GitHub answered ${response.status}`)
   const body: unknown = await response.json()
   if (typeof body !== 'object' || body === null) return null
   const { tag_name: tag, html_url: url, draft, prerelease } = body as Record<string, unknown>
@@ -48,21 +51,43 @@ async function fetchLatestRelease(): Promise<LatestRelease | null> {
   return { version: tag.replace(/^v/, ''), url }
 }
 
-/** The newest published release when it is newer than the running version, else null. Cached; never throws. */
-export async function getAvailableUpdate(): Promise<LatestRelease | null> {
-  if (!updateCheckEnabled()) return null
-  const now = Date.now()
-  if (!cache || now - cache.checkedAt > cache.ttl) {
-    inFlight ??= fetchLatestRelease()
-      .then((release) => { cache = { release, checkedAt: Date.now(), ttl: release ? CACHE_MS : RETRY_MS }; return release })
-      .catch(() => { cache = { release: null, checkedAt: Date.now(), ttl: RETRY_MS }; return null })
-      .finally(() => { inFlight = null })
-    await inFlight
+/** Asks GitHub once and remembers the answer; true when it could be asked. Never throws. */
+export async function checkForUpdate(): Promise<boolean> {
+  try {
+    latest = await fetchLatestRelease()
+    return true
+  } catch {
+    return false
   }
-  const release = cache?.release ?? null
-  return release && isNewerVersion(release.version, resolveAppVersion()) ? release : null
 }
 
-export function resetUpdateCheckCache(): void {
-  cache = null
+/** Checks now, in the background, then every few hours (sooner after a failure). A no-op when `UPDATE_CHECK=false`. */
+export function startUpdateCheck(): void {
+  stopUpdateCheck()
+  if (!updateCheckEnabled()) return
+  const mine = generation
+  const run = async () => {
+    const asked = await checkForUpdate()
+    if (mine !== generation) return
+    timer = setTimeout(() => void run(), asked ? REFRESH_MS : RETRY_MS)
+    timer.unref()
+  }
+  void run()
+}
+
+export function stopUpdateCheck(): void {
+  generation++
+  clearTimeout(timer)
+  timer = undefined
+}
+
+/** The newest release when it is newer than the running version, else null. Reads what the background check found. */
+export function getAvailableUpdate(): LatestRelease | null {
+  if (!updateCheckEnabled() || !latest) return null
+  return isNewerVersion(latest.version, resolveAppVersion()) ? latest : null
+}
+
+export function resetUpdateCheck(): void {
+  stopUpdateCheck()
+  latest = null
 }

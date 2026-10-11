@@ -2,11 +2,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { api } from '../api/client'
+import { api, getCurrentUser } from '../api/client'
 import DashboardPage from './Dashboard'
 
 vi.mock('../api/client', () => ({
   api: { get: vi.fn() },
+  getCurrentUser: vi.fn(),
 }))
 
 const { dark } = vi.hoisted(() => ({ dark: { value: false } }))
@@ -31,6 +32,7 @@ function mockData(monitorList: unknown[], incidentList: unknown[] = []) {
   vi.mocked(api.get).mockImplementation(async (path: string) => {
     if (path === '/admin/monitors') return monitorList
     if (path === '/admin/incidents') return incidentList
+    if (path === '/admin/system-health/update') return { version: '0.2.0', update: { version: '0.2.1', url: 'https://github.com/BElluu/BetterStatusPage/releases/tag/v0.2.1' } }
     throw new Error(`Unexpected GET ${path}`)
   })
 }
@@ -44,6 +46,7 @@ describe('DashboardPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     dark.value = false
+    vi.mocked(getCurrentUser).mockReturnValue({ userId: 1, email: 'op@example.test', role: 'operator', mustChangePassword: false, twoFactorEnabled: false })
   })
 
   it('summarises monitor health, endpoints and active incidents', async () => {
@@ -106,5 +109,18 @@ describe('DashboardPage', () => {
     expect(await screen.findByText("Couldn't load monitors.")).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Try again/ })).toBeInTheDocument()
     expect(screen.queryByText('No Monitors Yet')).not.toBeInTheDocument()
+  })
+
+  it('tells administrators, and only them, that a newer version is available', async () => {
+    mockData(monitors, incidents)
+    vi.mocked(getCurrentUser).mockReturnValue({ userId: 1, email: 'admin@example.test', role: 'admin', mustChangePassword: false, twoFactorEnabled: false })
+    const view = renderPage()
+    expect(await screen.findByRole('link', { name: /Version 0\.2\.1 is available/ })).toHaveAttribute('href', 'https://github.com/BElluu/BetterStatusPage/releases/tag/v0.2.1')
+    view.unmount()
+
+    vi.mocked(getCurrentUser).mockReturnValue({ userId: 2, email: 'op@example.test', role: 'operator', mustChangePassword: false, twoFactorEnabled: false })
+    renderPage()
+    await screen.findByText('Checkout API')
+    expect(screen.queryByRole('link', { name: /is available/ })).not.toBeInTheDocument()
   })
 })

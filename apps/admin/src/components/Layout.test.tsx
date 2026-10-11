@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, getCurrentUser } from '../api/client'
 import Layout from './Layout'
 
@@ -26,6 +26,8 @@ function renderLayout(path = '/admin/monitors') {
 }
 
 describe('Layout', () => {
+  afterEach(() => { vi.restoreAllMocks() })
+
   beforeEach(() => {
     localStorage.setItem('bsp-dark-mode', 'false')
     localStorage.setItem('bsp-tour-done-1', '1')
@@ -97,14 +99,24 @@ describe('Layout', () => {
     expect(screen.getAllByRole('link', { name: 'Documentation' })[0]).toHaveAttribute('href', 'https://docs.betterstatuspage.dev')
   })
 
-  it('tours a new user once, and remembers a skip', async () => {
+  it('tours a new user through the sidebar, advancing when they click the lit item, and remembers a skip', async () => {
     localStorage.removeItem('bsp-tour-done-1')
+    vi.spyOn(Element.prototype, 'getClientRects').mockImplementation(() => [{}] as unknown as DOMRectList)
     const user = userEvent.setup()
     const { unmount } = renderLayout()
     const tour = screen.getByRole('dialog', { name: 'Admin console tour' })
-    expect(within(tour).getByText('Step 1 of 9')).toBeInTheDocument()
-    await user.click(within(tour).getByRole('button', { name: 'Next' }))
-    expect(within(tour).getByText('Dashboard')).toBeInTheDocument()
+    expect(within(tour).getByText('Step 1 of 11')).toBeInTheDocument()
+
+    await user.click(within(tour).getByRole('button', { name: 'Start' }))
+    expect(within(tour).getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
+    expect(await screen.findByTestId('tour-spotlight')).toBeInTheDocument()
+
+    const sidebar = screen.getByRole('navigation', { name: 'Main' })
+    await user.click(within(sidebar).getByRole('link', { name: /Dashboard/ }))
+    expect(within(tour).getByRole('heading', { name: 'Monitors' })).toBeInTheDocument()
+    await user.click(within(sidebar).getByRole('link', { name: /Monitors/ }))
+    expect(within(tour).getByRole('heading', { name: 'Incidents' })).toBeInTheDocument()
+
     await user.click(within(tour).getByRole('button', { name: 'Skip tour' }))
     expect(screen.queryByRole('dialog', { name: 'Admin console tour' })).not.toBeInTheDocument()
     expect(localStorage.getItem('bsp-tour-done-1')).toBe('1')
@@ -112,8 +124,17 @@ describe('Layout', () => {
     unmount()
     renderLayout()
     expect(screen.queryByRole('dialog', { name: 'Admin console tour' })).not.toBeInTheDocument()
-    await user.click(screen.getAllByRole('button', { name: 'Take a tour' })[0]!)
-    expect(screen.getByRole('dialog', { name: 'Admin console tour' })).toBeInTheDocument()
+  })
+
+  it('opens the mobile drawer when the lit item is not on screen', async () => {
+    localStorage.removeItem('bsp-tour-done-1')
+    vi.spyOn(Element.prototype, 'getClientRects').mockImplementation(function (this: Element) {
+      return (this.closest('#admin-nav-drawer') ? [{}] : []) as unknown as DOMRectList
+    })
+    const user = userEvent.setup()
+    renderLayout()
+    await user.click(within(screen.getByRole('dialog', { name: 'Admin console tour' })).getByRole('button', { name: 'Start' }))
+    expect(await screen.findByRole('dialog', { name: 'Navigation' })).toBeInTheDocument()
   })
 
   it("shows what's new once to a user who last saw an older version", async () => {
@@ -122,6 +143,7 @@ describe('Layout', () => {
     renderLayout()
     const dialog = screen.getByRole('dialog', { name: "What's new" })
     expect(within(dialog).getByRole('link', { name: 'Full changelog' })).toHaveAttribute('href', 'https://docs.betterstatuspage.dev/changelog/')
+    expect(within(dialog).getByText('Fixes')).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Got it' }))
     expect(screen.queryByRole('dialog', { name: "What's new" })).not.toBeInTheDocument()
     expect(localStorage.getItem('bsp-whatsnew-seen-1')).not.toBe('0.0.1')

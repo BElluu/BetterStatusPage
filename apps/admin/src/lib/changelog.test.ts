@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compareVersions, parseChangelog, releasesBetween } from './changelog'
+import { compareVersions, parseChangelog, releasesBetween, summarizeRelease } from './changelog'
 
 const SOURCE = `# Changelog
 
@@ -59,5 +59,15 @@ describe('releasesBetween', () => {
     expect(releasesBetween(releases, '0.2.1', '0.3.0').map((r) => r.version)).toEqual(['0.3.0'])
     expect(releasesBetween(releases, '0.3.0', '0.3.0')).toEqual([])
     expect(releasesBetween(releases, '0.0.1', '0.2.1').map((r) => r.version)).toEqual(['0.2.1'])
+  })
+})
+
+describe('summarizeRelease', () => {
+  it('lists new entries, folds the rest into changes and keeps fixes apart', () => {
+    const [latest, previous] = parseChangelog(SOURCE).map(summarizeRelease)
+    expect(latest!.added.map((i) => i.title)).toEqual(['Install script', ''])
+    expect(latest!.changed).toEqual([])
+    expect(latest!.fixed.map((i) => i.title)).toEqual(['Link'])
+    expect(previous!.changed.map((i) => i.title)).toEqual(['Old'])
   })
 })

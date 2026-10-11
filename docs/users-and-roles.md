@@ -94,7 +94,7 @@ Resetting another user's 2FA, turning your own 2FA on or off, changing your pass
 
 ## Your own account
 
-**Settings** (the link at the bottom of the sidebar) is available to admins, operators and the branding role. It has four sections.
+**Settings** (the link at the bottom of the sidebar) is available to admins, operators and the branding role. It has five sections.
 
 ### Change your password
 
@@ -127,11 +127,11 @@ To make sure an SSO-only setup cannot lock everyone out, see [Password sign-in a
 > [!WARNING]
 > **Not released yet.** This feature is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
-The first time a user signs in to the admin console in a browser, a short tour introduces the main pages, limited to those their role can open. **Skip tour** or the × button ends it. **Take a tour** in the sidebar replays it. Whether the tour was seen is remembered per user in that browser, so a new browser shows it once more.
+The first time a user signs in to the admin console in a browser, a short tour walks through the sidebar, limited to the pages their role can open. Each step lights up one sidebar item and dims the rest; clicking the lit item opens its page and moves on (**Next** moves on without opening it). **Skip tour** or Esc ends it at any step. **Settings → Admin tour → Replay the tour** starts it again. Whether the tour was seen is remembered per user in that browser, so a new browser shows it once more.
 
 The **Documentation** link in the sidebar opens [docs.betterstatuspage.dev](https://docs.betterstatuspage.dev) in a new tab.
 
-After an update, the first sign-in of each user shows **What's new**: for every release since the one that user last saw, the title and first sentence of each entry in the [changelog](changelog.md), with a **Full changelog** link. The notes are built into the admin console, so nothing is fetched. A new user sees the tour instead, and the first visit after this feature arrives only records the current version. As with the tour, this is remembered per user in that browser.
+After an update, the first sign-in of each user shows **What's new**: for every release since the one that user last saw, the newest release in three collapsible sections, **New**, **Changed** and **Fixes**, each entry with its title and first sentence. **New** is open; opening one section closes the others, so the dialog stays small. Earlier releases are summarised in one line. A **Full changelog** button opens the [changelog](changelog.md) for the details. The notes are built into the admin console, so nothing is fetched. A new user sees the tour instead, and the first visit after this feature arrives only records the current version. As with the tour, this is remembered per user in that browser.
 
 ## Two-factor authentication
 
@@ -223,7 +223,7 @@ Entries are never deleted automatically. They are kept in the database and inclu
 > [!WARNING]
 > **Not released yet.** The new-version notice is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
-The **Application** card asks GitHub for the latest release (`api.github.com`, at most once every 6 hours, result cached in memory) and shows a link such as **1.3.0 available** when it is newer than the running version. Pre-releases are ignored, and nothing is shown when GitHub cannot be reached. Set `UPDATE_CHECK=false` in `.env` to stop the server from making this request; the installed version is the only thing it sends, inside the `User-Agent` header.
+In the background, from the moment the server starts and then every 6 hours (every 5 minutes after a failure), the server asks GitHub (`api.github.com`) for the latest release and remembers the answer, so opening System Health never waits for it. The **Application** card shows a link such as **1.3.0 available** when that release is newer than the running version, and administrators see a quiet **Version 1.3.0 is available** link at the top of the Dashboard. Pre-releases are ignored, and nothing is shown when GitHub cannot be reached. Set `UPDATE_CHECK=false` in `.env` to stop the server from making this request; the installed version is the only thing it sends, inside the `User-Agent` header.
 
 ## Health endpoints for load balancers
 

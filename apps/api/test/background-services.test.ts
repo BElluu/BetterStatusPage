@@ -14,6 +14,8 @@ describe('background service lifecycle', () => {
       stopMonitorScheduler: mock.fn(),
       stopBackupScheduler: mock.fn(),
       stopNotificationRetryWorker: mock.fn(),
+      startUpdateCheck: mock.fn(),
+      stopUpdateCheck: mock.fn(),
     }
 
     startBackgroundServices(services)

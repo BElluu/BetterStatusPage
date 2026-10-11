@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, clearSession, getCurrentUser, setSession, type AuthUser } from '../api/client'
 import SettingsPage from './Settings'
@@ -136,5 +136,21 @@ describe('SettingsPage security flows', () => {
     channel.close()
     expect(await twoFactor.findByAltText('QR code for two-factor authentication setup')).toBeInTheDocument()
     expect(api.post).toHaveBeenCalledTimes(2)
+  })
+
+  it('replays the admin tour', async () => {
+    const user = userEvent.setup()
+    const startTour = vi.fn()
+    render(
+      <MemoryRouter initialEntries={['/admin/settings']}>
+        <Routes>
+          <Route element={<Outlet context={{ startTour }} />}>
+            <Route path="/admin/settings" element={<SettingsPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+    await user.click(section('Admin tour').getByRole('button', { name: 'Replay the tour' }))
+    expect(startTour).toHaveBeenCalledTimes(1)
   })
 })

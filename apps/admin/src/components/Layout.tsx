@@ -4,7 +4,7 @@ import { api, clearSession, getCurrentUser } from '../api/client'
 import { useDarkMode } from '../hooks/useDarkMode'
 import { useDatePrefs } from '../lib/dateFormat'
 import { statusPageUrl } from '../navigation'
-import { DOCS_URL, Tour, isTourDone, markTourDone } from './Tour'
+import { DOCS_URL, Tour, isTourDone, markTourDone, type TourControl } from './Tour'
 import { WhatsNew, markWhatsNewSeen, pendingWhatsNew } from './WhatsNew'
 
 // role hierarchy: admin > operator > branding
@@ -72,11 +72,10 @@ interface NavContentProps {
   isDark: boolean
   onToggleDark: () => void
   onLogout: () => void
-  onStartTour: () => void
 }
 
 /** Section links plus the Settings / theme / logout footer, shared by the desktop sidebar and the mobile drawer. */
-function NavContent({ sections, isDark, onToggleDark, onLogout, onStartTour }: NavContentProps) {
+function NavContent({ sections, isDark, onToggleDark, onLogout }: NavContentProps) {
   return (
     <>
       <nav aria-label="Main" className="flex-1 px-3 overflow-y-auto pb-2">
@@ -90,7 +89,7 @@ function NavContent({ sections, isDark, onToggleDark, onLogout, onStartTour }: N
             </p>
             <div className="space-y-0.5">
               {section.items.map((item) => (
-                <NavLink key={item.to} to={item.to} end={item.to === '/admin/'} className="admin-nav-item">
+                <NavLink key={item.to} to={item.to} end={item.to === '/admin/'} data-tour={item.to} className="admin-nav-item">
                   {({ isActive }) => (
                     <>
                       <span
@@ -115,17 +114,13 @@ function NavContent({ sections, isDark, onToggleDark, onLogout, onStartTour }: N
           <span className="font-sans">Status page</span>
         </a>
 
-        <a href={DOCS_URL} target="_blank" rel="noopener" className="admin-nav-item">
+        <a href={DOCS_URL} target="_blank" rel="noopener" data-tour="docs" className="admin-nav-item">
           <span aria-hidden="true" className="material-symbols-outlined flex-shrink-0" style={ICON_STYLE}>menu_book</span>
           <span className="font-sans">Documentation</span>
         </a>
 
-        <button type="button" onClick={onStartTour} className="admin-nav-item">
-          <span aria-hidden="true" className="material-symbols-outlined flex-shrink-0" style={ICON_STYLE}>tour</span>
-          <span className="font-sans">Take a tour</span>
-        </button>
 
-        <Link to="/admin/settings" className="admin-nav-item">
+        <Link to="/admin/settings" data-tour="/admin/settings" className="admin-nav-item">
           <span aria-hidden="true" className="material-symbols-outlined flex-shrink-0" style={ICON_STYLE}>manage_accounts</span>
           <span className="font-sans">Settings</span>
         </Link>
@@ -219,6 +214,8 @@ export default function Layout() {
     setWhatsNew([])
     if (userId !== undefined) markWhatsNewSeen(userId)
   }, [userId])
+  const openDrawer = useCallback(() => setDrawerPath(location.pathname), [location.pathname])
+  const tourControl: TourControl = { startTour: () => setTourOpen(true) }
   const allowedPaths = new Set(navSections.flatMap((section) => section.items.map((item) => item.to)))
 
   async function handleLogout() {
@@ -227,7 +224,7 @@ export default function Layout() {
     navigate('/admin/login')
   }
 
-  const nav: NavContentProps = { sections: navSections, isDark, onToggleDark: toggleDark, onLogout: () => void handleLogout(), onStartTour: () => { setDrawerPath(null); setTourOpen(true) } }
+  const nav: NavContentProps = { sections: navSections, isDark, onToggleDark: toggleDark, onLogout: () => void handleLogout() }
 
   return (
     <div className="flex flex-col md:flex-row h-screen" style={{ background: 'var(--m3-surface-container-low)' }}>
@@ -250,7 +247,7 @@ export default function Layout() {
         </button>
       </header>
 
-      {tourOpen && <Tour allowedPaths={allowedPaths} onClose={closeTour} />}
+      {tourOpen && <Tour allowedPaths={allowedPaths} openDrawer={openDrawer} onClose={closeTour} />}
       {!tourOpen && whatsNew.length > 0 && <WhatsNew releases={whatsNew} onClose={closeWhatsNew} />}
 
       {drawerOpen && <MobileDrawer {...nav} onClose={closeDrawer} returnFocusRef={menuButtonRef} />}
@@ -269,7 +266,7 @@ export default function Layout() {
       {/* Main */}
       <main className="flex-1 min-h-0 min-w-0 overflow-auto" style={{ background: 'var(--m3-surface-container-low)' }}>
         {/* Remount the page when the date format changes so every formatted date is recomputed. */}
-        <Fragment key={`${datePrefs.date}-${datePrefs.time}`}><Outlet /></Fragment>
+        <Fragment key={`${datePrefs.date}-${datePrefs.time}`}><Outlet context={tourControl} /></Fragment>
       </main>
     </div>
   )
