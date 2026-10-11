@@ -28,6 +28,7 @@ function renderLayout(path = '/admin/monitors') {
 describe('Layout', () => {
   beforeEach(() => {
     localStorage.setItem('bsp-dark-mode', 'false')
+    localStorage.setItem('bsp-tour-done-1', '1')
     vi.mocked(getCurrentUser).mockReturnValue({ userId: 1, email: 'op@example.test', role: 'operator', mustChangePassword: false, twoFactorEnabled: false })
     vi.mocked(api.post).mockResolvedValue({})
   })
@@ -88,5 +89,29 @@ describe('Layout', () => {
     await user.click(screen.getAllByRole('button', { name: 'Logout' })[0]!)
     expect(api.post).toHaveBeenCalledWith('/auth/logout')
     expect(await screen.findByText('Login page')).toBeInTheDocument()
+  })
+
+  it('links to the documentation', () => {
+    renderLayout()
+    expect(screen.getAllByRole('link', { name: 'Documentation' })[0]).toHaveAttribute('href', 'https://docs.betterstatuspage.dev')
+  })
+
+  it('tours a new user once, and remembers a skip', async () => {
+    localStorage.removeItem('bsp-tour-done-1')
+    const user = userEvent.setup()
+    const { unmount } = renderLayout()
+    const tour = screen.getByRole('dialog', { name: 'Admin console tour' })
+    expect(within(tour).getByText('Step 1 of 9')).toBeInTheDocument()
+    await user.click(within(tour).getByRole('button', { name: 'Next' }))
+    expect(within(tour).getByText('Dashboard')).toBeInTheDocument()
+    await user.click(within(tour).getByRole('button', { name: 'Skip tour' }))
+    expect(screen.queryByRole('dialog', { name: 'Admin console tour' })).not.toBeInTheDocument()
+    expect(localStorage.getItem('bsp-tour-done-1')).toBe('1')
+
+    unmount()
+    renderLayout()
+    expect(screen.queryByRole('dialog', { name: 'Admin console tour' })).not.toBeInTheDocument()
+    await user.click(screen.getAllByRole('button', { name: 'Take a tour' })[0]!)
+    expect(screen.getByRole('dialog', { name: 'Admin console tour' })).toBeInTheDocument()
   })
 })

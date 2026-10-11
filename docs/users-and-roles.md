@@ -219,3 +219,12 @@ Two unauthenticated endpoints sit at the root of the server, outside `/api`:
 | `GET /ready` | `200 {"status":"ready"}` after setup is finished and the database answers; otherwise `503 {"status":"not_ready"}`. | Readiness: should traffic go here. Returns `503` until the [setup wizard](deployment.md#4-open-the-setup-wizard) has run. |
 
 Neither endpoint reveals anything beyond these answers. For the detailed view, use the **System Health** page.
+
+### Tour and documentation link
+
+> [!WARNING]
+> **Not released yet.** This feature is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+The first time a user signs in to the admin console in a browser, a short tour introduces the main pages, limited to those their role can open. **Skip tour** or the × button ends it. **Take a tour** in the sidebar replays it. Whether the tour was seen is remembered per user in that browser, so a new browser shows it once more.
+
+The **Documentation** link in the sidebar opens [docs.betterstatuspage.dev](https://docs.betterstatuspage.dev) in a new tab.

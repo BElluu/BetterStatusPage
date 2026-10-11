@@ -4,6 +4,7 @@ import { api, clearSession, getCurrentUser } from '../api/client'
 import { useDarkMode } from '../hooks/useDarkMode'
 import { useDatePrefs } from '../lib/dateFormat'
 import { statusPageUrl } from '../navigation'
+import { DOCS_URL, Tour, isTourDone, markTourDone } from './Tour'
 
 // role hierarchy: admin > operator > branding
 const ROLE_RANK: Record<string, number> = { admin: 3, operator: 2, branding: 1 }
@@ -70,10 +71,11 @@ interface NavContentProps {
   isDark: boolean
   onToggleDark: () => void
   onLogout: () => void
+  onStartTour: () => void
 }
 
 /** Section links plus the Settings / theme / logout footer, shared by the desktop sidebar and the mobile drawer. */
-function NavContent({ sections, isDark, onToggleDark, onLogout }: NavContentProps) {
+function NavContent({ sections, isDark, onToggleDark, onLogout, onStartTour }: NavContentProps) {
   return (
     <>
       <nav aria-label="Main" className="flex-1 px-3 overflow-y-auto pb-2">
@@ -111,6 +113,16 @@ function NavContent({ sections, isDark, onToggleDark, onLogout }: NavContentProp
           <span aria-hidden="true" className="material-symbols-outlined flex-shrink-0" style={ICON_STYLE}>open_in_new</span>
           <span className="font-sans">Status page</span>
         </a>
+
+        <a href={DOCS_URL} target="_blank" rel="noopener" className="admin-nav-item">
+          <span aria-hidden="true" className="material-symbols-outlined flex-shrink-0" style={ICON_STYLE}>menu_book</span>
+          <span className="font-sans">Documentation</span>
+        </a>
+
+        <button type="button" onClick={onStartTour} className="admin-nav-item">
+          <span aria-hidden="true" className="material-symbols-outlined flex-shrink-0" style={ICON_STYLE}>tour</span>
+          <span className="font-sans">Take a tour</span>
+        </button>
 
         <Link to="/admin/settings" className="admin-nav-item">
           <span aria-hidden="true" className="material-symbols-outlined flex-shrink-0" style={ICON_STYLE}>manage_accounts</span>
@@ -195,13 +207,21 @@ export default function Layout() {
     }))
     .filter((section) => section.items.length > 0)
 
+  const userId = currentUser?.userId
+  const [tourOpen, setTourOpen] = useState(() => userId !== undefined && !isTourDone(userId))
+  const closeTour = useCallback(() => {
+    setTourOpen(false)
+    if (userId !== undefined) markTourDone(userId)
+  }, [userId])
+  const allowedPaths = new Set(navSections.flatMap((section) => section.items.map((item) => item.to)))
+
   async function handleLogout() {
     try { await api.post('/auth/logout') } catch { /* local logout still proceeds */ }
     clearSession()
     navigate('/admin/login')
   }
 
-  const nav: NavContentProps = { sections: navSections, isDark, onToggleDark: toggleDark, onLogout: () => void handleLogout() }
+  const nav: NavContentProps = { sections: navSections, isDark, onToggleDark: toggleDark, onLogout: () => void handleLogout(), onStartTour: () => { setDrawerPath(null); setTourOpen(true) } }
 
   return (
     <div className="flex flex-col md:flex-row h-screen" style={{ background: 'var(--m3-surface-container-low)' }}>
@@ -223,6 +243,8 @@ export default function Layout() {
           <span aria-hidden="true" className="material-symbols-outlined">menu</span>
         </button>
       </header>
+
+      {tourOpen && <Tour allowedPaths={allowedPaths} onClose={closeTour} />}
 
       {drawerOpen && <MobileDrawer {...nav} onClose={closeDrawer} returnFocusRef={menuButtonRef} />}
 
