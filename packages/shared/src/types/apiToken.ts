@@ -22,6 +22,7 @@ export const TOKEN_RESOURCES: readonly TokenResource[] = [
   { key: 'appearance', label: 'Status page appearance', description: 'The layout, branding and languages', levels: ['read', 'write'] },
   { key: 'audit', label: 'Audit log', description: 'Read the audit log', levels: ['read'] },
   { key: 'system', label: 'System health', description: 'Read the health of the instance', levels: ['read'] },
+  { key: 'metrics', label: 'Metrics', description: 'Scrape monitor status and response times as Prometheus metrics', levels: ['read'] },
 ]
 
 /** Lets a token set, change or test a monitor, channel or SMTP configuration that reads a secret from a vault. */

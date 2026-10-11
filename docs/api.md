@@ -36,6 +36,7 @@ A token has a list of permissions instead of a role. Each names a part of the ap
 | `appearance` | The layout, branding and languages | read, write |
 | `audit` | The audit log | read |
 | `system` | System health | read |
+| `metrics` | Prometheus metrics ([below](#prometheus-metrics)) | read |
 | `vault:use` | Secrets of a [vault](vault.md) in a monitor, channel or SMTP configuration | – |
 
 The [configuration documents](configuration-as-code.md) follow the part of each kind: `monitors` for a `Monitor`, and `channels` for a `NotificationChannel`. The export needs `read` for each kind in it, an import `write`.
@@ -157,3 +158,27 @@ curl -fsS -X POST -H "Authorization: Bearer $BSP_TOKEN" -H "Content-Type: applic
   "$BSP_URL/api/v1/admin/incidents/5/updates" \
   -d '{"body": "Deploy finished.", "status": "resolved"}'
 ```
+
+## Prometheus metrics
+
+`GET /api/v1/admin/metrics` returns the state of the instance in the Prometheus text format. It needs the `metrics:read` permission, so create a token with only that (**Administration → API tokens**) and give it to the scraper as a bearer token:
+
+```yaml
+scrape_configs:
+  - job_name: bsp
+    metrics_path: /api/v1/admin/metrics
+    authorization:
+      credentials: bsp_xxxxxxxx
+    static_configs:
+      - targets: ['status.example.com']
+```
+
+| Metric | Meaning |
+|---|---|
+| `bsp_monitor_up` | `1` when the monitor is up, `0` for any other status. A monitor that has not been checked yet has no sample. |
+| `bsp_monitor_response_time_seconds` | Response time of the latest check, when it has one. |
+| `bsp_monitor_last_check_timestamp_seconds` | Unix time of the latest check. |
+| `bsp_monitor_certificate_expiry_timestamp_seconds` | Unix time the TLS certificate of an HTTPS monitor expires. |
+| `bsp_incidents_open` | Published incidents that are not resolved. |
+
+The monitor metrics carry the labels `monitor` (name), `key` and `type`. The endpoint is part of the admin API: the token limit of 300 requests per minute applies, and an unauthenticated request is answered `401`.
