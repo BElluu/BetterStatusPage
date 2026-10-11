@@ -201,6 +201,46 @@ envsubst '${BILLING_DB_PASSWORD}' < bsp.template.yaml | curl -fsS -X POST \
 
 A secret that is read from a vault does not need this: write `vault: { vault: Production, secret: db-login }`. Both names must match exactly one vault and one of its secrets.
 
+### From a pipeline
+
+Keep the documents in a repository, check them in every pull request and apply them when the pull request is merged. Create a token with the **Deploy monitoring** preset (`monitors:write` and `channels:write`) and store it as the secret `BSP_TOKEN`, with the address of the installation as `BSP_URL`. This example is for GitHub Actions, in `.github/workflows/bsp.yml`; any other CI works the same way, as it only needs `curl`:
+
+```yaml
+name: Status page
+on:
+  pull_request:
+    paths: ["status/**.yaml"]
+  push:
+    branches: [main]
+    paths: ["status/**.yaml"]
+
+jobs:
+  status-page:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # In a pull request: show what would change. A document that is not valid fails the job.
+      - name: Check
+        if: github.event_name == 'pull_request'
+        run: |
+          for f in status/*.yaml; do echo "---"; cat "$f"; echo; done | curl -fsS -X POST \
+            -H "Authorization: Bearer ${{ secrets.BSP_TOKEN }}" -H "Content-Type: application/yaml" \
+            --data-binary @- "${{ secrets.BSP_URL }}/api/v1/admin/config/validate"
+      # After the merge: apply it.
+      - name: Apply
+        if: github.event_name == 'push'
+        run: |
+          for f in status/*.yaml; do echo "---"; cat "$f"; echo; done | curl -fsS -X POST \
+            -H "Authorization: Bearer ${{ secrets.BSP_TOKEN }}" -H "Content-Type: application/yaml" \
+            --data-binary @- "${{ secrets.BSP_URL }}/api/v1/admin/config/apply"
+```
+
+The loop puts `---` before every file, so the documents stay apart whatever they end with. Remember that:
+
+- A monitor or channel whose file is deleted from the repository is **not** deleted from the installation (see [How documents are applied](#how-documents-are-applied)).
+- A change made in the panel is overwritten by the next apply of a document with the same key. Make changes in the repository, or export the object again first.
+- Do not put secret values in the repository; use [placeholders](#secrets-in-a-document) filled in from the secrets of the pipeline, or a vault.
+
 ### Documents that are not valid
 
 Nothing is changed, the answer is `400`, and `problems` lists what is wrong, each with its place (at most 100). The place names the document by its kind and key, for example `Monitor[public-site].dependsOn` or `NotificationChannel[ops-slack].alertPolicy.throttle`, or by its position (`document 3`) when it has neither. Documents are checked in two steps: first their own shape (settings, keys, values), and only when that is right, what the documents refer to (channels, monitors, vaults, secrets, dependency cycles). A mistake in the shape is therefore reported before the references are looked at, and a second list can follow once the first is fixed.
