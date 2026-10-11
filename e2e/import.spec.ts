@@ -66,7 +66,8 @@ test('a monitor shows itself as YAML, and the YAML is what the import reads', as
   const dialog = page.getByRole('dialog', { name: 'YAML' })
   await expect(dialog.getByLabel('YAML')).toContainText(`key: ${key}`)
   await expect(dialog.getByLabel('YAML')).toContainText('kind: Monitor')
-  await dialog.getByRole('button', { name: 'Close' }).click()
+  // The header cross and the footer button are both named Close; use the footer one.
+  await dialog.getByRole('button', { name: 'Close' }).last().click()
   await expect(dialog).toHaveCount(0)
 
   // Pasting the export back changes nothing.
