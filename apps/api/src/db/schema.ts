@@ -1,5 +1,6 @@
 import { sqliteTable, integer, text, real, primaryKey } from 'drizzle-orm/sqlite-core'
 import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
+import { randomEntityKey } from '../lib/entityKey.js'
 
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -30,6 +31,22 @@ export const authSessions = sqliteTable('auth_sessions', {
   verifiedAt: integer('verified_at'),
 })
 
+/** Long-lived bearer credentials for scripts and CI. Only the SHA-256 of the token is stored; revoking deletes the row. */
+export const apiTokens = sqliteTable('api_tokens', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  /** Leading characters of the token, so it can be recognised in the list. */
+  prefix: text('prefix').notNull(),
+  /** The admin who created it; the token stops working when this user is gone or no longer an admin. */
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at').notNull(),
+  expiresAt: integer('expires_at'),
+  lastUsedAt: integer('last_used_at'),
+  /** JSON list of what the token may do, e.g. `["monitors:write","incidents:write"]` (see @bsp/shared apiToken). */
+  scopes: text('scopes').notNull(),
+})
+
 export const monitors = sqliteTable('monitors', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
@@ -57,6 +74,8 @@ export const monitors = sqliteTable('monitors', {
   certCheckedAt: integer('cert_checked_at'),
   /** Smallest days-before-expiry milestone already warned about for the current certificate. */
   certWarnedDays: integer('cert_warned_days'),
+  /** Stable identifier for config-as-code and API clients; unlike `id` it survives export/import. */
+  key: text('key').notNull().unique().$defaultFn(randomEntityKey),
 })
 
 export const monitorResults = sqliteTable('monitor_results', {
@@ -144,6 +163,8 @@ export const notificationChannels = sqliteTable('notification_channels', {
   updatedAt: integer('updated_at').notNull(),
   // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
   alertPolicy: text('alert_policy').notNull().default('{}'), // JSON ChannelAlertPolicy
+  /** Stable identifier for config-as-code and API clients; unlike `id` it survives export/import. */
+  key: text('key').notNull().unique().$defaultFn(randomEntityKey),
 })
 
 export const monitorNotificationChannels = sqliteTable('monitor_notification_channels', {

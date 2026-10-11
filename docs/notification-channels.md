@@ -22,7 +22,7 @@ Email and Webhook are fully templated. Slack, Discord, Teams and Telegram build 
 ## Creating a channel
 
 1. Go to **Notifications** and click **Add Channel** (or pick a type from the quick-start tiles while you have no channels yet).
-2. Enter a **Name** and pick the **Type**.
+2. Enter a **Name** and pick the **Type**. A technical [key](api.md#monitors-and-notification-channels-have-keys) is generated from the name; it is not shown in the form and never changes.
 3. Fill in the type-specific fields (see below).
 4. Set the two switches:
    - **Enabled** — a disabled channel sends nothing. On by default.
@@ -247,6 +247,19 @@ Digests are described in [Alert hygiene](alert-hygiene.md#grouping-bursts-into-o
 
 ---
 
+## Saved secrets
+
+> [!WARNING]
+> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+The webhook URL of a Slack, Discord or Microsoft Teams channel is the credential for posting to it, so a saved URL is
+never shown again, in the form or in the API: it reads back as `••••••••`. The same goes for the Telegram bot token
+(which keeps its last four characters visible) and for credential headers of a webhook channel (a header whose name
+contains `auth`, `token`, `secret`, `key`, `pass`, `pwd`, `credential`, `cookie`, `session` or `signature`). Leave the field untouched to keep
+the stored value, or enter a new one to replace it. To change a webhook URL you paste the new one; there is nothing to edit. For a webhook channel, changing the **URL** while keeping a stored credential header is refused: enter the header again. Credentials written into a URL or the request body are not masked.
+
+---
+
 ## Sending a test notification
 
 Open an existing channel with the edit icon and click **Send test (saved settings)**. The button is only shown for saved channels and is disabled while the form has unsaved changes — save first, because the test uses the stored configuration.
@@ -321,7 +334,7 @@ Channels and history are available under `/api/v1/admin/notifications`:
 | `POST /deliveries/:id/retry` | Retry a failed delivery |
 | `GET`, `PUT /smtp`, `POST /smtp/test` | SMTP settings and test email |
 
-A channel's `config` depends on its type:
+A channel has a unique `key` next to its `id` (see [Keys](api.md#monitors-and-notification-channels-have-keys)), `config` must be an object, and changing the `type` needs a new `config` in the same request. Secrets in `config` read back as `••••••••` (see [Saved secrets](#saved-secrets)): send that value back unchanged to keep the stored one. A channel's `config` depends on its type:
 
 ```json
 { "name": "On-call webhook", "type": "webhook", "enabled": 1, "notifyOnRecovery": 1,
@@ -337,5 +350,6 @@ A channel's `config` depends on its type:
 | `slack` | `webhookUrl`, `text` (optional) |
 | `discord` | `webhookUrl`, `username`, `avatarUrl`, `content` (all but `webhookUrl` optional) |
 | `teams` | `webhookUrl`, `summary` (optional) |
+| `telegram` | `chatId`, and `botToken` or a `vault` reference to the token; `text` (optional) |
 
 Creating, updating and deleting channels, and changing SMTP settings, are written to the audit log.

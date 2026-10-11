@@ -207,6 +207,8 @@ Każda zmiana w panelu admina jest rejestrowana — kto, kiedy i co dokładnie z
 | Dostawy do subskrybentów | Ręczne ponowienie nieudanej dostawy |
 | Sejfy i sekrety | Tworzenie, aktualizacja (nazwa, zmiana wartości oznaczona jako `[redacted]`), usuwanie |
 | Użytkownicy | Tworzenie, zmiana roli, reset hasła, usuwanie |
+| Tokeny API | Utworzenie lub unieważnienie (nigdy sam token) oraz każda zmiana wykonana tokenem, pod adresem email twórcy i nazwą tokena |
+| Import | Każdy import z liczbami zmian oraz każdy monitor i kanał, który zmienił |
 | Bezpieczeństwo konta | Włączenie lub wyłączenie uwierzytelniania dwuskładnikowego TOTP, zmiana hasła, powiązanie konta z SSO, unieważnienie hasła tymczasowego |
 | Ustawienia SSO | Konfiguracja lub zmiana ustawień OpenID Connect |
 | Branding, kreator strony, tłumaczenia | Zapis brandingu i układu, zmiany lokalizacji i tłumaczeń |
@@ -470,12 +472,24 @@ SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
 
 | Rola | Co może robić |
 |------|-----------------|
-| **admin** | Wszystko, łącznie z użytkownikami, SSO, sejfami, dziennikiem audytu i kopiami zapasowymi |
-| **operator** | Monitory, incydenty, okna serwisowe, powiadomienia, kreator stron, branding, lokalizacja i ustawienia |
+| **admin** | Wszystko, łącznie z użytkownikami, SSO, sejfami, dziennikiem audytu, kopiami zapasowymi i tokenami API |
+| **operator** | Monitory, incydenty, okna serwisowe, powiadomienia, import, kreator stron, branding, lokalizacja i ustawienia |
 | **branding** | Kreator stron, branding, lokalizacja i ustawienia konta |
 | **viewer** | Ogląda [prywatną stronę statusu](https://docs.betterstatuspage.dev/private-status-page/); bez dostępu do panelu administracyjnego |
 
 Sesje administratorów są przechowywane po stronie serwera i uwierzytelniane ciasteczkiem `HttpOnly`, `SameSite=Strict`. Żądania przeglądarki zmieniające stan wymagają pasującego tokena CSRF. Użytkownicy panelu administracyjnego mogą włączyć uwierzytelnianie dwuskładnikowe TOTP w **Ustawieniach** i otrzymać osiem jednorazowych kodów odzyskiwania; działa ono zarówno przy logowaniu hasłem, jak i przez SSO. Administratorzy mogą też włączyć [jednokrotne logowanie OpenID Connect](https://docs.betterstatuspage.dev/single-sign-on/) w **Użytkownicy → Single sign-on**. Wrażliwe akcje (ustawienia logowania, 2FA, zmiana hasła) potwierdza się tak, jak zalogowała się sesja: aktualnym hasłem albo ponownym zalogowaniem u dostawcy tożsamości w okienku pop-up.
+
+### Tokeny API
+
+Skrypty i CI/CD mogą wywoływać API administratora z tokenem utworzonym w **Administration → API tokens**, na przykład żeby otworzyć incydent z pipeline'u. Token ma tylko te uprawnienia, które zaznaczysz (odczyt lub zapis dla monitorów, kanałów powiadomień, incydentów, okien serwisowych, subskrybentów i wyglądu strony, sam odczyt dla raportów, dziennika audytu i kondycji systemu oraz osobne uprawnienie do używania sekretów z sejfu), a wygasa po 90 dniach, jeśli nie wybierzesz inaczej. Pokazywany jest tylko raz i nie może zarządzać użytkownikami, SSO, dostępem do strony statusu, sejfami, kopiami zapasowymi ani innymi tokenami.
+
+> Zasady dotyczące tokenów i przykłady `curl` znajdziesz w **[docs.betterstatuspage.dev/api](https://docs.betterstatuspage.dev/api/)** *(EN)*.
+
+### Konfiguracja jako kod
+
+Każdy monitor i kanał powiadomień można zapisać jako dokument YAML z polem `kind`, identyfikowany kluczem zamiast numerycznego id i z zamaskowanymi znanymi polami sekretów, do wersjonowania i przeglądu. Przycisk **YAML** przy monitorze i kanale pokazuje dany obiekt, a **Import** w lewym menu (oraz API) tworzy lub aktualizuje obiekty z wklejonych lub wgranych dokumentów, z podglądem zmian przed zapisem. Dokumenty są sprawdzane w całości, stosowane w jednej transakcji, a ponowne zastosowanie ich niczego nie zmienia. Import niczego nie usuwa.
+
+> Format i zakres opisuje **[docs.betterstatuspage.dev/configuration-as-code](https://docs.betterstatuspage.dev/configuration-as-code/)** *(EN)*.
 
 ---
 

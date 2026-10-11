@@ -145,7 +145,7 @@ Example:
 ## Troubleshooting
 
 **Test card does not appear in Teams**
-- Verify the webhook URL is correct and has not been deleted or disabled.
+- Paste the webhook URL again from Teams (the saved one is shown as `••••••••`, so it cannot be checked by eye), and check that the webhook has not been deleted or disabled.
 - Make sure the channel is **Enabled** in BSP.
 - Ensure the Teams channel still exists and the webhook/workflow is still active.
 

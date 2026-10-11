@@ -14,28 +14,17 @@ import { isSetupComplete } from './config.js'
 import { errorHandler } from './errorHandler.js'
 import { closeDb, initDb } from './db/client.js'
 import { runMigrations } from './db/migrate.js'
+import { adminApi } from './adminApi.js'
 import { setupRoutes } from './routes/setup.js'
 import { authRoutes } from './routes/auth.js'
-import { oidcSettingsRoutes } from './routes/oidcSettings.js'
-import { monitorRoutes } from './routes/monitors.js'
-import { incidentRoutes } from './routes/incidents.js'
-import { layoutRoutes } from './routes/layout.js'
-import { brandingRoutes } from './routes/branding.js'
-import { userRoutes } from './routes/users.js'
-import { vaultCatalogRoutes, vaultRoutes } from './routes/vaults.js'
-import { notificationRoutes } from './routes/notifications.js'
-import { maintenanceRoutes } from './routes/maintenance.js'
-import { auditRoutes } from './routes/audit.js'
 import { publicRoutes } from './routes/public.js'
-import { publicLocaleRoutes, adminLocaleRoutes } from './routes/locales.js'
+import { publicLocaleRoutes } from './routes/locales.js'
 import { webhookRoutes } from './routes/webhook.js'
-import { adminSubscriberRoutes, publicSubscriptionRoutes } from './routes/subscriptions.js'
+import { publicSubscriptionRoutes } from './routes/subscriptions.js'
 import { feedRoutes } from './routes/feeds.js'
 import { statusApiRoutes } from './routes/statusApi.js'
-import { adminStatusPageAccessRoutes, publicStatusPageAccessRoutes } from './routes/statusPageAccess.js'
-import { requireAuth, requireRole } from './middleware/auth.js'
+import { publicStatusPageAccessRoutes } from './routes/statusPageAccess.js'
 import { uploadDir } from './config.js'
-import { backupRoutes } from './routes/backups.js'
 import { acquireAppLock } from './services/appLock.js'
 import { startBackgroundServices, stopBackgroundServices } from './services/backgroundServices.js'
 import { createRuntimeShutdown } from './services/shutdown.js'
@@ -44,8 +33,6 @@ import { healthRoutes } from './routes/health.js'
 import { resolveTrustProxy } from './config/proxy.js'
 import { sseService } from './services/sse.service.js'
 import { registerProductionFrontends } from './services/productionFallback.js'
-import { systemHealthRoutes } from './routes/systemHealth.js'
-import { reportRoutes } from './routes/reports.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -170,61 +157,7 @@ await app.register(feedRoutes, { prefix: '/api/v1/public' })
 await app.register(statusApiRoutes, { prefix: '/api/v1/public' })
 await app.register(publicSubscriptionRoutes, { prefix: '/api/v1/public/subscriptions' })
 
-await app.register(async (adminApp) => {
-  adminApp.addHook('preHandler', requireAuth)
-
-  // monitors: operator+
-  await adminApp.register(async (sub) => {
-    sub.addHook('preHandler', requireRole('operator'))
-    await sub.register(monitorRoutes, { prefix: '/monitors' })
-  })
-
-  // incidents: operator+
-  await adminApp.register(async (sub) => {
-    sub.addHook('preHandler', requireRole('operator'))
-    await sub.register(incidentRoutes, { prefix: '/incidents' })
-  })
-
-  // layout, branding & locales: branding+
-  await adminApp.register(async (sub) => {
-    sub.addHook('preHandler', requireRole('operator', 'branding'))
-    await sub.register(layoutRoutes,      { prefix: '/layout' })
-    await sub.register(brandingRoutes,    { prefix: '/branding' })
-    await sub.register(adminLocaleRoutes, { prefix: '/locales' })
-  })
-
-  // notifications: operator+
-  await adminApp.register(async (sub) => {
-    sub.addHook('preHandler', requireRole('operator'))
-    await sub.register(notificationRoutes, { prefix: '/notifications' })
-    await sub.register(adminSubscriberRoutes, { prefix: '/subscribers' })
-    await sub.register(reportRoutes, { prefix: '/reports' })
-  })
-
-  // maintenance windows: operator+
-  await adminApp.register(async (sub) => {
-    sub.addHook('preHandler', requireRole('operator'))
-    await sub.register(maintenanceRoutes, { prefix: '/maintenance' })
-  })
-
-  // vault catalogue (names and types only, for picking a secret in a monitor): operator+
-  await adminApp.register(async (sub) => {
-    sub.addHook('preHandler', requireRole('operator'))
-    await sub.register(vaultCatalogRoutes, { prefix: '/vaults' })
-  })
-
-  // users, sign-in & status page access, vault management & audit log: admin only
-  await adminApp.register(async (sub) => {
-    sub.addHook('preHandler', requireRole())  // only admin passes (no allowed list)
-    await sub.register(userRoutes,   { prefix: '/users' })
-    await sub.register(oidcSettingsRoutes, { prefix: '/oidc' })
-    await sub.register(adminStatusPageAccessRoutes, { prefix: '/status-page-access' })
-    await sub.register(vaultRoutes,  { prefix: '/vaults' })
-    await sub.register(auditRoutes,  { prefix: '/audit' })
-    await sub.register(backupRoutes, { prefix: '/backups' })
-    await sub.register(systemHealthRoutes, { prefix: '/system-health' })
-  })
-}, { prefix: '/api/v1/admin' })
+await app.register(adminApi, { prefix: '/api/v1/admin' })
 
 // Serve built frontend apps in production
 if (process.env['NODE_ENV'] === 'production') {

@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import { api } from '../../api/client'
 import { DEFAULT_ALERT_POLICY } from '@bsp/shared'
+import { YamlViewModal } from '../YamlViewModal'
 import type { ChannelAlertPolicy, NotificationChannel } from '@bsp/shared'
 import { ChannelTypePicker } from './ChannelTypePicker'
 import { CHANNEL_TYPES, Field, buildChannelConfig, initialDrafts, isChannelType, type ChannelDrafts, type ChannelType } from './channelTypes'
@@ -55,6 +56,7 @@ function readAlertPolicy(channel: NotificationChannel | null): ChannelAlertPolic
 
 export default function ChannelFormModal({ channel, initialType, onClose, onSaved }: Props) {
   const isEdit = !!channel
+  const [showYaml, setShowYaml] = useState(false)
   const [name, setName]   = useState(channel?.name ?? '')
   const [type, setType]   = useState<ChannelType>(isChannelType(channel?.type) ? channel.type : (initialType ?? 'email'))
   const [enabled, setEnabled]               = useState((channel?.enabled ?? 1) === 1)
@@ -184,6 +186,7 @@ export default function ChannelFormModal({ channel, initialType, onClose, onSave
             <input value={name} onChange={(e) => setName(e.target.value)} required className="input-sig" placeholder="My Email Alert" />
           </Field>
 
+
           <ChannelTypePicker value={type} onChange={setType} />
 
           <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
@@ -207,21 +210,31 @@ export default function ChannelFormModal({ channel, initialType, onClose, onSave
             </p>
           )}
 
-          <div className="flex flex-wrap justify-end gap-3 pt-1">
-            <button type="button" onClick={onClose} className="btn btn-ghost">Cancel</button>
-            {isEdit && (
-              <button type="button" onClick={handleTest} disabled={testing || dirty}
-                aria-describedby={dirty ? testHintId : undefined}
-                className="btn btn-secondary"
-              >
-                {testing
-                  ? <><span className="material-symbols-outlined animate-spin" aria-hidden="true">progress_activity</span> Testing…</>
-                  : 'Send test (saved settings)'}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="flex flex-wrap gap-3">
+              {isEdit && (
+                <button type="button" onClick={() => setShowYaml(true)} title="The saved channel as YAML" className="btn btn-secondary">
+                  <span className="material-symbols-outlined" aria-hidden="true">data_object</span>
+                  YAML
+                </button>
+              )}
+              {isEdit && (
+                <button type="button" onClick={handleTest} disabled={testing || dirty}
+                  aria-describedby={dirty ? testHintId : undefined}
+                  className="btn btn-secondary"
+                >
+                  {testing
+                    ? <><span className="material-symbols-outlined animate-spin" aria-hidden="true">progress_activity</span> Testing…</>
+                    : 'Send test (saved settings)'}
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-3 ml-auto">
+              <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
+              <button type="submit" disabled={loading} className="btn btn-primary">
+                {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Channel'}
               </button>
-            )}
-            <button type="submit" disabled={loading} className="btn btn-primary">
-              {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Channel'}
-            </button>
+            </div>
           </div>
         </form>
       </div>{/* main column */}
@@ -295,6 +308,7 @@ export default function ChannelFormModal({ channel, initialType, onClose, onSave
 
       <SideTabStrip tabs={sideTabs} meta={PANEL_META} active={sidePanel} onToggle={setSidePanel} layout="responsive" />
       </div>{/* outer flex row */}
+      {showYaml && channel && <YamlViewModal kind="NotificationChannel" objectKey={channel.key} title={channel.name} onClose={() => setShowYaml(false)} />}
     </ModalShell>
   )
 }

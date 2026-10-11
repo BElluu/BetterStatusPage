@@ -130,7 +130,7 @@ Then set Message Content to `@here` or `@everyone` in the BSP channel form.
 ## Troubleshooting
 
 **Test notification does not arrive**
-- Verify the webhook URL is correct and has not been deleted in Discord.
+- Paste the webhook URL again from Discord (the saved one is shown as `••••••••`, so it cannot be checked by eye), and check that the webhook has not been deleted in Discord.
 - Make sure the channel is **Enabled** in BSP.
 - Check that the target Discord channel still exists and the webhook is still linked to it.
 

@@ -1,9 +1,19 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import { authenticateRequest, verifyCsrf, type AuthIdentity } from '../services/authSession.js'
+import { API_TOKEN_NOT_ACCEPTED, authenticateRequest, verifyCsrf, type AuthIdentity } from '../services/authSession.js'
+import { requiredScope, tokenAllows } from '@bsp/shared'
+import { consumeApiTokenBudget } from '../services/apiTokens.js'
 
 declare module 'fastify' {
   interface FastifyContextConfig {
     allowPendingPasswordChange?: boolean
+    /** Routes that accept an API token. Everything else answers 403 to one, so tokens never reach account security. */
+    allowApiToken?: boolean
+    /**
+     * The part of the admin API a route belongs to (a key of TOKEN_RESOURCES, or `vault`). A token needs `<part>:read`
+     * for GET and `<part>:write` for anything else. `custom` means the handler checks the token itself. A route a
+     * token may reach but that names no part is refused: tokens fail closed.
+     */
+    tokenScope?: string
   }
 }
 
@@ -49,15 +59,34 @@ export async function authenticateOrReject(
   reply: FastifyReply,
   unauthorized: Record<string, string> = { error: 'Unauthorized' },
 ): Promise<AuthIdentity | null> {
+  const allowApiToken = req.routeOptions.config?.allowApiToken === true
+  const existing = existingIdentity(req)
   let identity: AuthIdentity
   try {
-    identity = existingIdentity(req) ?? await authenticateRequest(req)
+    identity = existing ?? await authenticateRequest(req, { allowApiToken })
+    if (identity.apiToken && !allowApiToken) throw new Error(API_TOKEN_NOT_ACCEPTED)
     await verifyCsrf(req, identity)
   } catch (error) {
-    const csrf = error instanceof Error && error.message === 'Invalid CSRF token'
-    if (csrf) reply.code(403).send({ error: 'Invalid CSRF token' })
+    const message = error instanceof Error ? error.message : ''
+    if (message === 'Invalid CSRF token') reply.code(403).send({ error: 'Invalid CSRF token' })
+    else if (message === API_TOKEN_NOT_ACCEPTED) reply.code(403).send({ error: 'API tokens cannot call this endpoint' })
     else reply.code(401).send(unauthorized)
     return null
+  }
+  // Only a request that just authenticated spends budget; the later hooks of the same request reuse the identity.
+  if (identity.apiToken && !existing && !consumeApiTokenBudget(identity.apiToken.id)) {
+    reply.code(429).header('retry-after', '60').send({ error: 'Too many requests' })
+    return null
+  }
+  if (identity.apiToken) {
+    const resource = req.routeOptions.config?.tokenScope
+    if (resource !== 'custom') {
+      const required = resource ? requiredScope(resource, req.method) : null
+      if (!required || !tokenAllows(identity.apiToken.scopes, required)) {
+        reply.code(403).send({ error: required ? `This token does not have the "${required}" permission` : 'API tokens cannot call this endpoint' })
+        return null
+      }
+    }
   }
   if (passwordChangeBlocks(req, identity)) {
     sendPasswordChangeRequired(reply)

@@ -12,12 +12,15 @@ export type AuditEntityType =
   | 'vault'
   | 'vault_secret'
   | 'user'
+  | 'api_token'
   | 'oidc_settings'
   | 'status_page_access'
   /** Security changes on a user account: password, two-factor, SSO link. */
   | 'user-security'
   | 'branding'
   | 'layout'
+  /** A configuration import; the entities it changed have entries of their own. */
+  | 'config'
   | 'locale'
   | 'backup'
   | 'backup-config'

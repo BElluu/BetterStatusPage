@@ -18,7 +18,9 @@ export async function layoutRoutes(app: FastifyInstance) {
     db.select({ id: monitors.id, name: monitors.name, type: monitors.type }).from(monitors),
   )
 
-  app.put<{ Body: { tree: unknown } }>('/', async (req) => {
+  app.put<{ Body: { tree: unknown } }>('/', async (req, reply) => {
+    const tree = req.body?.tree
+    if (!tree || typeof tree !== 'object' || Array.isArray(tree)) return reply.code(400).send({ error: 'tree must be an object' })
     const now = Date.now()
     const existing = (await db.select().from(layout))[0]
     if (existing) {

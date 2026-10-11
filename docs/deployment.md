@@ -235,6 +235,9 @@ server {
     listen 443 ssl;
     server_name status.example.com;
 
+    # Nginx refuses bodies over 1 MB by default. A configuration file may be up to 2 MB; backups are larger.
+    client_max_body_size 2m;
+
     location / {
         proxy_pass         http://127.0.0.1:3000;
         proxy_http_version 1.1;

@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import bcrypt from 'bcryptjs'
 import { sqlite } from './client.js'
 import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
+import { slugifyKey } from '../lib/entityKey.js'
 
 const migrations = `
 CREATE TABLE IF NOT EXISTS users (
@@ -225,6 +226,21 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
 `
 
+const apiTokensMigration = `
+CREATE TABLE IF NOT EXISTS api_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  prefix TEXT NOT NULL,
+  user_id INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER,
+  last_used_at INTEGER,
+  scopes TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`
+
 const maintenanceMigration = `
 CREATE TABLE IF NOT EXISTS maintenance_windows (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -383,6 +399,9 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE users ADD COLUMN oidc_subject TEXT`, desc: 'users.oidc_subject' },
   { sql: `ALTER TABLE auth_sessions ADD COLUMN verified_at INTEGER`, desc: 'auth_sessions.verified_at' },
   { sql: `ALTER TABLE vaults ADD COLUMN connection_config TEXT`, desc: 'vaults.connection_config' },
+  // SQLite cannot add a UNIQUE column; existing rows are filled by backfillEntityKeys, which then adds the unique index.
+  { sql: `ALTER TABLE monitors ADD COLUMN key TEXT NOT NULL DEFAULT ''`, desc: 'monitors.key' },
+  { sql: `ALTER TABLE notification_channels ADD COLUMN key TEXT NOT NULL DEFAULT ''`, desc: 'notification_channels.key' },
 ]
 
 /**
@@ -477,10 +496,32 @@ function revokeTemporaryPasswordsOfSsoUsers(): void {
   })
 }
 
+/**
+ * Monitors and notification channels gained a unique `key`. Rows that predate it get one from their name, in id
+ * order, the same way the API derives it for a new row (`name`, then `name-2`, `name-3`, ...).
+ */
+function backfillEntityKeys(): void {
+  runDataMigration('entity-keys-backfill-v1', () => {
+    for (const table of ['monitors', 'notification_channels']) {
+      const rows = sqlite.prepare(`SELECT id, name FROM ${table} WHERE key = '' ORDER BY id`).all() as Array<{ id: number; name: string }>
+      const taken = new Set((sqlite.prepare(`SELECT key FROM ${table} WHERE key <> ''`).all() as Array<{ key: string }>).map((row) => row.key))
+      const assign = sqlite.prepare(`UPDATE ${table} SET key = ? WHERE id = ?`)
+      for (const { id, name } of rows) {
+        const base = slugifyKey(name)
+        let key = base
+        for (let n = 2; taken.has(key); n++) key = `${base}-${n}`
+        taken.add(key)
+        assign.run(key, id)
+      }
+    }
+  })
+}
+
 /** Runs all migrations against the already-initialized DB. */
 export function runMigrations(): void {
   sqlite.exec(migrations)
   sqlite.exec(auditMigration)
+  sqlite.exec(apiTokensMigration)
   sqlite.exec(maintenanceMigration)
   sqlite.exec(dependenciesMigration)
   sqlite.exec(subscriptionsMigration)
@@ -494,5 +535,9 @@ export function runMigrations(): void {
   migrateLegacyLogoVariants()
   revokeTemporaryPasswordsOfSsoUsers()
   seedAlertConfirmedStatus()
+  backfillEntityKeys()
+  // After the backfill: before it, every existing row would share the empty default.
+  sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_monitors_key ON monitors(key)`)
+  sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_channels_key ON notification_channels(key)`)
   console.log('✓ Migrations applied')
 }

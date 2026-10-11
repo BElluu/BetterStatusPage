@@ -8,6 +8,12 @@ import { api } from '../api/client'
 import { ToastProvider } from '../components/ui'
 import MonitorDetailPage from './MonitorDetail'
 
+vi.mock('../components/YamlViewModal', () => ({
+  YamlViewModal: ({ kind, objectKey, onClose }: { kind: string; objectKey?: string; onClose: () => void }) => (
+    <div role="dialog" aria-label="YAML view">{kind} {objectKey ?? ''}<button type="button" onClick={onClose}>Close YAML</button></div>
+  ),
+}))
+
 vi.mock('../api/client', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 vi.mock('../components/monitors/MonitorFormModal', () => ({
   default: ({ monitor }: { monitor: Monitor }) => <div role="dialog" aria-label="Edit monitor form">{monitor.name}</div>,
@@ -21,7 +27,7 @@ class NoopResizeObserver {
 }
 
 const monitor = {
-  id: 7, name: 'Checkout API', type: 'https', intervalSecs: 60, timeoutMs: 10_000, failureThreshold: 2, recoveryThreshold: 1,
+  id: 7, key: 'checkout-api', name: 'Checkout API', type: 'https', intervalSecs: 60, timeoutMs: 10_000, failureThreshold: 2, recoveryThreshold: 1,
   currentStatus: 'up', lastCheckedAt: 1_700_000_000_000, certExpiresAt: null, tags: [],
   config: { url: 'https://api.shop.example/health' },
 } as unknown as Monitor
@@ -112,5 +118,37 @@ describe('MonitorDetailPage', () => {
     renderPage()
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load this monitor")
     expect(screen.getByRole('link', { name: 'Back to monitors' })).toHaveAttribute('href', '/admin/monitors')
+  })
+})
+
+describe('MonitorDetailPage YAML view', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.startsWith('/admin/monitors/7/stats')) return stats
+      if (path === '/admin/monitors/7') return monitor
+      return []
+    })
+  })
+
+  it('opens the monitor as YAML, by its key', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('99.900%')
+    await user.click(screen.getByRole('button', { name: 'YAML' }))
+    expect(screen.getByRole('dialog', { name: 'YAML view' })).toHaveTextContent('Monitor checkout-api')
+  })
+})
+
+describe('MonitorDetailPage webhook URL', () => {
+  it('shows the heartbeat URL of a webhook monitor, to copy', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.startsWith('/admin/monitors/7/stats')) return stats
+      if (path === '/admin/monitors/7') return { ...monitor, type: 'webhook', webhookToken: 'abc123', config: {} }
+      return []
+    })
+    renderPage()
+    expect(await screen.findByText(`${window.location.origin}/api/v1/hook/abc123`)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument()
   })
 })

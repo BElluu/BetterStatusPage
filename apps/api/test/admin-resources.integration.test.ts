@@ -154,7 +154,9 @@ describe('notification configuration', () => {
     })
     assert.equal(created.statusCode, 200)
     const channel = created.json()
-    assert.equal(channel.config.webhookUrl, 'https://example.test/hook')
+    // The webhook URL is the credential of a Slack channel, so it never comes back in the clear.
+    assert.equal(channel.config.webhookUrl, '••••••••')
+    assert.equal(JSON.parse((await db.select().from(notificationChannels).where(eq(notificationChannels.id, channel.id)))[0]!.config).webhookUrl, 'https://example.test/hook')
 
     const patched = await app.inject({ method: 'PATCH', url: `/notifications/channels/${channel.id}`, payload: { name: 'Primary operations', enabled: 0 } })
     assert.equal(patched.json().name, 'Primary operations')
@@ -219,12 +221,15 @@ describe('notification configuration', () => {
       method: 'POST', url: '/notifications/channels',
       payload: { name: 'Bot2', type: 'telegram', config: { botToken: '123456:ABCDEFghijMSGo', chatId: '-100500' } },
     })).json()
-    await app.inject({
+    // The mask belonged to the Telegram token; it must not be saved as anything under another type.
+    const retyped = await app.inject({
       method: 'PATCH', url: `/notifications/channels/${created.id}`,
       payload: { type: 'webhook', config: { url: 'https://x.test', botToken: '••••••••MSGo' } },
     })
+    assert.equal(retyped.statusCode, 400)
     const [row] = await db.select().from(notificationChannels).where(eq(notificationChannels.id, created.id))
-    assert.equal(JSON.parse(row!.config).botToken, '••••••••MSGo')
+    assert.equal(row!.type, 'telegram')
+    assert.equal(JSON.parse(row!.config).botToken, '123456:ABCDEFghijMSGo')
 
     for (const config of [{ chatId: '-1' }, { botToken: '1:abc', chatId: ' ' }, { botToken: '••••••••XXXX1', chatId: '-1' }, { vault: { vaultId: 1, secretId: 0 }, chatId: '-1' }]) {
       const response = await app.inject({ method: 'POST', url: '/notifications/channels', payload: { name: 'Bad', type: 'telegram', config } })

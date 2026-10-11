@@ -126,7 +126,7 @@ function DiscordFields({ draft, onChange }: ChannelFieldsProps<DiscordDraft>) {
   return (
     <>
       <Field label="Webhook URL">
-        <input value={draft.webhookUrl} onChange={(e) => onChange({ ...draft, webhookUrl: e.target.value })} required className="input-sig" placeholder="https://discord.com/api/webhooks/…" />
+        <input value={draft.webhookUrl} onChange={(e) => onChange({ ...draft, webhookUrl: e.target.value })} onFocus={(e) => e.target.select()} required className="input-sig" placeholder="https://discord.com/api/webhooks/…" />
       </Field>
       <Field label="Bot Username (optional)">
         <input value={draft.username} onChange={(e) => onChange({ ...draft, username: e.target.value })} className="input-sig" placeholder="BSP Alerts" />
@@ -149,7 +149,7 @@ function TeamsFields({ draft, onChange }: ChannelFieldsProps<TeamsDraft>) {
   return (
     <>
       <Field label="Webhook URL">
-        <input value={draft.webhookUrl} onChange={(e) => onChange({ ...draft, webhookUrl: e.target.value })} required className="input-sig" placeholder="https://…webhook.office.com/webhookb2/…" />
+        <input value={draft.webhookUrl} onChange={(e) => onChange({ ...draft, webhookUrl: e.target.value })} onFocus={(e) => e.target.select()} required className="input-sig" placeholder="https://…webhook.office.com/webhookb2/…" />
       </Field>
       <Field label="Summary (optional)">
         <input value={draft.summary} onChange={(e) => onChange({ ...draft, summary: e.target.value })} className="input-sig" placeholder="Monitor {{monitor_name}} is {{status}}" />
@@ -166,7 +166,7 @@ function SlackFields({ draft, onChange }: ChannelFieldsProps<SlackDraft>) {
   return (
     <>
       <Field label="Webhook URL">
-        <input value={draft.webhookUrl} onChange={(e) => onChange({ ...draft, webhookUrl: e.target.value })} required className="input-sig" placeholder="https://hooks.slack.com/services/…" />
+        <input value={draft.webhookUrl} onChange={(e) => onChange({ ...draft, webhookUrl: e.target.value })} onFocus={(e) => e.target.select()} required className="input-sig" placeholder="https://hooks.slack.com/services/…" />
       </Field>
       <Field label="Message Text (optional)">
         <input value={draft.text} onChange={(e) => onChange({ ...draft, text: e.target.value })} className="input-sig" placeholder="<!here> Monitor {{monitor_name}} is {{status}}" />
