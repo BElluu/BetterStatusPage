@@ -11,7 +11,7 @@ vi.mock('../api/client', () => ({
 
 const token = {
   id: 7, name: 'Deploy', prefix: 'bsp_Ab12Cd', scopes: ['monitors:read', 'monitors:write', 'incidents:read', 'vault:use'],
-  createdBy: 'admin@example.test', createdAt: 1, expiresAt: null, lastUsedAt: null,
+  createdAt: 1, expiresAt: null, lastUsedAt: null,
 }
 
 function renderPage() {
@@ -33,7 +33,6 @@ describe('ApiTokensPage', () => {
     expect(screen.getByText('bsp_Ab12Cd…')).toBeInTheDocument()
     const permissions = within(screen.getByRole('list', { name: 'Permissions of Deploy' }))
     expect(permissions.getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Monitors · write', 'Incidents · read', 'Vault secrets'])
-    expect(screen.getByText('admin@example.test')).toBeInTheDocument()
   })
 
   it('creates a token with the ticked permissions, expiring in 90 days by default, and shows the secret once', async () => {

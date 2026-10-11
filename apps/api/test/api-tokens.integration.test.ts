@@ -22,7 +22,6 @@ process.env['UPLOAD_DIR'] = join(testDb.dir, 'uploads')
 const app = Fastify({ logger: false })
 const sessions: Record<string, { authorization: string }> = {}
 const registeredRoutes: RouteOptions[] = []
-let adminId = 0
 
 // The real admin tree from adminApi.ts, so a route group that is moved or added is checked, not a copy of it.
 before(async () => {
@@ -43,7 +42,6 @@ before(async () => {
     const sessionId = `session-${role}`
     await db.insert(authSessions).values({ id: sessionId, userId: user!.id, csrfTokenHash: 'unused', createdAt: now, lastSeenAt: now, expiresAt: now + 60_000 })
     sessions[role] = { authorization: `Bearer ${app.jwt.sign({ userId: user!.id, email: user!.email, role, sessionId })}` }
-    if (role === 'admin') adminId = user!.id
   }
 })
 
@@ -119,11 +117,10 @@ describe('creating and listing tokens', () => {
     assert.equal(stored.name, 'Deploy pipeline')
     assert.equal(stored.tokenHash, hashApiToken(body.token))
     assert.notEqual(stored.tokenHash, body.token)
-    assert.equal(stored.userId, adminId)
 
     const listed = (await app.inject({ url: '/admin/api-tokens', headers: sessions['admin']! })).json() as Array<Record<string, unknown>>
     const row = listed.find((t) => t['id'] === body.id)!
-    assert.equal(row['createdBy'], 'admin@example.test')
+    assert.equal('createdBy' in row, false)
     assert.deepEqual(row['scopes'], ['incidents:read', 'incidents:write'])
     assert.equal(JSON.stringify(listed).includes(body.token), false)
     for (const secret of ['tokenHash', 'token', 'role']) assert.equal(secret in row, false, secret)
@@ -232,7 +229,7 @@ describe('what a token may do', () => {
     assert.equal((await app.inject({ method: 'DELETE', url: `/admin/api-tokens/${revoked.id}`, headers: sessions['admin']! })).statusCode, 404)
   })
 
-  it('is gone with its creator, and with the Admin role for good', async () => {
+  it('belongs to no user: it outlives the administrator who created it', async () => {
     const now = Date.now()
     const [creator] = await db.insert(users).values({ email: 'temp-admin@example.test', passwordHash: 'unused', role: 'admin', createdAt: now }).returning()
     const sessionId = 'session-temp-admin'
@@ -241,36 +238,22 @@ describe('what a token may do', () => {
     const minted = (await app.inject({ method: 'POST', url: '/admin/api-tokens', headers, payload: { name: 'temp', scopes: ['monitors:read'] } })).json() as { token: string }
     assert.equal((await get('/admin/monitors', minted.token)).statusCode, 200)
 
-    // Demoted by another admin: the token dies, and promoting the user again does not bring it back.
     const demote = await app.inject({ method: 'PATCH', url: `/admin/users/${creator!.id}/role`, headers: sessions['admin']!, payload: { role: 'operator' } })
     assert.equal(demote.statusCode, 200)
-    assert.equal((await get('/admin/monitors', minted.token)).statusCode, 401)
-    await app.inject({ method: 'PATCH', url: `/admin/users/${creator!.id}/role`, headers: sessions['admin']!, payload: { role: 'admin' } })
-    assert.equal((await get('/admin/monitors', minted.token)).statusCode, 401)
-    assert.equal((await db.select().from(apiTokens).where(eq(apiTokens.userId, creator!.id))).length, 0)
-    // The tokens that went with the demotion are in the audit log, one entry each, by name and prefix, never the token.
-    const removed = (await db.select().from(auditLog).where(eq(auditLog.entityName, 'temp'))).filter((e) => e.entityType === 'api_token' && e.action === 'delete')
-    assert.equal(removed.length, 1)
-    assert.match(JSON.parse(removed[0]!.diff!).reason, /no longer an administrator/)
-    assert.equal(removed[0]!.diff!.includes(minted.token), false)
+    assert.equal((await get('/admin/monitors', minted.token)).statusCode, 200)
 
-    // Deleting the creator removes the tokens that are left. The role change ended the old session, so sign in again.
-    await db.insert(authSessions).values({ id: 'session-temp-admin-2', userId: creator!.id, csrfTokenHash: 'unused', createdAt: now, lastSeenAt: now, expiresAt: now + 60_000 })
-    const renewed = { authorization: `Bearer ${app.jwt.sign({ userId: creator!.id, email: creator!.email, role: 'admin', sessionId: 'session-temp-admin-2' })}` }
-    const second = (await app.inject({ method: 'POST', url: '/admin/api-tokens', headers: renewed, payload: { name: 'temp2', scopes: ['monitors:read'] } })).json() as { token: string }
-    assert.equal((await get('/admin/monitors', second.token)).statusCode, 200)
-    await db.delete(users).where(eq(users.id, creator!.id))
-    assert.equal((await get('/admin/monitors', second.token)).statusCode, 401)
-    assert.equal((await db.select().from(apiTokens).where(eq(apiTokens.userId, creator!.id))).length, 0)
+    const removed = await app.inject({ method: 'DELETE', url: `/admin/users/${creator!.id}`, headers: sessions['admin']! })
+    assert.equal(removed.statusCode, 200)
+    assert.equal((await get('/admin/monitors', minted.token)).statusCode, 200)
   })
 
-  it('names the token next to its creator in the audit log', async () => {
+  it('names the token in the audit log, under no user', async () => {
     const token = await tokenWith('monitors:write')
     const created = await app.inject({ method: 'POST', url: '/admin/monitors', headers: withToken(token), payload: { name: 'From CI', type: 'webhook', config: {} } })
     assert.equal(created.statusCode, 200)
     const entry = (await db.select().from(auditLog).where(and(eq(auditLog.entityType, 'monitor'), eq(auditLog.entityName, 'From CI'))))[0]!
-    assert.equal(entry.userEmail, 'admin@example.test (token: CI)')
-    assert.equal(entry.userId, adminId)
+    assert.equal(entry.userEmail, 'token: CI')
+    assert.equal(entry.userId, 0)
   })
 })
 

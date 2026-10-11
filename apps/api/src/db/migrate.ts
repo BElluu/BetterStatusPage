@@ -232,12 +232,10 @@ CREATE TABLE IF NOT EXISTS api_tokens (
   name TEXT NOT NULL,
   token_hash TEXT NOT NULL UNIQUE,
   prefix TEXT NOT NULL,
-  user_id INTEGER NOT NULL,
   created_at INTEGER NOT NULL,
   expires_at INTEGER,
   last_used_at INTEGER,
-  scopes TEXT NOT NULL,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  scopes TEXT NOT NULL
 );
 `
 

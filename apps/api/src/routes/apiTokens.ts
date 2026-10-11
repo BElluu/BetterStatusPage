@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { eq } from 'drizzle-orm'
 import { normalizeScopes } from '@bsp/shared'
 import { db } from '../db/client.js'
-import { apiTokens, users } from '../db/schema.js'
+import { apiTokens } from '../db/schema.js'
 import { requestIdentity } from '../middleware/auth.js'
 import { auditActor, snapshot, writeAudit } from '../services/audit.js'
 import { generateApiToken, parseScopes } from '../services/apiTokens.js'
@@ -17,19 +17,12 @@ const DAY_MS = 24 * 60 * 60 * 1000
 export async function apiTokenRoutes(app: FastifyInstance) {
   type TokenRow = typeof apiTokens.$inferSelect
 
-  function publicToken(row: TokenRow, createdBy: string) {
+  function publicToken(row: TokenRow) {
     const { tokenHash: _tokenHash, scopes, ...rest } = row
-    return { ...rest, scopes: parseScopes(scopes), createdBy }
+    return { ...rest, scopes: parseScopes(scopes) }
   }
 
-  app.get('/', async () => {
-    const [rows, owners] = await Promise.all([
-      db.select().from(apiTokens),
-      db.select({ id: users.id, email: users.email }).from(users),
-    ])
-    const emails = new Map(owners.map((u) => [u.id, u.email]))
-    return rows.map((row) => publicToken(row, emails.get(row.userId) ?? ''))
-  })
+  app.get('/', async () => (await db.select().from(apiTokens)).map(publicToken))
 
   // `expiresInDays` left out means the default; `null` is the explicit "never".
   app.post<{ Body: { name?: unknown; scopes?: unknown; expiresInDays?: unknown } }>('/', async (req, reply) => {
@@ -53,14 +46,13 @@ export async function apiTokenRoutes(app: FastifyInstance) {
       tokenHash: generated.hash,
       prefix: generated.prefix,
       scopes: JSON.stringify(scopes),
-      userId: identity.userId,
       createdAt: now,
       expiresAt: typeof days === 'number' ? now + days * DAY_MS : null,
     }).returning())[0]!
     await writeAudit(auditActor(identity), 'create', 'api_token', row.id, row.name,
       snapshot({ name: row.name, permissions: scopes.join(', '), prefix: row.prefix, expiresAt: row.expiresAt }))
     // The only time the plaintext token leaves the server.
-    return { ...publicToken(row, identity.email), token: generated.token }
+    return { ...publicToken(row), token: generated.token }
   })
 
   app.delete<{ Params: { id: string } }>('/:id', async (req, reply) => {

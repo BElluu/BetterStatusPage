@@ -50,12 +50,9 @@ export interface Actor {
   userEmail: string
 }
 
-/** Audit actor for an authenticated identity; a call made with an API token names the token next to its creator. */
-export function auditActor(identity: { userId: number; email: string; apiToken?: { name: string } }): Actor {
-  return {
-    userId: identity.userId,
-    userEmail: identity.apiToken ? `${identity.email} (token: ${identity.apiToken.name})` : identity.email,
-  }
+/** Audit actor for an authenticated identity; an API token appears under its own name, with user id 0 (no user). */
+export function auditActor(identity: { userId: number; email: string }): Actor {
+  return { userId: identity.userId, userEmail: identity.email }
 }
 
 /**

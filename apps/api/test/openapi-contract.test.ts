@@ -11,7 +11,7 @@ import { parse } from 'yaml'
 import { adminApi } from '../src/adminApi.js'
 import { db } from '../src/db/client.js'
 import { API_TOKEN_SCOPES, requiredScope } from '@bsp/shared'
-import { apiTokens, users } from '../src/db/schema.js'
+import { apiTokens } from '../src/db/schema.js'
 import { generateApiToken } from '../src/services/apiTokens.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
@@ -47,10 +47,9 @@ before(async () => {
   await app.register(adminApi, { prefix: '/admin' })
   await app.ready()
 
-  const [owner] = await db.insert(users).values({ email: 'admin@example.test', passwordHash: 'unused', role: 'admin', createdAt: Date.now() }).returning()
   const issue = async (name: string, scopes: string[]) => {
     const generated = generateApiToken()
-    await db.insert(apiTokens).values({ name, tokenHash: generated.hash, prefix: generated.prefix, scopes: JSON.stringify(scopes), userId: owner!.id, createdAt: Date.now() })
+    await db.insert(apiTokens).values({ name, tokenHash: generated.hash, prefix: generated.prefix, scopes: JSON.stringify(scopes), createdAt: Date.now() })
     return generated.token
   }
   for (const part of PARTS) {
