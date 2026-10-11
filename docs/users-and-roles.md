@@ -82,7 +82,7 @@ When a user has lost their authenticator app and their recovery codes, click **R
 
 ### Delete a user
 
-Click **Delete user** and confirm. The account is removed and all of its sessions and API tokens end immediately. There is no separate "disabled" state: to take access away, delete the account. Audit-log entries the user made stay, with their email.
+Click **Delete user** and confirm. The account is removed and all of its sessions end immediately. API tokens belong to no user and are not affected. There is no separate "disabled" state: to take access away, delete the account. Audit-log entries the user made stay, with their email.
 
 ### Protection against locking yourself out
 
@@ -174,7 +174,7 @@ The **Audit Log** (administrators only) records who changed what and when. Each 
 | Vault, Vault Secret | Create, update, delete (secret values never) |
 | Branding, Status Page Layout, Language | Branding and page builder saves, translation changes |
 | User | Create (also viewer accounts created through SSO), role change, password reset, delete |
-| API Token | Created or revoked: name, permissions, the first characters of the token and its expiry, never the token. Tokens removed because their creator lost the Admin role have an entry each. |
+| API Token | Created or revoked: name, permissions, the first characters of the token and its expiry, never the token. |
 | Import | One entry for each import that changed something, with the counts (created, updated, unchanged). Every monitor and channel it changed also has an entry of its own. |
 | Monitor (heartbeat token) | Resetting the heartbeat token of a webhook monitor is recorded as `heartbeat_token_reset`, never the token. |
 | User Security | Password changed, 2FA turned on or off, 2FA reset by an administrator (`admin_recovery`) or from the command line (`emergency_cli`), SSO account linked, temporary password revoked by an SSO sign-in |
@@ -182,7 +182,7 @@ The **Audit Log** (administrators only) records who changed what and when. Each 
 | Backup, Backup Schedule | Backup created or deleted, schedule changes |
 | Sign-in | Every sign-in with a password or SSO: **Allowed** (with the method and whether a 2FA code was used) or **Denied** (with the reason) |
 
-A change made with an [API token](api.md#api-tokens) shows the email of the token's creator followed by `(token: <name>)`.
+A change made with an [API token](api.md#api-tokens) is recorded as `token: <name>`, not under a user.
 
 Refused sign-ins have no signed-in user, so they are recorded as user 0 with the email that was entered or that the identity provider sent. The reason codes are listed in [Why a sign-in was refused](single-sign-on.md#why-a-sign-in-was-refused).
 

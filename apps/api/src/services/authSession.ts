@@ -22,8 +22,9 @@ export interface AuthIdentity {
   twoFactorEnabled: boolean
   authMethod: AuthMethod
   /**
-   * Set when the request is authenticated by an API token instead of a session. `userId` and `email` are then the
-   * token's creator and `sessionId` is a synthetic `api-token:<id>`. A token has no role: `role` is a placeholder
+   * Set when the request is authenticated by an API token instead of a session. A token belongs to no user: `userId`
+   * is 0, `email` is `token: <name>` (it names the token in the audit log) and `sessionId` is a synthetic
+   * `api-token:<id>`. A token has no role: `role` is a placeholder
    * that lets it through the role checks, and what it may do is decided by `scopes`, checked for every request in
    * authenticateOrReject.
    */
@@ -125,14 +126,14 @@ async function authenticateApiToken(req: FastifyRequest, token: string): Promise
   const found = await findUsableApiToken(token)
   if (!found) throw new Error('Invalid API token')
   const identity: AuthIdentity = {
-    userId: found.owner.id,
-    email: found.owner.email,
+    userId: 0,
+    email: `token: ${found.name}`,
     role: 'admin',
-    sessionId: `api-token:${found.token.id}`,
+    sessionId: `api-token:${found.id}`,
     mustChangePassword: false,
     twoFactorEnabled: false,
     authMethod: 'password',
-    apiToken: { id: found.token.id, name: found.token.name, scopes: parseScopes(found.token.scopes) },
+    apiToken: { id: found.id, name: found.name, scopes: parseScopes(found.scopes) },
   }
   req.user = identity
   return identity

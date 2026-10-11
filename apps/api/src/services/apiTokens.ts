@@ -1,9 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { db } from '../db/client.js'
-import { apiTokens, users } from '../db/schema.js'
+import { apiTokens } from '../db/schema.js'
 import { API_TOKEN_SCOPES } from '@bsp/shared'
-import { normalizeRole } from './roles.js'
 
 const API_TOKEN_PREFIX = 'bsp_'
 /** The permissions stored with a token. Anything that is not a known permission is dropped. */
@@ -34,21 +33,16 @@ export function generateApiToken(): { token: string; hash: string; prefix: strin
   return { token, hash: hashApiToken(token), prefix: token.slice(0, API_TOKEN_PREFIX.length + 6) }
 }
 
-/**
- * The token row and its owner when the token may be used right now: it exists, has not expired, and its creator
- * is still an administrator. A demoted or deleted admin therefore takes their tokens down with them.
- */
+/** The token row when the token may be used right now: it exists and has not expired. */
 export async function findUsableApiToken(token: string) {
   const row = (await db.select().from(apiTokens).where(eq(apiTokens.tokenHash, hashApiToken(token))))[0]
   if (!row) return null
   const now = Date.now()
   if (row.expiresAt !== null && row.expiresAt <= now) return null
-  const owner = (await db.select().from(users).where(eq(users.id, row.userId)))[0]
-  if (!owner || normalizeRole(owner.role) !== 'admin') return null
   if (row.lastUsedAt === null || now - row.lastUsedAt >= LAST_USED_RESOLUTION_MS) {
     await db.update(apiTokens).set({ lastUsedAt: now }).where(eq(apiTokens.id, row.id))
   }
-  return { token: row, owner }
+  return row
 }
 
 const windows = new Map<number, { startedAt: number; count: number }>()

@@ -13,7 +13,6 @@ interface ApiToken {
   name: string
   prefix: string
   scopes: string[]
-  createdBy: string
   createdAt: number
   expiresAt: number | null
   lastUsedAt: number | null
@@ -137,7 +136,7 @@ export default function ApiTokensPage() {
 
       <p className="text-sm max-w-2xl" style={{ color: 'var(--m3-secondary)' }}>
         Tokens let scripts and CI call the admin API with <code className="font-mono">Authorization: Bearer &lt;token&gt;</code>.
-        A token has only the permissions you tick. It cannot manage users, single sign-on, status page access, vaults, backups or other tokens, and is deleted when the administrator who created it is removed or loses the Admin role.
+        A token has only the permissions you tick. It cannot manage users, single sign-on, status page access, vaults, backups or other tokens. It belongs to no user, so revoke the tokens of an administrator who leaves.
       </p>
 
       {showCreate && (
@@ -266,7 +265,7 @@ export default function ApiTokensPage() {
           <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-                {['Name', 'Token', 'Permissions', 'Created by', 'Expires', 'Last used', ''].map((h) => (
+                {['Name', 'Token', 'Permissions', 'Expires', 'Last used', ''].map((h) => (
                   <th
                     key={h}
                     className={`px-4 py-3 font-mono text-xs uppercase tracking-wider ${h === '' ? 'text-right' : 'text-left'}`}
@@ -291,7 +290,6 @@ export default function ApiTokensPage() {
                       ))}
                     </ul>
                   </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: 'var(--m3-secondary)' }}>{token.createdBy}</td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>{expiry(token)}</td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
                     {token.lastUsedAt === null ? 'Never' : formatDate(token.lastUsedAt)}

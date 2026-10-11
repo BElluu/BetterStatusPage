@@ -17,7 +17,7 @@ Create tokens in **Administration → API tokens** (administrators only). Click 
 | **Permissions** | What the token may do, [part by part](#permissions). At least one is required. The buttons **Report incidents**, **Deploy monitoring** and **Read only** fill in the usual sets. |
 | **Expires** | After 90 days unless you choose otherwise: 30 days, 1 year, or **Never expires**, which has to be chosen on purpose. |
 
-The full token is shown **once**, when you create it. Only a hash is stored, so a lost token cannot be recovered: revoke it and create a new one. The list shows the permissions of each token, the first characters of it, who created it, when it expires and when it was last used. The permissions of a token cannot be changed afterwards; create another token with the ones you want.
+The full token is shown **once**, when you create it. Only a hash is stored, so a lost token cannot be recovered: revoke it and create a new one. The list shows the permissions of each token, the first characters of it, when it expires and when it was last used. The permissions of a token cannot be changed afterwards; create another token with the ones you want.
 
 To revoke a token click the bin icon and confirm with **Revoke**. It stops working immediately, and so does any live event stream opened with it.
 
@@ -65,11 +65,11 @@ A token is meant for automation, so it never reaches account or credential manag
 
 These endpoints answer `403` to a token and need a signed-in administrator.
 
-A token also stops working, with `401`, when the administrator who created it is deleted or is no longer an Admin, and changing that user's role away from Admin deletes their tokens for good: promoting them again does not bring them back. Each token is limited to 300 requests per minute; beyond that the API answers `429` with a `Retry-After` header.
+A token belongs to no user: it keeps working when the administrator who created it is demoted or deleted, so revoke the tokens of someone who leaves. Each token is limited to 300 requests per minute; beyond that the API answers `429` with a `Retry-After` header.
 
 A [backup](backup-restore.md) contains the tokens as they were when it was taken. After restoring one, review **Administration → API tokens** and revoke any token that should no longer exist.
 
-Every change a token makes is recorded in the audit log (**Administration → Audit Log**) as `<creator email> (token: <token name>)`. Reading is not recorded.
+Every change a token makes is recorded in the audit log (**Administration → Audit Log**) as `token: <token name>`. Creating and revoking a token is recorded under the administrator who did it. Reading is not recorded.
 
 ### Handling tokens
 
@@ -102,7 +102,7 @@ Errors come back as JSON, `{ "error": "..." }`:
 | Status | Meaning |
 |---|---|
 | `400` | The request is not valid; `error` says what. For [configuration documents](configuration-as-code.md#documents-that-are-not-valid) the answer also lists every `problems` entry with its place. |
-| `401` | The token is missing, unknown, expired or revoked, or its creator is no longer an administrator. |
+| `401` | The token is missing, unknown, expired or revoked. |
 | `403` | The token does not have the permission the endpoint needs (the message names it), or the endpoint does not accept API tokens (`API tokens cannot call this endpoint`). |
 | `404` | There is no such object. |
 | `409` | The key is already used by another object, or an export cannot name a vault because another vault has the same name. |
