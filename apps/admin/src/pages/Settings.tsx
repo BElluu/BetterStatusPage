@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, clearSession, getCurrentUser, setSession, type AuthUser } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
-import { useStartTour } from '../components/Tour'
 import { CopyButton } from '../components/CopyButton'
 import { SsoConfirmationNote, isSsoSession, useSsoConfirmation } from '../components/SsoConfirmation'
 import { Alert, PageContainer, PageHeader } from '../components/ui'
@@ -16,7 +15,6 @@ interface TwoFactorSetup {
 }
 
 export default function SettingsPage() {
-  const startTour = useStartTour()
   const datePrefs = useDatePrefs()
   const navigate = useNavigate()
   const currentUser = getCurrentUser()
@@ -230,11 +228,6 @@ export default function SettingsPage() {
         <h2 className="font-headline font-semibold text-lg">Active sessions</h2>
         <p className="text-sm mt-1 mb-4" style={{ color: 'var(--m3-secondary)' }}>Sign out this browser and every other active session for your account.</p>
         <button type="button" disabled={loading} onClick={() => setConfirmLogoutAll(true)} className="btn btn-danger-outline">Sign out everywhere</button>
-      </section>
-      <section className="rounded-2xl p-6 max-w-5xl" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-        <h2 className="font-headline font-semibold text-lg">Admin tour</h2>
-        <p className="text-sm mt-1 mb-4" style={{ color: 'var(--m3-secondary)' }}>A short walk through the sidebar and the main pages of the admin console.</p>
-        <button type="button" disabled={!startTour} onClick={startTour} className="btn btn-secondary">Replay the tour</button>
       </section>
       {confirmLogoutAll && (
         <ConfirmModal

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { api, ApiError } from '../api/client'
 import { Alert, PageContainer, PageHeader, useToast } from '../components/ui'
 
@@ -84,7 +85,15 @@ function Summary({ result }: { result: ImportResult }) {
   return <p className="text-sm" style={{ color: 'var(--m3-on-surface)' }}>{parts.length ? parts.join(' · ') : 'There is nothing in it.'}</p>
 }
 
+/** The pages that link here pass where they came from, so Back returns there; opening the URL directly goes to Monitors. */
+const ORIGINS = {
+  monitors: { to: '/admin/monitors', label: 'Monitors' },
+  notifications: { to: '/admin/notifications', label: 'Notifications' },
+} as const
+
 export default function ImportPage() {
+  const from: unknown = (useLocation().state as { from?: unknown } | null)?.from
+  const origin = from === 'notifications' ? ORIGINS.notifications : ORIGINS.monitors
   const toast = useToast()
   const [text, setText] = useState('')
   const [checking, setChecking] = useState(false)
@@ -177,6 +186,10 @@ export default function ImportPage() {
 
   return (
     <PageContainer>
+      <Link to={origin.to} className="-mb-3 inline-flex items-center gap-1 text-xs focus-ring rounded" style={{ color: 'var(--m3-secondary)' }}>
+        <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 16 }}>arrow_back</span>
+        {origin.label}
+      </Link>
       <PageHeader title="Import" subtitle="Create or update monitors and notification channels from YAML" />
 
       <section className="rounded-2xl p-5 space-y-4" style={CARD} aria-labelledby="import-heading">

@@ -1,7 +1,7 @@
 import changelogSource from '../../../../docs/changelog.md?raw'
 import packageMetadata from '../../package.json'
 import { parseChangelog, releasesBetween, summarizeRelease, type ReleaseItem, type ReleaseNotes } from '../lib/changelog'
-import { DOCS_URL } from './Tour'
+import { DOCS_URL } from '../navigation'
 import { ModalHeader, ModalShell } from './ModalShell'
 
 const CURRENT_VERSION = packageMetadata.version

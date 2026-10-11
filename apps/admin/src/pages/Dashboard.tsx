@@ -215,7 +215,8 @@ export default function DashboardPage() {
           <EmptyState
             icon="radio_button_checked"
             title="No monitors yet"
-            description="Add a monitor to start tracking uptime."
+            description="Add your first monitor to start tracking uptime and show it on your status page."
+            action={<Link to="/admin/monitors" className="btn btn-primary">Add your first monitor</Link>}
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

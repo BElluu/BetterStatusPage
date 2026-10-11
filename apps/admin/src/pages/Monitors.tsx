@@ -141,12 +141,16 @@ export default function MonitorsPage() {
       <PageHeader
         title="Monitors"
         subtitle={isPending || isError ? undefined : `${monitors.length} monitor${monitors.length !== 1 ? 's' : ''} · Live`}
-        actions={
+        actions={<>
+          <Link to="/admin/import" state={{ from: 'monitors' }} className="btn btn-secondary">
+            <span className="material-symbols-outlined" aria-hidden="true">upload_file</span>
+            Import YAML
+          </Link>
           <button type="button" onClick={() => openCreate()} className="btn btn-primary">
             <span className="material-symbols-outlined" aria-hidden="true">add_circle</span>
             Add Monitor
           </button>
-        }
+        </>}
       />
 
       {/* Tag filter bar */}

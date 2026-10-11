@@ -9,3 +9,5 @@ export const navigation = {
 export function statusPageUrl(): string {
   return window.location.port === '5173' ? `${window.location.protocol}//${window.location.hostname}:5174/` : '/'
 }
+
+export const DOCS_URL = 'https://docs.betterstatuspage.dev'

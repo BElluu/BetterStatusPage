@@ -3,8 +3,7 @@ import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-do
 import { api, clearSession, getCurrentUser } from '../api/client'
 import { useDarkMode } from '../hooks/useDarkMode'
 import { useDatePrefs } from '../lib/dateFormat'
-import { statusPageUrl } from '../navigation'
-import { DOCS_URL, Tour, isTourDone, markTourDone, type TourControl } from './Tour'
+import { DOCS_URL, statusPageUrl } from '../navigation'
 import { WhatsNew, markWhatsNewSeen, pendingWhatsNew } from './WhatsNew'
 
 // role hierarchy: admin > operator > branding
@@ -22,18 +21,22 @@ const ALL_SECTIONS: NavSection[] = [
       { to: '/admin/incidents',   label: 'Incidents',    icon: 'warning',              minRole: 'operator' },
       { to: '/admin/maintenance', label: 'Maintenance',  icon: 'construction',         minRole: 'operator' },
       { to: '/admin/reports',     label: 'Reports',      icon: 'assessment',           minRole: 'operator' },
+    ],
+  },
+  {
+    label: 'Alerts',
+    items: [
+      { to: '/admin/notifications',    label: 'Notifications',    icon: 'notifications', minRole: 'operator' },
       { to: '/admin/delivery-history', label: 'Delivery history', icon: 'history',       minRole: 'operator' },
     ],
   },
   {
-    label: 'Configure',
+    label: 'Status page',
     items: [
-      { to: '/admin/notifications', label: 'Notifications', icon: 'notifications',       minRole: 'operator' },
-      { to: '/admin/subscribers',   label: 'Subscribers',   icon: 'campaign',            minRole: 'operator' },
-      { to: '/admin/import',        label: 'Import',        icon: 'upload_file',         minRole: 'operator' },
-      { to: '/admin/builder',       label: 'Page Builder',  icon: 'dashboard_customize', minRole: 'branding' },
-      { to: '/admin/branding',      label: 'Branding',      icon: 'palette',             minRole: 'branding' },
-      { to: '/admin/localization',  label: 'Localization',  icon: 'translate',           minRole: 'branding' },
+      { to: '/admin/builder',      label: 'Page Builder', icon: 'dashboard_customize', minRole: 'branding' },
+      { to: '/admin/branding',     label: 'Branding',     icon: 'palette',             minRole: 'branding' },
+      { to: '/admin/localization', label: 'Localization', icon: 'translate',           minRole: 'branding' },
+      { to: '/admin/subscribers',  label: 'Subscribers',  icon: 'campaign',            minRole: 'operator' },
     ],
   },
   {
@@ -89,7 +92,7 @@ function NavContent({ sections, isDark, onToggleDark, onLogout }: NavContentProp
             </p>
             <div className="space-y-0.5">
               {section.items.map((item) => (
-                <NavLink key={item.to} to={item.to} end={item.to === '/admin/'} data-tour={item.to} className="admin-nav-item">
+                <NavLink key={item.to} to={item.to} end={item.to === '/admin/'} className="admin-nav-item">
                   {({ isActive }) => (
                     <>
                       <span
@@ -114,13 +117,13 @@ function NavContent({ sections, isDark, onToggleDark, onLogout }: NavContentProp
           <span className="font-sans">Status page</span>
         </a>
 
-        <a href={DOCS_URL} target="_blank" rel="noopener" data-tour="docs" className="admin-nav-item">
+        <a href={DOCS_URL} target="_blank" rel="noopener" className="admin-nav-item">
           <span aria-hidden="true" className="material-symbols-outlined flex-shrink-0" style={ICON_STYLE}>menu_book</span>
           <span className="font-sans">Documentation</span>
         </a>
 
 
-        <Link to="/admin/settings" data-tour="/admin/settings" className="admin-nav-item">
+        <Link to="/admin/settings" className="admin-nav-item">
           <span aria-hidden="true" className="material-symbols-outlined flex-shrink-0" style={ICON_STYLE}>manage_accounts</span>
           <span className="font-sans">Settings</span>
         </Link>
@@ -204,19 +207,11 @@ export default function Layout() {
     .filter((section) => section.items.length > 0)
 
   const userId = currentUser?.userId
-  const [tourOpen, setTourOpen] = useState(() => userId !== undefined && !isTourDone(userId))
-  const closeTour = useCallback(() => {
-    setTourOpen(false)
-    if (userId !== undefined) { markTourDone(userId); markWhatsNewSeen(userId) }
-  }, [userId])
-  const [whatsNew, setWhatsNew] = useState(() => userId !== undefined && isTourDone(userId) ? pendingWhatsNew(userId) : [])
+  const [whatsNew, setWhatsNew] = useState(() => userId !== undefined ? pendingWhatsNew(userId) : [])
   const closeWhatsNew = useCallback(() => {
     setWhatsNew([])
     if (userId !== undefined) markWhatsNewSeen(userId)
   }, [userId])
-  const openDrawer = useCallback(() => setDrawerPath(location.pathname), [location.pathname])
-  const tourControl: TourControl = { startTour: () => setTourOpen(true) }
-  const allowedPaths = new Set(navSections.flatMap((section) => section.items.map((item) => item.to)))
 
   async function handleLogout() {
     try { await api.post('/auth/logout') } catch { /* local logout still proceeds */ }
@@ -247,8 +242,7 @@ export default function Layout() {
         </button>
       </header>
 
-      {tourOpen && <Tour allowedPaths={allowedPaths} openDrawer={openDrawer} onClose={closeTour} />}
-      {!tourOpen && whatsNew.length > 0 && <WhatsNew releases={whatsNew} onClose={closeWhatsNew} />}
+      {whatsNew.length > 0 && <WhatsNew releases={whatsNew} onClose={closeWhatsNew} />}
 
       {drawerOpen && <MobileDrawer {...nav} onClose={closeDrawer} returnFocusRef={menuButtonRef} />}
 
@@ -266,7 +260,7 @@ export default function Layout() {
       {/* Main */}
       <main className="flex-1 min-h-0 min-w-0 overflow-auto" style={{ background: 'var(--m3-surface-container-low)' }}>
         {/* Remount the page when the date format changes so every formatted date is recomputed. */}
-        <Fragment key={`${datePrefs.date}-${datePrefs.time}`}><Outlet context={tourControl} /></Fragment>
+        <Fragment key={`${datePrefs.date}-${datePrefs.time}`}><Outlet /></Fragment>
       </main>
     </div>
   )

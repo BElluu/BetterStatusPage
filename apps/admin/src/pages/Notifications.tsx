@@ -72,6 +72,10 @@ export default function NotificationsPage() {
             <span className="material-symbols-outlined" aria-hidden="true">forward_to_inbox</span>
             SMTP Settings
           </button>
+          <Link to="/admin/import" state={{ from: 'notifications' }} className="btn btn-secondary">
+            <span className="material-symbols-outlined" aria-hidden="true">upload_file</span>
+            Import YAML
+          </Link>
           <button type="button" onClick={() => openCreate()} className="btn btn-primary">
             <span className="material-symbols-outlined" aria-hidden="true">add</span>
             Add Channel

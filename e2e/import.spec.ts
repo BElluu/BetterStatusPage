@@ -76,15 +76,14 @@ test('a monitor shows itself as YAML, and the YAML is what the import reads', as
   await expect(page.getByText(/already matches this/)).toBeVisible()
 })
 
-test('an operator sees Import, a branding user does not and cannot open it', async ({ browser }) => {
+test('an operator can open Import from Monitors, a branding user cannot open it', async ({ browser }) => {
   const operator = await pageAs(browser, 'operator')
   await operator.goto(`${ADMIN_URL}/monitors`)
-  await expect(operator.getByRole('link', { name: /Import/ })).toBeVisible()
+  await operator.getByRole('link', { name: 'Import YAML' }).click()
+  await expect(operator).toHaveURL(/\/import$/)
   await operator.context().close()
 
   const branding = await pageAs(browser, 'branding')
-  await branding.goto(`${ADMIN_URL}/builder`)
-  await expect(branding.getByRole('link', { name: /Import/ })).toHaveCount(0)
   await branding.goto(`${ADMIN_URL}/import`)
   await expect(branding).not.toHaveURL(/\/import$/)
   await branding.context().close()

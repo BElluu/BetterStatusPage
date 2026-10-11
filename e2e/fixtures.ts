@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { test as base, expect, request as playwrightRequest, type APIRequestContext, type Browser, type BrowserContext, type Page } from '@playwright/test'
+import { test as base, expect, request as playwrightRequest, type APIRequestContext, type Browser, type Page } from '@playwright/test'
 
 export const ADMIN_URL = 'http://127.0.0.1:5173/admin'
 export const STATUS_URL = 'http://127.0.0.1:5174'
@@ -23,7 +23,6 @@ export async function pageAs(browser: Browser, role: Role): Promise<Page> {
   const context = await browser.newContext({ storageState: stateFile(role) })
   const user = readFileSync(sessionFile(role), 'utf8')
   await context.addInitScript((value) => { window.sessionStorage.setItem('bsp-auth-user', value) }, user)
-  await skipTour(context)
   return context.newPage()
 }
 
@@ -102,9 +101,3 @@ export const test = base.extend<{ adminPage: Page; adminApi: APIRequestContext }
 
 export { expect }
 
-/** Marks the admin tour as seen for every user id, so it never covers the page under test. */
-export async function skipTour(context: BrowserContext): Promise<void> {
-  await context.addInitScript(() => {
-    for (let id = 1; id < 100; id++) window.localStorage.setItem(`bsp-tour-done-${id}`, '1')
-  })
-}

@@ -94,7 +94,7 @@ Resetting another user's 2FA, turning your own 2FA on or off, changing your pass
 
 ## Your own account
 
-**Settings** (the link at the bottom of the sidebar) is available to admins, operators and the branding role. It has five sections.
+**Settings** (the link at the bottom of the sidebar) is available to admins, operators and the branding role. It has four sections.
 
 ### Change your password
 
@@ -122,16 +122,14 @@ Password sign-in, the authentication-code step and the SSO endpoints accept at m
 
 To make sure an SSO-only setup cannot lock everyone out, see [Password sign-in and lockout protection](single-sign-on.md#password-sign-in-and-lockout-protection).
 
-### Tour and documentation link
+### Documentation link and What's new
 
 > [!WARNING]
 > **Not released yet.** This feature is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
-The first time a user signs in to the admin console in a browser, a short tour walks through the sidebar, limited to the pages their role can open. Each step lights up one sidebar item and dims the rest; clicking the lit item opens its page and moves on (**Next** moves on without opening it). **Skip tour** or Esc ends it at any step. **Settings → Admin tour → Replay the tour** starts it again. Whether the tour was seen is remembered per user in that browser, so a new browser shows it once more.
-
 The **Documentation** link in the sidebar opens [docs.betterstatuspage.dev](https://docs.betterstatuspage.dev) in a new tab.
 
-After an update, the first sign-in of each user shows **What's new**: for every release since the one that user last saw, the newest release in three collapsible sections, **New**, **Changed** and **Fixes**, each entry with its title and first sentence. **New** is open; opening one section closes the others, so the dialog stays small. Earlier releases are summarised in one line. A **Full changelog** button opens the [changelog](changelog.md) for the details. The notes are built into the admin console, so nothing is fetched. A new user sees the tour instead, and the first visit after this feature arrives only records the current version. As with the tour, this is remembered per user in that browser.
+After an update, the first sign-in of each user shows **What's new**: the newest release since the one that user last saw in three collapsible sections, **New**, **Changed** and **Fixes**, each entry with its title and first sentence. **New** is open; opening one section closes the others, so the dialog stays small. Earlier releases are summarised in one line. A **Full changelog** button opens the [changelog](changelog.md) for the details. The notes are built into the admin console, so nothing is fetched. A user who has never seen it only has the current version recorded, so a new account starts with nothing to read. This is remembered per user in that browser.
 
 ## Two-factor authentication
 

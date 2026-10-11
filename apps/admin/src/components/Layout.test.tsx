@@ -18,6 +18,7 @@ function renderLayout(path = '/admin/monitors') {
         <Route path="/admin/*" element={<Layout />}>
           <Route path="monitors" element={<p>Monitors page</p>} />
           <Route path="incidents" element={<p>Incidents page</p>} />
+          <Route path="users" element={<p>Users page</p>} />
         </Route>
         <Route path="/admin/login" element={<p>Login page</p>} />
       </Routes>
@@ -30,7 +31,6 @@ describe('Layout', () => {
 
   beforeEach(() => {
     localStorage.setItem('bsp-dark-mode', 'false')
-    localStorage.setItem('bsp-tour-done-1', '1')
     localStorage.removeItem('bsp-whatsnew-seen-1')
     vi.mocked(getCurrentUser).mockReturnValue({ userId: 1, email: 'op@example.test', role: 'operator', mustChangePassword: false, twoFactorEnabled: false })
     vi.mocked(api.post).mockResolvedValue({})
@@ -99,44 +99,6 @@ describe('Layout', () => {
     expect(screen.getAllByRole('link', { name: 'Documentation' })[0]).toHaveAttribute('href', 'https://docs.betterstatuspage.dev')
   })
 
-  it('tours a new user through the sidebar, advancing when they click the lit item, and remembers a skip', async () => {
-    localStorage.removeItem('bsp-tour-done-1')
-    vi.spyOn(Element.prototype, 'getClientRects').mockImplementation(() => [{}] as unknown as DOMRectList)
-    const user = userEvent.setup()
-    const { unmount } = renderLayout()
-    const tour = screen.getByRole('dialog', { name: 'Admin console tour' })
-    expect(within(tour).getByText('Step 1 of 11')).toBeInTheDocument()
-
-    await user.click(within(tour).getByRole('button', { name: 'Start' }))
-    expect(within(tour).getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
-    expect(await screen.findByTestId('tour-spotlight')).toBeInTheDocument()
-
-    const sidebar = screen.getByRole('navigation', { name: 'Main' })
-    await user.click(within(sidebar).getByRole('link', { name: /Dashboard/ }))
-    expect(within(tour).getByRole('heading', { name: 'Monitors' })).toBeInTheDocument()
-    await user.click(within(sidebar).getByRole('link', { name: /Monitors/ }))
-    expect(within(tour).getByRole('heading', { name: 'Incidents' })).toBeInTheDocument()
-
-    await user.click(within(tour).getByRole('button', { name: 'Skip tour' }))
-    expect(screen.queryByRole('dialog', { name: 'Admin console tour' })).not.toBeInTheDocument()
-    expect(localStorage.getItem('bsp-tour-done-1')).toBe('1')
-
-    unmount()
-    renderLayout()
-    expect(screen.queryByRole('dialog', { name: 'Admin console tour' })).not.toBeInTheDocument()
-  })
-
-  it('opens the mobile drawer when the lit item is not on screen', async () => {
-    localStorage.removeItem('bsp-tour-done-1')
-    vi.spyOn(Element.prototype, 'getClientRects').mockImplementation(function (this: Element) {
-      return (this.closest('#admin-nav-drawer') ? [{}] : []) as unknown as DOMRectList
-    })
-    const user = userEvent.setup()
-    renderLayout()
-    await user.click(within(screen.getByRole('dialog', { name: 'Admin console tour' })).getByRole('button', { name: 'Start' }))
-    expect(await screen.findByRole('dialog', { name: 'Navigation' })).toBeInTheDocument()
-  })
-
   it("shows what's new once to a user who last saw an older version", async () => {
     localStorage.setItem('bsp-whatsnew-seen-1', '0.0.1')
     const user = userEvent.setup()
@@ -154,5 +116,15 @@ describe('Layout', () => {
     renderLayout()
     expect(screen.queryByRole('dialog', { name: "What's new" })).not.toBeInTheDocument()
     expect(localStorage.getItem('bsp-whatsnew-seen-1')).not.toBeNull()
+  })
+
+  it('groups the pages by purpose for an administrator', () => {
+    vi.mocked(getCurrentUser).mockReturnValue({ userId: 1, email: 'admin@example.test', role: 'admin', mustChangePassword: false, twoFactorEnabled: false })
+    renderLayout('/admin/users')
+    const sidebar = screen.getByRole('navigation', { name: 'Main' })
+    for (const label of ['Monitoring', 'Alerts', 'Status page', 'Administration']) expect(within(sidebar).getByText(label)).toBeInTheDocument()
+    expect(within(sidebar).getByRole('link', { name: /Backups/ })).toBeInTheDocument()
+    expect(within(sidebar).getByRole('link', { name: /Users/ })).toHaveAttribute('aria-current', 'page')
+    expect(within(sidebar).queryByRole('link', { name: /Import/ })).not.toBeInTheDocument()
   })
 })

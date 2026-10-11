@@ -10,7 +10,7 @@ Every document says what it describes in its `kind`: `Monitor` or `NotificationC
 | Where | What it does |
 |---|---|
 | **YAML** button on a monitor or a notification channel | Shows that one object as a document, to copy or download. Read only. |
-| **Import** in the left menu (Configure) | Takes pasted or uploaded documents, shows what they would change, and creates or updates the objects when you apply them. |
+| **Import YAML** button on the Monitors and Notifications pages | Takes pasted or uploaded documents, shows what they would change, and creates or updates the objects when you apply them. |
 | [The API](api.md) | `GET /config/export` writes the documents, `POST /config/validate` and `POST /config/apply` read them, for scripts and pipelines. |
 
 **Who may use it.** The Operator role (and administrators), the same as for editing monitors and notification channels in the panel. An [API token](api.md#permissions) needs the permission of each kind in the file: `monitors` or `channels`, read to export and write to import, and `vault:use` besides to add a vault reference or change a monitor or channel that has one.
@@ -27,7 +27,7 @@ The view shows what is saved, not what you have typed into an open form.
 
 ### Importing
 
-Under **Configure → Import**, paste one or more documents into the box, or **Choose file** (YAML, up to 2 MB). The text is checked a moment after you stop typing, and nothing is written yet: the page lists what applying it would create and update, and for an update which settings differ, never their values. Text with mistakes shows its problems with their place instead, and cannot be applied.
+Click **Import YAML** on **Monitors** or **Notifications**, then paste one or more documents into the box, or **Choose file** (YAML, up to 2 MB). The text is checked a moment after you stop typing, and nothing is written yet: the page lists what applying it would create and update, and for an update which settings differ, never their values. Text with mistakes shows its problems with their place instead, and cannot be applied.
 
 **Apply changes** carries it out, completely or not at all. Nothing is ever deleted by an import. Open the YAML of an existing object, change it, and paste it back to edit; paste a new document with a new `key` to add one.
 

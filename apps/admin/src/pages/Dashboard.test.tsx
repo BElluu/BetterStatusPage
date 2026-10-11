@@ -86,7 +86,8 @@ describe('DashboardPage', () => {
     renderPage()
 
     expect(await screen.findByRole('heading', { name: 'No Monitors Yet' })).toBeInTheDocument()
-    expect(screen.getByText('Add a monitor to start tracking uptime.')).toBeInTheDocument()
+    expect(screen.getByText('Add your first monitor to start tracking uptime and show it on your status page.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Add your first monitor' })).toHaveAttribute('href', '/admin/monitors')
     expect(await screen.findByText('No active issues.')).toBeInTheDocument()
     expect(screen.getByText('—')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Recent Activity' })).not.toBeInTheDocument()

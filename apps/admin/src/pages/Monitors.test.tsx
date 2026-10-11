@@ -83,6 +83,7 @@ describe('MonitorsPage', () => {
 
     expect(await screen.findByText('Checkout API')).toBeInTheDocument()
     expect(screen.getByText('3 monitors · Live')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Import YAML' })).toHaveAttribute('href', '/admin/import')
     expect(names()).toEqual(['billing db', 'Checkout API', 'Deploy hook'])
     // Webhook monitors are push-based and cannot be checked on demand.
     expect(screen.getAllByTitle('Check now')).toHaveLength(2)
