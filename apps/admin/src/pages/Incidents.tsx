@@ -4,7 +4,7 @@ import { api } from '../api/client'
 import type { Incident, Monitor } from '@bsp/shared'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { NotifySubscribersCheckbox } from '../components/subscribers/NotifySubscribersCheckbox'
-import { Modal } from '../components/ModalShell'
+import { Modal, ModalFooter } from '../components/ModalShell'
 import { Alert, EmptyState, ErrorState, Field, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
 import { formatDate, formatDateTime } from '../lib/dateFormat'
 
@@ -336,8 +336,9 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
   }
 
   return (
-    <Modal title="New Incident" icon="warning" onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <Modal title="New Incident" icon="warning" onClose={onClose} flush>
+      <form onSubmit={handleSubmit}>
+        <div className="p-6 space-y-4">
         <Field label="Title" required>
           <input
             value={title}
@@ -396,15 +397,16 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
         <NotifySubscribersCheckbox checked={notifySubscribers} onChange={setNotifySubscribers} />
 
         {error && <Alert tone="error">{error}</Alert>}
+        </div>
 
-        <div className="flex justify-end gap-3 pt-2">
+        <ModalFooter>
           <button type="button" onClick={onClose} className="btn btn-secondary">
             Cancel
           </button>
           <button type="submit" disabled={loading} className="btn btn-primary">
             {loading ? 'Creating…' : 'Create Incident'}
           </button>
-        </div>
+        </ModalFooter>
       </form>
     </Modal>
   )

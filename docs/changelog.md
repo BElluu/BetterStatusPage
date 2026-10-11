@@ -30,6 +30,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ### Changed
 
+- **Database credentials moved to a side tab**: for a Database monitor, the user and password (or the Vault secret holding the connection string) are now on a **Credentials** tab beside the form, like **Auth** for an HTTP(S) monitor. It opens by itself when you choose the Database type, shows ✓ when credentials are set and ! when they are missing, and a database monitor can no longer be saved without them. See [Database monitors](monitors.md).
+
 - **Admin menu regrouped**: the sidebar now has **Monitoring**, **Alerts** (**Notifications** and **Delivery history**), **Status page** (**Page Builder**, **Branding**, **Localization**, **Subscribers**) and **Administration**. Import has no menu entry any more: **Monitors** and **Notifications** have an **Import YAML** button instead.
 
 - **Saved secrets are masked everywhere**: a monitor's password, OAuth2 client secret, database password and credential headers, and a channel's Slack, Discord or Teams webhook URL, webhook credential headers and Telegram bot token now read back as `••••••••` in the form and in the API. Leave a field untouched to keep the stored value, or enter a new one. The **Test** button of a saved monitor uses the stored secrets. A stored secret is only kept while it is sent to the same place: changing a monitor's URL, token URL, CAS server, database host or port, or a webhook channel's URL asks you to enter the secrets again. See [Saved secrets](monitors.md#saved-secrets).

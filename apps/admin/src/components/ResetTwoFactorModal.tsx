@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { ModalShell } from './ModalShell'
+import { ModalFooter, ModalHeader, ModalShell } from './ModalShell'
 import { SsoConfirmationNote, isSsoSession, type SsoConfirmationState } from './SsoConfirmation'
 import { Alert } from './ui'
 
@@ -31,12 +31,13 @@ export function ResetTwoFactorModal({ email, pending, error, ssoConfirmation = I
         aria-modal="true"
         aria-labelledby={titleId}
         aria-busy={pending || undefined}
-        className="rounded-2xl p-6 w-full max-w-md space-y-4"
-        style={{ background: 'var(--m3-surface-container-lowest)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
+        className="rounded-2xl w-full max-w-md"
+        style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}
       >
+        <ModalHeader icon="shield_lock" titleId={titleId} title="Reset two-factor authentication" onClose={pending ? () => {} : onCancel} />
+        <div className="p-6 space-y-4">
         <div>
-          <h3 id={titleId} className="font-headline text-lg font-bold" style={{ color: 'var(--m3-on-surface)' }}>Reset two-factor authentication</h3>
-          <p className="text-sm mt-2" style={{ color: 'var(--m3-on-surface-variant)' }}>
+          <p className="text-sm" style={{ color: 'var(--m3-on-surface-variant)' }}>
             This removes 2FA from <strong>{email}</strong> and signs out all of their active sessions. Their password will not change.
           </p>
         </div>
@@ -60,12 +61,13 @@ export function ResetTwoFactorModal({ email, pending, error, ssoConfirmation = I
           <input value={typedEmail} onChange={(event) => setTypedEmail(event.target.value)} autoFocus={sso} autoComplete="off" spellCheck={false} className="input-sig w-full" />
         </label>
 
-        <div className="flex flex-wrap justify-end gap-2 pt-2">
-          <button type="button" onClick={onCancel} disabled={pending} className="btn btn-secondary rounded-full px-5 py-2">Cancel</button>
-          <button type="button" onClick={confirm} disabled={!canConfirm} className="btn btn-danger-outline rounded-full px-5 py-2">
+        </div>
+        <ModalFooter>
+          <button type="button" onClick={onCancel} disabled={pending} className="btn btn-secondary">Cancel</button>
+          <button type="button" onClick={confirm} disabled={!canConfirm} className="btn btn-danger-outline">
             {pending ? 'Resetting…' : 'Reset 2FA'}
           </button>
-        </div>
+        </ModalFooter>
       </div>
     </ModalShell>
   )

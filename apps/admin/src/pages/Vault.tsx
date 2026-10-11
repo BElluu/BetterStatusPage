@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { CopyButton } from '../components/CopyButton'
-import { Modal, ModalHeader, ModalShell } from '../components/ModalShell'
+import { Modal, ModalFooter, ModalHeader, ModalShell } from '../components/ModalShell'
 import { SidePanelFrame, SideTabStrip, type SidePanelMeta } from '../components/SidePanel'
 import { VAULT_TYPE_ICONS, VaultTypePicker, isReferenceVault, type VaultTypeValue } from '../components/VaultTypePicker'
 import { Alert, EmptyState, EmptyStateLink, ErrorState, Field, LoadingState, useToast } from '../components/ui'
@@ -453,21 +453,14 @@ function DeleteVaultModal({ vault, secretCount, pending, onClose, onConfirm }: {
         aria-modal="true"
         aria-label="Delete vault"
         aria-busy={pending || undefined}
-        className="rounded-2xl p-6 w-full max-w-sm space-y-4"
-        style={{ background: 'var(--m3-surface-container-lowest)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
+        className="rounded-2xl w-full max-w-sm"
+        style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}
       >
-        <div className="flex items-start gap-3">
-          <span className="material-symbols-outlined mt-0.5 shrink-0" aria-hidden="true" style={{ fontSize: '22px', color: 'var(--m3-error)' }}>warning</span>
-          <div>
-            <h3 className="font-headline text-lg font-bold" style={{ color: 'var(--m3-on-surface)' }}>
-              Delete vault
-            </h3>
-            <p className="text-sm mt-1" style={{ color: 'var(--m3-on-surface-variant)' }}>
-              You are about to delete <span className="font-semibold" style={{ color: 'var(--m3-on-surface)' }}>{vault.name}</span>.
-            </p>
-          </div>
-        </div>
-
+        <ModalHeader icon="warning" title="Delete vault" onClose={pending ? () => {} : onClose} />
+        <div className="p-6 space-y-4">
+        <p className="text-sm" style={{ color: 'var(--m3-on-surface-variant)' }}>
+          You are about to delete <span className="font-semibold" style={{ color: 'var(--m3-on-surface)' }}>{vault.name}</span>.
+        </p>
         {hasSecrets && (
           <div className="rounded-xl px-4 py-3 space-y-3" style={{ background: 'var(--m3-error-container)' }}>
             <p className="text-sm font-medium" style={{ color: 'var(--m3-on-error-container)' }}>
@@ -494,19 +487,20 @@ function DeleteVaultModal({ vault, secretCount, pending, onClose, onConfirm }: {
           </div>
         )}
 
-        <div className="flex flex-wrap justify-end gap-2 pt-1">
-          <button type="button" onClick={onClose} disabled={pending} className="btn btn-secondary rounded-full px-5 py-2">
+        </div>
+        <ModalFooter>
+          <button type="button" onClick={onClose} disabled={pending} className="btn btn-secondary">
             Cancel
           </button>
           <button
             type="button"
             onClick={onConfirm}
             disabled={pending || (hasSecrets && !confirmed)}
-            className="btn btn-danger rounded-full px-5 py-2"
+            className="btn btn-danger"
           >
             {pending ? 'Deleting…' : 'Delete vault'}
           </button>
-        </div>
+        </ModalFooter>
       </div>
     </ModalShell>
   )
@@ -550,6 +544,7 @@ function CreateVaultModal({ vaults, onClose, onCreated }: { vaults: Vault[]; onC
       onClose={onClose}
       onSubmit={handleSubmit}
       advanced={hashicorp ? { connection, onChange: setConnection } : null}
+      footer={<ModalActions onClose={onClose} loading={loading} submitLabel="Create Vault" test={hashicorp ? test : undefined} />}
     >
       {error && <Alert tone="error">{error}</Alert>}
       <Field label="Vault name" required>
@@ -561,7 +556,6 @@ function CreateVaultModal({ vaults, onClose, onCreated }: { vaults: Vault[]; onC
       <VaultTypePicker value={type} onChange={setType} />
       {hashicorp && <ConnectionFields value={connection} onChange={setConnection} pickers={pickers} />}
       {hashicorp && test.result && <Alert tone={test.result.ok ? 'success' : 'error'}>{test.result.text}</Alert>}
-      <ModalActions onClose={onClose} loading={loading} submitLabel="Create Vault" test={hashicorp ? test : undefined} />
     </ConnectionDialog>
   )
 }
@@ -618,8 +612,9 @@ function CreateSecretModal({ vaultId, vaultType, onClose, onCreated }: { vaultId
   ]
 
   return (
-    <Modal title={isReference ? 'Add Secret Reference' : 'New Secret'} icon={isReference ? 'link' : 'key'} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <Modal title={isReference ? 'Add Secret Reference' : 'New Secret'} icon={isReference ? 'link' : 'key'} onClose={onClose} flush>
+      <form onSubmit={handleSubmit}>
+        <div className="p-6 space-y-4">
         {error && <Alert tone="error">{error}</Alert>}
         {isReference && <Alert tone="info">This only points at a secret that already exists in HashiCorp Vault. BetterStatusPage reads it when needed and never creates, changes or deletes anything there.</Alert>}
         <Field label={isReference ? 'Reference name' : 'Secret name'} required>
@@ -686,6 +681,7 @@ function CreateSecretModal({ vaultId, vaultType, onClose, onCreated }: { vaultId
           </Field>
         )}
 
+        </div>
         <ModalActions onClose={onClose} loading={loading} submitLabel={isReference ? 'Save Reference' : 'Save Secret'} />
       </form>
     </Modal>
@@ -799,12 +795,14 @@ function advancedCount(c: ConnectionForm): number {
  * A modal form with the connection options in a collapsible side panel, as in the monitor form.
  * Without `advanced` (a local vault) it is a plain narrow dialog with no tab strip.
  */
-function ConnectionDialog({ title, icon, onClose, onSubmit, advanced, children }: {
+function ConnectionDialog({ title, icon, onClose, onSubmit, advanced, footer, children }: {
   title: string
   icon: string
   onClose: () => void
   onSubmit: (e: React.FormEvent) => void
   advanced: { connection: ConnectionForm; onChange: (v: ConnectionForm) => void } | null
+  /** The `ModalActions` row; it sits under the scrolling body so it stays in view. */
+  footer: React.ReactNode
   children: React.ReactNode
 }) {
   const hasAdvanced = advanced !== null
@@ -826,7 +824,10 @@ function ConnectionDialog({ title, icon, onClose, onSubmit, advanced, children }
       >
         <div className={`flex-none min-w-0 w-full ${showPanel ? 'lg:w-[460px]' : advanced ? 'lg:w-[calc(100%-44px)]' : 'lg:w-full'}`}>
           <ModalHeader icon={icon} title={title} onClose={onClose} />
-          <form onSubmit={onSubmit} className="p-6 space-y-4">{children}</form>
+          <form onSubmit={onSubmit}>
+            <div className="p-6 space-y-4">{children}</div>
+            {footer}
+          </form>
         </div>
         {showPanel && (
           <SidePanelFrame meta={ADVANCED_META} layout="responsive">
@@ -896,11 +897,10 @@ function ConnectionSettingsModal({ vaultId, vaults, onClose, onSaved }: { vaultI
     )
   }
   return (
-    <ConnectionDialog title="Connection settings" icon="settings" onClose={onClose} onSubmit={handleSubmit} advanced={{ connection: current, onChange: change }}>
+    <ConnectionDialog title="Connection settings" icon="settings" onClose={onClose} onSubmit={handleSubmit} advanced={{ connection: current, onChange: change }} footer={<ModalActions onClose={onClose} loading={loading} submitLabel="Save" test={test} />}>
       {error && <Alert tone="error">{error}</Alert>}
       <ConnectionFields value={current} onChange={change} pickers={pickers} keepHint={hasSavedDirect} />
       {test.result && <Alert tone={test.result.ok ? 'success' : 'error'}>{test.result.text}</Alert>}
-      <ModalActions onClose={onClose} loading={loading} submitLabel="Save" test={test} />
     </ConnectionDialog>
   )
 }
@@ -921,8 +921,8 @@ function RevealModal({ secret, onClose }: { secret: RevealedSecret; onClose: () 
   const json = secret.type === 'json' ? formatJson(secret.value.value ?? '{}') : null
 
   return (
-    <Modal title={secret.name} icon={TYPE_ICONS[secret.type] ?? 'key'} onClose={onClose}>
-      <div className="space-y-3">
+    <Modal title={secret.name} icon={TYPE_ICONS[secret.type] ?? 'key'} onClose={onClose} flush>
+      <div className="p-6 space-y-3">
         <div className="flex items-center gap-2">
           <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-secondary)' }}>
             {TYPE_LABELS[secret.type]}
@@ -965,12 +965,12 @@ function RevealModal({ secret, onClose }: { secret: RevealedSecret; onClose: () 
           </div>
         )}
 
-        <div className="pt-2 flex justify-end">
-          <button type="button" onClick={onClose} className="btn btn-secondary">
-            Close
-          </button>
-        </div>
       </div>
+      <ModalFooter>
+        <button type="button" onClick={onClose} className="btn btn-secondary">
+          Close
+        </button>
+      </ModalFooter>
     </Modal>
   )
 }
@@ -1017,18 +1017,19 @@ function useConnectionTest(connection: ConnectionForm, vaultId?: number) {
 
 function ModalActions({ onClose, loading, submitLabel, test }: { onClose: () => void; loading: boolean; submitLabel: string; test?: ReturnType<typeof useConnectionTest> | undefined }) {
   return (
-    <div className="flex flex-wrap justify-end gap-3 pt-2">
-      <button type="button" onClick={onClose} className="btn btn-ghost">Cancel</button>
-      {test && (
+    <ModalFooter
+      start={test ? (
         <button type="button" onClick={() => void test.run()} disabled={test.pending || loading} className="btn btn-outline">
           {test.pending
             ? <><span className="material-symbols-outlined animate-spin" aria-hidden="true">progress_activity</span> Testing…</>
             : <><span className="material-symbols-outlined" aria-hidden="true">network_check</span> Test connection</>}
         </button>
-      )}
+      ) : undefined}
+    >
+      <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
       <button type="submit" disabled={loading} className="btn btn-primary">
         {loading ? 'Saving…' : submitLabel}
       </button>
-    </div>
+    </ModalFooter>
   )
 }

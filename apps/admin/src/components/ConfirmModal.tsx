@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { ModalShell } from './ModalShell'
+import { ModalFooter, ModalHeader, ModalShell } from './ModalShell'
 
 interface ConfirmModalProps {
   title: string
@@ -41,12 +41,11 @@ export function ConfirmModal({
         aria-labelledby={titleId}
         aria-describedby={messageId}
         aria-busy={pending || undefined}
-        className="rounded-2xl p-6 w-full max-w-sm space-y-4"
-        style={{ background: 'var(--m3-surface-container-lowest)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
+        className="rounded-2xl w-full max-w-sm"
+        style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}
       >
-        <h3 id={titleId} className="font-headline text-lg font-bold" style={{ color: 'var(--m3-on-surface)' }}>
-          {title}
-        </h3>
+        <ModalHeader icon={danger ? 'warning' : 'help'} titleId={titleId} title={title} onClose={pending ? () => {} : onCancel} />
+        <div className="p-6 space-y-4">
         <p id={messageId} className="text-sm" style={{ color: 'var(--m3-on-surface-variant)' }}>
           {message}
         </p>
@@ -64,19 +63,20 @@ export function ConfirmModal({
             />
           </label>
         )}
-        <div className="flex flex-wrap justify-end gap-2 pt-2">
-          <button type="button" onClick={onCancel} disabled={pending} className="btn btn-secondary rounded-full px-5 py-2">
+        </div>
+        <ModalFooter>
+          <button type="button" onClick={onCancel} disabled={pending} className="btn btn-secondary">
             Cancel
           </button>
           <button
             type="button"
             onClick={onConfirm}
             disabled={!canConfirm}
-            className={`btn ${danger ? 'btn-danger' : 'btn-primary'} rounded-full px-5 py-2`}
+            className={`btn ${danger ? 'btn-danger' : 'btn-primary'}`}
           >
             {pending ? pendingLabel : confirmLabel}
           </button>
-        </div>
+        </ModalFooter>
       </div>
     </ModalShell>
   )

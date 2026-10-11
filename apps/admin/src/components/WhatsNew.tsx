@@ -2,7 +2,7 @@ import changelogSource from '../../../../docs/changelog.md?raw'
 import packageMetadata from '../../package.json'
 import { parseChangelog, releasesBetween, summarizeRelease, type ReleaseItem, type ReleaseNotes } from '../lib/changelog'
 import { DOCS_URL } from '../navigation'
-import { ModalHeader, ModalShell } from './ModalShell'
+import { ModalFooter, ModalHeader, ModalShell } from './ModalShell'
 
 const CURRENT_VERSION = packageMetadata.version
 const seenKey = (userId: number) => `bsp-whatsnew-seen-${userId}`
@@ -75,11 +75,10 @@ export function WhatsNew({ releases, onClose }: { releases: ReleaseNotes[]; onCl
               ].filter(Boolean).join(', ')})`).join(' · ')}
             </p>
           )}
-          <div className="flex items-center justify-between gap-2 pt-1">
-            <a href={`${DOCS_URL}/changelog/`} target="_blank" rel="noopener" className="btn btn-secondary">Full changelog</a>
-            <button type="button" onClick={onClose} className="btn btn-primary">Got it</button>
-          </div>
         </div>
+        <ModalFooter start={<a href={`${DOCS_URL}/changelog/`} target="_blank" rel="noopener" className="btn btn-secondary">Full changelog</a>}>
+          <button type="button" onClick={onClose} className="btn btn-primary">Got it</button>
+        </ModalFooter>
       </div>
     </ModalShell>
   )

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { Modal, ModalShell, MODAL_BACKDROP, MODAL_Z_INDEX } from './ModalShell'
+import { Modal, ModalFooter, ModalShell, MODAL_BACKDROP, MODAL_Z_INDEX } from './ModalShell'
 
 describe('ModalShell', () => {
   it('portals its content to the body above the page with the shared backdrop', () => {
@@ -101,5 +101,21 @@ describe('Modal', () => {
     render(<Modal title="Create Vault" icon="shield_lock" onClose={onClose}><input aria-label="Name" /></Modal>)
     await user.keyboard('{Escape}')
     expect(onClose).toHaveBeenCalledOnce()
+  })
+})
+
+describe('ModalFooter', () => {
+  it('sticks to the bottom and keeps tools apart from the closing buttons', () => {
+    render(
+      <form>
+        <ModalFooter start={<button type="button">Test</button>}>
+          <button type="button">Cancel</button>
+          <button type="submit">Save</button>
+        </ModalFooter>
+      </form>,
+    )
+    const footer = screen.getByRole('button', { name: 'Save' }).parentElement!.parentElement!
+    expect(footer).toHaveStyle({ position: 'sticky', bottom: '0px' })
+    expect(screen.getByRole('button', { name: 'Test' }).parentElement).not.toBe(screen.getByRole('button', { name: 'Save' }).parentElement)
   })
 })
