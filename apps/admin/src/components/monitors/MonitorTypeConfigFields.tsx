@@ -4,7 +4,7 @@ import type { CertExpiryConfig, MonitorType } from '@bsp/shared'
 import { ConfirmModal } from '../ConfirmModal'
 import { CopyButton } from '../CopyButton'
 import { Alert } from '../ui'
-import { Field, Note, type VaultPickerProps } from './monitorFormParts'
+import { Field, Note } from './monitorFormParts'
 import { DATABASE_ENGINES, DATABASE_DEFAULT_PORTS, DATABASE_DEFAULT_QUERIES } from './monitorTypes'
 
 type Config = Record<string, unknown>
@@ -14,12 +14,11 @@ interface Props {
   config: Config
   updateConfig: (key: string, value: unknown) => void
   onEngineChange: (engine: MonitorType) => void
-  vaultPicker: VaultPickerProps
   webhook: WebhookSectionProps
 }
 
 /** The check-specific settings of a monitor, switched on its type. */
-export function MonitorTypeConfigFields({ type, config, updateConfig, onEngineChange, vaultPicker, webhook }: Props) {
+export function MonitorTypeConfigFields({ type, config, updateConfig, onEngineChange, webhook }: Props) {
   switch (type) {
     case 'https':     return <HttpsFields config={config} updateConfig={updateConfig} />
     case 'ping':      return <PingFields config={config} updateConfig={updateConfig} />
@@ -27,7 +26,7 @@ export function MonitorTypeConfigFields({ type, config, updateConfig, onEngineCh
     case 'sqlserver':
     case 'postgresql':
     case 'mysql':
-    case 'mongodb':   return <DatabaseFields type={type} config={config} updateConfig={updateConfig} onEngineChange={onEngineChange} vaultPicker={vaultPicker} />
+    case 'mongodb':   return <DatabaseFields type={type} config={config} updateConfig={updateConfig} onEngineChange={onEngineChange} />
     case 'docker':    return <DockerFields config={config} updateConfig={updateConfig} />
     case 'webhook':   return <WebhookSection {...webhook} />
     default:          return null
@@ -149,7 +148,7 @@ function DnsFields({ config, updateConfig }: ConfigProps) {
   )
 }
 
-function DatabaseFields({ type, config, updateConfig, onEngineChange, vaultPicker }: ConfigProps & { type: MonitorType; onEngineChange: (engine: MonitorType) => void; vaultPicker: VaultPickerProps }) {
+function DatabaseFields({ type, config, updateConfig, onEngineChange }: ConfigProps & { type: MonitorType; onEngineChange: (engine: MonitorType) => void }) {
   const sqlMode = (config['mode'] as string) ?? 'fields'
   return (
     <>

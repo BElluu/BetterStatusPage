@@ -244,7 +244,6 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
             config={config}
             updateConfig={updateConfig}
             onEngineChange={handleEngineChange}
-            vaultPicker={vaultPicker}
             webhook={{ token: webhookToken, canReset: isEdit, resetting: resettingToken, onReset: handleResetToken }}
           />
 
