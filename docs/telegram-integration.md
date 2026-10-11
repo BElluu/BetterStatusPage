@@ -1,8 +1,5 @@
 # Telegram Integration
 
-> [!WARNING]
-> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 Receive monitor alerts in a Telegram chat, group or channel as formatted messages with a severity emoji and all relevant details included automatically. You need a bot token and the ID of the chat that should receive the alerts.
 
 ---

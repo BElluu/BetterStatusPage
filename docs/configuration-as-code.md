@@ -1,8 +1,5 @@
 # Configuration as code
 
-> [!WARNING]
-> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 Monitors and notification channels can be written as YAML documents, and created or updated from them. A document does not depend on the numeric ids of an installation, so it reads the same anywhere, diffs well in version control, and can be reviewed like any other configuration file. A pipeline that applies the documents on every merge keeps the installation in step with the repository.
 
 Every document says what it describes in its `kind`: `Monitor` or `NotificationChannel`. Several documents can share one file, separated by `---`.
@@ -91,9 +88,6 @@ autoIncident:
 Monitors and channels are identified by their [key](api.md#monitors-and-notification-channels-have-keys), a technical name that is generated when the object is created, is not shown in the forms, and never changes.
 
 ### Automatic incidents
-
-> [!WARNING]
-> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 The optional `autoIncident` block of a `Monitor` switches on [automatic incidents](incidents-and-maintenance.md#automatic-incidents):
 

@@ -5,6 +5,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-11
+
 ### Added
 
 - **Longer chart ranges and uptime % in the chart block**: the status page chart block can show the last 30 or 90 days, and **Show uptime %** adds the monitor's uptime over the same range to its header. `GET /api/v1/public/monitor/:id/history` accepts `hours` up to 2160 (was 168). See [Customizing the status page](customizing-the-status-page.md).

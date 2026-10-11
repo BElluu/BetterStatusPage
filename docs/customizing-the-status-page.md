@@ -44,9 +44,6 @@ Click a block to select it. Its settings appear under **Properties** in the left
 - **Chart height**: **S**, **M** (default) or **L**.
 - **Fill area under line** (on by default), **Show uptime %** and **Show monitor type**. The uptime percentage covers the chart's time range in whole UTC days (at least 1 day).
 
-> [!WARNING]
-> **Not released yet.** The 30 and 90 day time ranges and **Show uptime %** are not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 **Text blocks** take Markdown: headings, paragraphs, lists, links. Raw HTML is not rendered.
 
 ### Groups

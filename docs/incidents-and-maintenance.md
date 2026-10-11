@@ -99,9 +99,6 @@ The delete button (bin icon) removes an incident with its whole timeline after a
 
 ### Drafts
 
-> [!WARNING]
-> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 A draft is an incident that only the admin console shows. It is left out of the status page, the feeds, the status API and the live updates, and nobody is notified about it. Everything else works as usual: you can edit it, post updates and link monitors.
 
 **Publish** (on the incident's row) makes it public and notifies subscribers as for a new incident, or as for a resolution when the draft is already resolved. Publishing cannot be undone: a published incident cannot go back to a draft. Deleting a draft is silent.
@@ -142,9 +139,6 @@ The checkbox only affects email and webhook subscribers. The feeds, Slack includ
 
 ### Automatic incidents
 
-> [!WARNING]
-> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 A monitor can open an incident by itself when it stays down, and close it again after it recovers. This is off by default; switch it on in the **Incident** side tab of the monitor's form.
 
 | Setting | What it does |
@@ -167,9 +161,6 @@ How it works:
 - Automatic incidents are marked **automatic** in the list. Subscribers are notified only for a published one, as for any other incident.
 
 ### Incident templates
-
-> [!WARNING]
-> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 *Admin → Incidents → **Templates*** lists the templates; **New template** creates one. A template holds the incident **title**, an **opening message**, a **resolved message** and the **impact**. These placeholders are replaced:
 

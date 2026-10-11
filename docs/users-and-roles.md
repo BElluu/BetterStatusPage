@@ -39,9 +39,6 @@ The role is checked by the API on every request, not only by the admin panel, so
 | **System Health** | Yes | No | No | No |
 | [Private status page](private-status-page.md) | Yes | Yes | Yes | Yes |
 
-> [!WARNING]
-> **Not released yet.** The **API tokens** and **Import** rows are only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 The sidebar shows only the pages a role can open. Opening another page's address sends the user back to their start page: **Dashboard** for admins and operators, **Branding** for the branding role. A viewer who signs in on the admin sign-in page, or opens any admin address, is taken to the status page.
 
 ## The first administrator
@@ -123,9 +120,6 @@ Password sign-in, the authentication-code step and the SSO endpoints accept at m
 To make sure an SSO-only setup cannot lock everyone out, see [Password sign-in and lockout protection](single-sign-on.md#password-sign-in-and-lockout-protection).
 
 ### Documentation link and What's new
-
-> [!WARNING]
-> **Not released yet.** This feature is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 The **Documentation** link in the sidebar opens [docs.betterstatuspage.dev](https://docs.betterstatuspage.dev) in a new tab.
 
@@ -217,9 +211,6 @@ Entries are never deleted automatically. They are kept in the database and inclu
 | **Monitor scheduler** | Whether the scheduler runs, configured and overdue monitors, latest stored check, last scheduler tick, its duration, checks due and failed jobs in it | `error` when the scheduler is stopped or its last tick failed; `attention` when checks failed or monitors are overdue. A monitor is overdue when it has never been checked or its last check is older than twice its interval. |
 | **Notification delivery** | Pending and failed deliveries, last delivery | `attention` when anything is pending or failed. See [notification channels](notification-channels.md). |
 | **Backups** | Automatic schedule, last operation, stored backups, latest backup, last completed operation | `disabled` when the schedule is off; `error` when the last backup failed or the backup folder cannot be read. See [backup and restore](backup-restore.md). |
-
-> [!WARNING]
-> **Not released yet.** The new-version notice is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 In the background, from the moment the server starts and then every 6 hours (every 5 minutes after a failure), the server asks GitHub (`api.github.com`) for the latest release and remembers the answer, so opening System Health never waits for it. The **Application** card shows a link such as **1.3.0 available** when that release is newer than the running version, and administrators see a quiet **Version 1.3.0 is available** link at the top of the Dashboard. Pre-releases are ignored, and nothing is shown when GitHub cannot be reached. Set `UPDATE_CHECK=false` in `.env` to stop the server from making this request; the installed version is the only thing it sends, inside the `User-Agent` header.
 

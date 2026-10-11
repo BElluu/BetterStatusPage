@@ -81,9 +81,6 @@ Deleting does not check what still uses the secret. A monitor or the SMTP settin
 
 ## HashiCorp Vault
 
-> [!WARNING]
-> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 A **HashiCorp Vault** vault keeps no secret values in BetterStatusPage. It stores only how to connect to your Vault server, and each secret in it is a **reference** to a path in a KV version 2 secrets engine. The value is read from HashiCorp Vault every time it is used, so a rotation in Vault takes effect on the next check or email, and the monitor and SMTP forms work exactly as with a local vault.
 
 ### Connect to HashiCorp Vault
@@ -198,9 +195,6 @@ An [API token](api.md#permissions) with the `vault:use` permission can list vaul
 See [Users and roles](users-and-roles.md) for the roles in general.
 
 ### Vaults in configuration files
-
-> [!WARNING]
-> **Not released yet.** Importing and exporting configuration is available only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 A [configuration document](configuration-as-code.md#secrets) refers to a secret by the names of the vault and of the secret, and the vault has to exist when the file is imported.
 

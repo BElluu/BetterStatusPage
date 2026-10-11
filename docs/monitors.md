@@ -92,9 +92,6 @@ webhook monitors.
 
 ### Monitor details
 
-> [!WARNING]
-> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 Click a monitor's name in the monitor list, or its tile under **System Components** on the
 **Dashboard**, to open its page (`/admin/monitors/:id`); **Monitors** above the title leads back to
 the list. The page shows the monitor over the last 24 hours, 7 days, 30 days or 90 days, up to the result retention:
@@ -440,9 +437,6 @@ interval passes without one.
 ---
 
 ## Saved secrets
-
-> [!WARNING]
-> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 A saved password, OAuth2 client secret, database password and credential header are never shown again, in the form or in the API.
 A header counts as a credential when its name contains `auth`, `token`, `secret`, `key`, `pass`, `pwd`, `credential`, `cookie`, `session` or `signature` (so `Authorization`, `Cookie` and `X-Api-Key` do).

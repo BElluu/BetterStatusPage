@@ -194,9 +194,6 @@ Values are not URL-encoded, so this works best with monitor names that contain n
 
 **Teams** posts a colour-coded MessageCard with the same facts. The optional **Summary** replaces the notification toast text. See [Microsoft Teams integration](teams-integration.md).
 
-> [!WARNING]
-> **Not released yet.** Telegram is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 **Telegram** sends a formatted message through the Bot API with the same facts and a 🔴, 🟡 or 🟢 emoji by severity. It needs a **Bot Token** from @BotFather (shown masked once saved, or read from the [vault](vault.md)) and the **Chat ID** of the chat, group or channel (or `@channelusername`); the optional **Message Text** is a templated line above the message. The text is sent as HTML with every value escaped, and an oversized error message is cut to fit Telegram's 4096-character limit. See [Telegram integration](telegram-integration.md).
 
 For certificate events all four switch the headline to *TLS certificate of … expires in N days* (or *… was renewed*) and label the detail field **Details** instead of **Error**.
@@ -248,9 +245,6 @@ Digests are described in [Alert hygiene](alert-hygiene.md#grouping-bursts-into-o
 ---
 
 ## Saved secrets
-
-> [!WARNING]
-> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 The webhook URL of a Slack, Discord or Microsoft Teams channel is the credential for posting to it, so a saved URL is
 never shown again, in the form or in the API: it reads back as `••••••••`. The same goes for the Telegram bot token

@@ -1,8 +1,5 @@
 # API
 
-> [!WARNING]
-> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 The admin panel is a client of the same REST API you can call from scripts, CI/CD pipelines and infrastructure tooling. Everything under `/api/v1/admin` accepts an **API token** in place of a signed-in session.
 
 ---
