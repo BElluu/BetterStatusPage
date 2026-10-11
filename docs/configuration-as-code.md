@@ -77,14 +77,36 @@ tags:
   - { label: prod, color: "#00ff00" }
 notifications: [ops-slack]
 dependsOn: [billing-db]
+autoIncident:
+  afterMinutes: 10
+  mode: draft
+  template: Payments
 ```
 
 | `kind` | Contents |
 |---|---|
 | `NotificationChannel` | One channel: its settings, its alert policy (quiet hours, rate cap, grouping) and whether it is enabled. |
-| `Monitor` | One monitor: its schedule and thresholds, its configuration and tags, the **keys** of the channels it alerts through (`notifications`) and of the monitors it depends on (`dependsOn`). |
+| `Monitor` | One monitor: its schedule and thresholds, its configuration and tags, the **keys** of the channels it alerts through (`notifications`) and of the monitors it depends on (`dependsOn`), and optionally its [automatic incident](#automatic-incidents). |
 
 Monitors and channels are identified by their [key](api.md#monitors-and-notification-channels-have-keys), a technical name that is generated when the object is created, is not shown in the forms, and never changes.
+
+### Automatic incidents
+
+> [!WARNING]
+> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+The optional `autoIncident` block of a `Monitor` switches on [automatic incidents](incidents-and-maintenance.md#automatic-incidents):
+
+| Setting | Meaning |
+|---|---|
+| `afterMinutes` | Required. How long the confirmed outage must last, `1`–`10080`. |
+| `mode` | `draft` (default) or `published`. |
+| `template` | The **name** of an [incident template](incidents-and-maintenance.md#incident-templates). Leave it out to use the default template. |
+| `enabled` | Optional. `false` turns the feature off, whatever else the block says. |
+
+A monitor without an `autoIncident` block, or with `enabled: false`, has automatic incidents **off**. Because a file describes the whole monitor, importing a monitor without the block also switches the feature off if it was on. The export writes the block only for monitors that have it on, and leaves out `template` for the default one.
+
+Templates are not documents: create them in the admin console or through the API first. An unknown template name is refused. A token needs the `incidents:write` permission to import `mode: published` or a `template`.
 
 ### What is left out
 

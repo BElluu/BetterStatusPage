@@ -12,6 +12,8 @@ function incident(overrides: Partial<Incident>): Incident {
     resolvedAt: null,
     createdAt: 1,
     updatedAt: 1,
+    draft: false,
+    autoMonitorId: null,
     monitorIds: [7],
     ...overrides,
   }

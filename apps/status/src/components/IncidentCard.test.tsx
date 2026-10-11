@@ -39,6 +39,8 @@ function incident(overrides: Partial<Incident> = {}): Incident {
     resolvedAt: null,
     createdAt: 1,
     updatedAt: 1,
+    draft: false,
+    autoMonitorId: null,
     monitorIds: [monitor.id],
     updates: [{
       id: 1,
@@ -59,6 +61,18 @@ describe('IncidentCard', () => {
     expect(screen.getByText('Investigating')).toBeInTheDocument()
     expect(screen.getByText('Public API')).toBeInTheDocument()
     expect(screen.getByText('Engineers are investigating.')).toBeInTheDocument()
+  })
+
+  it('shows the title and updates in the visitor language when they are translated', () => {
+    const base = incident()
+    render(<IncidentCard
+      incident={{ ...base, titleTranslations: { en: 'Awaria API', de: 'API-Ausfall' }, updates: [{ ...base.updates![0]!, bodyTranslations: { en: 'Inżynierowie badają problem.' } }] }}
+      monitors={[monitor]}
+    />)
+
+    expect(screen.getByText('Awaria API')).toBeInTheDocument()
+    expect(screen.getByText('Inżynierowie badają problem.')).toBeInTheDocument()
+    expect(screen.queryByText('API outage')).not.toBeInTheDocument()
   })
 
   it('expands the timeline for a resolved incident', async () => {

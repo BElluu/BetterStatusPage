@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
-import { gte, inArray, ne } from 'drizzle-orm'
+import { and, gte, inArray, ne } from 'drizzle-orm'
 import { db } from '../db/client.js'
+import { publishedIncident } from '../services/incidentDetails.js'
 import { branding, incidentMonitors, incidents, layout, maintenanceWindowMonitors, maintenanceWindows, monitors } from '../db/schema.js'
 import type {
   ApiActiveIncident, ApiActiveMaintenance, ApiComponent, ApiComponentRef, ApiComponentStatus, ApiComponents,
@@ -59,7 +60,7 @@ async function loadState(baseUrl: string) {
   const monitorRows = await db.select({ id: monitors.id, name: monitors.name, currentStatus: monitors.currentStatus }).from(monitors)
   const monitorById = new Map(monitorRows.map((row) => [row.id, row]))
 
-  const activeIncidents = await db.select().from(incidents).where(ne(incidents.status, 'resolved'))
+  const activeIncidents = await db.select().from(incidents).where(and(ne(incidents.status, 'resolved'), publishedIncident))
   const incidentLinks = activeIncidents.length
     ? await db.select().from(incidentMonitors).where(inArray(incidentMonitors.incidentId, activeIncidents.map((i) => i.id)))
     : []

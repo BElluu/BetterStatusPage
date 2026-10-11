@@ -31,7 +31,9 @@ Every create, update and delete is written to the audit log.
 | **Status** | Where the incident starts: *Investigating* (default), *Identified* or *Monitoring*. |
 | **Impact** | *Minor* (default), *Major* or *Critical*. Decides how linked monitors look on the status page. |
 | **Affected Monitors** | The monitors the incident is about. Optional; an incident with none is page-wide. |
-| **Notify subscribers** | On by default. See [Notifying subscribers](#notifying-subscribers). |
+| **Start from template** | Optional. Fills the title and impact from an [incident template](#incident-templates); `{{monitor}}` becomes the names of the monitors you ticked. |
+| **Save as draft** | Keeps the incident visible to operators only until you publish it. See [Drafts](#drafts). |
+| **Notify subscribers** | On by default. See [Notifying subscribers](#notifying-subscribers). Not shown for a draft. |
 
 The start time is the moment you create the incident. The incident has no timeline entry yet; the first one appears with the first update you post.
 
@@ -68,6 +70,17 @@ Click an incident to expand it. The panel shows its affected monitors, the updat
 
 Picking **Resolved** resolves the incident. Once it is resolved the **Post Update** box disappears from the admin console.
 
+Incident templates (`/api/v1/admin/incident-templates`, same permission):
+
+| Method | Path | Body |
+|---|---|---|
+| GET | `/` | — |
+| POST | `/` | `{ name, title, body, resolvedBody, impact, translations? }` — all but `translations` required |
+| PATCH | `/:id` | any of those; `translations` replaces all translations |
+| DELETE | `/:id` | — (`409` for the default template) |
+
+A duplicate `name` is refused with `409`.
+
 ### Editing and deleting
 
 The admin console has no edit form. The API changes title, status, impact and resolution time, and replaces the linked monitors:
@@ -80,13 +93,22 @@ POST /api/v1/admin/incidents/:id/monitors
 { "monitorIds": [3, 7] }
 ```
 
-Setting the status back from `resolved` to anything else clears the resolution time and makes the incident active again.
+Setting the status back from `resolved` to anything else clears the resolution time and makes the incident active again. Changing the title of an [automatic incident](#automatic-incidents) removes its translated titles.
 
 The delete button (bin icon) removes an incident with its whole timeline after a confirmation. Deleting does not notify anyone, and it cannot be undone.
 
+### Drafts
+
+> [!WARNING]
+> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+A draft is an incident that only the admin console shows. It is left out of the status page, the feeds, the status API and the live updates, and nobody is notified about it. Everything else works as usual: you can edit it, post updates and link monitors.
+
+**Publish** (on the incident's row) makes it public and notifies subscribers as for a new incident, or as for a resolution when the draft is already resolved. Publishing cannot be undone: a published incident cannot go back to a draft. Deleting a draft is silent.
+
 ### On the status page
 
-Incidents are public as soon as they are created. Only monitors placed on the public page (in the Page Builder) are ever shown as affected; links to internal monitors are left out.
+Incidents are public as soon as they are created, unless they are [drafts](#drafts). Only monitors placed on the public page (in the Page Builder) are ever shown as affected; links to internal monitors are left out.
 
 - **Incidents block.** Add an *Incidents* block in the Page Builder to show incidents. It can list active incidents, resolved ones, or both (the default), up to a set number (5 by default). See [Customizing the status page](customizing-the-status-page.md).
 - **Active incident card.** Status badge, title, affected monitors and the four most recent updates. Times are shown in UTC.
@@ -112,10 +134,67 @@ When subscriptions are switched on (**Status page → Subscribers**), a **Notify
 | Create an incident | New incident |
 | Post an update | Incident update |
 | Post an update with status *Resolved* | Resolution (instead of an update) |
+| Publish a [draft](#drafts) | New incident (or resolution, if the draft is already resolved) |
 
 Who receives each event depends on the event types you allow, what each subscriber chose and the components they follow. An incident with no affected monitors goes to everyone who chose that event type. See [Who receives what](subscriptions.md#who-receives-what).
 
 The checkbox only affects email and webhook subscribers. The feeds, Slack included, always mirror what is public on the page.
+
+### Automatic incidents
+
+> [!WARNING]
+> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+A monitor can open an incident by itself when it stays down, and close it again after it recovers. This is off by default; switch it on in the **Incident** side tab of the monitor's form.
+
+| Setting | What it does |
+|---|---|
+| **Open an incident when this monitor stays down** | Turns the feature on for this monitor. |
+| **Down for (minutes)** | How long the outage must last before the incident opens. `1`–`10080` (7 days). |
+| **Create as** | *Draft* (default): operators review it and press **Publish**. *Published right away*: visitors and subscribers see it immediately. |
+| **Template** | The [template](#incident-templates) that writes the incident. Empty means the default template. |
+
+How it works:
+
+- The clock starts when the monitor's failure is **confirmed**, so [Alert after (checks)](alert-hygiene.md#failure-and-recovery-thresholds) applies first. Only a *down* status counts, not *degraded*. While a [maintenance window](#maintenance-windows) is running nothing is opened or resolved; the outage is judged again after it.
+- The incident starts at the moment the outage was confirmed, has the monitor linked and the template's opening message as its first update. There is at most one open automatic incident per monitor.
+- When the monitor recovers (after [Recover after (checks)](alert-hygiene.md#failure-and-recovery-thresholds)), the incident gets the template's resolved message and is set to *Resolved*. A draft is resolved too, and stays a draft. If you resolve it yourself while the outage goes on, it is not opened again for that outage.
+- Switching the feature off does not touch an incident that is already open; it is still closed on recovery. An outage that ends before the time you set creates nothing.
+- **Published** only applies to monitors shown on the public status page. For an internal monitor the incident is always created as a draft, because its name would be public otherwise. The `{{error}}` placeholder is filled only in a draft: check errors can contain hostnames or credentials, so a published incident leaves it empty.
+- If you delete the incident during the outage, the next check opens it again. Deleting a monitor leaves its open incident as it is; resolve it by hand.
+- The settings can also be written in a [configuration file](configuration-as-code.md#automatic-incidents). Draft incidents are counted in the admin-only incident figures of reports and of the monitor page.
+- Setting **Published** or a template through the API with a token needs the `incidents:write` permission as well as `monitors:write`.
+- Automatic incidents are marked **automatic** in the list. Subscribers are notified only for a published one, as for any other incident.
+
+### Incident templates
+
+> [!WARNING]
+> **Not released yet.** This feature is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+*Admin → Incidents → **Templates*** lists the templates; **New template** creates one. A template holds the incident **title**, an **opening message**, a **resolved message** and the **impact**. These placeholders are replaced:
+
+| Placeholder | Replaced with |
+|---|---|
+| `{{monitor}}` | The monitor's name. |
+| `{{duration}}` | How long the outage lasted so far, such as `7 min` or `1 h 5 min`. |
+| `{{error}}` | The last error of the check (opening message only). |
+| `{{status}}` | `down` in the opening message, `up` in the resolved message. |
+
+An unknown placeholder is left as written, so a typo is easy to see. Template names are unique, because [configuration files](configuration-as-code.md#automatic-incidents) refer to a template by name.
+
+The built-in **Default** template is used by every monitor that has no template of its own. You can edit it but not delete it. Deleting another template sends the monitors that used it back to the default one.
+
+| | Title | Opening message |
+|---|---|---|
+| **Default** | `{{monitor}} is unavailable` | `We detected that {{monitor}} has been unavailable for {{duration}}. We are investigating.` |
+
+#### Translations
+
+The text of a template is in the **default language** of the status page. Under it, the editor has a block for every other language you added in [Languages](customizing-the-status-page.md#languages): fill in the title, the opening message and the resolved message for the ones you want. Placeholders work in every language.
+
+When an automatic incident opens, each language that has wording gets its own copy, and a visitor who switches the status page to that language sees the title and the messages in it. A language, or a single field, left empty shows the default text. The copies are stored with the incident, so changing a template later does not touch incidents that already exist. If you rewrite the title of an automatic incident by hand, its translated titles are dropped, so a stale translation never contradicts the new title. Emails, feeds and webhooks always use the default-language text.
+
+The **Start from template** list in *New Incident* takes the title and impact only; it does not post messages.
 
 ---
 
@@ -192,13 +271,13 @@ Incidents (`/api/v1/admin/incidents`):
 | Method | Path | Body |
 |---|---|---|
 | GET | `/` | — (optional `?page=&limit=`) |
-| POST | `/` | `{ title, status?, impact?, startedAt?, monitorIds?, notifySubscribers? }` |
-| PATCH | `/:id` | `{ title?, status?, impact?, resolvedAt?, notifySubscribers? }` |
+| POST | `/` | `{ title, status?, impact?, startedAt?, monitorIds?, notifySubscribers?, draft? }` |
+| PATCH | `/:id` | `{ title?, status?, impact?, resolvedAt?, notifySubscribers?, draft? }` — `draft: false` publishes a draft |
 | DELETE | `/:id` | — |
 | POST | `/:id/updates` | `{ body, status, notifySubscribers? }` |
 | POST | `/:id/monitors` | `{ monitorIds }` — replaces the links |
 
-`status` defaults to `investigating`, `impact` to `minor`, `startedAt` to now. A `PATCH` that changes the status to `resolved` sends a resolution to subscribers unless `notifySubscribers` is `false`.
+`status` defaults to `investigating`, `impact` to `minor`, `startedAt` to now and `draft` to `false`. A published incident cannot be set back to `draft: true` (`400`). A `PATCH` that changes the status to `resolved` sends a resolution to subscribers unless `notifySubscribers` is `false`.
 
 Maintenance windows (`/api/v1/admin/maintenance`):
 

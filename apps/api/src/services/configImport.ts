@@ -1,16 +1,16 @@
 import { eq } from 'drizzle-orm'
-import { tokenAllows, type ChannelAlertPolicy, type NotificationChannelType } from '@bsp/shared'
+import { tokenAllows, type AutoIncidentMode, type ChannelAlertPolicy, type NotificationChannelType } from '@bsp/shared'
 import { db } from '../db/client.js'
 import { withImmediateTransaction } from '../db/transaction.js'
 import {
-  monitorDependencies, monitorNotificationChannels, monitors, notificationChannels, vaultSecrets, vaults,
+  incidentTemplates, monitorDependencies, monitorNotificationChannels, monitors, notificationChannels, vaultSecrets, vaults,
 } from '../db/schema.js'
 import { clip, nestedDeeperThan } from '../lib/clip.js'
 import { isValidEntityKey, ENTITY_KEY_ERROR } from '../lib/entityKey.js'
 import { normalizeAlertPolicy, parseAlertPolicy } from './alertPolicy.js'
 import { writeAudit, type Actor } from './audit.js'
 import { CHANNEL_TYPES, telegramConfigError } from './channelInput.js'
-import { certResetsFor, generateWebhookToken, parseNewMonitor, THRESHOLD_RANGE, type MonitorFields } from './monitorInput.js'
+import { AUTO_INCIDENT_MINUTES_RANGE, certResetsFor, generateWebhookToken, parseNewMonitor, THRESHOLD_RANGE, type MonitorFields } from './monitorInput.js'
 import { refreshPublishedMonitorIds } from './publishedMonitors.js'
 import { restoreSecrets } from './secretFields.js'
 import { vaultUseProblem } from './vaultUse.js'
@@ -59,7 +59,8 @@ const MAX_PROBLEMS = 100
 const MAX_NAME_LENGTH = 200
 const MAX_CONFIG_DEPTH = 20
 const CHANNEL_FIELDS = ['kind', 'key', 'name', 'type', 'enabled', 'notifyOnRecovery', 'config', 'alertPolicy']
-const MONITOR_FIELDS = ['kind', 'key', 'name', 'type', 'intervalSecs', 'timeoutMs', 'retries', 'failureThreshold', 'recoveryThreshold', 'config', 'tags', 'notifications', 'dependsOn']
+const MONITOR_FIELDS = ['kind', 'key', 'name', 'type', 'intervalSecs', 'timeoutMs', 'retries', 'failureThreshold', 'recoveryThreshold', 'config', 'tags', 'notifications', 'dependsOn', 'autoIncident']
+const AUTO_INCIDENT_FIELDS = ['enabled', 'afterMinutes', 'mode', 'template']
 
 /** The kinds a list of documents contains, so that the caller can check it may import each. Documents of no known kind are ignored here. */
 export function kindsIn(documents: unknown[]): Set<DocumentKind> {
@@ -100,6 +101,8 @@ interface DesiredMonitor {
   fields: MonitorFields
   notifications: string[]
   dependsOn: string[]
+  /** Null when the block is missing or `enabled: false`: automatic incidents are off. `template` is a name; null = the default one. */
+  autoIncident: { afterMinutes: number; mode: AutoIncidentMode; template: string | null } | null
 }
 
 interface Desired {
@@ -172,6 +175,27 @@ function parseChannel(entry: Json, index: number, seen: Set<string>, problems: P
   }
 }
 
+function parseAutoIncident(value: unknown, path: string, problems: Problems): DesiredMonitor['autoIncident'] {
+  if (value === undefined || value === null) return null
+  const at = `${path}.autoIncident`
+  if (!isObject(value)) { problems.add(at, 'must be an object: { afterMinutes, mode, template }'); return null }
+  unknownFields(value, AUTO_INCIDENT_FIELDS, at, problems)
+  if (value['enabled'] !== undefined && typeof value['enabled'] !== 'boolean') problems.add(`${at}.enabled`, 'must be true or false')
+  if (value['enabled'] === false) return null
+
+  const minutes = value['afterMinutes']
+  const [min, max] = AUTO_INCIDENT_MINUTES_RANGE
+  const validMinutes = typeof minutes === 'number' && Number.isInteger(minutes) && minutes >= min && minutes <= max
+  if (!validMinutes) problems.add(`${at}.afterMinutes`, `is required: a whole number from ${min} to ${max}`)
+  const mode = value['mode'] ?? 'draft'
+  if (mode !== 'draft' && mode !== 'published') problems.add(`${at}.mode`, 'must be draft or published')
+  const template = value['template']
+  if (template !== undefined && (typeof template !== 'string' || !template.trim())) problems.add(`${at}.template`, 'must be the name of an incident template')
+  return validMinutes && (mode === 'draft' || mode === 'published')
+    ? { afterMinutes: minutes, mode, template: typeof template === 'string' ? template : null }
+    : null
+}
+
 function parseMonitor(entry: Json, index: number, seen: Set<string>, problems: Problems): DesiredMonitor | null {
   const key = documentKey(entry, `document ${index + 1}`, seen, problems)
   const path = key ? `Monitor[${key}]` : `document ${index + 1}`
@@ -189,7 +213,8 @@ function parseMonitor(entry: Json, index: number, seen: Set<string>, problems: P
   if (nestedDeeperThan(entry['config'], MAX_CONFIG_DEPTH)) problems.add(`${path}.config`, `is nested deeper than ${MAX_CONFIG_DEPTH} levels`)
   const notifications = keyList(entry['notifications'], `${path}.notifications`, problems)
   const dependsOn = keyList(entry['dependsOn'], `${path}.dependsOn`, problems)
-  return key && 'value' in parsed ? { path, key, fields: parsed.value, notifications, dependsOn } : null
+  const autoIncident = parseAutoIncident(entry['autoIncident'], path, problems)
+  return key && 'value' in parsed ? { path, key, fields: parsed.value, notifications, dependsOn, autoIncident } : null
 }
 
 /** Where a name the parser would treat specially (`__proto__`) appears in a document, or null. Walks without recursion. */
@@ -240,15 +265,16 @@ type MonitorRow = typeof monitors.$inferSelect
 type ChannelRow = typeof notificationChannels.$inferSelect
 
 async function loadState() {
-  const [monitorRows, channelRows, linkRows, dependencyRows, vaultRows, secretRows] = await Promise.all([
+  const [monitorRows, channelRows, linkRows, dependencyRows, vaultRows, secretRows, templateRows] = await Promise.all([
     db.select().from(monitors),
     db.select().from(notificationChannels),
     db.select().from(monitorNotificationChannels),
     db.select().from(monitorDependencies),
     db.select({ id: vaults.id, name: vaults.name }).from(vaults),
     db.select({ id: vaultSecrets.id, vaultId: vaultSecrets.vaultId, name: vaultSecrets.name }).from(vaultSecrets),
+    db.select({ id: incidentTemplates.id, name: incidentTemplates.name, isDefault: incidentTemplates.isDefault }).from(incidentTemplates),
   ])
-  return { monitorRows, channelRows, linkRows, dependencyRows, vaultRows, secretRows }
+  return { monitorRows, channelRows, linkRows, dependencyRows, vaultRows, secretRows, templateRows }
 }
 
 type State = Awaited<ReturnType<typeof loadState>>
@@ -290,7 +316,8 @@ function vaultResolver(state: State) {
 // ── The plan ────────────────────────────────────────────────────────────────────────────────────────────────────
 
 interface PlannedChannel { desired: DesiredChannel; config: Json; existing: ChannelRow | undefined; fields: string[] }
-interface PlannedMonitor { desired: DesiredMonitor; config: Json; existing: MonitorRow | undefined; fields: string[] }
+interface AutoIncidentSettings { minutes: number | null; mode: AutoIncidentMode; templateId: number | null }
+interface PlannedMonitor { desired: DesiredMonitor; config: Json; existing: MonitorRow | undefined; fields: string[]; auto: AutoIncidentSettings }
 interface Planned {
   channels: PlannedChannel[]
   monitors: PlannedMonitor[]
@@ -319,6 +346,27 @@ function findCycle(edges: Map<string, string[]>): string | null {
     if (cycle) return cycle
   }
   return null
+}
+
+/** The comparable form of a monitor's automatic-incident settings; null = off. */
+function autoIncidentState(minutes: number | null, mode: string, templateId: number | null): Json | null {
+  return minutes === null ? null : { afterMinutes: minutes, mode, templateId }
+}
+
+function resolveAutoIncident(monitor: DesiredMonitor, state: State, problems: Problems): AutoIncidentSettings {
+  const wanted = monitor.autoIncident
+  if (!wanted) return { minutes: null, mode: 'draft', templateId: null }
+  if (wanted.template === null) return { minutes: wanted.afterMinutes, mode: wanted.mode, templateId: null }
+  const found = state.templateRows.find((row) => row.name === wanted.template)
+  if (!found) {
+    problems.add(`${monitor.path}.autoIncident.template`, `unknown incident template "${clip(wanted.template)}"`)
+    return { minutes: wanted.afterMinutes, mode: wanted.mode, templateId: null }
+  }
+  return { minutes: wanted.afterMinutes, mode: wanted.mode, templateId: found.isDefault ? null : found.id }
+}
+
+function refusePublishing(path: string, problems: Problems) {
+  problems.add(`${path}.autoIncident`, 'a token needs the "incidents:write" permission to publish automatic incidents or choose their template')
 }
 
 const byKey = (a: { key: string }, b: { key: string }) => (a.key < b.key ? -1 : 1)
@@ -392,11 +440,16 @@ function plan(state: State, desired: Desired, token: ImportOptions['token']): Pl
     }
     edges.set(monitor.key, monitor.dependsOn.filter((key) => finalMonitorKeys.has(key) && key !== monitor.key))
 
+    // Missing block or `enabled: false` = off. No template named = the default one, stored as null.
+    const auto = resolveAutoIncident(monitor, state, problems)
+    const mayPublish = !token || tokenAllows(token.scopes, 'incidents:write')
+
     const mayLink = !token || tokenAllows(token.scopes, 'channels:write')
     const refuseLinks = () => problems.add(`${monitor.path}.notifications`, 'a token needs the "channels:write" permission to change which channels a monitor alerts through')
     if (!existing) {
       if (monitor.notifications.length && !mayLink) refuseLinks()
-      plannedMonitors.push({ desired: monitor, config, existing, fields: [] })
+      if (!mayPublish && (auto.mode === 'published' || auto.templateId !== null)) refusePublishing(monitor.path, problems)
+      plannedMonitors.push({ desired: monitor, config, existing, fields: [], auto })
       changes.push({ kind: 'Monitor', key: monitor.key, action: 'create' })
       continue
     }
@@ -405,15 +458,18 @@ function plan(state: State, desired: Desired, token: ImportOptions['token']): Pl
       failureThreshold: existing.failureThreshold, recoveryThreshold: existing.recoveryThreshold,
       config: JSON.parse(existing.config), tags: JSON.parse(existing.tags ?? '[]'),
       notifications: currentChannelKeys(existing.id), dependsOn: currentDependencies(existing.id),
+      autoIncident: autoIncidentState(existing.autoIncidentMinutes, existing.autoIncidentMode, existing.autoIncidentTemplateId),
     }
     const wanted: Json = {
       name: values.name, type: values.type, intervalSecs: values.intervalSecs, timeoutMs: values.timeoutMs, retries: values.retries,
       failureThreshold: values.failureThreshold, recoveryThreshold: values.recoveryThreshold,
       config, tags: values.tags, notifications: [...monitor.notifications].sort(), dependsOn: [...monitor.dependsOn].sort(),
+      autoIncident: autoIncidentState(auto.minutes, auto.mode, auto.templateId),
     }
     const fields = Object.keys(wanted).filter((field) => canonical(current[field]) !== canonical(wanted[field]))
     if (fields.includes('notifications') && !mayLink) refuseLinks()
-    if (fields.length) plannedMonitors.push({ desired: monitor, config, existing, fields })
+    if (fields.includes('autoIncident') && !mayPublish && (auto.mode === 'published' || auto.templateId !== null)) refusePublishing(monitor.path, problems)
+    if (fields.length) plannedMonitors.push({ desired: monitor, config, existing, fields, auto })
     changes.push({ kind: 'Monitor', key: monitor.key, action: fields.length ? 'update' : 'unchanged', ...(fields.length ? { fields } : {}) })
   }
 
@@ -452,7 +508,7 @@ async function execute(state: State, planned: Planned): Promise<AuditEntry[]> {
   }
 
   // Monitors first without their links: a link may point at a monitor created later in the same stream.
-  for (const { desired: monitor, config, existing, fields } of planned.monitors) {
+  for (const { desired: monitor, config, existing, fields, auto } of planned.monitors) {
     const values = monitor.fields
     if (existing) {
       const updates: Partial<typeof monitors.$inferInsert> = { updatedAt: now }
@@ -464,6 +520,11 @@ async function execute(state: State, planned: Planned): Promise<AuditEntry[]> {
       if (fields.includes('failureThreshold')) updates.failureThreshold = values.failureThreshold
       if (fields.includes('recoveryThreshold')) updates.recoveryThreshold = values.recoveryThreshold
       if (fields.includes('tags')) updates.tags = JSON.stringify(values.tags)
+      if (fields.includes('autoIncident')) {
+        updates.autoIncidentMinutes = auto.minutes
+        updates.autoIncidentMode = auto.mode
+        updates.autoIncidentTemplateId = auto.templateId
+      }
       if (fields.includes('config')) {
         updates.config = JSON.stringify(config)
         Object.assign(updates, certResetsFor(JSON.parse(existing.config), config))
@@ -481,6 +542,7 @@ async function execute(state: State, planned: Planned): Promise<AuditEntry[]> {
         intervalSecs: values.intervalSecs, timeoutMs: values.timeoutMs, retries: values.retries,
         failureThreshold: values.failureThreshold, recoveryThreshold: values.recoveryThreshold,
         config: JSON.stringify(config), tags: JSON.stringify(values.tags),
+        autoIncidentMinutes: auto.minutes, autoIncidentMode: auto.mode, autoIncidentTemplateId: auto.templateId,
         currentStatus: 'pending', alertConfirmedStatus: 'pending',
         webhookToken: values.type === 'webhook' ? generateWebhookToken() : null,
         createdAt: now, updatedAt: now,

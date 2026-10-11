@@ -4,6 +4,7 @@ export type AuditAction = 'create' | 'update' | 'delete' | 'allow' | 'deny'
 export type AuditEntityType =
   | 'monitor'
   | 'incident'
+  | 'incident_template'
   | 'maintenance'
   | 'notification_channel'
   | 'smtp_settings'

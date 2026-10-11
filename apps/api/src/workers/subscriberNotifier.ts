@@ -116,7 +116,8 @@ export async function notifyIncidentSubscribers(
   update?: IncidentUpdateSummary,
 ): Promise<number> {
   const incident = (await db.select().from(incidents).where(eq(incidents.id, incidentId)))[0]
-  if (!incident) return 0
+  // A draft has not been announced yet, so nobody subscribed hears about it.
+  if (!incident || incident.draft) return 0
   const monitorIds = (await db.select().from(incidentMonitors).where(eq(incidentMonitors.incidentId, incidentId)))
     .map((link) => link.monitorId)
   const updates = (await db.select().from(incidentUpdates).where(eq(incidentUpdates.incidentId, incidentId)).orderBy(desc(incidentUpdates.postedAt)))

@@ -8,7 +8,7 @@ import IncidentsPage from './Incidents'
 import { ToastProvider } from '../components/ui'
 
 vi.mock('../api/client', () => ({
-  api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }))
 
 const incidents = [
@@ -32,6 +32,7 @@ let subscriptionsEnabled = true
 function mockGets(list: Incident[] = incidents) {
   vi.mocked(api.get).mockImplementation(async (path: string) => {
     if (path === '/admin/incidents') return list
+    if (path === '/admin/incident-templates') return []
     if (path === '/admin/monitors') return [{ id: 10, name: 'Checkout API' }, { id: 11, name: 'Search' }]
     if (path === '/admin/subscribers/settings') return { enabled: subscriptionsEnabled }
     throw new Error(`Unexpected GET ${path}`)
@@ -202,8 +203,35 @@ describe('IncidentsPage', () => {
       impact: 'critical',
       monitorIds: [11],
       notifySubscribers: true,
+      draft: false,
     }))
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Create Incident' })).not.toBeInTheDocument())
+  })
+
+  it('shows a draft incident and publishes it', async () => {
+    const user = userEvent.setup()
+    mockGets([{ id: 7, title: 'API outage', status: 'investigating', impact: 'major', startedAt: Date.UTC(2026, 8, 3), draft: true, autoMonitorId: 10, monitorIds: [10], updates: [] }] as unknown as Incident[])
+    vi.mocked(api.patch).mockResolvedValue({})
+    renderPage()
+
+    expect(await screen.findByText('draft')).toBeInTheDocument()
+    expect(screen.getByText('automatic')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Publish API outage' }))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/incidents/7', { draft: false }))
+  })
+
+  it('saves a manual incident as a draft', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getByRole('button', { name: /New Incident/ }))
+    await user.type(screen.getByPlaceholderText('Service degradation'), 'Planned check')
+    await user.click(screen.getByRole('checkbox', { name: /Save as draft/ }))
+    expect(screen.queryByRole('checkbox', { name: 'Notify subscribers' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Create Incident' }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/incidents', expect.objectContaining({ title: 'Planned check', draft: true })))
   })
 
   it('requires a title before creating an incident', async () => {

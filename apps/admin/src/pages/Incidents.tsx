@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { Incident, Monitor } from '@bsp/shared'
+import type { Incident, IncidentTemplate, Monitor } from '@bsp/shared'
+import { IncidentTemplatesModal, TEMPLATES_KEY } from '../components/incidents/IncidentTemplatesModal'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { NotifySubscribersCheckbox } from '../components/subscribers/NotifySubscribersCheckbox'
 import { Modal, ModalFooter } from '../components/ModalShell'
@@ -45,6 +46,7 @@ export default function IncidentsPage() {
   const qc = useQueryClient()
   const toast = useToast()
   const [showCreate, setShowCreate] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Incident | null>(null)
   const [updateBody, setUpdateBody] = useState('')
@@ -72,6 +74,15 @@ export default function IncidentsPage() {
     },
   })
 
+  const publishMutation = useMutation({
+    mutationFn: (incident: Incident) => api.patch(`/admin/incidents/${incident.id}`, { draft: false }),
+    onSuccess: (_data, incident) => {
+      qc.invalidateQueries({ queryKey: ['incidents'] })
+      toast.success(`Published "${incident.title}"`)
+    },
+    onError: (err) => toast.error(`Couldn't publish incident: ${(err as Error).message}`),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (incident: Incident) => api.delete(`/admin/incidents/${incident.id}`),
     onSuccess: (_data, incident) => {
@@ -85,10 +96,16 @@ export default function IncidentsPage() {
   const activeCount = incidents.filter((i) => i.status !== 'resolved').length
 
   const newIncidentButton = (
-    <button type="button" onClick={() => setShowCreate(true)} className="btn btn-primary">
-      <span className="material-symbols-outlined" aria-hidden="true">add_circle</span>
-      New Incident
-    </button>
+    <>
+      <button type="button" onClick={() => setShowTemplates(true)} className="btn btn-secondary">
+        <span className="material-symbols-outlined" aria-hidden="true">article</span>
+        Templates
+      </button>
+      <button type="button" onClick={() => setShowCreate(true)} className="btn btn-primary">
+        <span className="material-symbols-outlined" aria-hidden="true">add_circle</span>
+        New Incident
+      </button>
+    </>
   )
 
   return (
@@ -142,12 +159,25 @@ export default function IncidentsPage() {
                     <span className="flex gap-2 mt-1.5 flex-wrap">
                       <Chip tone={tone}>{incident.status}</Chip>
                       <Chip tone={impactTone}>{incident.impact}</Chip>
+                      {incident.draft && <Chip tone={NEUTRAL}>draft</Chip>}
+                      {incident.autoMonitorId !== null && <Chip tone={NEUTRAL}>automatic</Chip>}
                     </span>
                   </span>
                   <span className="font-mono text-xs flex-shrink-0" style={{ color: 'var(--m3-secondary)' }}>
                     {formatDate(incident.startedAt)}
                   </span>
                 </button>
+                {incident.draft && (
+                  <button
+                    type="button"
+                    onClick={() => publishMutation.mutate(incident)}
+                    disabled={publishMutation.isPending}
+                    className="btn btn-primary"
+                    aria-label={`Publish ${incident.title}`}
+                  >
+                    Publish
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(incident)}
@@ -297,6 +327,8 @@ export default function IncidentsPage() {
         />
       )}
 
+      {showTemplates && <IncidentTemplatesModal onClose={() => setShowTemplates(false)} />}
+
       {confirmDelete && (
         <ConfirmModal
           title="Delete incident"
@@ -317,8 +349,22 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
   const [impact, setImpact] = useState('minor')
   const [selectedMonitors, setSelectedMonitors] = useState<number[]>([])
   const [notifySubscribers, setNotifySubscribers] = useState(true)
+  const [draft, setDraft] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const { data: templates = [] } = useQuery<IncidentTemplate[]>({
+    queryKey: TEMPLATES_KEY,
+    queryFn: () => api.get('/admin/incident-templates'),
+  })
+
+  // Only the title and impact are taken over; the other placeholders need an outage to fill them in.
+  function applyTemplate(id: string) {
+    const template = templates.find((t) => String(t.id) === id)
+    if (!template) return
+    const names = monitors.filter((m) => selectedMonitors.includes(m.id)).map((m) => m.name).join(', ')
+    setTitle(template.title.replace(/{{s*monitors*}}/g, names || 'service'))
+    setImpact(template.impact)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -326,7 +372,7 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
     setError('')
     try {
       // Monitors go in the same request so component-scoped subscribers are matched.
-      await api.post<Incident>('/admin/incidents', { title, status, impact, monitorIds: selectedMonitors, notifySubscribers })
+      await api.post<Incident>('/admin/incidents', { title, status, impact, monitorIds: selectedMonitors, notifySubscribers, draft })
       onSaved()
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : 'Failed to create the incident. Please try again.')
@@ -339,6 +385,14 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
     <Modal title="New Incident" icon="warning" onClose={onClose} flush>
       <form onSubmit={handleSubmit}>
         <div className="p-6 space-y-4">
+        {templates.length > 0 && (
+          <Field label="Start from template">
+            <select defaultValue="" onChange={(e) => applyTemplate(e.target.value)} className="input-sig">
+              <option value="">None</option>
+              {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </Field>
+        )}
         <Field label="Title" required>
           <input
             value={title}
@@ -394,7 +448,11 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
           </div>
         </fieldset>
 
-        <NotifySubscribersCheckbox checked={notifySubscribers} onChange={setNotifySubscribers} />
+        <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--m3-on-surface)' }}>
+          <input type="checkbox" checked={draft} onChange={(e) => setDraft(e.target.checked)} />
+          Save as draft (visible only here until published)
+        </label>
+        {!draft && <NotifySubscribersCheckbox checked={notifySubscribers} onChange={setNotifySubscribers} />}
 
         {error && <Alert tone="error">{error}</Alert>}
         </div>

@@ -6,7 +6,7 @@ import type { SubscriberEventType } from '@bsp/shared'
 import { PUBLIC_FEED_RATE_LIMIT } from '../config/rateLimits.js'
 import { feedMethodAvailable, getPublicComponents, getSubscriptionSettings } from '../services/subscriptions.js'
 import { resolvePublicUrl } from '../config/publicUrl.js'
-import { withIncidentDetails } from '../services/incidentDetails.js'
+import { publishedIncident, withIncidentDetails } from '../services/incidentDetails.js'
 
 const FEED_SIZE = 50
 
@@ -35,7 +35,7 @@ async function loadFeed(req: FastifyRequest) {
   const base = resolvePublicUrl() || `${req.protocol}://${req.host}`
   const site = (await db.select({ siteName: branding.siteName }).from(branding))[0]?.siteName || 'Status Page'
 
-  const rows = await withIncidentDetails(await db.select().from(incidents).orderBy(desc(incidents.updatedAt)).limit(FEED_SIZE))
+  const rows = await withIncidentDetails(await db.select().from(incidents).where(publishedIncident).orderBy(desc(incidents.updatedAt)).limit(FEED_SIZE))
   const componentNames = new Map((await getPublicComponents()).map((component) => [component.id, component.name]))
 
   const entries: FeedEntry[] = rows.map((incident) => {
@@ -134,7 +134,7 @@ async function loadSlackFeed(req: FastifyRequest) {
   const items: SlackItem[] = []
 
   if (allowed.has('incident.created') || allowed.has('incident.updated') || allowed.has('incident.resolved')) {
-    const rows = await withIncidentDetails(await db.select().from(incidents).orderBy(desc(incidents.updatedAt)).limit(FEED_SIZE))
+    const rows = await withIncidentDetails(await db.select().from(incidents).where(publishedIncident).orderBy(desc(incidents.updatedAt)).limit(FEED_SIZE))
     for (const incident of rows) {
       const affected = incident.monitorIds
         .map((monitorId) => componentNames.get(monitorId)).filter((name): name is string => !!name)

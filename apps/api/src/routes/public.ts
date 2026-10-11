@@ -10,7 +10,7 @@ import { getPublishedMonitorIds, publishedMonitorIdsSnapshot } from '../services
 import type { LayoutTree, LayoutNode, GroupNode, MonitorNode, UptimeThresholds } from '@bsp/shared'
 import { classifyUptimeDay, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 import { PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
-import { withIncidentDetails } from '../services/incidentDetails.js'
+import { publishedIncident, withIncidentDetails } from '../services/incidentDetails.js'
 import { parseStrictPagination } from '../lib/pagination.js'
 import { authenticateRequest, type AuthIdentity } from '../services/authSession.js'
 import { isStatusPagePrivate, protectStatusPage } from '../services/statusPageAccess.js'
@@ -64,7 +64,7 @@ export async function publicRoutes(app: FastifyInstance) {
       lastCheckedAt: monitors.lastCheckedAt,
     }).from(monitors)
     const publishedMonitors = allMonitors.filter((monitor) => published.has(monitor.id))
-    const rawActiveIncidents = await db.select().from(incidents).where(ne(incidents.status, 'resolved')).orderBy(desc(incidents.createdAt))
+    const rawActiveIncidents = await db.select().from(incidents).where(and(ne(incidents.status, 'resolved'), publishedIncident)).orderBy(desc(incidents.createdAt))
     const activeIncidents = publishIncidents(await withIncidentDetails(rawActiveIncidents), published)
     const brandingRow = (await db.select().from(branding))[0] ?? null
 
@@ -110,7 +110,7 @@ export async function publicRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'page must be a positive integer and limit must be between 1 and 100' })
     }
 
-    const rows = await db.select().from(incidents).orderBy(desc(incidents.createdAt), desc(incidents.id))
+    const rows = await db.select().from(incidents).where(publishedIncident).orderBy(desc(incidents.createdAt), desc(incidents.id))
       .limit(paging.limit).offset(paging.offset)
     return publishIncidents(await withIncidentDetails(rows), await getPublishedMonitorIds())
   })
@@ -118,7 +118,7 @@ export async function publicRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>('/incidents/:id', async (req, reply) => {
     const incidentId = parseInteger(req.params.id, 0, 1, Number.MAX_SAFE_INTEGER)
     if (incidentId === null) return reply.code(400).send({ error: 'Invalid incident id' })
-    const incident = (await db.select().from(incidents).where(eq(incidents.id, incidentId)))[0]
+    const incident = (await db.select().from(incidents).where(and(eq(incidents.id, incidentId), publishedIncident)))[0]
     if (!incident) return reply.code(404).send({ error: 'Not found' })
     return publishIncidents(await withIncidentDetails([incident]), await getPublishedMonitorIds())[0]
   })
@@ -177,7 +177,7 @@ export async function publicRoutes(app: FastifyInstance) {
       relevantIncidents = await db
         .select({ id: incidents.id, title: incidents.title, startedAt: incidents.startedAt, resolvedAt: incidents.resolvedAt })
         .from(incidents)
-        .where(inArray(incidents.id, incidentIds))
+        .where(and(inArray(incidents.id, incidentIds), publishedIncident))
     }
 
     const summaryDays = []
@@ -302,6 +302,8 @@ function publicEventFilter(event: string, data: unknown): { data: unknown } | nu
   if (event === 'monitor.status') {
     return published.has((data as { monitorId: number }).monitorId) ? { data } : null
   }
+  // Drafts exist for operators only.
+  if (event.startsWith('incident.') && (data as { draft?: unknown } | null)?.draft === true) return null
   if (event.startsWith('incident.') && data && typeof data === 'object' && Array.isArray((data as { monitorIds?: unknown }).monitorIds)) {
     const incident = data as { monitorIds: number[] }
     return { data: { ...incident, monitorIds: incident.monitorIds.filter((id) => published.has(id)) } }

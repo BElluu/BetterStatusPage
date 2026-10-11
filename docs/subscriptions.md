@@ -50,7 +50,7 @@ On a [private status page](private-status-page.md), Slack, the feeds and the sta
 | Notifications subscribers may receive | The event types offered to email, webhook and Slack: new incidents, incident updates, resolutions, scheduled maintenance. Subscribers choose from this list; anything you remove stops being sent. |
 | Let subscribers choose components | Email and webhook subscribers can follow selected monitors or tags instead of everything. Only monitors placed on the public page (in the Page Builder) are offered, so internal monitor names never leak. |
 
-Each time you create an incident, post an update or schedule maintenance, a **Notify subscribers** checkbox (on by default) lets you publish quietly — useful for typo fixes or internal notes.
+Each time you create an incident, post an update or schedule maintenance, a **Notify subscribers** checkbox (on by default) lets you publish quietly — useful for typo fixes or internal notes. A [draft incident](incidents-and-maintenance.md#drafts) notifies nobody until it is published.
 
 ### Who receives what
 

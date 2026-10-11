@@ -160,6 +160,8 @@ describe('PageRenderer', () => {
         resolvedAt: null,
         createdAt: 1,
         updatedAt: 1,
+        draft: false,
+        autoMonitorId: null,
         monitorIds: [1],
       }]}
     />)

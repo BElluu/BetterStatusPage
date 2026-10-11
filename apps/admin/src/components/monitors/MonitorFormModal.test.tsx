@@ -30,6 +30,7 @@ function mockGets(overrides: Record<string, unknown> = {}) {
       { id: 4, name: 'Legacy hook', type: 'webhook', enabled: false },
     ],
     '/admin/monitors': [{ id: 1, name: 'Database' }, { id: 2, name: 'Edge' }],
+    '/admin/incident-templates': [],
     ...overrides,
   }
   vi.mocked(api.get).mockImplementation(async (path: string) => {
@@ -74,6 +75,9 @@ function existingMonitor(patch: Partial<Monitor> = {}): Monitor {
     retries: 2,
     failureThreshold: 3,
     recoveryThreshold: 2,
+    autoIncidentMinutes: null,
+    autoIncidentMode: 'draft',
+    autoIncidentTemplateId: null,
     config: { url: 'https://edge.example.test/health', method: 'HEAD', expectedStatus: 204, keyword: 'ok' },
     currentStatus: 'up',
     lastCheckedAt: null,
@@ -136,6 +140,9 @@ describe('MonitorFormModal', () => {
       retries: 1,
       failureThreshold: 1,
       recoveryThreshold: 1,
+      autoIncidentMinutes: null,
+      autoIncidentMode: 'draft',
+      autoIncidentTemplateId: null,
       config: { url: 'https://api.example.test/health', method: 'POST', expectedStatus: 201, keyword: 'healthy' },
       tags: [],
     })

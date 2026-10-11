@@ -4,7 +4,7 @@ import { ApiError, getJSON } from './api'
 import { useSSE } from './hooks/useSSE'
 import { useDarkMode } from './hooks/useDarkMode'
 import { useLocale } from './i18n/LocaleContext'
-import { STATUS_PAGE_PRIVATE } from '@bsp/shared'
+import { STATUS_PAGE_PRIVATE, incidentTitle } from '@bsp/shared'
 import type { Branding, Incident, PublicMonitor, MaintenanceWindow, LayoutTree, LayoutNode, GroupNode, MonitorNode, PublicStatusPageAccess } from '@bsp/shared'
 import { PageRenderer } from './components/PageRenderer'
 import { IncidentCard } from './components/IncidentCard'
@@ -567,7 +567,7 @@ function HistoryRow({ incident }: { incident: Incident }) {
         </span>
       </div>
       <div>
-        <h4 className="font-bold font-sans text-sm" style={{ color: 'var(--m3-on-surface)' }}>{incident.title}</h4>
+        <h4 className="font-bold font-sans text-sm" style={{ color: 'var(--m3-on-surface)' }}>{incidentTitle(incident, locale)}</h4>
         <p className="text-xs mt-0.5" style={{ color: 'var(--m3-secondary)' }}>{t('incident.impactLine', { impact: t(`incident.impact.${incident.impact}`) })}</p>
       </div>
       <div className="text-right">

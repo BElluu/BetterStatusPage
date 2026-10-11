@@ -14,6 +14,7 @@ import { checkDocker } from './docker.js'
 import { sendNotifications } from './notifier.js'
 import { checkCertificateExpiry } from './certificate.js'
 import { evaluateAlertTransition, isFailureStatus } from '../services/alertThresholds.js'
+import { openIncidentForOutage, resolveIncidentForRecovery } from '../services/autoIncident.js'
 import { lt, gt, eq, and, lte, gte, inArray, sql } from 'drizzle-orm'
 import type { HttpsConfig, PingConfig, DnsConfig, DatabaseConfig, DockerConfig, MonitorStatus } from '@bsp/shared'
 import { getSchedulerConfig, type SchedulerConfig } from '../config/scheduler.js'
@@ -160,8 +161,15 @@ export async function recordObservation(
       gt(monitorResults.id, sql`(select coalesce(max(id), 0) from monitor_results where monitor_id = ${monitor.id} and unconfirmed = 0 and id < ${inserted.id})`),
     ))
   }
+  // The outage clock starts when a failure is confirmed and stops on a confirmed recovery; a move to 'degraded' keeps it.
+  const fireStatus = transition?.fire?.status
+  // A monitor already confirmed down before the clock existed (an upgrade) starts it with its next observation.
+  const failingSince = fireStatus === 'up' ? null
+    : transition?.alertConfirmedStatus === 'down' ? (monitor.failingSince ?? checkedAt)
+      : monitor.failingSince
   await db.update(monitors).set({
     currentStatus: result.status,
+    failingSince,
     lastCheckedAt: checkedAt,
     updatedAt: checkedAt,
     ...(transition ? {
@@ -181,6 +189,14 @@ export async function recordObservation(
     sendNotifications(monitor, fire.status, fire.previousStatus, result.error).catch((err) =>
       console.error('[notifier] sendNotifications failed:', err),
     )
+  }
+
+  // Checked on every observation, not only on transitions: the incident opens once the outage has lasted long enough.
+  try {
+    if (fireStatus === 'up') await resolveIncidentForRecovery(monitor, checkedAt)
+    else if (transition?.alertConfirmedStatus === 'down') await openIncidentForOutage({ ...monitor, failingSince }, result.error, checkedAt)
+  } catch (err) {
+    console.error('[auto-incident] failed:', err)
   }
 }
 
