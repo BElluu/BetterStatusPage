@@ -1176,6 +1176,8 @@ function PropertiesPanel({
           <option value={24}>Last 24 hours</option>
           <option value={48}>Last 2 days</option>
           <option value={168}>Last 7 days</option>
+          <option value={720}>Last 30 days</option>
+          <option value={2160}>Last 90 days</option>
         </select>
 
         <Label htmlFor="builder-prop-buckets">Data points</Label>
@@ -1234,6 +1236,11 @@ function PropertiesPanel({
           label="Fill area under line"
           checked={n.showArea ?? true}
           onChange={(v) => onUpdate({ showArea: v } as Partial<ChartNode>)}
+        />
+        <Toggle
+          label="Show uptime %"
+          checked={n.showUptime ?? false}
+          onChange={(v) => onUpdate({ showUptime: v } as Partial<ChartNode>)}
         />
         <Toggle
           label="Show monitor type"

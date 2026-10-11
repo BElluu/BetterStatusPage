@@ -114,6 +114,12 @@ describe('public API integration', () => {
     })
     assert.equal(invalidBounds.statusCode, 400)
     assert.equal((await app.inject({
+      method: 'GET', url: `/api/v1/public/monitor/${monitorId}/history?hours=2160&buckets=30`,
+    })).statusCode, 200)
+    assert.equal((await app.inject({
+      method: 'GET', url: `/api/v1/public/monitor/${monitorId}/history?hours=2161&buckets=30`,
+    })).statusCode, 400)
+    assert.equal((await app.inject({
       method: 'GET', url: `/api/v1/public/monitor/${monitorId}/uptime?days=999999`,
     })).statusCode, 400)
     assert.equal((await app.inject({

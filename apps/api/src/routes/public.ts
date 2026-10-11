@@ -214,7 +214,7 @@ export async function publicRoutes(app: FastifyInstance) {
     { config: { rateLimit: PUBLIC_HISTORY_RATE_LIMIT } },
     async (req, reply) => {
       const monitorId = parseInteger(req.params.id, 0, 1, Number.MAX_SAFE_INTEGER)
-      const hours = parseInteger(req.query.hours, 24, 1, 168)
+      const hours = parseInteger(req.query.hours, 24, 1, 2160)
       const nBuckets = parseInteger(req.query.buckets, 30, 10, 100)
       if (monitorId === null || hours === null || nBuckets === null) {
         return reply.code(400).send({ error: 'Invalid monitor id, hours, or buckets' })

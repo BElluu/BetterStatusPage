@@ -38,11 +38,14 @@ Click a block to select it. Its settings appear under **Properties** in the left
 **Charts** are only offered for HTTPS, Ping, database (SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB) and Docker monitors, because the other types have no response time. A chart has:
 
 - **Title (optional)**: leave it empty to use the monitor name.
-- **Time range**: last 1, 3, 6, 12 or 24 hours, 2 days or 7 days. Default: 24 hours.
+- **Time range**: last 1, 3, 6, 12 or 24 hours, 2, 7, 30 or 90 days. Default: 24 hours.
 - **Data points**: 20, 30 (default) or 50.
 - **Aggregation**: **AVG** (default), **P95** or **MAX** per data point.
 - **Chart height**: **S**, **M** (default) or **L**.
-- **Fill area under line** (on by default) and **Show monitor type**.
+- **Fill area under line** (on by default), **Show uptime %** and **Show monitor type**. The uptime percentage covers the chart's time range in whole UTC days (at least 1 day).
+
+> [!WARNING]
+> **Not released yet.** The 30 and 90 day time ranges and **Show uptime %** are not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 **Text blocks** take Markdown: headings, paragraphs, lists, links. Raw HTML is not rendered.
 
