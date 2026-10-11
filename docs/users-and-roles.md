@@ -122,6 +122,17 @@ Password sign-in, the authentication-code step and the SSO endpoints accept at m
 
 To make sure an SSO-only setup cannot lock everyone out, see [Password sign-in and lockout protection](single-sign-on.md#password-sign-in-and-lockout-protection).
 
+### Tour and documentation link
+
+> [!WARNING]
+> **Not released yet.** This feature is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+The first time a user signs in to the admin console in a browser, a short tour introduces the main pages, limited to those their role can open. **Skip tour** or the × button ends it. **Take a tour** in the sidebar replays it. Whether the tour was seen is remembered per user in that browser, so a new browser shows it once more.
+
+The **Documentation** link in the sidebar opens [docs.betterstatuspage.dev](https://docs.betterstatuspage.dev) in a new tab.
+
+After an update, the first sign-in of each user shows **What's new**: for every release since the one that user last saw, the title and first sentence of each entry in the [changelog](changelog.md), with a **Full changelog** link. The notes are built into the admin console, so nothing is fetched. A new user sees the tour instead, and the first visit after this feature arrives only records the current version. As with the tour, this is remembered per user in that browser.
+
 ## Two-factor authentication
 
 Two-factor authentication (2FA) adds a 6-digit code from an authenticator app to every sign-in. It uses standard TOTP (30-second codes, SHA-1), so any authenticator app works.
@@ -203,11 +214,16 @@ Entries are never deleted automatically. They are kept in the database and inclu
 
 | Card | Shows | Status |
 |------|-------|--------|
-| **Application** | Version, process uptime | Always `ok` while the page loads. |
+| **Application** | Version (with a link to the release when a newer one is published), process uptime | Always `ok` while the page loads. |
 | **Database** | Connection, response time of a test query | `error` when the database does not answer. |
 | **Monitor scheduler** | Whether the scheduler runs, configured and overdue monitors, latest stored check, last scheduler tick, its duration, checks due and failed jobs in it | `error` when the scheduler is stopped or its last tick failed; `attention` when checks failed or monitors are overdue. A monitor is overdue when it has never been checked or its last check is older than twice its interval. |
 | **Notification delivery** | Pending and failed deliveries, last delivery | `attention` when anything is pending or failed. See [notification channels](notification-channels.md). |
 | **Backups** | Automatic schedule, last operation, stored backups, latest backup, last completed operation | `disabled` when the schedule is off; `error` when the last backup failed or the backup folder cannot be read. See [backup and restore](backup-restore.md). |
+
+> [!WARNING]
+> **Not released yet.** The new-version notice is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+The **Application** card asks GitHub for the latest release (`api.github.com`, at most once every 6 hours, result cached in memory) and shows a link such as **1.3.0 available** when it is newer than the running version. Pre-releases are ignored, and nothing is shown when GitHub cannot be reached. Set `UPDATE_CHECK=false` in `.env` to stop the server from making this request; the installed version is the only thing it sends, inside the `User-Agent` header.
 
 ## Health endpoints for load balancers
 
@@ -219,12 +235,3 @@ Two unauthenticated endpoints sit at the root of the server, outside `/api`:
 | `GET /ready` | `200 {"status":"ready"}` after setup is finished and the database answers; otherwise `503 {"status":"not_ready"}`. | Readiness: should traffic go here. Returns `503` until the [setup wizard](deployment.md#4-open-the-setup-wizard) has run. |
 
 Neither endpoint reveals anything beyond these answers. For the detailed view, use the **System Health** page.
-
-### Tour and documentation link
-
-> [!WARNING]
-> **Not released yet.** This feature is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
-The first time a user signs in to the admin console in a browser, a short tour introduces the main pages, limited to those their role can open. **Skip tour** or the × button ends it. **Take a tour** in the sidebar replays it. Whether the tour was seen is remembered per user in that browser, so a new browser shows it once more.
-
-The **Documentation** link in the sidebar opens [docs.betterstatuspage.dev](https://docs.betterstatuspage.dev) in a new tab.

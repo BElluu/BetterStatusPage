@@ -5,6 +5,7 @@ import { useDarkMode } from '../hooks/useDarkMode'
 import { useDatePrefs } from '../lib/dateFormat'
 import { statusPageUrl } from '../navigation'
 import { DOCS_URL, Tour, isTourDone, markTourDone } from './Tour'
+import { WhatsNew, markWhatsNewSeen, pendingWhatsNew } from './WhatsNew'
 
 // role hierarchy: admin > operator > branding
 const ROLE_RANK: Record<string, number> = { admin: 3, operator: 2, branding: 1 }
@@ -211,7 +212,12 @@ export default function Layout() {
   const [tourOpen, setTourOpen] = useState(() => userId !== undefined && !isTourDone(userId))
   const closeTour = useCallback(() => {
     setTourOpen(false)
-    if (userId !== undefined) markTourDone(userId)
+    if (userId !== undefined) { markTourDone(userId); markWhatsNewSeen(userId) }
+  }, [userId])
+  const [whatsNew, setWhatsNew] = useState(() => userId !== undefined && isTourDone(userId) ? pendingWhatsNew(userId) : [])
+  const closeWhatsNew = useCallback(() => {
+    setWhatsNew([])
+    if (userId !== undefined) markWhatsNewSeen(userId)
   }, [userId])
   const allowedPaths = new Set(navSections.flatMap((section) => section.items.map((item) => item.to)))
 
@@ -245,6 +251,7 @@ export default function Layout() {
       </header>
 
       {tourOpen && <Tour allowedPaths={allowedPaths} onClose={closeTour} />}
+      {!tourOpen && whatsNew.length > 0 && <WhatsNew releases={whatsNew} onClose={closeWhatsNew} />}
 
       {drawerOpen && <MobileDrawer {...nav} onClose={closeDrawer} returnFocusRef={menuButtonRef} />}
 

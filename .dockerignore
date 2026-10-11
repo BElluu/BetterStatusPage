@@ -11,3 +11,5 @@ data
 .gitignore
 *.md
 docs
+
+!docs/changelog.md

@@ -1,4 +1,4 @@
-import { ADMIN, ADMIN_URL, STATUS_URL, expect, ok, pageAs, test } from './fixtures'
+import { ADMIN, ADMIN_URL, STATUS_URL, expect, ok, pageAs, skipTour, test } from './fixtures'
 
 test('wrong credentials are rejected with a message', async ({ page }) => {
   await page.goto(`${ADMIN_URL}/login`)
@@ -59,6 +59,7 @@ test('an operator whose access is revoked is sent to the login page from a live 
   await ok(adminApi.patch(`admin/users/${created.id}/role`, { data: { role: 'operator' } }))
 
   const context = await browser.newContext()
+  await skipTour(context)
   const page = await context.newPage()
   await page.goto(`${ADMIN_URL}/login`)
   await page.locator('input[type="email"]').fill(email)

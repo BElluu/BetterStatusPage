@@ -16,6 +16,7 @@ RUN npm ci
 COPY tsconfig.base.json ./
 COPY packages/ ./packages/
 COPY apps/     ./apps/
+COPY docs/changelog.md ./docs/changelog.md
 
 RUN npm run build
 

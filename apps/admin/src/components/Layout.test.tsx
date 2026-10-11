@@ -29,6 +29,7 @@ describe('Layout', () => {
   beforeEach(() => {
     localStorage.setItem('bsp-dark-mode', 'false')
     localStorage.setItem('bsp-tour-done-1', '1')
+    localStorage.removeItem('bsp-whatsnew-seen-1')
     vi.mocked(getCurrentUser).mockReturnValue({ userId: 1, email: 'op@example.test', role: 'operator', mustChangePassword: false, twoFactorEnabled: false })
     vi.mocked(api.post).mockResolvedValue({})
   })
@@ -113,5 +114,23 @@ describe('Layout', () => {
     expect(screen.queryByRole('dialog', { name: 'Admin console tour' })).not.toBeInTheDocument()
     await user.click(screen.getAllByRole('button', { name: 'Take a tour' })[0]!)
     expect(screen.getByRole('dialog', { name: 'Admin console tour' })).toBeInTheDocument()
+  })
+
+  it("shows what's new once to a user who last saw an older version", async () => {
+    localStorage.setItem('bsp-whatsnew-seen-1', '0.0.1')
+    const user = userEvent.setup()
+    renderLayout()
+    const dialog = screen.getByRole('dialog', { name: "What's new" })
+    expect(within(dialog).getByRole('link', { name: 'Full changelog' })).toHaveAttribute('href', 'https://docs.betterstatuspage.dev/changelog/')
+    await user.click(within(dialog).getByRole('button', { name: 'Got it' }))
+    expect(screen.queryByRole('dialog', { name: "What's new" })).not.toBeInTheDocument()
+    expect(localStorage.getItem('bsp-whatsnew-seen-1')).not.toBe('0.0.1')
+  })
+
+  it("shows no what's new on the first visit, only records the version", () => {
+    localStorage.removeItem('bsp-whatsnew-seen-1')
+    renderLayout()
+    expect(screen.queryByRole('dialog', { name: "What's new" })).not.toBeInTheDocument()
+    expect(localStorage.getItem('bsp-whatsnew-seen-1')).not.toBeNull()
   })
 })

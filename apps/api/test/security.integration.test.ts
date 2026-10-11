@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+
+process.env['UPDATE_CHECK'] = 'false'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import jwt from '@fastify/jwt'

@@ -1,10 +1,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { request, test as setup, expect } from '@playwright/test'
-import { ADMIN, ADMIN_URL, API_URL, apiAs, credentialsFile, sessionFile, stateFile, type Role } from './fixtures'
+import { ADMIN, ADMIN_URL, API_URL, apiAs, credentialsFile, sessionFile, skipTour, stateFile, type Role } from './fixtures'
 
 setup('first-run wizard creates the administrator and signs them in', async ({ page }) => {
   mkdirSync(path.dirname(stateFile('admin')), { recursive: true })
+  await skipTour(page.context())
 
   // A signed-out visitor to an unconfigured instance is sent to the wizard.
   await page.goto(`${ADMIN_URL}/login`)
