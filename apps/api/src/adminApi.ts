@@ -19,6 +19,7 @@ import { apiTokenRoutes } from './routes/apiTokens.js'
 import { configRoutes } from './routes/config.js'
 import { systemHealthRoutes } from './routes/systemHealth.js'
 import { reportRoutes } from './routes/reports.js'
+import { metricsRoutes } from './routes/metrics.js'
 
 /**
  * Everything under `/api/v1/admin`. Registered by index.ts; kept in its own module so a test can build the real
@@ -110,6 +111,13 @@ export async function adminApi(adminApp: FastifyInstance) {
     belongsTo(sub, 'system')
     sub.addHook('preHandler', requireRole())
     await sub.register(systemHealthRoutes, { prefix: '/system-health' })
+  })
+
+  // Prometheus metrics: admin only (a scrape token carries `metrics:read`)
+  await adminApp.register(async (sub) => {
+    belongsTo(sub, 'metrics')
+    sub.addHook('preHandler', requireRole())
+    await sub.register(metricsRoutes, { prefix: '/metrics' })
   })
 
   // configuration export and import: the handler checks what the caller may do with each kind of object

@@ -72,7 +72,7 @@ describe('which admin routes accept a token, and for what', () => {
   const PARTS: Record<string, string> = {
     '/admin/monitors': 'monitors', '/admin/incidents': 'incidents', '/admin/notifications': 'channels', '/admin/subscribers': 'subscribers',
     '/admin/reports': 'reports', '/admin/layout': 'appearance', '/admin/branding': 'appearance', '/admin/locales': 'appearance',
-    '/admin/maintenance': 'maintenance', '/admin/audit': 'audit', '/admin/system-health': 'system', '/admin/config': 'custom',
+    '/admin/maintenance': 'maintenance', '/admin/audit': 'audit', '/admin/system-health': 'system', '/admin/metrics': 'metrics', '/admin/config': 'custom',
   }
   const under = (prefix: string) => registeredRoutes.filter((route) => route.url === prefix || route.url.startsWith(`${prefix}/`))
 
