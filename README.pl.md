@@ -37,7 +37,7 @@ Znasz to. API pada o 3 w nocy, użytkownicy zaczynają pisać na Twitterze, szef
 
 ## Status wydania
 
-BetterStatusPage jest obecnie w fazie MVP. Aktualnym celem jest praktyczne, samodzielnie hostowane wdrożenie dla małych zespołów i prywatnej infrastruktury:
+BetterStatusPage jest obecnie w fazie beta. Aktualnym celem jest praktyczne, samodzielnie hostowane wdrożenie dla małych zespołów i prywatnej infrastruktury:
 
 - jeden proces Node.js 26,
 - przechowywanie danych w SQLite,
@@ -46,7 +46,7 @@ BetterStatusPage jest obecnie w fazie MVP. Aktualnym celem jest praktyczne, samo
 - wbudowane kopie zapasowe i przywracanie offline,
 - brak wymaganej zewnętrznej bazy danych, kolejki czy cache.
 
-Z góry dziękuję za zainteresowanie projektem oraz za każdą instalację, test, zgłoszenie błędu i opinię. Wczesne testy w realnych warunkach są szczególnie cenne i bezpośrednio pomogą ukształtować BetterStatusPage po etapie MVP.
+Z góry dziękuję za zainteresowanie projektem oraz za każdą instalację, test, zgłoszenie błędu i opinię. Wczesne testy w realnych warunkach są szczególnie cenne i bezpośrednio pomogą ukształtować BetterStatusPage w drodze do wersji stabilnej.
 
 Pełna dokumentacja (EN): **https://docs.betterstatuspage.dev**. Zanim wystawisz instancję produkcyjną, przeczytaj:
 

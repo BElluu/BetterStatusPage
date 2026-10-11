@@ -37,7 +37,7 @@ You know the drill. Your API goes down at 3 AM, users start tweeting, your boss 
 
 ## Release status
 
-BetterStatusPage is currently in its MVP phase. The current target is a practical self-hosted deployment for small teams and personal infrastructure:
+BetterStatusPage is currently in beta. The current target is a practical self-hosted deployment for small teams and personal infrastructure:
 
 - one Node.js 26 process,
 - SQLite persistence,
@@ -46,7 +46,7 @@ BetterStatusPage is currently in its MVP phase. The current target is a practica
 - built-in backups and offline restore,
 - no external database, queue, or cache required.
 
-Thank you in advance for your interest in the project and for every installation, test, bug report, and piece of feedback. Early real-world testing is especially valuable and will directly help shape BetterStatusPage beyond the MVP.
+Thank you in advance for your interest in the project and for every installation, test, bug report, and piece of feedback. Early real-world testing is especially valuable and will directly help shape BetterStatusPage on the way to a stable release.
 
 Full documentation: **https://docs.betterstatuspage.dev**. Before exposing a production instance, read:
 
