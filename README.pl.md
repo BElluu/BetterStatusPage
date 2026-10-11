@@ -75,7 +75,7 @@ Pełna dokumentacja (EN): **https://docs.betterstatuspage.dev**. Zanim wystawisz
 | **MongoDB** | Wykonuje komendę testową na MongoDB i weryfikuje wynik |
 | **Webhook** *(pasywny)* | Pozwala zewnętrznym usługom pingować *Ciebie*, by zasygnalizować, że żyją — cisza oznacza kłopoty |
 
-Każdy monitor ma: konfigurowalne interwały, timeouty, ponowienia, **kolorowe tagi** do grupowania **30-dniowy pasek dostępności** na stronie statusu, a wyniki sprawdzeń są domyślnie przechowywane przez 90 dni, a osobna strona monitora w panelu pokazuje dostępność, percentyle czasu odpowiedzi, incydenty i ostatnie błędy. A, i jest wbudowany tester, więc możesz sprawdzić konfigurację, zanim klikniesz Zapisz i natychmiast tego pożałujesz.
+Każdy monitor ma: konfigurowalne interwały, timeouty, ponowienia, **kolorowe tagi** do grupowania, **30-dniowy pasek dostępności** na stronie statusu i domyślnie 90 dni przechowywanych wyników sprawdzeń, a osobna strona monitora w panelu pokazuje dostępność, percentyle czasu odpowiedzi, incydenty i ostatnie błędy. A, i jest wbudowany tester, więc możesz sprawdzić konfigurację, zanim klikniesz Zapisz i natychmiast tego pożałujesz.
 
 > Zobacz **[docs.betterstatuspage.dev/monitors](https://docs.betterstatuspage.dev/monitors/)** — wszystkie typy monitorów, uwierzytelnianie, adresy heartbeat, ostrzeżenia o certyfikatach i zależności *(EN)*.
 
@@ -135,7 +135,7 @@ Twoje sekrety nigdy nie pojawiają się w logach, listach zwracanych przez API, 
 
 Pozwól zespołowi logować się dostawcą tożsamości, którego już używa — **Microsoft Entra ID, Keycloak, Okta, Google Workspace, Authentik, Auth0** albo dowolnym innym dostawcą OIDC. Przepływ Authorization Code z PKCE, `state` i `nonce`, kończący się tą samą utwardzoną sesją po stronie serwera co logowanie hasłem.
 
-- **Konfiguracja w interfejsie, od razu w mocy** — wejdź w **Użytkownicy → Single sign-on**, wklej issuera, client ID i sekret, kliknij **Test connection** i zapisz. Bez edycji `.env` i bez restartu. Sekret jest przechowywany zaszyfrowany i nigdy nie jest pokazywany ponownie.
+- **Konfiguracja w interfejsie, od razu w mocy** — wejdź w **Users → Single sign-on**, wklej issuera, client ID i sekret, kliknij **Test connection** i zapisz. Bez edycji `.env` i bez restartu. Sekret jest przechowywany zaszyfrowany i nigdy nie jest pokazywany ponownie.
 - **Tylko istniejący użytkownicy** — użytkownicy są dopasowywani po zweryfikowanym adresie email i zachowują swoją rolę w BetterStatusPage, więc nikt nie wejdzie przypadkiem. Jedyne konta, jakie SSO może założyć, to konta Viewer dla prywatnej strony statusu, i tylko dla wskazanych domen email.
 - **Logowanie hasłem zostaje jako zabezpieczenie** — albo wyłącz je, gdy SSO już działa. Da się je wyłączyć dopiero po udanym teście połączenia z dostawcą, a `OIDC_FORCE_PASSWORD_LOGIN=true` to przełącznik awaryjny na wypadek awarii dostawcy.
 - **Przyjazne dla infrastruktury jako kod** — te same ustawienia mogą pochodzić ze zmiennych `OIDC_*`, które wtedy nadpisują formularz i go blokują.
@@ -175,6 +175,12 @@ Nie każda strona statusu jest dla całego internetu. Włącz **Users → Status
 - **Nic nie wycieka** — dane statusu, historia i strumień na żywo wymagają sesji; kanały RSS/Atom i JSON API statusu są wyłączone; odpowiedzi są oznaczone jako `private` i `noindex`
 
 > Zobacz **[docs.betterstatuspage.dev/private-status-page](https://docs.betterstatuspage.dev/private-status-page/)** — kto może oglądać prywatną stronę i co jest wtedy wyłączone *(EN)*.
+
+### 📊 Raporty dostępności
+
+Strona statusu pokazuje 30 dni; **Monitoring → Reports** w panelu admina obejmuje dowolny zakres dat, dla którego masz jeszcze wyniki (domyślnie 90 dni). Zobacz uptime, liczbę sprawdzeń, średni czas odpowiedzi i incydenty dla każdego monitora oraz wyeksportuj podsumowanie lub dzienny plik CSV na potrzeby przeglądów SLA.
+
+> Zobacz **[docs.betterstatuspage.dev/reports](https://docs.betterstatuspage.dev/reports/)** — jak liczony jest uptime i jakie kolumny ma CSV *(EN)*.
 
 ### 🔧 Okna serwisowe
 
@@ -254,14 +260,14 @@ Zmiany statusu docierają zarówno do panelu admina, jak i do strony publicznej 
 │   │   React 19       │        │   React 19               │  │
 │   │   Vite · RQ · DnD│        │   SSE · i18n · dark mode │  │
 │   └────────┬─────────┘        └────────────┬─────────────┘  │
-└────────────┼──────────────────────────────┼────────────────┘
+└────────────┼───────────────────────────────┼────────────────┘
              │  REST + SSE                   │  REST + SSE
-┌────────────▼──────────────────────────────▼────────────────┐
+┌────────────▼───────────────────────────────▼────────────────┐
 │                    Fastify 5  (Node.js 26+)                 │
 │                                                             │
 │   ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │   │  Admin API   │  │  Public API  │  │  Webhook API     │  │
-│   │ Session+RBAC │  │ open/session │  │  token auth      │  │
+│   │ Auth + RBAC  │  │ open/session │  │  token auth      │  │
 │   └──────────────┘  └──────────────┘  └──────────────────┘  │
 │                                                             │
 │   ┌──────────────────────────────────────────────────────┐  │
@@ -271,7 +277,7 @@ Zmiany statusu docierają zarówno do panelu admina, jak i do strony publicznej 
 │   │  ├── HTTPS checker          Vault resolver           │  │
 │   │  ├── Ping / TCP             Result purger (daily)    │  │
 │   │  ├── DNS resolver                                    │  │
-│   │  └── DB checkers (SQL, PostgreSQL, MySQL, Mongo)    │  │
+│   │  └── DB checkers (SQL, PostgreSQL, MySQL, Mongo)     │  │
 │   └──────────────────────────────────────────────────────┘  │
 │                                                             │
 │   ┌──────────────────────────────────────────────────────┐  │
@@ -462,7 +468,7 @@ SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
 
 > 🔑 **Wygeneruj klucz szyfrowania sejfu:**
 > ```bash
-> node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+> openssl rand -hex 32
 > ```
 > Przechowuj go w bezpiecznym miejscu. Jeśli się zmieni, wszystkie zapisane sekrety staną się nieczytelne. Tak, wszystkie.
 
@@ -477,7 +483,7 @@ SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
 | **branding** | Kreator stron, branding, lokalizacja i ustawienia konta |
 | **viewer** | Ogląda [prywatną stronę statusu](https://docs.betterstatuspage.dev/private-status-page/); bez dostępu do panelu administracyjnego |
 
-Sesje administratorów są przechowywane po stronie serwera i uwierzytelniane ciasteczkiem `HttpOnly`, `SameSite=Strict`. Żądania przeglądarki zmieniające stan wymagają pasującego tokena CSRF. Użytkownicy panelu administracyjnego mogą włączyć uwierzytelnianie dwuskładnikowe TOTP w **Ustawieniach** i otrzymać osiem jednorazowych kodów odzyskiwania; działa ono zarówno przy logowaniu hasłem, jak i przez SSO. Administratorzy mogą też włączyć [jednokrotne logowanie OpenID Connect](https://docs.betterstatuspage.dev/single-sign-on/) w **Użytkownicy → Single sign-on**. Wrażliwe akcje (ustawienia logowania, 2FA, zmiana hasła) potwierdza się tak, jak zalogowała się sesja: aktualnym hasłem albo ponownym zalogowaniem u dostawcy tożsamości w okienku pop-up.
+Sesje administratorów są przechowywane po stronie serwera i uwierzytelniane ciasteczkiem `HttpOnly`, `SameSite=Strict`. Żądania przeglądarki zmieniające stan wymagają pasującego tokena CSRF. Użytkownicy panelu administracyjnego mogą włączyć uwierzytelnianie dwuskładnikowe TOTP w **Settings** i otrzymać osiem jednorazowych kodów odzyskiwania; działa ono zarówno przy logowaniu hasłem, jak i przez SSO. Administratorzy mogą też włączyć [jednokrotne logowanie OpenID Connect](https://docs.betterstatuspage.dev/single-sign-on/) w **Users → Single sign-on**. Wrażliwe akcje (ustawienia logowania, 2FA, zmiana hasła) potwierdza się tak, jak zalogowała się sesja: aktualnym hasłem albo ponownym zalogowaniem u dostawcy tożsamości w okienku pop-up.
 
 ### Tokeny API
 

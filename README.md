@@ -260,14 +260,14 @@ Status changes propagate to both the admin dashboard and the public page instant
 │   │   React 19       │        │   React 19               │  │
 │   │   Vite · RQ · DnD│        │   SSE · i18n · dark mode │  │
 │   └────────┬─────────┘        └────────────┬─────────────┘  │
-└────────────┼──────────────────────────────┼────────────────┘
+└────────────┼───────────────────────────────┼────────────────┘
              │  REST + SSE                   │  REST + SSE
-┌────────────▼──────────────────────────────▼────────────────┐
+┌────────────▼───────────────────────────────▼────────────────┐
 │                    Fastify 5  (Node.js 26+)                 │
 │                                                             │
 │   ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │   │  Admin API   │  │  Public API  │  │  Webhook API     │  │
-│   │ Session/token + RBAC │  │ open/session │  │  token auth      │  │
+│   │ Auth + RBAC  │  │ open/session │  │  token auth      │  │
 │   └──────────────┘  └──────────────┘  └──────────────────┘  │
 │                                                             │
 │   ┌──────────────────────────────────────────────────────┐  │
@@ -277,7 +277,7 @@ Status changes propagate to both the admin dashboard and the public page instant
 │   │  ├── HTTPS checker          Vault resolver           │  │
 │   │  ├── Ping / TCP             Result purger (daily)    │  │
 │   │  ├── DNS resolver                                    │  │
-│   │  └── DB checkers (SQL, PostgreSQL, MySQL, Mongo)    │  │
+│   │  └── DB checkers (SQL, PostgreSQL, MySQL, Mongo)     │  │
 │   └──────────────────────────────────────────────────────┘  │
 │                                                             │
 │   ┌──────────────────────────────────────────────────────┐  │
