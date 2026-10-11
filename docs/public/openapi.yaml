@@ -1086,6 +1086,7 @@ components:
         createdAt: { type: integer }
         updatedAt: { type: integer }
         draft: { type: boolean, description: A draft is visible to operators only until it is published. }
+        titleTranslations: { type: object, additionalProperties: { type: string }, description: 'The title in other languages, by language code; empty for incidents without translations.' }
         autoMonitorId: { type: [integer, 'null'], description: The monitor whose outage opened this incident automatically; null for a manual one. }
     IncidentCreate:
       type: object
@@ -1114,10 +1115,11 @@ components:
       properties:
         id: { type: integer }
         name: { type: string }
-        title: { type: string, description: 'Incident title; placeholders {{monitor}}, {{duration}}, {{status}}, {{error}}.' }
+        title: { type: string, description: 'Incident title in the default language; placeholders {{monitor}}, {{duration}}, {{status}}, {{error}}.' }
         body: { type: string, description: Opening message posted when an automatic incident opens. }
         resolvedBody: { type: string, description: Message posted when it is resolved automatically. }
         impact: { $ref: '#/components/schemas/IncidentImpact' }
+        translations: { $ref: '#/components/schemas/IncidentTemplateTranslations' }
         isDefault: { type: boolean }
         createdAt: { type: integer }
         updatedAt: { type: integer }
@@ -1129,6 +1131,16 @@ components:
         body: { type: string, maxLength: 5000 }
         resolvedBody: { type: string, maxLength: 5000 }
         impact: { $ref: '#/components/schemas/IncidentImpact' }
+        translations: { $ref: '#/components/schemas/IncidentTemplateTranslations' }
+    IncidentTemplateTranslations:
+      type: object
+      description: 'Wording per language, keyed by language code. Only the status page''s other languages are allowed, not the default one. On a patch it replaces all translations; leave it out to keep them.'
+      additionalProperties:
+        type: object
+        properties:
+          title: { type: string, maxLength: 200 }
+          body: { type: string, maxLength: 5000 }
+          resolvedBody: { type: string, maxLength: 5000 }
     IncidentUpdateCreate:
       type: object
       required: [body, status]

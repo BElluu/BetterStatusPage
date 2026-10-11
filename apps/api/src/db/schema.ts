@@ -110,6 +110,8 @@ export const incidents = sqliteTable('incidents', {
   draft: integer('draft').notNull().default(0),
   /** Monitor whose outage opened this incident automatically; null for a manual one. */
   autoMonitorId: integer('auto_monitor_id'),
+  /** JSON { [locale]: title } for the other languages of the status page. */
+  titleTranslations: text('title_translations').notNull().default('{}'),
 })
 
 export const incidentTemplates = sqliteTable('incident_templates', {
@@ -122,6 +124,9 @@ export const incidentTemplates = sqliteTable('incident_templates', {
   isDefault: integer('is_default').notNull().default(0),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
+  /** JSON { [locale]: { title?, body?, resolvedBody? } } for the other languages of the status page. */
+  translations: text('translations').notNull().default('{}'),
 })
 
 export const incidentUpdates = sqliteTable('incident_updates', {
@@ -130,6 +135,9 @@ export const incidentUpdates = sqliteTable('incident_updates', {
   body: text('body').notNull(),
   status: text('status').notNull(),
   postedAt: integer('posted_at').notNull(),
+  // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
+  /** JSON { [locale]: body } for the other languages of the status page. */
+  bodyTranslations: text('body_translations').notNull().default('{}'),
 })
 
 export const incidentMonitors = sqliteTable('incident_monitors', {

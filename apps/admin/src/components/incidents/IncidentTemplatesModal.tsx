@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { IncidentImpact, IncidentTemplate } from '@bsp/shared'
+import type { IncidentImpact, IncidentTemplate, IncidentTemplateTranslation } from '@bsp/shared'
 import { api } from '../../api/client'
 import { Modal, ModalFooter } from '../ModalShell'
 import { Alert, Field, LoadingState, useToast } from '../ui'
 
-type Draft = Pick<IncidentTemplate, 'name' | 'title' | 'body' | 'resolvedBody' | 'impact'>
+type Draft = Pick<IncidentTemplate, 'name' | 'title' | 'body' | 'resolvedBody' | 'impact' | 'translations'>
+type Locale = { code: string; name: string; isDefault: number }
 
 const EMPTY: Draft = {
   name: '',
@@ -13,6 +14,7 @@ const EMPTY: Draft = {
   body: 'We detected that {{monitor}} has been unavailable for {{duration}}. We are investigating.',
   resolvedBody: '{{monitor}} is available again. The outage lasted {{duration}}.',
   impact: 'major',
+  translations: {},
 }
 
 export const TEMPLATES_KEY = ['incident-templates']
@@ -30,6 +32,14 @@ export function IncidentTemplatesModal({ onClose }: { onClose: () => void }) {
     queryKey: TEMPLATES_KEY,
     queryFn: () => api.get('/admin/incident-templates'),
   })
+
+  // The template's own text is the default language; every other installed language can word it again.
+  const { data: locales = [] } = useQuery<Locale[]>({
+    queryKey: ['locales'],
+    queryFn: () => api.get('/admin/locales'),
+  })
+  const otherLocales = locales.filter((l) => !l.isDefault)
+  const defaultLocale = locales.find((l) => l.isDefault)
 
   const save = useMutation({
     mutationFn: () => editing === 'new' || editing === null
@@ -57,11 +67,14 @@ export function IncidentTemplatesModal({ onClose }: { onClose: () => void }) {
     setError('')
     setDraft(template === 'new' ? EMPTY : {
       name: template.name, title: template.title, body: template.body, resolvedBody: template.resolvedBody, impact: template.impact,
+      translations: template.translations,
     })
     setEditing(template)
   }
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }))
+  const setTranslation = (code: string, field: keyof IncidentTemplateTranslation, value: string) =>
+    setDraft((d) => ({ ...d, translations: { ...d.translations, [code]: { ...d.translations[code], [field]: value } } }))
 
   if (editing !== null) {
     return (
@@ -87,6 +100,30 @@ export function IncidentTemplatesModal({ onClose }: { onClose: () => void }) {
                 <option value="critical">Critical</option>
               </select>
             </Field>
+            {otherLocales.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
+                  The text above is in {defaultLocale?.name ?? 'the default language'}. Add the wording for the other languages of the status page;
+                  a visitor who switches language sees it, and a field left empty shows the text above.
+                </p>
+                {otherLocales.map((l) => (
+                  <details key={l.code} className="rounded-xl p-3" style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}>
+                    <summary className="cursor-pointer text-sm font-medium" style={{ color: 'var(--m3-on-surface)' }}>{l.name}</summary>
+                    <div className="space-y-3 mt-3">
+                      <Field label="Incident title">
+                        <input value={draft.translations[l.code]?.title ?? ''} onChange={(e) => setTranslation(l.code, 'title', e.target.value)} className="input-sig" />
+                      </Field>
+                      <Field label="Opening message">
+                        <textarea value={draft.translations[l.code]?.body ?? ''} onChange={(e) => setTranslation(l.code, 'body', e.target.value)} rows={3} className="input-sig" />
+                      </Field>
+                      <Field label="Resolved message">
+                        <textarea value={draft.translations[l.code]?.resolvedBody ?? ''} onChange={(e) => setTranslation(l.code, 'resolvedBody', e.target.value)} rows={2} className="input-sig" />
+                      </Field>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            )}
             <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
               Placeholders: <code>{'{{monitor}}'}</code> monitor name, <code>{'{{duration}}'}</code> how long it was down,{' '}
               <code>{'{{error}}'}</code> last error (opening message only).

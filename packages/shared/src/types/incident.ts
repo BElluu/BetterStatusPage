@@ -5,6 +5,8 @@ export interface IncidentUpdate {
   id: number
   incidentId: number
   body: string
+  /** The body in other languages, by locale code; a language without an entry shows `body`. */
+  bodyTranslations?: Record<string, string>
   status: IncidentStatus
   postedAt: number
 }
@@ -12,6 +14,8 @@ export interface IncidentUpdate {
 export interface Incident {
   id: number
   title: string
+  /** The title in other languages, by locale code; a language without an entry shows `title`. */
+  titleTranslations?: Record<string, string>
   status: IncidentStatus
   impact: IncidentImpact
   startedAt: number
@@ -26,7 +30,14 @@ export interface Incident {
   monitorIds?: number[]
 }
 
-/** Placeholders replaced in a template: {{monitor}}, {{duration}}, {{status}}, {{error}}. */
+/** One language's wording of a template; a missing field falls back to the template's own text. */
+export interface IncidentTemplateTranslation {
+  title?: string
+  body?: string
+  resolvedBody?: string
+}
+
+/** Placeholders replaced in a template: {{monitor}}, {{duration}}, {{status}}, {{error}}. The text is in the default language. */
 export interface IncidentTemplate {
   id: number
   name: string
@@ -37,6 +48,8 @@ export interface IncidentTemplate {
   /** Timeline entry posted when the incident is resolved automatically. */
   resolvedBody: string
   impact: IncidentImpact
+  /** Wording in the other languages of the status page, by locale code. */
+  translations: Record<string, IncidentTemplateTranslation>
   isDefault: boolean
   createdAt: number
   updatedAt: number

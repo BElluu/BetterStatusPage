@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Incident, PublicMonitor } from '@bsp/shared'
+import { incidentTitle, incidentUpdateBody, type Incident, type PublicMonitor } from '@bsp/shared'
 import { useLocale } from '../i18n/LocaleContext'
 
 function formatDate(ms: number, locale: string) {
@@ -79,7 +79,7 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
           {/* Title + subtitle */}
           <div className="bsp-incident-row__title">
             <h4 className="font-headline font-bold text-xl" style={{ color: 'var(--m3-on-surface)' }}>
-              {incident.title}
+              {incidentTitle(incident, locale)}
             </h4>
             {duration && (
               <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
@@ -147,7 +147,7 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
                         className="text-sm font-sans leading-relaxed"
                         style={{ color: 'var(--m3-on-surface)', opacity: isLatest ? 1 : 0.7 }}
                       >
-                        {update.body}
+                        {incidentUpdateBody(update, locale)}
                       </p>
                     </div>
                   )
@@ -203,7 +203,7 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
             className="font-headline font-bold mb-4 leading-tight"
             style={{ fontSize: 'clamp(1.375rem, 4vw, 28px)', color: 'var(--m3-on-surface)' }}
           >
-            {incident.title}
+            {incidentTitle(incident, locale)}
           </h3>
 
           {/* Affected monitors */}
@@ -256,7 +256,7 @@ export function IncidentCard({ incident, monitors = [] }: { incident: Incident; 
                       className="text-sm font-sans leading-relaxed"
                       style={{ color: 'var(--m3-on-surface)', opacity: isLatest ? 1 : 0.7 }}
                     >
-                      {update.body}
+                      {incidentUpdateBody(update, locale)}
                     </p>
                   </div>
                 )

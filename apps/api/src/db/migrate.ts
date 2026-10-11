@@ -420,6 +420,9 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   { sql: `ALTER TABLE incidents ADD COLUMN auto_monitor_id INTEGER`, desc: 'incidents.auto_monitor_id' },
   { sql: `CREATE INDEX IF NOT EXISTS idx_incidents_auto_monitor ON incidents(auto_monitor_id)`, desc: 'incidents auto_monitor_id index' },
   { sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_incident_templates_name ON incident_templates(name)`, desc: 'incident_templates name index' },
+  { sql: `ALTER TABLE incidents ADD COLUMN title_translations TEXT NOT NULL DEFAULT '{}'`, desc: 'incidents.title_translations' },
+  { sql: `ALTER TABLE incident_updates ADD COLUMN body_translations TEXT NOT NULL DEFAULT '{}'`, desc: 'incident_updates.body_translations' },
+  { sql: `ALTER TABLE incident_templates ADD COLUMN translations TEXT NOT NULL DEFAULT '{}'`, desc: 'incident_templates.translations' },
 ]
 
 /**

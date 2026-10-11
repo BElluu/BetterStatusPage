@@ -29,7 +29,7 @@ A token has a list of permissions instead of a role. Each names a part of the ap
 |---|---|---|
 | `monitors` | Monitors, their tests, checks and dependencies | read, write |
 | `channels` | Notification channels, the SMTP settings and the delivery history | read, write |
-| `incidents` | Incidents, their updates and affected monitors | read, write |
+| `incidents` | Incidents, their updates, affected monitors and incident templates | read, write |
 | `maintenance` | Maintenance windows | read, write |
 | `subscribers` | Subscribers and subscription settings | read, write |
 | `reports` | Uptime reports | read |
@@ -126,7 +126,7 @@ Secrets read from a [vault](vault.md) are references and are returned as they ar
 
 ### Validation
 
-A monitor needs a `name` (up to 200 characters) and a known `type`. `config`, when sent, must be an object, and `tags` a list of up to 20 `{ "label", "color" }` objects. `intervalSecs` is 10 to 86400, `timeoutMs` 1000 to 300000 and `retries` 1 to 10; values outside these ranges are refused with `400`, while `failureThreshold` and `recoveryThreshold` are clamped to 1 to 20.
+A monitor needs a `name` (up to 200 characters) and a known `type`. `config`, when sent, must be an object, and `tags` a list of up to 20 `{ "label", "color" }` objects. `intervalSecs` is 10 to 86400, `timeoutMs` 1000 to 300000 and `retries` 1 to 10; values outside these ranges are refused with `400`, while `failureThreshold` and `recoveryThreshold` are clamped to 1 to 20. The optional `autoIncidentMinutes` (1 to 10080, or `null` for off), `autoIncidentMode` (`draft` or `published`) and `autoIncidentTemplateId` (or `null` for the default template) switch on [automatic incidents](incidents-and-maintenance.md#automatic-incidents); a token needs `incidents:write` as well to set `published` or a template.
 
 A maintenance window needs a `name` (up to 200 characters), a `startsAt` and an `endsAt` (milliseconds since the epoch, the end after the start), and every id in `monitorIds` must be an existing monitor. The status page layout (`PUT /layout`) needs a `tree` object.
 

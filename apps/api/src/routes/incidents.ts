@@ -121,7 +121,11 @@ export async function incidentRoutes(app: FastifyInstance) {
       const now = Date.now()
       const updates: Record<string, unknown> = { updatedAt: now }
       if (publishing) updates['draft'] = 0
-      if (req.body.title !== undefined) updates['title'] = req.body.title
+      if (req.body.title !== undefined) {
+        updates['title'] = req.body.title
+        // The translations belong to the old wording; a stale one would contradict the new title.
+        if (req.body.title !== existing.title) updates['titleTranslations'] = '{}'
+      }
       if (req.body.status !== undefined) updates['status'] = req.body.status
       if (req.body.impact !== undefined) updates['impact'] = req.body.impact
       updates['resolvedAt'] = resolvedAtFor(req.body.status ?? existing.status, existing, now, req.body.resolvedAt)

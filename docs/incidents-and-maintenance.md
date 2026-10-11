@@ -70,6 +70,17 @@ Click an incident to expand it. The panel shows its affected monitors, the updat
 
 Picking **Resolved** resolves the incident. Once it is resolved the **Post Update** box disappears from the admin console.
 
+Incident templates (`/api/v1/admin/incident-templates`, same permission):
+
+| Method | Path | Body |
+|---|---|---|
+| GET | `/` | — |
+| POST | `/` | `{ name, title, body, resolvedBody, impact, translations? }` — all but `translations` required |
+| PATCH | `/:id` | any of those; `translations` replaces all translations |
+| DELETE | `/:id` | — (`409` for the default template) |
+
+A duplicate `name` is refused with `409`.
+
 ### Editing and deleting
 
 The admin console has no edit form. The API changes title, status, impact and resolution time, and replaces the linked monitors:
@@ -82,7 +93,7 @@ POST /api/v1/admin/incidents/:id/monitors
 { "monitorIds": [3, 7] }
 ```
 
-Setting the status back from `resolved` to anything else clears the resolution time and makes the incident active again.
+Setting the status back from `resolved` to anything else clears the resolution time and makes the incident active again. Changing the title of an [automatic incident](#automatic-incidents) removes its translated titles.
 
 The delete button (bin icon) removes an incident with its whole timeline after a confirmation. Deleting does not notify anyone, and it cannot be undone.
 
@@ -123,6 +134,7 @@ When subscriptions are switched on (**Status page → Subscribers**), a **Notify
 | Create an incident | New incident |
 | Post an update | Incident update |
 | Post an update with status *Resolved* | Resolution (instead of an update) |
+| Publish a [draft](#drafts) | New incident (or resolution, if the draft is already resolved) |
 
 Who receives each event depends on the event types you allow, what each subscriber chose and the components they follow. An incident with no affected monitors goes to everyone who chose that event type. See [Who receives what](subscriptions.md#who-receives-what).
 
@@ -175,6 +187,12 @@ The built-in **Default** template is used by every monitor that has no template 
 | | Title | Opening message |
 |---|---|---|
 | **Default** | `{{monitor}} is unavailable` | `We detected that {{monitor}} has been unavailable for {{duration}}. We are investigating.` |
+
+#### Translations
+
+The text of a template is in the **default language** of the status page. Under it, the editor has a block for every other language you added in [Languages](customizing-the-status-page.md#languages): fill in the title, the opening message and the resolved message for the ones you want. Placeholders work in every language.
+
+When an automatic incident opens, each language that has wording gets its own copy, and a visitor who switches the status page to that language sees the title and the messages in it. A language, or a single field, left empty shows the default text. The copies are stored with the incident, so changing a template later does not touch incidents that already exist. If you rewrite the title of an automatic incident by hand, its translated titles are dropped, so a stale translation never contradicts the new title. Emails, feeds and webhooks always use the default-language text.
 
 The **Start from template** list in *New Incident* takes the title and impact only; it does not post messages.
 
@@ -253,13 +271,13 @@ Incidents (`/api/v1/admin/incidents`):
 | Method | Path | Body |
 |---|---|---|
 | GET | `/` | — (optional `?page=&limit=`) |
-| POST | `/` | `{ title, status?, impact?, startedAt?, monitorIds?, notifySubscribers? }` |
-| PATCH | `/:id` | `{ title?, status?, impact?, resolvedAt?, notifySubscribers? }` |
+| POST | `/` | `{ title, status?, impact?, startedAt?, monitorIds?, notifySubscribers?, draft? }` |
+| PATCH | `/:id` | `{ title?, status?, impact?, resolvedAt?, notifySubscribers?, draft? }` — `draft: false` publishes a draft |
 | DELETE | `/:id` | — |
 | POST | `/:id/updates` | `{ body, status, notifySubscribers? }` |
 | POST | `/:id/monitors` | `{ monitorIds }` — replaces the links |
 
-`status` defaults to `investigating`, `impact` to `minor`, `startedAt` to now. A `PATCH` that changes the status to `resolved` sends a resolution to subscribers unless `notifySubscribers` is `false`.
+`status` defaults to `investigating`, `impact` to `minor`, `startedAt` to now and `draft` to `false`. A published incident cannot be set back to `draft: true` (`400`). A `PATCH` that changes the status to `resolved` sends a resolution to subscribers unless `notifySubscribers` is `false`.
 
 Maintenance windows (`/api/v1/admin/maintenance`):
 
