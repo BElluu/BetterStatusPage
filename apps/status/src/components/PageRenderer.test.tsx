@@ -46,6 +46,18 @@ describe('PageRenderer', () => {
     expect(await screen.findByText('Latency')).toBeInTheDocument()
   })
 
+  it('shows uptime % in the chart block only when asked', async () => {
+    uptimeState.value = { uptime: { overallUptimePct: 99.5, days: [] }, failed: false }
+    const chart = { id: 'chart', type: 'chart', monitorId: 1, hours: 720, buckets: 30, aggregation: 'avg' } as const
+    const { rerender } = render(<PageRenderer tree={{ id: 'root', type: 'page', children: [chart] }} monitors={monitors} statusMap={{}} />)
+    expect(await screen.findByText('Response chart')).toBeInTheDocument()
+    expect(screen.queryByText('uptime.pct')).not.toBeInTheDocument()
+
+    rerender(<PageRenderer tree={{ id: 'root', type: 'page', children: [{ ...chart, showUptime: true }] }} monitors={monitors} statusMap={{}} />)
+    expect(await screen.findByText('uptime.pct')).toBeInTheDocument()
+    uptimeState.value = { uptime: null, failed: false }
+  })
+
   it('shows maintenance and dependency causes', () => {
     const tree: LayoutTree = {
       id: 'root', type: 'page', children: [

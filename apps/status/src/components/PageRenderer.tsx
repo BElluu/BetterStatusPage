@@ -187,6 +187,18 @@ function NodeRenderer({
   return null
 }
 
+/** Uptime % over the chart's range; the uptime endpoint works in whole UTC days, up to 90. */
+function ChartUptime({ monitorId, hours }: { monitorId: number; hours: number }) {
+  const { t } = useLocale()
+  const { uptime } = useMonitorUptime(monitorId, Math.min(90, Math.max(1, Math.ceil(hours / 24))))
+  if (uptime?.overallUptimePct == null) return null
+  return (
+    <span style={{ fontWeight: 600, color: 'var(--m3-on-surface)', marginRight: 8 }}>
+      {t('uptime.pct', { pct: uptime.overallUptimePct.toFixed(2) })}
+    </span>
+  )
+}
+
 function ChartBlock({ node: n, monitors }: { node: ChartNode; monitors: PublicMonitor[] }) {
   const { t } = useLocale()
   const monitor = monitors.find((m) => m.id === n.monitorId)
@@ -221,6 +233,7 @@ function ChartBlock({ node: n, monitors }: { node: ChartNode; monitors: PublicMo
             {n.title || monitor?.name || t('chart.monitorFallback', { id: n.monitorId })}
           </span>
           <span style={{ fontSize: 11, color: 'var(--m3-secondary)', flexShrink: 0 }}>
+            {n.showUptime && <ChartUptime monitorId={n.monitorId} hours={n.hours} />}
             {t(`chart.${n.aggregation}`).toUpperCase()} · {period}
           </span>
         </div>

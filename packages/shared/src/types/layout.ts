@@ -60,7 +60,7 @@ export interface ChartNode extends BaseNode {
   type: 'chart'
   monitorId: number
   title?: string
-  /** Hours of history to display: 1 | 3 | 6 | 12 | 24 | 48 | 168 */
+  /** Hours of history to display: 1 | 3 | 6 | 12 | 24 | 48 | 168 | 720 | 2160 */
   hours: number
   /** Number of data-point buckets: 20 | 30 | 50 */
   buckets: number
@@ -70,6 +70,8 @@ export interface ChartNode extends BaseNode {
   showArea?: boolean
   /** Show monitor type (HTTPS, TCP, etc.) in the top-left corner */
   showMonitorType?: boolean
+  /** Show uptime % over the same range (ranges under a day count as 1 day, over 90 days as 90) */
+  showUptime?: boolean
   /** RGL row-height units (3 = small, 5 = medium, 7 = large) */
   chartH?: number
 }
