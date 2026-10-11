@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { api } from '../api/client'
+import { api, getCurrentUser } from '../api/client'
 import type { Monitor, Incident } from '@bsp/shared'
 import { StatusBadge } from '../components/monitors/StatusBadge'
 import { useDarkMode } from '../hooks/useDarkMode'
@@ -18,6 +18,15 @@ export default function DashboardPage() {
     refetchInterval: 15_000,
   })
   const monitors = monitorsQuery.data ?? []
+
+  // Only administrators can act on an update, and only they may ask for it.
+  const updateQuery = useQuery<{ update: { version: string; url: string } | null }>({
+    queryKey: ['update-available'],
+    queryFn: () => api.get('/admin/system-health/update'),
+    enabled: getCurrentUser()?.role === 'admin',
+    staleTime: 10 * 60_000,
+  })
+  const update = updateQuery.data?.update ?? null
 
   const incidentsQuery = useQuery<Incident[]>({
     queryKey: ['incidents'],
@@ -48,12 +57,26 @@ export default function DashboardPage() {
       title="Dashboard"
       subtitle="Overview of your monitoring infrastructure."
       actions={
-        <div
-          className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
-          style={{ background: 'var(--m3-surface-container-lowest)', border: '1px solid var(--m3-outline-variant)' }}
-        >
-          <span className="w-2 h-2 rounded-full animate-pulse" aria-hidden="true" style={{ background: 'var(--m3-up-bar)' }} />
-          <span style={{ color: 'var(--m3-on-surface-variant)' }}>Live Metrics</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {update && (
+            <a
+              href={update.url}
+              target="_blank"
+              rel="noopener"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium"
+              style={{ color: 'var(--m3-secondary)', border: '1px solid var(--m3-outline-variant)' }}
+            >
+              <span aria-hidden="true" className="material-symbols-outlined" style={{ fontSize: '16px' }}>system_update_alt</span>
+              Version {update.version} is available
+            </a>
+          )}
+          <div
+            className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
+            style={{ background: 'var(--m3-surface-container-lowest)', border: '1px solid var(--m3-outline-variant)' }}
+          >
+            <span className="w-2 h-2 rounded-full animate-pulse" aria-hidden="true" style={{ background: 'var(--m3-up-bar)' }} />
+            <span style={{ color: 'var(--m3-on-surface-variant)' }}>Live Metrics</span>
+          </div>
         </div>
       }
     />
@@ -192,7 +215,8 @@ export default function DashboardPage() {
           <EmptyState
             icon="radio_button_checked"
             title="No monitors yet"
-            description="Add a monitor to start tracking uptime."
+            description="Add your first monitor to start tracking uptime and show it on your status page."
+            action={<Link to="/admin/monitors" className="btn btn-primary">Add your first monitor</Link>}
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

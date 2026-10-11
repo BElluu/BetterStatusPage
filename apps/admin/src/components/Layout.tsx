@@ -3,7 +3,8 @@ import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-do
 import { api, clearSession, getCurrentUser } from '../api/client'
 import { useDarkMode } from '../hooks/useDarkMode'
 import { useDatePrefs } from '../lib/dateFormat'
-import { statusPageUrl } from '../navigation'
+import { DOCS_URL, statusPageUrl } from '../navigation'
+import { WhatsNew, markWhatsNewSeen, pendingWhatsNew } from './WhatsNew'
 
 // role hierarchy: admin > operator > branding
 const ROLE_RANK: Record<string, number> = { admin: 3, operator: 2, branding: 1 }
@@ -20,18 +21,22 @@ const ALL_SECTIONS: NavSection[] = [
       { to: '/admin/incidents',   label: 'Incidents',    icon: 'warning',              minRole: 'operator' },
       { to: '/admin/maintenance', label: 'Maintenance',  icon: 'construction',         minRole: 'operator' },
       { to: '/admin/reports',     label: 'Reports',      icon: 'assessment',           minRole: 'operator' },
+    ],
+  },
+  {
+    label: 'Alerts',
+    items: [
+      { to: '/admin/notifications',    label: 'Notifications',    icon: 'notifications', minRole: 'operator' },
       { to: '/admin/delivery-history', label: 'Delivery history', icon: 'history',       minRole: 'operator' },
     ],
   },
   {
-    label: 'Configure',
+    label: 'Status page',
     items: [
-      { to: '/admin/notifications', label: 'Notifications', icon: 'notifications',       minRole: 'operator' },
-      { to: '/admin/subscribers',   label: 'Subscribers',   icon: 'campaign',            minRole: 'operator' },
-      { to: '/admin/import',        label: 'Import',        icon: 'upload_file',         minRole: 'operator' },
-      { to: '/admin/builder',       label: 'Page Builder',  icon: 'dashboard_customize', minRole: 'branding' },
-      { to: '/admin/branding',      label: 'Branding',      icon: 'palette',             minRole: 'branding' },
-      { to: '/admin/localization',  label: 'Localization',  icon: 'translate',           minRole: 'branding' },
+      { to: '/admin/builder',      label: 'Page Builder', icon: 'dashboard_customize', minRole: 'branding' },
+      { to: '/admin/branding',     label: 'Branding',     icon: 'palette',             minRole: 'branding' },
+      { to: '/admin/localization', label: 'Localization', icon: 'translate',           minRole: 'branding' },
+      { to: '/admin/subscribers',  label: 'Subscribers',  icon: 'campaign',            minRole: 'operator' },
     ],
   },
   {
@@ -111,6 +116,12 @@ function NavContent({ sections, isDark, onToggleDark, onLogout }: NavContentProp
           <span aria-hidden="true" className="material-symbols-outlined flex-shrink-0" style={ICON_STYLE}>open_in_new</span>
           <span className="font-sans">Status page</span>
         </a>
+
+        <a href={DOCS_URL} target="_blank" rel="noopener" className="admin-nav-item">
+          <span aria-hidden="true" className="material-symbols-outlined flex-shrink-0" style={ICON_STYLE}>menu_book</span>
+          <span className="font-sans">Documentation</span>
+        </a>
+
 
         <Link to="/admin/settings" className="admin-nav-item">
           <span aria-hidden="true" className="material-symbols-outlined flex-shrink-0" style={ICON_STYLE}>manage_accounts</span>
@@ -195,6 +206,13 @@ export default function Layout() {
     }))
     .filter((section) => section.items.length > 0)
 
+  const userId = currentUser?.userId
+  const [whatsNew, setWhatsNew] = useState(() => userId !== undefined ? pendingWhatsNew(userId) : [])
+  const closeWhatsNew = useCallback(() => {
+    setWhatsNew([])
+    if (userId !== undefined) markWhatsNewSeen(userId)
+  }, [userId])
+
   async function handleLogout() {
     try { await api.post('/auth/logout') } catch { /* local logout still proceeds */ }
     clearSession()
@@ -223,6 +241,8 @@ export default function Layout() {
           <span aria-hidden="true" className="material-symbols-outlined">menu</span>
         </button>
       </header>
+
+      {whatsNew.length > 0 && <WhatsNew releases={whatsNew} onClose={closeWhatsNew} />}
 
       {drawerOpen && <MobileDrawer {...nav} onClose={closeDrawer} returnFocusRef={menuButtonRef} />}
 

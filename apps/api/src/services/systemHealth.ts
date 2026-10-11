@@ -4,6 +4,7 @@ import { monitors, notificationDeliveries } from '../db/schema.js'
 import { resolveAppVersion } from '../version.js'
 import { listBackups, readBackupConfig, readBackupStatus } from './backup.js'
 import { getSchedulerHealth } from '../workers/scheduler.js'
+import { getAvailableUpdate, type LatestRelease } from './updateCheck.js'
 
 type ComponentStatus = 'ok' | 'attention' | 'error' | 'disabled'
 
@@ -14,6 +15,8 @@ export interface SystemHealthReport {
     status: 'ok'
     version: string
     uptimeSeconds: number
+    /** A newer published release, or null when up to date, unknown or the update check is off. */
+    update: LatestRelease | null
   }
   database: {
     status: 'ok' | 'error'
@@ -123,7 +126,7 @@ export async function getSystemHealthReport(now = Date.now()): Promise<SystemHea
       ? 'healthy'
       : 'degraded',
     generatedAt: now,
-    application: { status: 'ok', version: resolveAppVersion(), uptimeSeconds: Math.floor(process.uptime()) },
+    application: { status: 'ok', version: resolveAppVersion(), uptimeSeconds: Math.floor(process.uptime()), update: getAvailableUpdate() },
     database,
     monitoring: {
       status: monitoringStatus,

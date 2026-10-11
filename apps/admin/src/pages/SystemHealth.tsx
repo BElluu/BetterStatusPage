@@ -8,7 +8,7 @@ type ComponentStatus = 'ok' | 'attention' | 'error' | 'disabled'
 interface SystemHealthReport {
   status: 'healthy' | 'degraded'
   generatedAt: number
-  application: { status: 'ok'; version: string; uptimeSeconds: number }
+  application: { status: 'ok'; version: string; uptimeSeconds: number; update: { version: string; url: string } | null }
   database: { status: 'ok' | 'error'; responseMs: number | null }
   monitoring: {
     status: ComponentStatus
@@ -133,7 +133,9 @@ export default function SystemHealthPage() {
 
         <div className="grid gap-6 lg:grid-cols-2">
           <HealthCard icon="deployed_code" title="Application" status={report.application.status}>
-            <Metric label="Version" value={report.application.version} />
+            <Metric label="Version" value={report.application.update
+              ? <>{report.application.version} · <a href={report.application.update.url} target="_blank" rel="noopener" className="underline" style={{ color: 'var(--m3-primary)' }}>{report.application.update.version} available</a></>
+              : report.application.version} />
             <Metric label="Process uptime" value={formatUptime(report.application.uptimeSeconds)} />
           </HealthCard>
 

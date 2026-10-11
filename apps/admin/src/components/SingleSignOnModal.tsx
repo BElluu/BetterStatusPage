@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { Alert, ErrorState, Field, LoadingState, Switch, useToast } from './ui'
-import { ModalShell } from './ModalShell'
+import { ModalFooter, ModalHeader, ModalShell } from './ModalShell'
 import { SsoConfirmationNote, isSsoSession, useSsoConfirmation } from './SsoConfirmation'
 
 interface OidcSettings {
@@ -71,13 +71,15 @@ export function SingleSignOnModal({ onClose }: { onClose: () => void }) {
   }
 
   return <ModalShell align="top" onClose={busy ? undefined : onClose} label="Single sign-on">
-    <div className="w-full max-w-2xl space-y-3">
-    {locked && <Alert tone="warning">Single sign-on is configured through OIDC_* environment variables on the server. Remove them to manage it here.</Alert>}
-    {message && <Alert tone={message.tone} onDismiss={() => setMessage(null)}>{message.text}</Alert>}
-    <form onSubmit={(e) => { e.preventDefault(); void save() }} className="rounded-2xl p-6 space-y-5 w-full" style={CARD}>
+    <div className="w-full max-w-2xl rounded-2xl my-8" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)', color: 'var(--m3-on-surface)' }}>
+    <ModalHeader icon="passkey" title="Single sign-on" onClose={onClose} />
+    <form onSubmit={(e) => { e.preventDefault(); void save() }}>
+    <div className="p-6 space-y-5">
+      {locked && <Alert tone="warning">Single sign-on is configured through OIDC_* environment variables on the server. Remove them to manage it here.</Alert>}
+      {message && <Alert tone={message.tone} onDismiss={() => setMessage(null)}>{message.text}</Alert>}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-headline text-xl font-semibold">OpenID Connect</h2>
+          <h2 className="font-headline text-base font-semibold">OpenID Connect</h2>
           <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
             Users must already exist; they are matched by the verified email from the identity provider. A private status page can let SSO create Viewer accounts, see Status page access.
           </p>
@@ -128,27 +130,30 @@ export function SingleSignOnModal({ onClose }: { onClose: () => void }) {
           : <Field label="Your current password" hint="Required to change sign-in settings.">
             <input className="input-m3" type="password" autoComplete="current-password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
           </Field>}
-        <div className="flex flex-wrap gap-3">
-          <button type="submit" disabled={busy !== null} className="btn btn-primary">{busy === 'save' ? 'Saving…' : 'Save'}</button>
+      </>}
+      {!locked && <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>Test sign-in uses the saved settings, so save changes first.</p>}
+    </div>
+
+    <ModalFooter
+      start={<>
+        {!locked && (
           <button type="button" disabled={busy !== null || !form.issuer || !form.clientId} onClick={() => void test()} className="btn btn-secondary">
             {busy === 'test' ? 'Testing…' : 'Test connection'}
           </button>
-          <button
-            type="button" disabled={busy !== null || !data.settings.issuer || !data.settings.clientId}
-            onClick={() => window.open('/api/v1/admin/oidc/test-sign-in', '_blank', 'noopener')}
-            title="Signs in at the identity provider in a new tab with the saved settings and shows the claims and the outcome, without signing anyone in."
-            className="btn btn-secondary"
-          >
-            Test sign-in
-          </button>
-          <button type="button" disabled={busy !== null} onClick={onClose} className="btn btn-secondary ml-auto">Close</button>
-        </div>
+        )}
+        <button
+          type="button" disabled={!locked && (busy !== null || !data.settings.issuer || !data.settings.clientId)}
+          onClick={() => window.open('/api/v1/admin/oidc/test-sign-in', '_blank', 'noopener')}
+          title="Signs in at the identity provider in a new tab with the saved settings and shows the claims and the outcome, without signing anyone in."
+          className="btn btn-secondary"
+        >
+          Test sign-in
+        </button>
       </>}
-      {!locked && <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>Test sign-in uses the saved settings, so save changes first.</p>}
-      {locked && <div className="flex flex-wrap gap-3">
-        <button type="button" onClick={() => window.open('/api/v1/admin/oidc/test-sign-in', '_blank', 'noopener')} className="btn btn-secondary">Test sign-in</button>
-        <button type="button" onClick={onClose} className="btn btn-secondary">Close</button>
-      </div>}
+    >
+      <button type="button" disabled={busy !== null} onClick={onClose} className="btn btn-secondary">{locked ? 'Close' : 'Cancel'}</button>
+      {!locked && <button type="submit" disabled={busy !== null} className="btn btn-primary">{busy === 'save' ? 'Saving…' : 'Save'}</button>}
+    </ModalFooter>
     </form>
     </div>
   </ModalShell>

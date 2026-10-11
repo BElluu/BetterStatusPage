@@ -2,7 +2,7 @@ import { useId } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { CopyButton } from './CopyButton'
-import { ModalShell } from './ModalShell'
+import { ModalFooter, ModalHeader, ModalShell } from './ModalShell'
 import { ErrorState, LoadingState } from './ui'
 
 type YamlKind = 'Monitor' | 'NotificationChannel'
@@ -50,15 +50,11 @@ export function YamlViewModal({ kind, objectKey, title, onClose }: YamlViewModal
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="rounded-2xl p-6 w-full max-w-3xl space-y-4"
-        style={{ background: 'var(--m3-surface-container-lowest)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
+        className="rounded-2xl w-full max-w-3xl"
+        style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h3 id={titleId} className="font-headline text-lg font-bold" style={{ color: 'var(--m3-on-surface)' }}>YAML</h3>
-            <p className="text-sm truncate" style={{ color: 'var(--m3-secondary)' }}>{title}</p>
-          </div>
-        </div>
+        <ModalHeader icon="data_object" titleId={titleId} title={<>YAML <span className="text-sm font-normal" style={{ color: 'var(--m3-secondary)' }}>{title}</span></>} onClose={onClose} />
+        <div className="p-6 space-y-4">
 
         <p className="text-sm" style={{ color: 'var(--m3-secondary)' }}>
           Passwords, tokens and webhook URLs are written as <code className="font-mono">••••••••</code>. Paste this on the Import page of another
@@ -80,14 +76,19 @@ export function YamlViewModal({ kind, objectKey, title, onClose }: YamlViewModal
           </pre>
         )}
 
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          {data !== undefined && <CopyButton value={data} />}
-          <button type="button" onClick={download} disabled={data === undefined} className="btn btn-secondary">
-            <span className="material-symbols-outlined" aria-hidden="true">download</span>
-            Download
-          </button>
-          <button type="button" onClick={onClose} className="btn btn-primary">Close</button>
         </div>
+
+        <ModalFooter
+          start={<>
+            {data !== undefined && <CopyButton value={data} />}
+            <button type="button" onClick={download} disabled={data === undefined} className="btn btn-secondary">
+              <span className="material-symbols-outlined" aria-hidden="true">download</span>
+              Download
+            </button>
+          </>}
+        >
+          <button type="button" onClick={onClose} className="btn btn-primary">Close</button>
+        </ModalFooter>
       </div>
     </ModalShell>
   )

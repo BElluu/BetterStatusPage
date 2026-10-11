@@ -6,7 +6,7 @@ Subscribers only ever hear about things an operator publishes: incidents, incide
 
 ## Turning it on
 
-Open **Configure → Subscribers** in the admin console (operator role or higher). The page has two tabs, **Subscribers** and **Settings**.
+Open **Status page → Subscribers** in the admin console (operator role or higher). The page has two tabs, **Subscribers** and **Settings**.
 
 1. On the **Settings** tab, switch on **Allow visitors to subscribe** — the master switch for everything below.
 2. Switch on the **subscription methods** you want to offer. Each method row shows whether visitors will actually be offered it and, if not, what is missing. The feed, Slack and API addresses have a **Copy** button.
@@ -163,7 +163,7 @@ Keep in mind:
 
 ## Delivery history
 
-*Admin → Monitoring → **Delivery history** → Subscribers tab*
+*Admin → Alerts → **Delivery history** → Subscribers tab*
 
 Every notification queued for a subscriber is listed with the time, the subscriber, the event and the incident or maintenance it is about, the attempts used (for example *4 / 4*) and its status: *Pending*, *Delivered*, *Failed* or *Cancelled* (dropped because the subscriber or subscriptions were switched off before it was sent). Filter by status and event; the history icon on a subscriber's row opens it already narrowed to that subscriber, with a chip that clears the filter. The list refreshes every 30 seconds and records are kept for 90 days.
 

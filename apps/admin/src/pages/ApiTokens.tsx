@@ -3,7 +3,7 @@ import { TOKEN_PRESETS, TOKEN_RESOURCES, VAULT_USE_SCOPE } from '@bsp/shared'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
-import { ModalShell } from '../components/ModalShell'
+import { ModalFooter, ModalHeader, ModalShell } from '../components/ModalShell'
 import { CopyButton } from '../components/CopyButton'
 import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
 import { formatDate } from '../lib/dateFormat'
@@ -142,12 +142,10 @@ export default function ApiTokensPage() {
 
       {showCreate && (
         <ModalShell align="top" onClose={() => setShowCreate(false)} label="New token">
-        <form
-          className="rounded-2xl p-6 w-full max-w-2xl"
-          style={{ background: 'var(--m3-surface-container-lowest)', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
-          onSubmit={(e) => { e.preventDefault(); if (canCreate) createMutation.mutate() }}
-        >
-          <p className="font-headline font-semibold text-sm mb-3" style={{ color: 'var(--m3-on-surface)' }}>New token</p>
+        <div className="rounded-2xl w-full max-w-2xl my-8" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
+        <ModalHeader icon="key" title="New token" onClose={() => setShowCreate(false)} />
+        <form onSubmit={(e) => { e.preventDefault(); if (canCreate) createMutation.mutate() }}>
+        <div className="p-4 sm:p-6">
           {error && <Alert tone="error" className="mb-3">{error}</Alert>}
           <label htmlFor={nameInputId} className="block text-xs mb-1.5" style={{ color: 'var(--m3-secondary)' }}>Name</label>
           <div className="flex flex-wrap gap-3">
@@ -229,13 +227,16 @@ export default function ApiTokensPage() {
             </label>
           </fieldset>
 
-          <div className="flex flex-wrap gap-3 mt-4">
-            <button type="submit" disabled={!canCreate} className="btn btn-primary">
-              {createMutation.isPending ? 'Creating…' : 'Create'}
-            </button>
-            <button type="button" onClick={() => setShowCreate(false)} className="btn btn-ghost">Cancel</button>
-          </div>
+        </div>
+
+        <ModalFooter>
+          <button type="button" onClick={() => setShowCreate(false)} className="btn btn-secondary">Cancel</button>
+          <button type="submit" disabled={!canCreate} className="btn btn-primary">
+            {createMutation.isPending ? 'Creating…' : 'Create'}
+          </button>
+        </ModalFooter>
         </form>
+        </div>
         </ModalShell>
       )}
 

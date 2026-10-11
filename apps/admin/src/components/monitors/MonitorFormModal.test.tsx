@@ -314,6 +314,26 @@ describe('MonitorFormModal', () => {
     })
   })
 
+  it('opens the Credentials panel when Database is chosen and keeps a monitor without them from being saved', async () => {
+    const user = userEvent.setup()
+    renderModal()
+
+    await user.type(field('Name'), 'Orders DB')
+    expect(screen.queryByText('User', { selector: 'label' })).not.toBeInTheDocument()
+    await pickType(user, 'Database')
+    expect(screen.getByText('User', { selector: 'label' })).toBeInTheDocument()
+
+    await user.type(field('Host'), 'db.internal')
+    await user.type(field('Database'), 'orders')
+    await user.click(screen.getByRole('button', { name: 'Credentials' }))
+    expect(screen.queryByText('User', { selector: 'label' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+    expect(await screen.findByText('Enter the database user and password, or choose a secret from Vault.')).toBeInTheDocument()
+    expect(screen.getByText('User', { selector: 'label' })).toBeInTheDocument()
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
   it('requires a vault for SQL Server connection strings', async () => {
     const user = userEvent.setup()
     renderModal()

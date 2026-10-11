@@ -5,7 +5,7 @@ import { api } from '../api/client'
 import type { MaintenanceWindow, Monitor } from '@bsp/shared'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { NotifySubscribersCheckbox } from '../components/subscribers/NotifySubscribersCheckbox'
-import { ModalHeader, ModalShell } from '../components/ModalShell'
+import { ModalFooter, ModalHeader, ModalShell } from '../components/ModalShell'
 import { Alert, EmptyState, ErrorState, Field, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
 
 type Tab = 'active' | 'upcoming' | 'past'
@@ -441,7 +441,8 @@ function MaintenanceModal({
         {/* Header */}
         <ModalHeader icon="construction" title={title} onClose={onClose} />
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit}>
+        <div className="p-6 space-y-5">
           <Field label="Name" required>
             <input
               value={name}
@@ -527,15 +528,16 @@ function MaintenanceModal({
           {!isEdit && <NotifySubscribersCheckbox checked={notifySubscribers} onChange={setNotifySubscribers} />}
 
           {error && <Alert tone="error">{error}</Alert>}
+        </div>
 
-          <div className="flex justify-end gap-3 pt-1">
-            <button type="button" onClick={onClose} className="btn btn-secondary">
-              Cancel
-            </button>
-            <button type="submit" disabled={loading} className="btn btn-primary">
-              {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Schedule'}
-            </button>
-          </div>
+        <ModalFooter>
+          <button type="button" onClick={onClose} className="btn btn-secondary">
+            Cancel
+          </button>
+          <button type="submit" disabled={loading} className="btn btn-primary">
+            {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Schedule'}
+          </button>
+        </ModalFooter>
         </form>
       </div>
     </ModalShell>

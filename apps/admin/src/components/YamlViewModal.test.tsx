@@ -64,10 +64,12 @@ describe('YamlViewModal', () => {
     await waitFor(() => expect(screen.getByLabelText('YAML', { selector: 'pre' })).toBeInTheDocument())
   })
 
-  it('closes from the buttons', async () => {
+  it('closes from the footer button and from the header cross', async () => {
     const { onClose, user } = renderModal()
     await screen.findByLabelText('YAML', { selector: 'pre' })
-    await user.click(screen.getByRole('button', { name: 'Close' }))
-    expect(onClose).toHaveBeenCalledTimes(1)
+    const [cross, footer] = screen.getAllByRole('button', { name: 'Close' })
+    await user.click(footer!)
+    await user.click(cross!)
+    expect(onClose).toHaveBeenCalledTimes(2)
   })
 })

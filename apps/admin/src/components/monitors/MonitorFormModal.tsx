@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { api } from '../../api/client'
 import type { Monitor, MonitorType, NotificationChannel, MonitorTag } from '@bsp/shared'
-import { ModalHeader, ModalShell } from '../ModalShell'
+import { ModalFooter, ModalHeader, ModalShell } from '../ModalShell'
 import { YamlViewModal } from '../YamlViewModal'
 import { AuthSection, readAuth } from './AuthSection'
 import { SidePanelFrame, SideTabStrip, type SideTab } from '../SidePanel'
-import { ChannelsSection, DependenciesSection, PANEL_META, RequestSection, type SidePanelKey } from './MonitorSidePanel'
+import { ChannelsSection, CredentialsSection, DependenciesSection, PANEL_META, RequestSection, hasDatabaseCredentials, type SidePanelKey } from './MonitorSidePanel'
 import { MonitorTypeConfigFields } from './MonitorTypeConfigFields'
 import { Field, type SecretSummary, type VaultSummary } from './monitorFormParts'
 import { DATABASE_DEFAULT_PORTS, DATABASE_DEFAULT_QUERIES, isDatabaseType } from './monitorTypes'
@@ -50,7 +50,8 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
   const [failureThreshold, setFailureThreshold]   = useState(monitor?.failureThreshold ?? 1)
   const [recoveryThreshold, setRecoveryThreshold] = useState(monitor?.recoveryThreshold ?? 1)
   const [tags, setTags]                 = useState<MonitorTag[]>(monitor?.tags ?? [])
-  const [sidePanel, setSidePanel] = useState<SidePanelKey | null>(null)
+  // A new database monitor cannot work without credentials, so their panel starts open.
+  const [sidePanel, setSidePanel] = useState<SidePanelKey | null>(!monitor && isDatabaseType(initialType) ? 'credentials' : null)
   const [webhookToken, setWebhookToken] = useState<string | null>(monitor?.webhookToken ?? null)
   const [resettingToken, setResettingToken] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -109,7 +110,8 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
   function handleTypeChange(newType: MonitorType) {
     setType(newType)
     setConfig(defaultConfigs[newType] as Record<string, unknown>)
-    if (newType !== 'https' && (sidePanel === 'auth' || sidePanel === 'request')) setSidePanel(null)
+    if (isDatabaseType(newType)) setSidePanel('credentials')
+    else if (sidePanel === 'credentials' || (newType !== 'https' && (sidePanel === 'auth' || sidePanel === 'request'))) setSidePanel(null)
   }
 
   /** Switches the engine of a Database monitor, keeping what was typed; only a default port and test query follow the engine. */
@@ -161,6 +163,11 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     if (type === 'webhook' && !isEdit && webhookToken) { onSaved(); return }
 
     setError('')
+    if (isDatabaseType(type) && !hasDatabaseCredentials(config)) {
+      setSidePanel('credentials')
+      setError(config['mode'] === 'connectionString' ? 'Choose the Vault secret that holds the connection string.' : 'Enter the database user and password, or choose a secret from Vault.')
+      return
+    }
     setLoading(true)
     try {
       const body = { name, type, intervalSecs, timeoutMs, retries, failureThreshold, recoveryThreshold, config, tags }
@@ -194,6 +201,9 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
   const webhookCreated = type === 'webhook' && !isEdit && !!webhookToken
 
   const sideTabs: SideTab<SidePanelKey>[] = [
+    ...(isDatabaseType(type) ? [
+      { key: 'credentials' as const, badge: hasDatabaseCredentials(config) ? '✓' : '!' },
+    ] : []),
     ...(type === 'https' ? [
       { key: 'auth' as const,    badge: authType !== 'none' ? authType.slice(0, 1).toUpperCase() : null },
       { key: 'request' as const, badge: headerCount > 0 ? String(headerCount) : null },
@@ -218,7 +228,8 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
         {/* Header */}
         <ModalHeader icon="radio_button_checked" title={isEdit ? 'Edit Monitor' : 'New Monitor'} onClose={onClose} />
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit}>
+        <div className="p-6 space-y-4">
           {error && <Alert tone="error">{error}</Alert>}
 
           <Field label="Name">
@@ -233,7 +244,6 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
             config={config}
             updateConfig={updateConfig}
             onEngineChange={handleEngineChange}
-            vaultPicker={vaultPicker}
             webhook={{ token: webhookToken, canReset: isEdit, resetting: resettingToken, onReset: handleResetToken }}
           />
 
@@ -253,32 +263,33 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
           {/* ── Test result panel ─────────────────────────────────────────── */}
           {testResult && <TestResultPanel result={testResult} />}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-            <div className="flex flex-wrap gap-3">
-              {isEdit && (
-                <button type="button" onClick={() => setShowYaml(true)} title="The saved monitor as YAML" className="btn btn-secondary">
-                  <span className="material-symbols-outlined" aria-hidden="true">data_object</span>
-                  YAML
-                </button>
-              )}
-              {isTestable && (
-                <button type="button" onClick={handleTest} disabled={testing || loading} className="btn btn-outline">
-                  {testing
-                    ? <><span className="material-symbols-outlined animate-spin" aria-hidden="true">progress_activity</span> Testing…</>
-                    : <><span className="material-symbols-outlined" aria-hidden="true">play_arrow</span> Test</>
-                  }
-                </button>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-3 ml-auto">
-              <button type="button" onClick={onClose} className="btn btn-secondary">
-                {webhookCreated ? 'Close' : 'Cancel'}
+        </div>
+
+        <ModalFooter
+          start={<>
+            {isEdit && (
+              <button type="button" onClick={() => setShowYaml(true)} title="The saved monitor as YAML" className="btn btn-secondary">
+                <span className="material-symbols-outlined" aria-hidden="true">data_object</span>
+                YAML
               </button>
-              <button type="submit" disabled={loading} className="btn btn-primary">
-                {loading ? 'Saving…' : webhookCreated ? 'Done' : isEdit ? 'Save Changes' : 'Create Monitor'}
+            )}
+            {isTestable && (
+              <button type="button" onClick={handleTest} disabled={testing || loading} className="btn btn-outline">
+                {testing
+                  ? <><span className="material-symbols-outlined animate-spin" aria-hidden="true">progress_activity</span> Testing…</>
+                  : <><span className="material-symbols-outlined" aria-hidden="true">play_arrow</span> Test</>
+                }
               </button>
-            </div>
-          </div>
+            )}
+          </>}
+        >
+          <button type="button" onClick={onClose} className="btn btn-secondary">
+            {webhookCreated ? 'Close' : 'Cancel'}
+          </button>
+          <button type="submit" disabled={loading} className="btn btn-primary">
+            {loading ? 'Saving…' : webhookCreated ? 'Done' : isEdit ? 'Save Changes' : 'Create Monitor'}
+          </button>
+        </ModalFooter>
         </form>
       </div>{/* inner scrollable column */}
 
@@ -286,6 +297,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
       {sidePanel && (
         <SidePanelFrame meta={PANEL_META[sidePanel]} layout="responsive">
           {sidePanel === 'request' && <RequestSection config={config} updateConfig={updateConfig} />}
+          {sidePanel === 'credentials' && <CredentialsSection config={config} updateConfig={updateConfig} vaultPicker={vaultPicker} />}
           {sidePanel === 'auth' && <AuthSection auth={auth} onChange={(next) => updateConfig('auth', next)} vaultPicker={vaultPicker} />}
           {sidePanel === 'tags' && <TagsSection tags={tags} allTags={allTags} onChange={setTags} />}
           {sidePanel === 'channels' && <ChannelsSection channels={channels} selected={selectedChannelIds} onChange={setSelectedChannelIds} />}

@@ -5,7 +5,7 @@ import { YamlViewModal } from '../YamlViewModal'
 import type { ChannelAlertPolicy, NotificationChannel } from '@bsp/shared'
 import { ChannelTypePicker } from './ChannelTypePicker'
 import { CHANNEL_TYPES, Field, buildChannelConfig, initialDrafts, isChannelType, type ChannelDrafts, type ChannelType } from './channelTypes'
-import { ModalHeader, ModalShell } from '../ModalShell'
+import { ModalFooter, ModalHeader, ModalShell } from '../ModalShell'
 import { SidePanelFrame, SideTabStrip, type SidePanelMeta, type SideTab } from '../SidePanel'
 import { Alert, Switch } from '../ui'
 import type { VaultPickerProps } from '../monitors/monitorFormParts'
@@ -179,7 +179,8 @@ export default function ChannelFormModal({ channel, initialType, onClose, onSave
         {/* Header */}
         <ModalHeader icon="notifications" titleId={titleId} title={isEdit ? 'Edit Channel' : 'New Notification Channel'} onClose={onClose} />
 
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
+        <form onSubmit={handleSubmit}>
+        <div className="p-4 sm:p-6 space-y-4">
           {error && <Alert tone="error">{error}</Alert>}
 
           <Field label="Name">
@@ -210,32 +211,29 @@ export default function ChannelFormModal({ channel, initialType, onClose, onSave
             </p>
           )}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <div className="flex flex-wrap gap-3">
-              {isEdit && (
-                <button type="button" onClick={() => setShowYaml(true)} title="The saved channel as YAML" className="btn btn-secondary">
-                  <span className="material-symbols-outlined" aria-hidden="true">data_object</span>
-                  YAML
-                </button>
-              )}
-              {isEdit && (
-                <button type="button" onClick={handleTest} disabled={testing || dirty}
-                  aria-describedby={dirty ? testHintId : undefined}
-                  className="btn btn-secondary"
-                >
-                  {testing
-                    ? <><span className="material-symbols-outlined animate-spin" aria-hidden="true">progress_activity</span> Testing…</>
-                    : 'Send test (saved settings)'}
-                </button>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-3 ml-auto">
-              <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
-              <button type="submit" disabled={loading} className="btn btn-primary">
-                {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Channel'}
-              </button>
-            </div>
-          </div>
+        </div>
+
+        <ModalFooter
+          start={isEdit ? <>
+            <button type="button" onClick={() => setShowYaml(true)} title="The saved channel as YAML" className="btn btn-secondary">
+              <span className="material-symbols-outlined" aria-hidden="true">data_object</span>
+              YAML
+            </button>
+            <button type="button" onClick={handleTest} disabled={testing || dirty}
+              aria-describedby={dirty ? testHintId : undefined}
+              className="btn btn-secondary"
+            >
+              {testing
+                ? <><span className="material-symbols-outlined animate-spin" aria-hidden="true">progress_activity</span> Testing…</>
+                : 'Send test (saved settings)'}
+            </button>
+          </> : undefined}
+        >
+          <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
+          <button type="submit" disabled={loading} className="btn btn-primary">
+            {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Channel'}
+          </button>
+        </ModalFooter>
         </form>
       </div>{/* main column */}
 

@@ -112,6 +112,7 @@ describe('NotificationsPage', () => {
     expect(within(rows[3]!).getByText('teams')).toBeInTheDocument()
     expect(within(rows[4]!).getByText('slack')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Delivery history/ })).toHaveAttribute('href', '/admin/delivery-history?tab=notifications')
+    expect(screen.getByRole('link', { name: 'Import YAML' })).toHaveAttribute('href', '/admin/import')
   })
 
   it('offers channel type tiles without channels and opens the form with that type', async () => {

@@ -9,7 +9,7 @@ vi.mock('../api/client', () => ({ api: { get: vi.fn() } }))
 const report = {
   status: 'healthy' as const,
   generatedAt: 1_750_000_000_000,
-  application: { status: 'ok' as const, version: '1.2.3', uptimeSeconds: 93_720 },
+  application: { status: 'ok' as const, version: '1.2.3', uptimeSeconds: 93_720, update: null as { version: string; url: string } | null },
   database: { status: 'ok' as const, responseMs: 4 },
   monitoring: {
     status: 'attention' as const,
@@ -53,5 +53,13 @@ describe('SystemHealthPage', () => {
     await user.click(screen.getByRole('button', { name: 'Refresh' }))
     await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2))
     view.unmount()
+  })
+
+  it('links to the release when a newer version is published', async () => {
+    const url = 'https://github.com/BElluu/BetterStatusPage/releases/tag/v1.3.0'
+    vi.mocked(api.get).mockResolvedValue({ ...report, application: { ...report.application, update: { version: '1.3.0', url } } })
+    render(<SystemHealthPage />)
+
+    expect(await screen.findByRole('link', { name: '1.3.0 available' })).toHaveAttribute('href', url)
   })
 })

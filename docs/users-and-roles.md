@@ -122,6 +122,15 @@ Password sign-in, the authentication-code step and the SSO endpoints accept at m
 
 To make sure an SSO-only setup cannot lock everyone out, see [Password sign-in and lockout protection](single-sign-on.md#password-sign-in-and-lockout-protection).
 
+### Documentation link and What's new
+
+> [!WARNING]
+> **Not released yet.** This feature is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+The **Documentation** link in the sidebar opens [docs.betterstatuspage.dev](https://docs.betterstatuspage.dev) in a new tab.
+
+After an update, the first sign-in of each user shows **What's new**: the newest release since the one that user last saw in three collapsible sections, **New**, **Changed** and **Fixes**, each entry with its title and first sentence. **New** is open; opening one section closes the others, so the dialog stays small. Earlier releases are summarised in one line. A **Full changelog** button opens the [changelog](changelog.md) for the details. The notes are built into the admin console, so nothing is fetched. A user who has never seen it only has the current version recorded, so a new account starts with nothing to read. This is remembered per user in that browser.
+
 ## Two-factor authentication
 
 Two-factor authentication (2FA) adds a 6-digit code from an authenticator app to every sign-in. It uses standard TOTP (30-second codes, SHA-1), so any authenticator app works.
@@ -203,11 +212,16 @@ Entries are never deleted automatically. They are kept in the database and inclu
 
 | Card | Shows | Status |
 |------|-------|--------|
-| **Application** | Version, process uptime | Always `ok` while the page loads. |
+| **Application** | Version (with a link to the release when a newer one is published), process uptime | Always `ok` while the page loads. |
 | **Database** | Connection, response time of a test query | `error` when the database does not answer. |
 | **Monitor scheduler** | Whether the scheduler runs, configured and overdue monitors, latest stored check, last scheduler tick, its duration, checks due and failed jobs in it | `error` when the scheduler is stopped or its last tick failed; `attention` when checks failed or monitors are overdue. A monitor is overdue when it has never been checked or its last check is older than twice its interval. |
 | **Notification delivery** | Pending and failed deliveries, last delivery | `attention` when anything is pending or failed. See [notification channels](notification-channels.md). |
 | **Backups** | Automatic schedule, last operation, stored backups, latest backup, last completed operation | `disabled` when the schedule is off; `error` when the last backup failed or the backup folder cannot be read. See [backup and restore](backup-restore.md). |
+
+> [!WARNING]
+> **Not released yet.** The new-version notice is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+In the background, from the moment the server starts and then every 6 hours (every 5 minutes after a failure), the server asks GitHub (`api.github.com`) for the latest release and remembers the answer, so opening System Health never waits for it. The **Application** card shows a link such as **1.3.0 available** when that release is newer than the running version, and administrators see a quiet **Version 1.3.0 is available** link at the top of the Dashboard. Pre-releases are ignored, and nothing is shown when GitHub cannot be reached. Set `UPDATE_CHECK=false` in `.env` to stop the server from making this request; the installed version is the only thing it sends, inside the `User-Agent` header.
 
 ## Health endpoints for load balancers
 

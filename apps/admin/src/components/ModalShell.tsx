@@ -120,16 +120,41 @@ interface ModalProps {
   icon: string
   onClose: () => void
   children: ReactNode
+  /** Skip the padded body so the content can bring its own, with a `ModalFooter` as the last thing in the dialog. */
+  flush?: boolean
 }
 
 /** A titled panel with a close button inside the shared shell, for simple forms. Escape closes it. */
-export function Modal({ title, icon, onClose, children }: ModalProps) {
+export function Modal({ title, icon, onClose, children, flush }: ModalProps) {
   return (
     <ModalShell onClose={onClose}>
       <div role="dialog" aria-modal="true" aria-label={title} className="w-full max-w-md rounded-2xl" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
         <ModalHeader icon={icon} title={title} onClose={onClose} />
-        <div className="p-6">{children}</div>
+        {flush ? children : <div className="p-6">{children}</div>}
       </div>
     </ModalShell>
+  )
+}
+
+interface ModalFooterProps {
+  /** Secondary tools on the left (YAML, Test, …); kept apart from the buttons that close or save. */
+  start?: ReactNode
+  /** Cancel and the main action, on the right. */
+  children: ReactNode
+}
+
+/**
+ * The action row of a form dialog, stuck to the bottom of the screen while the form scrolls, so the main
+ * action never hides below the fold. Put it last inside the `<form>`, after the padded body.
+ */
+export function ModalFooter({ start, children }: ModalFooterProps) {
+  return (
+    <div
+      className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4"
+      style={{ position: 'sticky', bottom: 0, zIndex: 1, background: 'var(--m3-surface-container-low)', borderTop: '1px solid var(--m3-outline-variant)', borderRadius: '0 0 15px 15px' }}
+    >
+      {start ? <div className="flex flex-wrap gap-3">{start}</div> : <span />}
+      <div className="flex flex-wrap gap-3 ml-auto">{children}</div>
+    </div>
   )
 }

@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { CERT_REMINDER_DAYS, DEFAULT_CERT_WARN_DAYS, MAX_CERT_WARN_DAYS } from '@bsp/shared'
-import type { CertExpiryConfig, MonitorType, VaultRef } from '@bsp/shared'
+import type { CertExpiryConfig, MonitorType } from '@bsp/shared'
 import { ConfirmModal } from '../ConfirmModal'
 import { CopyButton } from '../CopyButton'
 import { Alert } from '../ui'
-import { ConnectionStringSection, CredentialSection } from './CredentialSection'
-import { Field, JSON_MAPPING_FIELDS, Note, SectionDivider, type VaultPickerProps } from './monitorFormParts'
+import { Field, Note } from './monitorFormParts'
 import { DATABASE_ENGINES, DATABASE_DEFAULT_PORTS, DATABASE_DEFAULT_QUERIES } from './monitorTypes'
 
 type Config = Record<string, unknown>
@@ -15,12 +14,11 @@ interface Props {
   config: Config
   updateConfig: (key: string, value: unknown) => void
   onEngineChange: (engine: MonitorType) => void
-  vaultPicker: VaultPickerProps
   webhook: WebhookSectionProps
 }
 
 /** The check-specific settings of a monitor, switched on its type. */
-export function MonitorTypeConfigFields({ type, config, updateConfig, onEngineChange, vaultPicker, webhook }: Props) {
+export function MonitorTypeConfigFields({ type, config, updateConfig, onEngineChange, webhook }: Props) {
   switch (type) {
     case 'https':     return <HttpsFields config={config} updateConfig={updateConfig} />
     case 'ping':      return <PingFields config={config} updateConfig={updateConfig} />
@@ -28,7 +26,7 @@ export function MonitorTypeConfigFields({ type, config, updateConfig, onEngineCh
     case 'sqlserver':
     case 'postgresql':
     case 'mysql':
-    case 'mongodb':   return <DatabaseFields type={type} config={config} updateConfig={updateConfig} onEngineChange={onEngineChange} vaultPicker={vaultPicker} />
+    case 'mongodb':   return <DatabaseFields type={type} config={config} updateConfig={updateConfig} onEngineChange={onEngineChange} />
     case 'docker':    return <DockerFields config={config} updateConfig={updateConfig} />
     case 'webhook':   return <WebhookSection {...webhook} />
     default:          return null
@@ -150,9 +148,8 @@ function DnsFields({ config, updateConfig }: ConfigProps) {
   )
 }
 
-function DatabaseFields({ type, config, updateConfig, onEngineChange, vaultPicker }: ConfigProps & { type: MonitorType; onEngineChange: (engine: MonitorType) => void; vaultPicker: VaultPickerProps }) {
+function DatabaseFields({ type, config, updateConfig, onEngineChange }: ConfigProps & { type: MonitorType; onEngineChange: (engine: MonitorType) => void }) {
   const sqlMode = (config['mode'] as string) ?? 'fields'
-  const sqlVault = config['vault'] as VaultRef | undefined
   return (
     <>
       <div role="group" aria-labelledby="database-engine-label">
@@ -204,35 +201,11 @@ function DatabaseFields({ type, config, updateConfig, onEngineChange, vaultPicke
           <Field label="Database">
             <input value={(config['database'] as string) ?? ''} onChange={(e) => updateConfig('database', e.target.value)} required className="input-sig" />
           </Field>
-          <SectionDivider label="Credentials" />
-          <CredentialSection
-            {...vaultPicker}
-            vault={sqlVault}
-            onVaultChange={(v) => {
-              updateConfig('vault', v)
-              // Switching to a vault drops what was typed in directly, so the two never exist together.
-              if (v) { updateConfig('user', undefined); updateConfig('password', undefined) }
-            }}
-            mappingFields={JSON_MAPPING_FIELDS.database}
-          >
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="User">
-                <input value={(config['user'] as string) ?? ''} onChange={(e) => updateConfig('user', e.target.value)} required className="input-sig" autoComplete="off" />
-              </Field>
-              <Field label="Password">
-                <input type="password" value={(config['password'] as string) ?? ''} onChange={(e) => updateConfig('password', e.target.value)} onFocus={(e) => e.target.select()} required className="input-sig" autoComplete="new-password" />
-              </Field>
-            </div>
-          </CredentialSection>
         </>
       )}
 
       {sqlMode === 'connectionString' && (
-        <ConnectionStringSection
-          {...vaultPicker}
-          vault={sqlVault}
-          onVaultChange={(v) => updateConfig('vault', v)}
-        />
+        <Note tone="info">The connection string lives in Vault. Choose it under <strong>Credentials</strong>.</Note>
       )}
 
       <Field label={type === 'mongodb' ? 'Test Command (JSON)' : 'Test Query'}>

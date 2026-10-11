@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+
+process.env['UPDATE_CHECK'] = 'false'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import jwt from '@fastify/jwt'
@@ -179,6 +181,15 @@ describe('system health administration', () => {
     assert.equal(typeof report.database.responseMs, 'number')
     assert.equal('lastError' in report.backups, false)
     assert.equal('lastFilename' in report.backups, false)
+  })
+
+  it('answers the update question quickly, for administrators only', async () => {
+    assert.equal((await app.inject({ url: '/admin/system-health/update', headers: operatorHeaders })).statusCode, 403)
+    const response = await app.inject({ url: '/admin/system-health/update', headers: adminHeaders })
+    assert.equal(response.statusCode, 200)
+    const body = response.json()
+    assert.equal(typeof body.version, 'string')
+    assert.equal(body.update, null)
   })
 })
 

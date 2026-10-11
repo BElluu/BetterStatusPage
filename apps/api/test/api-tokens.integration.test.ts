@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+
+process.env['UPDATE_CHECK'] = 'false'
 import { join } from 'node:path'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import Fastify, { type RouteOptions } from 'fastify'

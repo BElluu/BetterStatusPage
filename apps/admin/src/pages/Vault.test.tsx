@@ -505,7 +505,7 @@ describe('VaultPage with a HashiCorp vault', () => {
     })))
   })
 
-  it('tests the unsaved connection from the form footer, between Cancel and Create', async () => {
+  it('tests the unsaved connection from the form footer, apart from Cancel and Create', async () => {
     const user = userEvent.setup()
     vi.mocked(api.post).mockResolvedValueOnce({ ok: true, ttlSeconds: 900 })
     renderPage()
@@ -517,9 +517,9 @@ describe('VaultPage with a HashiCorp vault', () => {
     await user.type(within(dialog).getByLabelText(/^Token/), 's.token')
 
     const labels = within(dialog).getAllByRole('button').map((b) => b.textContent?.trim())
-    const cancel = labels.indexOf('Cancel')
-    expect(labels[cancel + 1]).toMatch(/Test connection$/)
-    expect(labels[cancel + 2]).toBe('Create Vault')
+    const test = labels.findIndex((label) => /Test connection$/.test(label ?? ''))
+    expect(labels.indexOf('Cancel')).toBeGreaterThan(test)
+    expect(labels.indexOf('Create Vault')).toBe(labels.indexOf('Cancel') + 1)
 
     await user.click(within(dialog).getByRole('button', { name: /Test connection/ }))
     expect(await within(dialog).findByText(/Connected. Token valid for 900 s/)).toBeInTheDocument()

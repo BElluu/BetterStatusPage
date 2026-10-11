@@ -8,7 +8,7 @@ import { DiscordIcon, SlackIcon, TeamsIcon, TelegramIcon } from '../components/n
 import { ConfirmModal } from '../components/ConfirmModal'
 import { Link } from 'react-router-dom'
 import { deliveryHistoryUrl } from '../deliveryHistoryUrl'
-import { ModalHeader, ModalShell } from '../components/ModalShell'
+import { ModalFooter, ModalHeader, ModalShell } from '../components/ModalShell'
 import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, Field, LoadingState, PageContainer, PageHeader, Pagination, QuickStartPanel, Switch, useToast, type FieldControlProps, type QuickStartOption } from '../components/ui'
 import { formatDateTime } from '../lib/dateFormat'
 
@@ -72,6 +72,10 @@ export default function NotificationsPage() {
             <span className="material-symbols-outlined" aria-hidden="true">forward_to_inbox</span>
             SMTP Settings
           </button>
+          <Link to="/admin/import" state={{ from: 'notifications' }} className="btn btn-secondary">
+            <span className="material-symbols-outlined" aria-hidden="true">upload_file</span>
+            Import YAML
+          </Link>
           <button type="button" onClick={() => openCreate()} className="btn btn-primary">
             <span className="material-symbols-outlined" aria-hidden="true">add</span>
             Add Channel
@@ -500,7 +504,8 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
         style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
         <ModalHeader icon="forward_to_inbox" titleId={titleId} title="SMTP Settings" onClose={onClose} />
 
-        <form onSubmit={handleSave} className="p-4 sm:p-6 space-y-4">
+        <form onSubmit={handleSave}>
+        <div className="p-4 sm:p-6 space-y-4">
           {error && <Alert tone="error">{error}</Alert>}
           <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>Used by all email notification channels.</p>
 
@@ -667,12 +672,14 @@ function SmtpModal({ onClose }: { onClose: () => void }) {
             {testMsg && <Alert tone={testMsg.ok ? 'success' : 'error'}>{testMsg.text}</Alert>}
           </div>
 
-          <div className="flex flex-wrap justify-end gap-3 pt-1">
-            <button type="button" onClick={onClose} className="btn btn-ghost">Cancel</button>
-            <button type="submit" disabled={saving} className="btn btn-primary">
-              {saving ? 'Saving…' : 'Save Settings'}
-            </button>
-          </div>
+        </div>
+
+        <ModalFooter>
+          <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
+          <button type="submit" disabled={saving} className="btn btn-primary">
+            {saving ? 'Saving…' : 'Save Settings'}
+          </button>
+        </ModalFooter>
         </form>
       </div>
     </ModalShell>

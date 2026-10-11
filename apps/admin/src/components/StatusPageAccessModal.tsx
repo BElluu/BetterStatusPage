@@ -2,7 +2,7 @@ import { useId, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { AdminStatusPageAccess, StatusPageAccessSettings } from '@bsp/shared'
 import { api } from '../api/client'
-import { ModalShell } from './ModalShell'
+import { ModalFooter, ModalHeader, ModalShell } from './ModalShell'
 import { Alert, ErrorState, LoadingState, Switch, useToast } from './ui'
 
 const QUERY_KEY = ['status-page-access']
@@ -52,19 +52,18 @@ function AccessForm({ settings, onClose }: { settings: AdminStatusPageAccess; on
   })
 
   return <ModalShell align="top" onClose={save.isPending ? undefined : onClose} label="Status page access">
-    <div className="w-full max-w-2xl space-y-3">
-      {error && <Alert tone="error" onDismiss={() => setError('')}>{error}</Alert>}
+    <div className="w-full max-w-2xl rounded-2xl my-8" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)', color: 'var(--m3-on-surface)' }}>
+      <ModalHeader icon="visibility_lock" title="Status page access" onClose={onClose} />
       <form
-        className="rounded-2xl p-6 space-y-5 w-full"
-        style={CARD}
         onSubmit={(event) => {
           event.preventDefault()
           save.mutate({ private: isPrivate, ssoCreateViewers: createViewers, ssoViewerDomains: parseDomains(domains) })
         }}
       >
+        <div className="p-6 space-y-5">
+        {error && <Alert tone="error" onDismiss={() => setError('')}>{error}</Alert>}
         <div>
-          <h2 className="font-headline text-xl font-semibold">Status page access</h2>
-          <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>
+          <p className="text-sm" style={{ color: 'var(--m3-secondary)' }}>
             Choose who can view the status page. A private page asks visitors to sign in with their password or single sign-on.
           </p>
         </div>
@@ -108,11 +107,12 @@ function AccessForm({ settings, onClose }: { settings: AdminStatusPageAccess; on
             </div>
           )}
         </fieldset>
-
-        <div className="flex flex-wrap gap-3">
-          <button type="submit" disabled={save.isPending} className="btn btn-primary">{save.isPending ? 'Saving…' : 'Save'}</button>
-          <button type="button" disabled={save.isPending} onClick={onClose} className="btn btn-secondary ml-auto">Close</button>
         </div>
+
+        <ModalFooter>
+          <button type="button" disabled={save.isPending} onClick={onClose} className="btn btn-secondary">Cancel</button>
+          <button type="submit" disabled={save.isPending} className="btn btn-primary">{save.isPending ? 'Saving…' : 'Save'}</button>
+        </ModalFooter>
       </form>
     </div>
   </ModalShell>

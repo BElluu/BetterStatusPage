@@ -266,7 +266,8 @@ In the monitor form these are one **Database** type: pick the **Engine** inside 
 | **MySQL / MariaDB** | `3306` | One type for both servers: they speak the same protocol |
 | **MongoDB** | `27017` | The test is a command, not SQL; see below |
 
-Choose how to connect:
+Choose how to connect. The sign-in itself (user and password, or the Vault secret with the connection string) is set on the **Credentials** tab at the side of the form, which opens by itself when you choose the Database type; a database monitor cannot be saved without credentials.
+
 
 - **Individual fields** — **Host**, **Port** (default per type, see above), **Database**, and
   **User** / **Password** typed in or taken from the vault. The connection is encrypted and the

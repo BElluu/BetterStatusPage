@@ -105,7 +105,7 @@ The page updates live: creating, updating or resolving an incident is pushed to 
 
 ### Notifying subscribers
 
-When subscriptions are switched on (**Configure → Subscribers**), a **Notify subscribers** checkbox appears when you create an incident and when you post an update. It is on by default; switch it off to publish quietly, for a typo fix or an internal note.
+When subscriptions are switched on (**Status page → Subscribers**), a **Notify subscribers** checkbox appears when you create an incident and when you post an update. It is on by default; switch it off to publish quietly, for a typo fix or an internal note.
 
 | Action | Subscriber event |
 |---|---|

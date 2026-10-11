@@ -2,7 +2,7 @@
 
 Notification channels tell **your team** when a monitor goes down, degrades, recovers or has a TLS certificate about to expire. A channel is one destination — an email address, an HTTP endpoint, a Slack, Discord or Microsoft Teams webhook, a Telegram chat — and you decide per monitor which channels it alerts.
 
-Channels live under *Admin → Configure → **Notifications*** (operator role or higher). To notify the people who read your status page instead, see [Subscriptions](subscriptions.md).
+Channels live under *Admin → Alerts → **Notifications*** (operator role or higher). To notify the people who read your status page instead, see [Subscriptions](subscriptions.md).
 
 ---
 
@@ -284,7 +284,7 @@ To check only the SMTP connection, use **Send Test Email** in **SMTP Settings** 
 
 ## Delivery history
 
-*Admin → Monitoring → **Delivery history** → Notifications tab*
+*Admin → Alerts → **Delivery history** → Notifications tab*
 
 Every notification — sent, failed, waiting or suppressed — is listed with the monitor and its status change, the channel, the event, the number of attempts and the delivery status. Filter by status, channel and event; click a row to see each attempt with its time and error. The list refreshes every 30 seconds, and entries older than 180 days are deleted automatically.
 

@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react'
-import type { NotificationChannel } from '@bsp/shared'
+import type { NotificationChannel, VaultRef } from '@bsp/shared'
 import type { SidePanelMeta } from '../SidePanel'
-import { Note, toggleInSet } from './monitorFormParts'
+import { ConnectionStringSection, CredentialSection } from './CredentialSection'
+import { Field, JSON_MAPPING_FIELDS, Note, toggleInSet, type VaultPickerProps } from './monitorFormParts'
 
-export type SidePanelKey = 'request' | 'auth' | 'tags' | 'channels' | 'dependencies'
+export type SidePanelKey = 'request' | 'auth' | 'credentials' | 'tags' | 'channels' | 'dependencies'
 
 export const PANEL_META: Record<SidePanelKey, SidePanelMeta> = {
   auth:         { icon: 'lock',          label: 'Auth' },
+  credentials:  { icon: 'lock',          label: 'Credentials' },
   request:      { icon: 'tune',          label: 'Request' },
   tags:         { icon: 'label',         label: 'Tags' },
   channels:     { icon: 'notifications', label: 'Alerts' },
@@ -58,6 +60,47 @@ export function RequestSection({ config, updateConfig }: { config: Record<string
 }
 
 // ── Alert channels ────────────────────────────────────────────────────────────
+
+/** True once a database monitor has what it needs to sign in: a Vault secret, or a user and password typed in. */
+export function hasDatabaseCredentials(config: Record<string, unknown>): boolean {
+  const vault = config['vault'] as VaultRef | undefined
+  if (vault) return vault.secretId > 0
+  if (config['mode'] === 'connectionString') return false
+  return !!config['user'] && !!config['password']
+}
+
+/** How a database monitor signs in: a connection string held in Vault, or a user and password (typed or from Vault). */
+export function CredentialsSection({ config, updateConfig, vaultPicker }: {
+  config: Record<string, unknown>
+  updateConfig: (key: string, value: unknown) => void
+  vaultPicker: VaultPickerProps
+}) {
+  const vault = config['vault'] as VaultRef | undefined
+  if (config['mode'] === 'connectionString') {
+    return <ConnectionStringSection {...vaultPicker} vault={vault} onVaultChange={(v) => updateConfig('vault', v)} />
+  }
+  return (
+    <CredentialSection
+      {...vaultPicker}
+      vault={vault}
+      onVaultChange={(v) => {
+        updateConfig('vault', v)
+        // Switching to a vault drops what was typed in directly, so the two never exist together.
+        if (v) { updateConfig('user', undefined); updateConfig('password', undefined) }
+      }}
+      mappingFields={JSON_MAPPING_FIELDS.database}
+    >
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="User">
+          <input value={(config['user'] as string) ?? ''} onChange={(e) => updateConfig('user', e.target.value)} className="input-sig" autoComplete="off" />
+        </Field>
+        <Field label="Password">
+          <input type="password" value={(config['password'] as string) ?? ''} onChange={(e) => updateConfig('password', e.target.value)} onFocus={(e) => e.target.select()} className="input-sig" autoComplete="new-password" />
+        </Field>
+      </div>
+    </CredentialSection>
+  )
+}
 
 export function ChannelsSection({ channels, selected, onChange }: {
   channels: NotificationChannel[]

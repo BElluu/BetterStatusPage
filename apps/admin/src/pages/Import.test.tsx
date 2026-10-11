@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, api } from '../api/client'
 import ImportPage from './Import'
@@ -18,8 +19,8 @@ const YAML = 'kind: Monitor\nkey: public-site\nname: Public site\ntype: https\n'
 const postText = () => vi.mocked(api.postText)
 const box = () => screen.getByLabelText('Configuration to import')
 
-function renderPage() {
-  render(<ImportPage />)
+function renderPage(state?: unknown) {
+  render(<MemoryRouter initialEntries={[{ pathname: '/admin/import', state }]}><ImportPage /></MemoryRouter>)
   return userEvent.setup()
 }
 
@@ -158,5 +159,15 @@ describe('ImportPage', () => {
     paste()
     await user.click(screen.getByRole('button', { name: 'Clear' }))
     expect(box()).toHaveValue('')
+  })
+
+  it('goes back to the page it was opened from, and to Monitors when opened directly', () => {
+    renderPage({ from: 'notifications' })
+    expect(screen.getByRole('link', { name: /Notifications/ })).toHaveAttribute('href', '/admin/notifications')
+  })
+
+  it('goes back to Monitors by default', () => {
+    renderPage()
+    expect(screen.getByRole('link', { name: /Monitors/ })).toHaveAttribute('href', '/admin/monitors')
   })
 })
