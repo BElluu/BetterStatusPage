@@ -293,6 +293,73 @@ paths:
         '204': { description: Deleted. }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /incident-templates:
+    get:
+      tags: [Incidents]
+      summary: List incident templates
+      description: The templates automatic incidents are written from, by name.
+      x-scope: incidents:read
+      responses:
+        '200':
+          description: The templates.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/IncidentTemplate' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Incidents]
+      summary: Create an incident template
+      description: All of `name`, `title`, `body`, `resolvedBody` and `impact` are required.
+      x-scope: incidents:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IncidentTemplateInput' }
+      responses:
+        '200':
+          description: The created template.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IncidentTemplate' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /incident-templates/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    patch:
+      tags: [Incidents]
+      summary: Change an incident template
+      x-scope: incidents:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IncidentTemplateInput' }
+      responses:
+        '200':
+          description: The updated template.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IncidentTemplate' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Incidents]
+      summary: Delete an incident template
+      description: Refused with `409` for the default template. Monitors that used the template fall back to the default one.
+      x-scope: incidents:write
+      responses:
+        '204': { description: Deleted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /incidents/{id}/updates:
     parameters:
       - { $ref: '#/components/parameters/Id' }
@@ -943,6 +1010,9 @@ components:
         retries: { type: integer }
         failureThreshold: { type: integer }
         recoveryThreshold: { type: integer }
+        autoIncidentMinutes: { type: [integer, 'null'], description: 'Minutes a confirmed outage must last before an incident is opened automatically, 1 to 10080; null = off.' }
+        autoIncidentMode: { type: string, enum: [draft, published], description: 'Whether the automatic incident is a draft (default) or published at once.' }
+        autoIncidentTemplateId: { type: [integer, 'null'], description: 'Incident template for the automatic incident; null = the default template.' }
         config: { $ref: '#/components/schemas/MonitorConfig' }
         tags:
           type: array
@@ -970,6 +1040,9 @@ components:
           type: integer
           default: 1
           description: Consecutive successful checks before a recovery, 1 to 20. A value outside that is clamped, not refused.
+        autoIncidentMinutes: { type: [integer, 'null'], description: 'Minutes a confirmed outage must last before an incident is opened automatically, 1 to 10080; null = off.' }
+        autoIncidentMode: { type: string, enum: [draft, published], description: 'Whether the automatic incident is a draft (default) or published at once.' }
+        autoIncidentTemplateId: { type: [integer, 'null'], description: 'Incident template for the automatic incident; null = the default template.' }
         config: { $ref: '#/components/schemas/MonitorConfig' }
         tags:
           type: array
@@ -985,6 +1058,9 @@ components:
         retries: { type: integer, minimum: 1, maximum: 10 }
         failureThreshold: { type: integer, description: '1 to 20; a value outside that is clamped.' }
         recoveryThreshold: { type: integer, description: '1 to 20; a value outside that is clamped.' }
+        autoIncidentMinutes: { type: [integer, 'null'], description: 'Minutes a confirmed outage must last before an incident is opened automatically, 1 to 10080; null = off.' }
+        autoIncidentMode: { type: string, enum: [draft, published], description: 'Whether the automatic incident is a draft (default) or published at once.' }
+        autoIncidentTemplateId: { type: [integer, 'null'], description: 'Incident template for the automatic incident; null = the default template.' }
         config: { $ref: '#/components/schemas/MonitorConfig' }
         tags:
           type: array
@@ -1009,6 +1085,8 @@ components:
         resolvedAt: { type: [integer, 'null'] }
         createdAt: { type: integer }
         updatedAt: { type: integer }
+        draft: { type: boolean, description: A draft is visible to operators only until it is published. }
+        autoMonitorId: { type: [integer, 'null'], description: The monitor whose outage opened this incident automatically; null for a manual one. }
     IncidentCreate:
       type: object
       required: [title]
@@ -1020,7 +1098,8 @@ components:
         monitorIds:
           type: array
           items: { type: integer }
-        notifySubscribers: { type: boolean, default: true }
+        notifySubscribers: { type: boolean, default: true, description: Ignored for a draft; subscribers are told when it is published. }
+        draft: { type: boolean, default: false, description: Create the incident as a draft. }
     IncidentPatch:
       type: object
       properties:
@@ -1029,6 +1108,27 @@ components:
         impact: { $ref: '#/components/schemas/IncidentImpact' }
         resolvedAt: { type: [integer, 'null'] }
         notifySubscribers: { type: boolean, default: true }
+        draft: { type: boolean, description: '`false` publishes a draft and notifies subscribers; a published incident cannot go back to a draft.' }
+    IncidentTemplate:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        title: { type: string, description: 'Incident title; placeholders {{monitor}}, {{duration}}, {{status}}, {{error}}.' }
+        body: { type: string, description: Opening message posted when an automatic incident opens. }
+        resolvedBody: { type: string, description: Message posted when it is resolved automatically. }
+        impact: { $ref: '#/components/schemas/IncidentImpact' }
+        isDefault: { type: boolean }
+        createdAt: { type: integer }
+        updatedAt: { type: integer }
+    IncidentTemplateInput:
+      type: object
+      properties:
+        name: { type: string, maxLength: 100 }
+        title: { type: string, maxLength: 200 }
+        body: { type: string, maxLength: 5000 }
+        resolvedBody: { type: string, maxLength: 5000 }
+        impact: { $ref: '#/components/schemas/IncidentImpact' }
     IncidentUpdateCreate:
       type: object
       required: [body, status]

@@ -117,6 +117,8 @@ export interface MonitorTag {
   color: string
 }
 
+export type AutoIncidentMode = 'draft' | 'published'
+
 export interface Monitor {
   id: number
   /** Technical identifier used by the API and config files; unique, set when the monitor is created and never changed. */
@@ -130,6 +132,12 @@ export interface Monitor {
   failureThreshold: number
   /** Consecutive successful checks required before a recovery is sent. 1 = notify immediately. */
   recoveryThreshold: number
+  /** Minutes a confirmed outage must last before an incident is opened automatically; null = off. */
+  autoIncidentMinutes: number | null
+  /** Whether the automatic incident is created as a draft (operators only) or published right away. */
+  autoIncidentMode: AutoIncidentMode
+  /** Template used for the automatic incident; null = the default template. */
+  autoIncidentTemplateId: number | null
   config: MonitorConfig
   currentStatus: MonitorStatus
   lastCheckedAt: number | null

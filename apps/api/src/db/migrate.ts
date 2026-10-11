@@ -57,6 +57,18 @@ CREATE TABLE IF NOT EXISTS incident_updates (
   FOREIGN KEY (incident_id) REFERENCES incidents(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS incident_templates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  resolved_body TEXT NOT NULL,
+  impact TEXT NOT NULL DEFAULT 'major',
+  is_default INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS incident_monitors (
   incident_id INTEGER NOT NULL,
   monitor_id INTEGER NOT NULL,
@@ -400,6 +412,14 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   // SQLite cannot add a UNIQUE column; existing rows are filled by backfillEntityKeys, which then adds the unique index.
   { sql: `ALTER TABLE monitors ADD COLUMN key TEXT NOT NULL DEFAULT ''`, desc: 'monitors.key' },
   { sql: `ALTER TABLE notification_channels ADD COLUMN key TEXT NOT NULL DEFAULT ''`, desc: 'notification_channels.key' },
+  { sql: `ALTER TABLE monitors ADD COLUMN auto_incident_minutes INTEGER`, desc: 'monitors.auto_incident_minutes' },
+  { sql: `ALTER TABLE monitors ADD COLUMN auto_incident_mode TEXT NOT NULL DEFAULT 'draft'`, desc: 'monitors.auto_incident_mode' },
+  { sql: `ALTER TABLE monitors ADD COLUMN auto_incident_template_id INTEGER`, desc: 'monitors.auto_incident_template_id' },
+  { sql: `ALTER TABLE monitors ADD COLUMN failing_since INTEGER`, desc: 'monitors.failing_since' },
+  { sql: `ALTER TABLE incidents ADD COLUMN draft INTEGER NOT NULL DEFAULT 0`, desc: 'incidents.draft' },
+  { sql: `ALTER TABLE incidents ADD COLUMN auto_monitor_id INTEGER`, desc: 'incidents.auto_monitor_id' },
+  { sql: `CREATE INDEX IF NOT EXISTS idx_incidents_auto_monitor ON incidents(auto_monitor_id)`, desc: 'incidents auto_monitor_id index' },
+  { sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_incident_templates_name ON incident_templates(name)`, desc: 'incident_templates name index' },
 ]
 
 /**
@@ -515,6 +535,23 @@ function backfillEntityKeys(): void {
   })
 }
 
+/** The built-in template used by automatic incidents; operators may edit it but not delete it. */
+function seedDefaultIncidentTemplate(): void {
+  runDataMigration('default-incident-template-v1', () => {
+    const now = Date.now()
+    sqlite.prepare(
+      'INSERT INTO incident_templates (name, title, body, resolved_body, impact, is_default, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)',
+    ).run(
+      'Default',
+      '{{monitor}} is unavailable',
+      'We detected that {{monitor}} has been unavailable for {{duration}}. We are investigating.',
+      '{{monitor}} is available again. The outage lasted {{duration}}.',
+      'major',
+      now, now,
+    )
+  })
+}
+
 /** Runs all migrations against the already-initialized DB. */
 export function runMigrations(): void {
   sqlite.exec(migrations)
@@ -534,6 +571,7 @@ export function runMigrations(): void {
   revokeTemporaryPasswordsOfSsoUsers()
   seedAlertConfirmedStatus()
   backfillEntityKeys()
+  seedDefaultIncidentTemplate()
   // After the backfill: before it, every existing row would share the empty default.
   sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_monitors_key ON monitors(key)`)
   sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_channels_key ON notification_channels(key)`)

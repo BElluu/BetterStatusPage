@@ -11,6 +11,7 @@ import { Field, type SecretSummary, type VaultSummary } from './monitorFormParts
 import { DATABASE_DEFAULT_PORTS, DATABASE_DEFAULT_QUERIES, isDatabaseType } from './monitorTypes'
 import { MonitorTypePicker } from './MonitorTypePicker'
 import { ScheduleSection } from './ScheduleSection'
+import { AutoIncidentSection, type AutoIncidentValues } from './AutoIncidentSection'
 import { TagsSection } from './TagsSection'
 import { TestResultPanel, type TestResult } from './TestResultPanel'
 import { Alert } from '../ui'
@@ -49,6 +50,11 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
   const [retries, setRetries]           = useState(monitor?.retries ?? 1)
   const [failureThreshold, setFailureThreshold]   = useState(monitor?.failureThreshold ?? 1)
   const [recoveryThreshold, setRecoveryThreshold] = useState(monitor?.recoveryThreshold ?? 1)
+  const [autoIncident, setAutoIncident] = useState<AutoIncidentValues>({
+    autoIncidentMinutes: monitor?.autoIncidentMinutes ?? null,
+    autoIncidentMode: monitor?.autoIncidentMode ?? 'draft',
+    autoIncidentTemplateId: monitor?.autoIncidentTemplateId ?? null,
+  })
   const [tags, setTags]                 = useState<MonitorTag[]>(monitor?.tags ?? [])
   // A new database monitor cannot work without credentials, so their panel starts open.
   const [sidePanel, setSidePanel] = useState<SidePanelKey | null>(!monitor && isDatabaseType(initialType) ? 'credentials' : null)
@@ -170,7 +176,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     }
     setLoading(true)
     try {
-      const body = { name, type, intervalSecs, timeoutMs, retries, failureThreshold, recoveryThreshold, config, tags }
+      const body = { name, type, intervalSecs, timeoutMs, retries, failureThreshold, recoveryThreshold, ...autoIncident, config, tags }
       if (isEdit) {
         await api.patch(`/admin/monitors/${monitor.id}`, body)
         await api.put(`/admin/notifications/monitor/${monitor.id}/channels`, { channelIds: [...selectedChannelIds] })
@@ -211,6 +217,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     { key: 'tags',         badge: tags.length > 0 ? String(tags.length) : null },
     { key: 'channels',     badge: selectedChannelIds.size > 0 ? String(selectedChannelIds.size) : null },
     { key: 'dependencies', badge: selectedDependsOnIds.size > 0 ? String(selectedDependsOnIds.size) : null },
+    { key: 'incident',     badge: autoIncident.autoIncidentMinutes !== null ? String(autoIncident.autoIncidentMinutes) : null },
   ]
 
   return (
@@ -307,6 +314,9 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
               selected={selectedDependsOnIds}
               onChange={setSelectedDependsOnIds}
             />
+          )}
+          {sidePanel === 'incident' && (
+            <AutoIncidentSection values={autoIncident} onChange={(p) => setAutoIncident((prev) => ({ ...prev, ...p }))} />
           )}
         </SidePanelFrame>
       )}

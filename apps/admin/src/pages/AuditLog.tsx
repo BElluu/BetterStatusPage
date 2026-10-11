@@ -25,6 +25,7 @@ const ACTION_COLORS: Record<AuditAction, { bg: string; color: string; label: str
 const ENTITY_LABELS: Record<AuditEntityType, string> = {
   monitor:              'Monitor',
   incident:             'Incident',
+  incident_template:    'Incident Template',
   maintenance:          'Maintenance',
   notification_channel: 'Notification Channel',
   smtp_settings:        'SMTP Settings',
@@ -50,7 +51,7 @@ const ENTITY_LABELS: Record<AuditEntityType, string> = {
 
 /** Entity filter sections, most used first; types inside a group run from most to least important. */
 const ENTITY_GROUPS = [
-  { label: 'Monitoring', types: ['monitor', 'incident', 'maintenance'] },
+  { label: 'Monitoring', types: ['monitor', 'incident', 'incident_template', 'maintenance'] },
   { label: 'Notifications', types: ['notification_channel', 'notification_delivery', 'smtp_settings', 'subscriber', 'subscriber_delivery', 'subscription_settings'] },
   { label: 'Access & security', types: ['sign_in', 'user', 'user-security', 'api_token', 'oidc_settings', 'status_page_access', 'vault', 'vault_secret'] },
   { label: 'Appearance', types: ['branding', 'layout', 'locale'] },
@@ -63,6 +64,7 @@ export const ENTITY_TYPES_ALL_GROUPED: Exclude<AuditEntityType, (typeof ENTITY_G
 const ENTITY_ICONS: Record<AuditEntityType, string> = {
   monitor:              'radio_button_checked',
   incident:             'warning',
+  incident_template:    'article',
   maintenance:          'construction',
   notification_channel: 'notifications',
   smtp_settings:        'email',

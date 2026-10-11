@@ -3,6 +3,7 @@ import { requireAuth, requireRole } from './middleware/auth.js'
 import { oidcSettingsRoutes } from './routes/oidcSettings.js'
 import { monitorRoutes } from './routes/monitors.js'
 import { incidentRoutes } from './routes/incidents.js'
+import { incidentTemplateRoutes } from './routes/incidentTemplates.js'
 import { layoutRoutes } from './routes/layout.js'
 import { brandingRoutes } from './routes/branding.js'
 import { userRoutes } from './routes/users.js'
@@ -49,6 +50,7 @@ export async function adminApi(adminApp: FastifyInstance) {
     belongsTo(sub, 'incidents')
     sub.addHook('preHandler', requireRole('operator'))
     await sub.register(incidentRoutes, { prefix: '/incidents' })
+    await sub.register(incidentTemplateRoutes, { prefix: '/incident-templates' })
   })
 
   // layout, branding & locales: branding+

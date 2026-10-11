@@ -74,6 +74,14 @@ export const monitors = sqliteTable('monitors', {
   certWarnedDays: integer('cert_warned_days'),
   /** Stable identifier for config-as-code and API clients; unlike `id` it survives export/import. */
   key: text('key').notNull().unique().$defaultFn(randomEntityKey),
+  /** Minutes a confirmed outage must last before an incident is opened automatically; null = off. */
+  autoIncidentMinutes: integer('auto_incident_minutes'),
+  /** 'draft' | 'published' */
+  autoIncidentMode: text('auto_incident_mode').notNull().default('draft'),
+  /** incident_templates.id; null = the default template. */
+  autoIncidentTemplateId: integer('auto_incident_template_id'),
+  /** When the currently confirmed outage began; null while the monitor is not confirmed failing. */
+  failingSince: integer('failing_since'),
 })
 
 export const monitorResults = sqliteTable('monitor_results', {
@@ -95,6 +103,23 @@ export const incidents = sqliteTable('incidents', {
   impact: text('impact').notNull().default('minor'),
   startedAt: integer('started_at').notNull(),
   resolvedAt: integer('resolved_at'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
+  /** 1 while the incident is visible to operators only. */
+  draft: integer('draft').notNull().default(0),
+  /** Monitor whose outage opened this incident automatically; null for a manual one. */
+  autoMonitorId: integer('auto_monitor_id'),
+})
+
+export const incidentTemplates = sqliteTable('incident_templates', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  resolvedBody: text('resolved_body').notNull(),
+  impact: text('impact').notNull().default('major'),
+  isDefault: integer('is_default').notNull().default(0),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 })

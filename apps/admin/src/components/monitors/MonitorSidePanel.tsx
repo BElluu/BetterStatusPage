@@ -4,7 +4,7 @@ import type { SidePanelMeta } from '../SidePanel'
 import { ConnectionStringSection, CredentialSection } from './CredentialSection'
 import { Field, JSON_MAPPING_FIELDS, Note, toggleInSet, type VaultPickerProps } from './monitorFormParts'
 
-export type SidePanelKey = 'request' | 'auth' | 'credentials' | 'tags' | 'channels' | 'dependencies'
+export type SidePanelKey = 'request' | 'auth' | 'credentials' | 'tags' | 'channels' | 'dependencies' | 'incident'
 
 export const PANEL_META: Record<SidePanelKey, SidePanelMeta> = {
   auth:         { icon: 'lock',          label: 'Auth' },
@@ -13,6 +13,7 @@ export const PANEL_META: Record<SidePanelKey, SidePanelMeta> = {
   tags:         { icon: 'label',         label: 'Tags' },
   channels:     { icon: 'notifications', label: 'Alerts' },
   dependencies: { icon: 'account_tree',  label: 'Depends on' },
+  incident:     { icon: 'emergency_home', label: 'Incident' },
 }
 
 // ── Request (headers & body) ──────────────────────────────────────────────────

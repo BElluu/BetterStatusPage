@@ -1,6 +1,6 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { db } from '../db/client.js'
-import { monitors, monitorResults, monitorDependencies } from '../db/schema.js'
+import { monitors, monitorResults, monitorDependencies, incidentTemplates } from '../db/schema.js'
 import { eq, desc, gte, and, inArray } from 'drizzle-orm'
 import { withImmediateTransaction } from '../db/transaction.js'
 import { runCheck } from '../workers/scheduler.js'
@@ -55,6 +55,18 @@ function findDependencyCycle(
 
 export async function monitorRoutes(app: FastifyInstance) {
   /** Monitors leave the API with their secrets masked; see services/secretFields.ts. */
+  /** Publishing incidents and choosing their wording is incidents:write territory, not something monitors:write may do on the side. */
+  function autoIncidentScopeProblem(req: FastifyRequest, fields: { autoIncidentMode?: string; autoIncidentTemplateId?: number | null }): string | null {
+    const token = requestIdentity(req).apiToken
+    if (!token || (fields.autoIncidentMode !== 'published' && (fields.autoIncidentTemplateId ?? null) === null)) return null
+    return tokenAllows(token.scopes, 'incidents:write') ? null : 'This token does not have the "incidents:write" permission needed to publish automatic incidents or choose their template'
+  }
+
+  async function templateExists(id: number | null): Promise<boolean> {
+    if (id === null) return true
+    return (await db.select({ id: incidentTemplates.id }).from(incidentTemplates).where(eq(incidentTemplates.id, id))).length > 0
+  }
+
   function parseMonitor(m: typeof monitors.$inferSelect) {
     return { ...m, config: maskSecrets('monitor', JSON.parse(m.config)), tags: JSON.parse(m.tags ?? '[]') }
   }
@@ -85,6 +97,7 @@ export async function monitorRoutes(app: FastifyInstance) {
     name: string; key?: string; type: string
     intervalSecs?: number; timeoutMs?: number; retries?: number; config: unknown
     failureThreshold?: number; recoveryThreshold?: number
+    autoIncidentMinutes?: number | null; autoIncidentMode?: string; autoIncidentTemplateId?: number | null
     tags?: Array<{ label: string; color: string }>
   } }>('/', async (req, reply) => {
     const parsed = parseNewMonitor(req.body)
@@ -94,6 +107,9 @@ export async function monitorRoutes(app: FastifyInstance) {
     if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
     const vaultProblem = vaultUseProblem(requestIdentity(req).apiToken, secrets.config, undefined)
     if (vaultProblem) return reply.code(403).send({ error: vaultProblem })
+    const scopeProblem = autoIncidentScopeProblem(req, fields)
+    if (scopeProblem) return reply.code(403).send({ error: scopeProblem })
+    if (!await templateExists(fields.autoIncidentTemplateId)) return reply.code(400).send({ error: 'autoIncidentTemplateId does not match a template' })
     const resolvedKey = await keyForNew(fields.name, req.body.key, monitorKeyOwner)
     if ('error' in resolvedKey) return reply.code(resolvedKey.status).send({ error: resolvedKey.error })
     const now = Date.now()
@@ -106,6 +122,9 @@ export async function monitorRoutes(app: FastifyInstance) {
       retries: fields.retries,
       failureThreshold: fields.failureThreshold,
       recoveryThreshold: fields.recoveryThreshold,
+      autoIncidentMinutes: fields.autoIncidentMinutes,
+      autoIncidentMode: fields.autoIncidentMode,
+      autoIncidentTemplateId: fields.autoIncidentTemplateId,
       config: JSON.stringify(secrets.config),
       tags: JSON.stringify(fields.tags),
       currentStatus: 'pending',
@@ -134,6 +153,7 @@ export async function monitorRoutes(app: FastifyInstance) {
     name: string; key: string; type: string
     intervalSecs: number; timeoutMs: number; retries: number; config: unknown
     failureThreshold: number; recoveryThreshold: number
+    autoIncidentMinutes: number | null; autoIncidentMode: string; autoIncidentTemplateId: number | null
     tags: Array<{ label: string; color: string }>
   }> }>('/:id', async (req, reply) => {
     const id = Number(req.params.id)
@@ -144,6 +164,8 @@ export async function monitorRoutes(app: FastifyInstance) {
     const parsed = parseMonitorPatch(req.body, existing)
     if ('error' in parsed) return reply.code(400).send({ error: parsed.error })
     const patch = parsed.value
+    const scopeProblem = autoIncidentScopeProblem(req, patch)
+    if (scopeProblem) return reply.code(403).send({ error: scopeProblem })
 
     const updates: Partial<typeof monitors.$inferInsert> = { updatedAt: Date.now() }
     if (patch.name !== undefined) updates.name = patch.name
@@ -153,6 +175,12 @@ export async function monitorRoutes(app: FastifyInstance) {
     if (patch.retries !== undefined) updates.retries = patch.retries
     if (patch.failureThreshold !== undefined) updates.failureThreshold = patch.failureThreshold
     if (patch.recoveryThreshold !== undefined) updates.recoveryThreshold = patch.recoveryThreshold
+    if (patch.autoIncidentMinutes !== undefined) updates.autoIncidentMinutes = patch.autoIncidentMinutes
+    if (patch.autoIncidentMode !== undefined) updates.autoIncidentMode = patch.autoIncidentMode
+    if (patch.autoIncidentTemplateId !== undefined) {
+      if (!await templateExists(patch.autoIncidentTemplateId)) return reply.code(400).send({ error: 'autoIncidentTemplateId does not match a template' })
+      updates.autoIncidentTemplateId = patch.autoIncidentTemplateId
+    }
     if (patch.config !== undefined) {
       // A masked secret means "keep the stored one", which only makes sense while the type stays the same.
       const type = patch.type ?? existing.type

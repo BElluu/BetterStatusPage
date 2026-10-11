@@ -56,6 +56,8 @@ A few details:
   A degraded result is not retried. The check counts as down only if every attempt fails.
 - **Alert after / Recover after** do not delay the status page, only notifications. See
   [Failure and recovery thresholds](alert-hygiene.md#failure-and-recovery-thresholds).
+- The **Incident** side tab opens an incident when the monitor stays down
+  for the minutes you set. See [Automatic incidents](incidents-and-maintenance.md#automatic-incidents).
 - The scheduler wakes every 10 seconds (`SCHEDULER_TICK_SECONDS`), so a check runs at most that
   long after its interval has passed.
 
@@ -68,6 +70,7 @@ The side tabs of the form hold the rest:
 | **Tags** | All | Coloured labels |
 | **Alerts** | All | The [notification channels](notification-channels.md) this monitor alerts on |
 | **Depends on** | All | [Dependencies](#dependencies) |
+| **Incident** | All | [Automatic incidents](incidents-and-maintenance.md#automatic-incidents) |
 
 ### Tags
 

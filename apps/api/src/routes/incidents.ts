@@ -56,7 +56,7 @@ export async function incidentRoutes(app: FastifyInstance) {
     return withIncidentDetails(await query.limit(limit).offset(offset))
   })
 
-  app.post<{ Body: { title: string; status?: string; impact?: string; startedAt?: number; monitorIds?: number[]; notifySubscribers?: boolean } }>('/', async (req, reply) => {
+  app.post<{ Body: { title: string; status?: string; impact?: string; startedAt?: number; monitorIds?: number[]; notifySubscribers?: boolean; draft?: boolean } }>('/', async (req, reply) => {
     const status = req.body.status ?? 'investigating'
     const impact = req.body.impact ?? 'minor'
     if (!VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
@@ -67,6 +67,7 @@ export async function incidentRoutes(app: FastifyInstance) {
     }
     const monitorIds = parseMonitorIds(req.body.monitorIds)
     if (monitorIds === null) return reply.code(400).send({ error: 'monitorIds must be an array of monitor ids' })
+    if (req.body.draft !== undefined && typeof req.body.draft !== 'boolean') return reply.code(400).send({ error: 'draft must be true or false' })
     const now = Date.now()
     const results = await db.insert(incidents).values({
       title: req.body.title,
@@ -76,6 +77,7 @@ export async function incidentRoutes(app: FastifyInstance) {
       resolvedAt: resolvedAtFor(status, null, now),
       createdAt: now,
       updatedAt: now,
+      draft: req.body.draft === true ? 1 : 0,
     }).returning()
     const incident = results[0]!
     // Linked in the same request so component-scoped subscribers are matched on creation.
@@ -84,14 +86,15 @@ export async function incidentRoutes(app: FastifyInstance) {
     }
     const enriched = await enrichIncident(incident)
     sseService.broadcast('incident.created', enriched)
-    if (req.body.notifySubscribers !== false) await noticeSubscribers(() => notifyIncidentSubscribers('incident.created', incident.id))
+    // A draft is announced when it is published.
+    if (!incident.draft && req.body.notifySubscribers !== false) await noticeSubscribers(() => notifyIncidentSubscribers('incident.created', incident.id))
     const actor = requestIdentity(req)
     writeAudit(auditActor(actor), 'create', 'incident', incident.id, incident.title,
-      snapshot({ title: incident.title, status: incident.status, impact: incident.impact }))
+      snapshot({ title: incident.title, status: incident.status, impact: incident.impact, draft: !!incident.draft }))
     return enriched
   })
 
-  app.patch<{ Params: { id: string }; Body: Partial<{ title: string; status: string; impact: string; resolvedAt: number | null; notifySubscribers: boolean }> }>(
+  app.patch<{ Params: { id: string }; Body: Partial<{ title: string; status: string; impact: string; resolvedAt: number | null; notifySubscribers: boolean; draft: boolean }> }>(
     '/:id', async (req, reply) => {
       const id = Number(req.params.id)
       const existing = (await db.select().from(incidents).where(eq(incidents.id, id)))[0]
@@ -107,8 +110,17 @@ export async function incidentRoutes(app: FastifyInstance) {
         && !(Number.isInteger(req.body.resolvedAt) && req.body.resolvedAt > 0)) {
         return reply.code(400).send({ error: 'resolvedAt must be a timestamp in milliseconds or null' })
       }
+      if (req.body.draft !== undefined && typeof req.body.draft !== 'boolean') {
+        return reply.code(400).send({ error: 'draft must be true or false' })
+      }
+      // Publishing is one-way: pulling an announced incident back would leave subscribers with a dead notice.
+      if (req.body.draft === true && !existing.draft) {
+        return reply.code(400).send({ error: 'A published incident cannot be turned back into a draft' })
+      }
+      const publishing = !!existing.draft && req.body.draft === false
       const now = Date.now()
       const updates: Record<string, unknown> = { updatedAt: now }
+      if (publishing) updates['draft'] = 0
       if (req.body.title !== undefined) updates['title'] = req.body.title
       if (req.body.status !== undefined) updates['status'] = req.body.status
       if (req.body.impact !== undefined) updates['impact'] = req.body.impact
@@ -116,13 +128,16 @@ export async function incidentRoutes(app: FastifyInstance) {
 
       const results = await db.update(incidents).set(updates).where(eq(incidents.id, id)).returning()
       const enriched = await enrichIncident(results[0]!)
-      sseService.broadcast('incident.updated', enriched)
+      // Visitors have not seen a draft yet, so publishing it is a creation for them.
+      sseService.broadcast(publishing ? 'incident.created' : 'incident.updated', enriched)
       const actor = requestIdentity(req)
-      const before = { title: existing.title, status: existing.status, impact: existing.impact } as Record<string, unknown>
-      const after  = { title: results[0]!.title, status: results[0]!.status, impact: results[0]!.impact } as Record<string, unknown>
+      const before = { title: existing.title, status: existing.status, impact: existing.impact, draft: !!existing.draft } as Record<string, unknown>
+      const after  = { title: results[0]!.title, status: results[0]!.status, impact: results[0]!.impact, draft: !!results[0]!.draft } as Record<string, unknown>
       const diff = diffObjects(before, after)
       if (Object.keys(diff).length) writeAudit(auditActor(actor), 'update', 'incident', id, existing.title, diff)
-      if (existing.status !== 'resolved' && results[0]!.status === 'resolved' && req.body.notifySubscribers !== false) {
+      if (publishing && req.body.notifySubscribers !== false) {
+        await noticeSubscribers(() => notifyIncidentSubscribers(results[0]!.status === 'resolved' ? 'incident.resolved' : 'incident.created', id))
+      } else if (existing.status !== 'resolved' && results[0]!.status === 'resolved' && req.body.notifySubscribers !== false) {
         await noticeSubscribers(() => notifyIncidentSubscribers('incident.resolved', id))
       }
       return enriched

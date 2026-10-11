@@ -1,6 +1,6 @@
 import { db } from '../db/client.js'
 import {
-  monitorDependencies, monitorNotificationChannels, monitors, notificationChannels, vaultSecrets, vaults,
+  incidentTemplates, monitorDependencies, monitorNotificationChannels, monitors, notificationChannels, vaultSecrets, vaults,
 } from '../db/schema.js'
 import { parseAlertPolicy } from './alertPolicy.js'
 import { maskSecrets } from './secretFields.js'
@@ -35,6 +35,8 @@ interface MonitorDocument {
   notifications: string[]
   /** Keys of the monitors this one depends on. */
   dependsOn: string[]
+  /** Present only when automatic incidents are on; `template` is the template's name, left out for the default one. */
+  autoIncident?: { afterMinutes: number; mode: string; template?: string }
 }
 
 export type ConfigDocument = ChannelDocument | MonitorDocument
@@ -96,15 +98,17 @@ function exportVaultRefs(value: unknown, names: VaultNames): unknown {
  * exactly as the API masks them, and runtime state (current status, last check, heartbeat token) is left out.
  */
 export async function buildConfigDocuments(only?: { kind: ConfigDocument['kind']; key: string }): Promise<ConfigDocument[]> {
-  const [monitorRows, channelRows, dependencyRows, linkRows, names] = await Promise.all([
+  const [monitorRows, channelRows, dependencyRows, linkRows, templateRows, names] = await Promise.all([
     db.select().from(monitors),
     db.select().from(notificationChannels),
     db.select().from(monitorDependencies),
     db.select().from(monitorNotificationChannels),
+    db.select({ id: incidentTemplates.id, name: incidentTemplates.name }).from(incidentTemplates),
     loadVaultNames(),
   ])
   const monitorKey = new Map(monitorRows.map((row) => [row.id, row.key]))
   const channelKey = new Map(channelRows.map((row) => [row.id, row.key]))
+  const templateName = new Map(templateRows.map((row) => [row.id, row.name]))
   const keysOf = (ids: number[], lookup: Map<number, string>) => ids.flatMap((id) => lookup.get(id) ?? []).sort()
 
   // Only the rows asked for are written out, so a vault name that is ambiguous for some other object does not matter.
@@ -135,6 +139,13 @@ export async function buildConfigDocuments(only?: { kind: ConfigDocument['kind']
     tags: JSON.parse(row.tags ?? '[]'),
     notifications: keysOf(linkRows.filter((link) => link.monitorId === row.id).map((link) => link.channelId), channelKey),
     dependsOn: keysOf(dependencyRows.filter((dependency) => dependency.dependentId === row.id).map((dependency) => dependency.dependsOnId), monitorKey),
+    ...(row.autoIncidentMinutes === null ? {} : {
+      autoIncident: {
+        afterMinutes: row.autoIncidentMinutes,
+        mode: row.autoIncidentMode,
+        ...(row.autoIncidentTemplateId !== null && templateName.has(row.autoIncidentTemplateId) ? { template: templateName.get(row.autoIncidentTemplateId)! } : {}),
+      },
+    }),
   })).sort(byKey)
 
   return [...channelDocuments, ...monitorDocuments]

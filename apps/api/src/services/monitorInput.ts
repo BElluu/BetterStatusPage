@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import type { MonitorTag, MonitorType } from '@bsp/shared'
+import type { AutoIncidentMode, MonitorTag, MonitorType } from '@bsp/shared'
 import { validateDockerConfig } from '../workers/docker.js'
 
 export const MONITOR_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'postgresql', 'mysql', 'mongodb', 'docker', 'webhook']
@@ -8,6 +8,9 @@ export const INTERVAL_SECS_RANGE = [10, 86_400] as const
 export const TIMEOUT_MS_RANGE = [1_000, 300_000] as const
 export const RETRIES_RANGE = [1, 10] as const
 export const THRESHOLD_RANGE = [1, 20] as const
+/** Minutes a confirmed outage may last before an incident opens: 1 minute to 7 days. */
+export const AUTO_INCIDENT_MINUTES_RANGE = [1, 10_080] as const
+const AUTO_INCIDENT_MODES: readonly AutoIncidentMode[] = ['draft', 'published']
 const MAX_NAME_LENGTH = 200
 const MAX_TAGS = 20
 
@@ -37,6 +40,9 @@ export interface MonitorFields {
   retries: number
   failureThreshold: number
   recoveryThreshold: number
+  autoIncidentMinutes: number | null
+  autoIncidentMode: AutoIncidentMode
+  autoIncidentTemplateId: number | null
   config: Record<string, unknown>
   tags: MonitorTag[]
 }
@@ -60,6 +66,27 @@ function inRange(value: unknown, [min, max]: readonly [number, number]): value i
 function clampThreshold(value: unknown, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
   return Math.min(THRESHOLD_RANGE[1], Math.max(THRESHOLD_RANGE[0], Math.round(value)))
+}
+
+/** The three auto-incident fields of a request; absent ones stay out so a partial update leaves them alone. */
+function parseAutoIncident(input: Record<string, unknown>): Parsed<Partial<Pick<MonitorFields, 'autoIncidentMinutes' | 'autoIncidentMode' | 'autoIncidentTemplateId'>>> {
+  const out: Partial<Pick<MonitorFields, 'autoIncidentMinutes' | 'autoIncidentMode' | 'autoIncidentTemplateId'>> = {}
+  const minutes = input['autoIncidentMinutes']
+  if (minutes !== undefined) {
+    if (minutes !== null && !inRange(minutes, AUTO_INCIDENT_MINUTES_RANGE)) return { error: rangeError('autoIncidentMinutes', AUTO_INCIDENT_MINUTES_RANGE) + ' or null' }
+    out.autoIncidentMinutes = minutes
+  }
+  const mode = input['autoIncidentMode']
+  if (mode !== undefined) {
+    if (!AUTO_INCIDENT_MODES.includes(mode as AutoIncidentMode)) return { error: `autoIncidentMode must be one of: ${AUTO_INCIDENT_MODES.join(', ')}` }
+    out.autoIncidentMode = mode as AutoIncidentMode
+  }
+  const templateId = input['autoIncidentTemplateId']
+  if (templateId !== undefined) {
+    if (templateId !== null && !(Number.isInteger(templateId) && (templateId as number) > 0)) return { error: 'autoIncidentTemplateId must be a template id or null' }
+    out.autoIncidentTemplateId = templateId as number | null
+  }
+  return { value: out }
 }
 
 function parseTags(value: unknown): Parsed<MonitorTag[]> {
@@ -110,12 +137,17 @@ export function parseNewMonitor(body: unknown): Parsed<MonitorFields> {
   if ('error' in config) return config
   const tags = parseTags(input['tags'] ?? [])
   if ('error' in tags) return tags
+  const auto = parseAutoIncident(input)
+  if ('error' in auto) return auto
 
   return {
     value: {
       name: name.value, type: type.value, intervalSecs, timeoutMs, retries,
       failureThreshold: clampThreshold(input['failureThreshold'], 1),
       recoveryThreshold: clampThreshold(input['recoveryThreshold'], 1),
+      autoIncidentMinutes: auto.value.autoIncidentMinutes ?? null,
+      autoIncidentMode: auto.value.autoIncidentMode ?? 'draft',
+      autoIncidentTemplateId: auto.value.autoIncidentTemplateId ?? null,
       config: config.value, tags: tags.value,
     },
   }
@@ -146,6 +178,9 @@ export function parseMonitorPatch(body: unknown, existing: ExistingMonitor): Par
   }
   if (input['failureThreshold'] !== undefined) patch.failureThreshold = clampThreshold(input['failureThreshold'], existing.failureThreshold)
   if (input['recoveryThreshold'] !== undefined) patch.recoveryThreshold = clampThreshold(input['recoveryThreshold'], existing.recoveryThreshold)
+  const auto = parseAutoIncident(input)
+  if ('error' in auto) return auto
+  Object.assign(patch, auto.value)
   if (input['config'] !== undefined) {
     const config = parseConfig(patch.type ?? existing.type as MonitorType, input['config'])
     if ('error' in config) return config
