@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { api } from '../../api/client'
-import type { Action, Monitor, MonitorAction, MonitorType, NotificationChannel, MonitorTag } from '@bsp/shared'
+import type { Action, HttpAssertion, Monitor, MonitorAction, MonitorType, NotificationChannel, MonitorTag } from '@bsp/shared'
 import { ModalFooter, ModalHeader, ModalShell } from '../ModalShell'
 import { YamlViewModal } from '../YamlViewModal'
 import { AuthSection, readAuth } from './AuthSection'
 import { SidePanelFrame, SideTabStrip, type SideTab } from '../SidePanel'
 import { ActionsSection, ChannelsSection, CredentialsSection, DependenciesSection, PANEL_META, RequestSection, hasDatabaseCredentials, type SidePanelKey } from './MonitorSidePanel'
+import { HttpAssertionsFields } from './HttpAssertionsFields'
 import { MonitorTypeConfigFields } from './MonitorTypeConfigFields'
 import { Field, type SecretSummary, type VaultSummary } from './monitorFormParts'
 import { DATABASE_DEFAULT_PORTS, DATABASE_DEFAULT_QUERIES, isDatabaseType } from './monitorTypes'
@@ -137,7 +138,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     setType(newType)
     setConfig(defaultConfigs[newType] as Record<string, unknown>)
     if (isDatabaseType(newType)) setSidePanel('credentials')
-    else if (sidePanel === 'credentials' || (newType !== 'https' && (sidePanel === 'auth' || sidePanel === 'request'))) setSidePanel(null)
+    else if (sidePanel === 'credentials' || (newType !== 'https' && (sidePanel === 'auth' || sidePanel === 'request' || sidePanel === 'checks'))) setSidePanel(null)
   }
 
   /** Switches the engine of a Database monitor, keeping what was typed; only a default port and test query follow the engine. */
@@ -238,6 +239,10 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
   const auth = readAuth(config)
   const authType = auth.type ?? 'none'
   const headerCount = Object.keys((config['headers'] as Record<string, string> | undefined) ?? {}).length
+  const assertions = (config['assertions'] as HttpAssertion[] | undefined) ?? []
+  const degradedAboveMs = config['degradedAboveMs'] as number | undefined
+  const keyword = (config['keyword'] as string | undefined) ?? ''
+  const checkCount = assertions.length + (degradedAboveMs !== undefined ? 1 : 0) + (keyword ? 1 : 0)
   const vaultPicker = { vaults, secretsByVault, onLoadSecrets: loadSecrets }
   const isTestable = type === 'https' || isDatabaseType(type) || type === 'ping' || type === 'dns' || type === 'docker'
   const webhookCreated = type === 'webhook' && !isEdit && !!webhookToken
@@ -249,6 +254,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     ...(type === 'https' ? [
       { key: 'auth' as const,    badge: authType !== 'none' ? authType.slice(0, 1).toUpperCase() : null },
       { key: 'request' as const, badge: headerCount > 0 ? String(headerCount) : null },
+      { key: 'checks' as const,  badge: checkCount > 0 ? String(checkCount) : null },
     ] : []),
     { key: 'tags',         badge: tags.length > 0 ? String(tags.length) : null },
     { key: 'channels',     badge: selectedChannelIds.size > 0 ? String(selectedChannelIds.size) : null },
@@ -341,6 +347,16 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
       {sidePanel && (
         <SidePanelFrame meta={PANEL_META[sidePanel]} layout="responsive">
           {sidePanel === 'request' && <RequestSection config={config} updateConfig={updateConfig} />}
+          {sidePanel === 'checks' && (
+            <HttpAssertionsFields
+              keyword={keyword}
+              onKeywordChange={(value) => updateConfig('keyword', value)}
+              assertions={assertions}
+              degradedAboveMs={degradedAboveMs}
+              onAssertionsChange={(list) => updateConfig('assertions', list.length > 0 ? list : undefined)}
+              onDegradedAboveMsChange={(ms) => updateConfig('degradedAboveMs', ms)}
+            />
+          )}
           {sidePanel === 'credentials' && <CredentialsSection config={config} updateConfig={updateConfig} vaultPicker={vaultPicker} />}
           {sidePanel === 'auth' && <AuthSection auth={auth} onChange={(next) => updateConfig('auth', next)} vaultPicker={vaultPicker} />}
           {sidePanel === 'tags' && <TagsSection tags={tags} allTags={allTags} onChange={setTags} />}

@@ -1136,6 +1136,33 @@ components:
         method: { type: string, enum: [GET, POST, HEAD], default: GET }
         expectedStatus: { type: integer, default: 200 }
         keyword: { type: string }
+        degradedAboveMs:
+          type: integer
+          minimum: 1
+          maximum: 300000
+          description: A response slower than this many milliseconds makes the check Degraded.
+        assertions:
+          type: array
+          maxItems: 20
+          description: Checks on the final response. Each failing one makes the check Degraded (default) or Down; the worst wins.
+          items:
+            oneOf:
+              - type: object
+                required: [type, name, op]
+                properties:
+                  type: { type: string, enum: [header] }
+                  name: { type: string, description: Header name, matched without regard to case. }
+                  op: { type: string, enum: [exists, not-exists, equals, not-equals, contains] }
+                  value: { type: string, description: Required unless op is exists or not-exists. }
+                  onFail: { type: string, enum: [degraded, down], default: degraded }
+              - type: object
+                required: [type, path, op]
+                properties:
+                  type: { type: string, enum: [json] }
+                  path: { type: string, description: 'A path such as $.queue.length, $.items[0].id or $[''key'']. Wildcards and filters are not supported.' }
+                  op: { type: string, enum: [exists, equals, not-equals, contains, lt, gt] }
+                  value: { oneOf: [{ type: string }, { type: number }], description: Required unless op is exists; a number for lt and gt. }
+                  onFail: { type: string, enum: [degraded, down], default: degraded }
         headers:
           type: object
           description: Values of credential headers are masked. A header is one when its name contains auth, token, secret, key, pass, pwd, credential, cookie, session or signature.

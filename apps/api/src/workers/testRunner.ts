@@ -1,4 +1,5 @@
 import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig } from '@bsp/shared'
+import { evaluateAssertions, validateHttpAssertions } from './assertions.js'
 import { evaluateContainer, inspectContainer, validateDockerConfig } from './docker.js'
 import { CookieJar, discardBody, errMsg, redactedCookies, requestWithCas, resolveHttpAuth, type HttpFetch, type HttpResponse, type ResolvedHttpAuth } from './httpAuth.js'
 import { firstValue, resolveConnectionString, resolveFieldCredentials, type DatabaseConnection, type DatabaseDriver, type DatabaseSession } from './database.js'
@@ -33,6 +34,12 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
   const steps: TestStep[] = []
   const totalStart = Date.now()
   const fail = (): TestResult => ({ overall: 'error', steps, totalMs: Date.now() - totalStart })
+
+  const invalid = validateHttpAssertions(config)
+  if (invalid) {
+    steps.push({ label: 'Invalid configuration', status: 'error', detail: invalid })
+    return fail()
+  }
 
   // The timeout covers the whole exchange — token/ticket requests, redirects and reading the body —
   // exactly like the scheduled check, and is always cleared.
@@ -82,6 +89,20 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
           return fail()
         }
       }
+
+      // ── Assertions and response time ──────────────────────────────────────
+      // A failure here fails the test whatever its severity; the step says what the scheduled check would report.
+      const outcomes = await evaluateAssertions(config.assertions ?? [], res.headers, async () => responseBody)
+      for (const o of outcomes) {
+        steps.push(o.ok
+          ? { label: o.label, status: 'ok' }
+          : { label: o.label, status: 'error', detail: `${o.detail ?? 'Failed'} (the check would be ${o.onFail === 'down' ? 'Down' : 'Degraded'})` })
+      }
+      const slow = config.degradedAboveMs !== undefined && responseMs > config.degradedAboveMs
+      if (slow) {
+        steps.push({ label: `Response time ${responseMs} ms is over the ${config.degradedAboveMs} ms limit`, status: 'error', detail: 'The check would be Degraded' })
+      }
+      if (slow || outcomes.some((o) => !o.ok)) return fail()
     } catch (err) {
       steps.push({ label: 'Request failed', status: 'error', detail: errMsg(err), durationMs: Date.now() - t })
       return fail()

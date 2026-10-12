@@ -130,6 +130,22 @@ describe('monitor input validation', () => {
     assert.equal((await post({ name: 'X', type: 'docker', config: {} })).statusCode, 400)
   })
 
+  it('validates HTTPS response checks and keeps valid ones in the config', async () => {
+    const config = { url: 'https://example.test', method: 'GET', expectedStatus: 200 }
+    const badAssertion = await post({ name: 'X', type: 'https', config: { ...config, assertions: [{ type: 'header', name: 'X-A', op: 'equals' }] } })
+    assert.equal(badAssertion.statusCode, 400)
+    assert.match(badAssertion.json().error, /Assertion 1: value is required/)
+    assert.match((await post({ name: 'X', type: 'https', config: { ...config, degradedAboveMs: -5 } })).json().error, /degradedAboveMs/)
+
+    const assertions = [{ type: 'json', path: '$.queue.length', op: 'lt', value: 100, onFail: 'down' }]
+    const created = (await post({ name: 'Checked', type: 'https', config: { ...config, assertions, degradedAboveMs: 1500 } })).json()
+    assert.deepEqual(created.config.assertions, assertions)
+    assert.equal(created.config.degradedAboveMs, 1500)
+
+    const patched = await app.inject({ method: 'PATCH', url: `/monitors/${created.id}`, payload: { config: { ...config, assertions: [{ type: 'json', path: 'bad', op: 'exists' }] } } })
+    assert.equal(patched.statusCode, 400)
+  })
+
   it('clamps thresholds instead of refusing them', async () => {
     const created = (await post({ name: 'Clamped', type: 'webhook', failureThreshold: 99, recoveryThreshold: 0 })).json()
     assert.deepEqual([created.failureThreshold, created.recoveryThreshold], [20, 1])

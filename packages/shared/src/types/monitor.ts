@@ -46,12 +46,32 @@ export interface HttpsConfig {
   method: 'GET' | 'POST' | 'HEAD'
   expectedStatus: number
   keyword?: string
+  /** Checks on the final response (after redirects): its headers and fields of a JSON body. */
+  assertions?: HttpAssertion[]
+  /** A response slower than this many milliseconds makes the check Degraded. */
+  degradedAboveMs?: number
   headers?: Record<string, string>
   body?: string
   auth?: HttpsAuth
   /** Warns through the monitor's channels before the endpoint's TLS certificate expires. */
   certExpiry?: CertExpiryConfig
 }
+
+export const HEADER_ASSERTION_OPS = ['exists', 'not-exists', 'equals', 'not-equals', 'contains'] as const
+export const JSON_ASSERTION_OPS = ['exists', 'equals', 'not-equals', 'lt', 'gt', 'contains'] as const
+export type HeaderAssertionOp = (typeof HEADER_ASSERTION_OPS)[number]
+export type JsonAssertionOp = (typeof JSON_ASSERTION_OPS)[number]
+/** What a failed assertion turns the check into; Degraded when not given. */
+export type AssertionFailureStatus = 'degraded' | 'down'
+
+export type HttpAssertion =
+  | { type: 'header'; name: string; op: HeaderAssertionOp; value?: string; onFail?: AssertionFailureStatus }
+  | { type: 'json'; path: string; op: JsonAssertionOp; value?: string | number; onFail?: AssertionFailureStatus }
+
+export const MAX_HTTP_ASSERTIONS = 20
+export const MAX_DEGRADED_ABOVE_MS = 300_000
+/** A JSON body larger than this is not parsed; its JSON assertions fail. */
+export const MAX_JSON_ASSERTION_BODY_BYTES = 1024 * 1024
 
 export interface CertExpiryConfig {
   enabled: boolean
