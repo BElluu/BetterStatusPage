@@ -5,6 +5,10 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+### Added
+
+- **Actions**: an action sends an HTTP request when a monitor stays down or comes back up, for example to start a failover job in Jenkins. **Alerts → Actions** (administrators) creates actions with a URL, method, headers and body that accept the same `{{variables}}` as a webhook channel; the **Actions** side tab of a monitor links them to a status with a delay in minutes (a `down` action is dropped if the monitor recovers first) and a cooldown. Runs are retried up to 3 times, survive a restart, and are listed in the run history. The API gains `/actions` and a new `actions` token permission. See [Actions](actions.md).
+
 ## [0.3.0] - 2026-10-11
 
 ### Added

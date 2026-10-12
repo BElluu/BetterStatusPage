@@ -28,6 +28,7 @@ const ENTITY_LABELS: Record<AuditEntityType, string> = {
   incident_template:    'Incident Template',
   maintenance:          'Maintenance',
   notification_channel: 'Notification Channel',
+  action:               'Action',
   smtp_settings:        'SMTP Settings',
   subscription_settings: 'Subscription Settings',
   subscriber:           'Subscriber',
@@ -52,7 +53,7 @@ const ENTITY_LABELS: Record<AuditEntityType, string> = {
 /** Entity filter sections, most used first; types inside a group run from most to least important. */
 const ENTITY_GROUPS = [
   { label: 'Monitoring', types: ['monitor', 'incident', 'incident_template', 'maintenance'] },
-  { label: 'Notifications', types: ['notification_channel', 'notification_delivery', 'smtp_settings', 'subscriber', 'subscriber_delivery', 'subscription_settings'] },
+  { label: 'Notifications', types: ['notification_channel', 'action', 'notification_delivery', 'smtp_settings', 'subscriber', 'subscriber_delivery', 'subscription_settings'] },
   { label: 'Access & security', types: ['sign_in', 'user', 'user-security', 'api_token', 'oidc_settings', 'status_page_access', 'vault', 'vault_secret'] },
   { label: 'Appearance', types: ['branding', 'layout', 'locale'] },
   { label: 'System', types: ['backup', 'backup-config', 'config'] },
@@ -67,6 +68,7 @@ const ENTITY_ICONS: Record<AuditEntityType, string> = {
   incident_template:    'article',
   maintenance:          'construction',
   notification_channel: 'notifications',
+  action:               'bolt',
   smtp_settings:        'email',
   subscription_settings: 'campaign',
   subscriber:           'person_add',

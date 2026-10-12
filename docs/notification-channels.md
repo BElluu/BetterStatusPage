@@ -2,7 +2,7 @@
 
 Notification channels tell **your team** when a monitor goes down, degrades, recovers or has a TLS certificate about to expire. A channel is one destination — an email address, an HTTP endpoint, a Slack, Discord or Microsoft Teams webhook, a Telegram chat — and you decide per monitor which channels it alerts.
 
-Channels live under *Admin → Alerts → **Notifications*** (operator role or higher). To notify the people who read your status page instead, see [Subscriptions](subscriptions.md).
+Channels live under *Admin → Alerts → **Notifications*** (operator role or higher). To notify the people who read your status page instead, see [Subscriptions](subscriptions.md). To make something happen when a monitor goes down, such as starting a failover job, see [Actions](actions.md).
 
 ---
 

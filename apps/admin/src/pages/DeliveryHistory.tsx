@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import type { NotificationChannel } from '@bsp/shared'
-import { api } from '../api/client'
+import { api, getCurrentUser } from '../api/client'
 import { deliveryHistoryUrl, type DeliveryHistoryTab } from '../deliveryHistoryUrl'
+import { ActionRunHistory } from '../components/actions/ActionRunHistory'
 import { SubscriberDeliveryHistory } from '../components/subscribers/SubscriberDeliveryHistory'
 import { PageContainer, PageHeader } from '../components/ui'
 import { DeliveryHistory as NotificationDeliveryHistory } from './Notifications'
@@ -11,6 +12,9 @@ const TABS: { key: DeliveryHistoryTab; label: string }[] = [
   { key: 'notifications', label: 'Notifications' },
   { key: 'subscribers', label: 'Subscribers' },
 ]
+
+/** Actions are managed by administrators only, and so is their run history. */
+const ACTIONS_TAB: { key: DeliveryHistoryTab; label: string } = { key: 'actions', label: 'Actions' }
 
 /** Keeps the addresses of the former separate history pages working. */
 export function DeliveryHistoryRedirect({ tab }: { tab: DeliveryHistoryTab }) {
@@ -36,7 +40,10 @@ function SubscribersTab() {
 
 export default function DeliveryHistoryPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const tab: DeliveryHistoryTab = searchParams.get('tab') === 'subscribers' ? 'subscribers' : 'notifications'
+  const isAdmin = getCurrentUser()?.role === 'admin'
+  const tabs = isAdmin ? [...TABS, ACTIONS_TAB] : TABS
+  const requested = searchParams.get('tab')
+  const tab: DeliveryHistoryTab = tabs.find((item) => item.key === requested)?.key ?? 'notifications'
 
   return (
     <PageContainer>
@@ -45,7 +52,7 @@ export default function DeliveryHistoryPage() {
         subtitle="Inspect delivery attempts and errors, and manually retry failed ones."
       >
         <div role="tablist" aria-label="Delivery history sections" className="flex gap-6" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-          {TABS.map((item) => {
+          {tabs.map((item) => {
             const active = tab === item.key
             return (
               <button
@@ -67,7 +74,7 @@ export default function DeliveryHistoryPage() {
       </PageHeader>
 
       <div role="tabpanel" id="delivery-history-panel" aria-labelledby={`delivery-history-tab-${tab}`}>
-        {tab === 'notifications' ? <NotificationsTab /> : <SubscribersTab />}
+        {tab === 'notifications' ? <NotificationsTab /> : tab === 'subscribers' ? <SubscribersTab /> : <ActionRunHistory />}
       </div>
     </PageContainer>
   )

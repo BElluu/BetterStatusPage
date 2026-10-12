@@ -475,6 +475,40 @@ describe('MonitorFormModal', () => {
     expect(api.put).toHaveBeenCalledWith('/admin/monitors/2/dependencies', { dependsOnIds: [1] })
   })
 
+  it('links an action to the monitor for admins and saves the links with it', async () => {
+    const user = userEvent.setup()
+    mockGets({
+      '/admin/actions': [{ id: 9, name: 'Start VM2', enabled: 1, config: { url: 'https://jenkins.test/build', method: 'POST' } }],
+      '/admin/actions/monitor/2': [{ actionId: 9, onStatus: 'up', delayMinutes: 0, cooldownMinutes: 0 }],
+    })
+    const { onSaved } = renderModal(existingMonitor())
+
+    await user.click(await screen.findByTitle('Actions'))
+    expect(await screen.findByLabelText('Action 1')).toHaveValue('9')
+    await user.click(screen.getByRole('button', { name: '+ Add action' }))
+    await user.type(within(screen.getByLabelText('Action 2').closest('div')!.parentElement!).getAllByRole('spinbutton')[0]!, '10')
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+    expect(api.put).toHaveBeenCalledWith('/admin/actions/monitor/2', { actions: [
+      { actionId: 9, onStatus: 'up', delayMinutes: 0, cooldownMinutes: 0 },
+      { actionId: 9, onStatus: 'down', delayMinutes: 10, cooldownMinutes: 0 },
+    ] })
+  })
+
+  it('hides the actions tab and leaves the links alone when the user cannot manage actions', async () => {
+    const user = userEvent.setup()
+    mockGets({ '/admin/notifications/monitor/2/channels': [], '/admin/monitors/2/dependencies': { dependsOnIds: [] } })
+    const { onSaved } = renderModal(existingMonitor())
+
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/admin/actions'))
+    expect(screen.queryByTitle('Actions')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+    expect(vi.mocked(api.put).mock.calls.some(([path]) => String(path).startsWith('/admin/actions'))).toBe(false)
+  })
+
   it('preloads vault secrets referenced by an existing monitor', async () => {
     mockGets({
       '/admin/notifications/monitor/2/channels': [],

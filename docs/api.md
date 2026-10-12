@@ -26,6 +26,7 @@ A token has a list of permissions instead of a role. Each names a part of the ap
 |---|---|---|
 | `monitors` | Monitors, their tests, checks and dependencies | read, write |
 | `channels` | Notification channels, the SMTP settings and the delivery history | read, write |
+| `actions` | HTTP actions, their links to monitors and their run history | read, write |
 | `incidents` | Incidents, their updates, affected monitors and incident templates | read, write |
 | `maintenance` | Maintenance windows | read, write |
 | `subscribers` | Subscribers and subscription settings | read, write |
@@ -112,7 +113,7 @@ Errors come back as JSON, `{ "error": "..." }`:
 
 ### Reference
 
-The operations meant for automation are described in an OpenAPI 3.1 file: [openapi.yaml](https://docs.betterstatuspage.dev/openapi.yaml). It covers monitors, incidents, maintenance windows, notification channels, the status page layout and the [configuration export and import](configuration-as-code.md), with the request bodies, limits and the permission each operation needs. Load it into any OpenAPI tool to browse the API or to generate a client.
+The operations meant for automation are described in an OpenAPI 3.1 file: [openapi.yaml](https://docs.betterstatuspage.dev/openapi.yaml). It covers monitors, incidents, maintenance windows, notification channels, [actions](actions.md), the status page layout and the [configuration export and import](configuration-as-code.md), with the request bodies, limits and the permission each operation needs. Load it into any OpenAPI tool to browse the API or to generate a client.
 
 ### Secrets are masked
 

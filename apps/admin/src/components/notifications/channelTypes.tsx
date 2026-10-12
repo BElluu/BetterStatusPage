@@ -256,7 +256,7 @@ function WebhookFields({ draft, onChange }: ChannelFieldsProps<WebhookDraft>) {
       </div>
 
       {webhookHasBody(draft.method) && (
-        <Field label="Body">
+        <Field label="Body (JSON)">
           <textarea value={draft.body} onChange={(e) => onChange({ ...draft, body: e.target.value })} rows={6} className="input-sig w-full font-mono text-xs" style={{ resize: 'vertical' }} />
         </Field>
       )}

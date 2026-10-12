@@ -4,11 +4,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SubscriberDelivery, SubscriberDeliveryList } from '@bsp/shared'
-import { api } from '../api/client'
+import { api, getCurrentUser } from '../api/client'
 import { ToastProvider } from '../components/ui'
 import DeliveryHistoryPage, { DeliveryHistoryRedirect } from './DeliveryHistory'
 
-vi.mock('../api/client', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
+vi.mock('../api/client', () => ({ api: { get: vi.fn(), post: vi.fn() }, getCurrentUser: vi.fn() }))
 
 const delivery = (overrides: Partial<SubscriberDelivery> = {}): SubscriberDelivery => ({
   id: 1, subscriberId: 7, subscriberType: 'email', destination: 'reader@example.test', eventType: 'incident.created',
@@ -106,6 +106,7 @@ describe('DeliveryHistoryPage subscribers tab', () => {
 describe('DeliveryHistoryPage tabs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(getCurrentUser).mockReturnValue({ userId: 1, email: 'op@example.test', role: 'operator', mustChangePassword: false, twoFactorEnabled: false })
     vi.mocked(api.get).mockImplementation(async (path: string) => path.startsWith('/admin/subscribers/deliveries') ? list([delivery()]) : path.startsWith('/admin/notifications/deliveries') ? { deliveries: [], total: 0, page: 1, pages: 1 } : [])
   })
 
@@ -118,6 +119,25 @@ describe('DeliveryHistoryPage tabs', () => {
     await user.click(screen.getByRole('tab', { name: 'Subscribers' }))
     expect(screen.getByRole('tab', { name: 'Subscribers' })).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByText('reader@example.test')).toBeInTheDocument()
+  })
+
+  it('offers the actions tab to administrators only', async () => {
+    renderPage('/admin/delivery-history?tab=actions')
+    expect(screen.queryByRole('tab', { name: 'Actions' })).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Notifications' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('lists action runs for an administrator', async () => {
+    vi.mocked(getCurrentUser).mockReturnValue({ userId: 1, email: 'admin@example.test', role: 'admin', mustChangePassword: false, twoFactorEnabled: false })
+    vi.mocked(api.get).mockImplementation(async (path: string) => path.startsWith('/admin/actions/runs')
+      ? { runs: [{ id: 1, actionId: 1, actionName: 'Start VM2', monitorId: 5, monitorName: 'VM1 SQL', onStatus: 'down', status: 'failed', attemptCount: 3, maxAttempts: 3, nextAttemptAt: null, lastError: 'HTTP 500', createdAt: 1_700_000_000_000 }], total: 1, page: 1, pages: 1 }
+      : [])
+    renderPage('/admin/delivery-history?tab=actions')
+
+    expect(screen.getByRole('tab', { name: 'Actions' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByText('VM1 SQL')).toBeInTheDocument()
+    expect(screen.getByText('HTTP 500')).toBeInTheDocument()
+    expect(screen.getByText('Failed', { selector: 'span' })).toBeInTheDocument()
   })
 
   it('keeps the addresses of the former history pages working', async () => {

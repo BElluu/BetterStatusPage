@@ -134,6 +134,47 @@ CREATE TABLE IF NOT EXISTS notification_delivery_attempts (
 );
 CREATE INDEX IF NOT EXISTS idx_notification_delivery_attempts_delivery ON notification_delivery_attempts(delivery_id, attempt_number);
 
+CREATE TABLE IF NOT EXISTS actions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  config TEXT NOT NULL DEFAULT '{}',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS monitor_actions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  monitor_id INTEGER NOT NULL,
+  action_id INTEGER NOT NULL,
+  on_status TEXT NOT NULL,
+  delay_minutes INTEGER NOT NULL DEFAULT 0,
+  cooldown_minutes INTEGER NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_monitor_actions_link ON monitor_actions(monitor_id, action_id, on_status);
+
+CREATE TABLE IF NOT EXISTS action_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  action_id INTEGER NOT NULL,
+  action_name TEXT NOT NULL,
+  monitor_id INTEGER,
+  monitor_name TEXT NOT NULL,
+  on_status TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  variables TEXT NOT NULL,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL DEFAULT 3,
+  next_attempt_at INTEGER,
+  last_attempt_at INTEGER,
+  completed_at INTEGER,
+  last_error TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_action_runs_status_next ON action_runs(status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_action_runs_monitor ON action_runs(monitor_id, status);
+CREATE INDEX IF NOT EXISTS idx_action_runs_created ON action_runs(created_at);
+
 CREATE TABLE IF NOT EXISTS smtp_settings (
   id INTEGER PRIMARY KEY,
   host TEXT NOT NULL DEFAULT '',

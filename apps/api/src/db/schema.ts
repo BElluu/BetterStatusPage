@@ -240,6 +240,43 @@ export const notificationDeliveryAttempts = sqliteTable('notification_delivery_a
   completedAt: integer('completed_at').notNull(),
 })
 
+export const actions = sqliteTable('actions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  config: text('config').notNull().default('{}'), // JSON ActionHttpConfig
+  enabled: integer('enabled').notNull().default(1),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+export const monitorActions = sqliteTable('monitor_actions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  monitorId: integer('monitor_id').notNull(),
+  actionId: integer('action_id').notNull(),
+  onStatus: text('on_status').notNull(), // 'down' | 'up'
+  delayMinutes: integer('delay_minutes').notNull().default(0),
+  cooldownMinutes: integer('cooldown_minutes').notNull().default(0),
+})
+
+export const actionRuns = sqliteTable('action_runs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  actionId: integer('action_id').notNull(),
+  actionName: text('action_name').notNull(),
+  monitorId: integer('monitor_id'),
+  monitorName: text('monitor_name').notNull(),
+  onStatus: text('on_status').notNull(),
+  status: text('status').notNull().default('pending'), // 'pending' | 'succeeded' | 'failed' | 'cancelled'
+  variables: text('variables').notNull(),
+  attemptCount: integer('attempt_count').notNull().default(0),
+  maxAttempts: integer('max_attempts').notNull().default(3),
+  nextAttemptAt: integer('next_attempt_at'),
+  lastAttemptAt: integer('last_attempt_at'),
+  completedAt: integer('completed_at'),
+  lastError: text('last_error'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
 export const smtpSettings = sqliteTable('smtp_settings', {
   id: integer('id').primaryKey(),
   host: text('host').notNull().default(''),

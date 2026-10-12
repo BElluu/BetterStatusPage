@@ -19,6 +19,7 @@ const SettingsPage = lazy(() => import('./pages/Settings'))
 const LocalizationPage = lazy(() => import('./pages/Localization'))
 const VaultPage = lazy(() => import('./pages/Vault'))
 const NotificationsPage = lazy(() => import('./pages/Notifications'))
+const ActionsPage = lazy(() => import('./pages/Actions'))
 const SubscribersPage = lazy(() => import('./pages/Subscribers'))
 const MaintenancePage = lazy(() => import('./pages/Maintenance'))
 const ApiTokensPage = lazy(() => import('./pages/ApiTokens'))
@@ -149,6 +150,7 @@ export default function App() {
           <Route path="builder"   element={<RequireRole minRole="branding"><BuilderPage /></RequireRole>} />
           <Route path="branding"  element={<RequireRole minRole="branding"><BrandingPage /></RequireRole>} />
           <Route path="notifications" element={<RequireRole minRole="operator"><NotificationsPage /></RequireRole>} />
+          <Route path="actions" element={<RequireRole minRole="admin"><ActionsPage /></RequireRole>} />
           <Route path="delivery-history" element={<RequireRole minRole="operator"><DeliveryHistoryPage /></RequireRole>} />
           <Route path="notifications/history" element={<DeliveryHistoryRedirect tab="notifications" />} />
           <Route path="subscribers" element={<RequireRole minRole="operator"><SubscribersPage /></RequireRole>} />

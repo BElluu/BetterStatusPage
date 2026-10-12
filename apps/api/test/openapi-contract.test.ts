@@ -36,7 +36,7 @@ const routes: RouteOptions[] = []
 /** A token that has every permission except those of one part, and one that can only read it. */
 const without: Record<string, string> = {}
 const readOnly: Record<string, string> = {}
-const PARTS = ['monitors', 'channels', 'incidents', 'maintenance', 'appearance']
+const PARTS = ['monitors', 'channels', 'actions', 'incidents', 'maintenance', 'appearance']
 
 before(async () => {
   initTestDb()

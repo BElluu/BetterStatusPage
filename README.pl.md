@@ -92,6 +92,8 @@ Gdy coś się psuje (albo wraca do życia), BetterStatusPage może na Ciebie nak
 
 Wszystkie kanały obsługują zmienne szablonów, takie jak `{{monitor_name}}`, `{{status}}`, `{{error_message}}` itd., dzięki czemu alert może brzmieć *„API Gateway nie działa: przekroczono czas połączenia"* zamiast *„zmiana statusu"*.
 
+Potrzebujesz czegoś więcej niż wiadomości? **Akcja** wysyła żądanie HTTP, gdy monitor pozostaje niedostępny przez ustalony czas albo wraca do działania — na przykład żeby uruchomić zadanie failover w Jenkinsie. Zobacz [Actions](https://docs.betterstatuspage.dev/actions/) *(EN)*.
+
 Powiadomienia o przywróceniu są opcjonalne dla każdego kanału — bo czasem chcesz wiedzieć, kiedy wszystko wróciło, a czasem po prostu chcesz się wyspać.
 
 **Ostrzeżenia o wygasającym certyfikacie TLS** — włączasz je dla wybranego monitora HTTPS i ustawiasz, ile dni wcześniej mają przyjść (domyślnie 14). Kanały monitora dostają jedno ostrzeżenie, gdy certyfikat wejdzie w to okno, potem przypomnienia 7, 3 i 1 dzień przed wygaśnięciem, a po odnowieniu — potwierdzenie (jeśli kanał wysyła powiadomienia o przywróceniu). Certyfikat jest odczytywany co 6 godzin; publiczna strona statusu się nie zmienia, a certyfikat, który już wygasł, i tak kończy się błędem sprawdzenia i alertem „down”. Lista monitorów w panelu admina pokazuje, ile dni zostało każdemu certyfikatowi, a tester — datę wygaśnięcia. Powiadomienia o certyfikatach dodają zmienne szablonów `{{event_type}}` (`certificate`), `{{cert_expires_in}}`, `{{cert_expires_at}}`, `{{cert_days_left}}` i `{{cert_host}}`; `{{status}}` przyjmuje wartość `cert-expiring` lub `cert-renewed`.

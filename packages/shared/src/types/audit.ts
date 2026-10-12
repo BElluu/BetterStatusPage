@@ -7,6 +7,7 @@ export type AuditEntityType =
   | 'incident_template'
   | 'maintenance'
   | 'notification_channel'
+  | 'action'
   | 'smtp_settings'
   | 'subscription_settings'
   | 'subscriber'

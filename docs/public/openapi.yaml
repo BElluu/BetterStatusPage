@@ -44,6 +44,7 @@ tags:
   - name: Incidents
   - name: Maintenance
   - name: Notification channels
+  - name: Actions
   - name: Layout
   - name: Configuration
 
@@ -776,6 +777,184 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /actions:
+    get:
+      tags: [Actions]
+      summary: List actions
+      x-scope: actions:read
+      responses:
+        '200':
+          description: Every action, with credential headers masked.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Action' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Actions]
+      summary: Create an action
+      x-scope: actions:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActionCreate' }
+      responses:
+        '200':
+          description: The created action.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Action' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /actions/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      tags: [Actions]
+      summary: Get an action
+      x-scope: actions:read
+      responses:
+        '200':
+          description: The action, with credential headers masked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Action' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Actions]
+      summary: Update an action
+      description: Only the fields you send change. `config` replaces the whole configuration; a masked header value keeps the stored one unless the URL changes.
+      x-scope: actions:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActionUpdate' }
+      responses:
+        '200':
+          description: The updated action.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Action' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Actions]
+      summary: Delete an action
+      x-scope: actions:write
+      responses:
+        '204': { description: Deleted, unlinked from every monitor, and its waiting runs cancelled. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /actions/{id}/test:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      tags: [Actions]
+      summary: Send a saved action once, with sample values
+      description: This is the real request, so whatever it triggers starts.
+      x-scope: actions:write
+      responses:
+        '200':
+          description: The request was answered with a success status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422':
+          description: The request failed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /actions/runs:
+    get:
+      tags: [Actions]
+      summary: List action runs
+      x-scope: actions:read
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: status, in: query, schema: { type: string, enum: [pending, succeeded, failed, cancelled] } }
+        - { name: actionId, in: query, schema: { type: integer } }
+        - { name: monitorId, in: query, schema: { type: integer } }
+        - { name: from, in: query, description: Earliest creation time in milliseconds since the epoch., schema: { type: integer } }
+        - { name: to, in: query, description: Latest creation time in milliseconds since the epoch., schema: { type: integer } }
+      responses:
+        '200':
+          description: One page of runs, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runs:
+                    type: array
+                    items: { $ref: '#/components/schemas/ActionRun' }
+                  total: { type: integer }
+                  page: { type: integer }
+                  limit: { type: integer }
+                  pages: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /actions/monitor/{monitorId}:
+    parameters:
+      - { name: monitorId, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [Actions]
+      summary: List the actions linked to a monitor
+      x-scope: actions:read
+      responses:
+        '200':
+          description: The links of the monitor.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MonitorAction' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    put:
+      tags: [Actions]
+      summary: Replace the actions linked to a monitor
+      description: The list replaces every existing link. An action can be linked once per status. Runs that wait for a link that is gone are cancelled.
+      x-scope: actions:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [actions]
+              properties:
+                actions:
+                  type: array
+                  items: { $ref: '#/components/schemas/MonitorAction' }
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /layout:
     get:
       tags: [Layout]
@@ -1232,6 +1411,65 @@ components:
         botToken: { type: string, description: '`telegram`: the bot token (or use `vault`).' }
         chatId: { type: string, description: '`telegram`: the chat that receives the messages.' }
         vault: { $ref: '#/components/schemas/VaultRef' }
+    ActionHttpConfig:
+      type: object
+      required: [url, method]
+      properties:
+        url: { type: string, description: 'Starts with http:// or https://. May contain {{variables}}.' }
+        method: { type: string, enum: [GET, POST, PUT, PATCH] }
+        headers:
+          type: object
+          additionalProperties: { type: string }
+          description: Values of headers that look like credentials are masked on read.
+        body: { type: string, description: 'JSON, with {{variables}} inside string values. Not allowed with GET.' }
+    Action:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        config: { $ref: '#/components/schemas/ActionHttpConfig' }
+        enabled: { type: integer, enum: [0, 1] }
+        createdAt: { type: integer }
+        updatedAt: { type: integer }
+    ActionCreate:
+      type: object
+      required: [name, config]
+      properties:
+        name: { type: string }
+        config: { $ref: '#/components/schemas/ActionHttpConfig' }
+        enabled: { type: integer, enum: [0, 1] }
+    ActionUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        config: { $ref: '#/components/schemas/ActionHttpConfig' }
+        enabled: { type: integer, enum: [0, 1] }
+    MonitorAction:
+      type: object
+      required: [actionId, onStatus]
+      properties:
+        actionId: { type: integer }
+        onStatus: { type: string, enum: [down, up] }
+        delayMinutes: { type: integer, minimum: 0, maximum: 10080, default: 0, description: How long the monitor must stay in the status before the action runs. }
+        cooldownMinutes: { type: integer, minimum: 0, maximum: 10080, default: 0, description: The action does not run again for this monitor and status within this many minutes. }
+    ActionRun:
+      type: object
+      properties:
+        id: { type: integer }
+        actionId: { type: integer }
+        actionName: { type: string }
+        monitorId: { type: [integer, 'null'] }
+        monitorName: { type: string }
+        onStatus: { type: string, enum: [down, up] }
+        status: { type: string, enum: [pending, succeeded, failed, cancelled] }
+        attemptCount: { type: integer }
+        maxAttempts: { type: integer }
+        nextAttemptAt: { type: [integer, 'null'] }
+        lastAttemptAt: { type: [integer, 'null'] }
+        completedAt: { type: [integer, 'null'] }
+        lastError: { type: [string, 'null'] }
+        createdAt: { type: integer }
+        updatedAt: { type: integer }
     NotificationChannel:
       type: object
       properties:

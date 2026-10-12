@@ -92,6 +92,8 @@ When something breaks (or recovers), BetterStatusPage can shout at you via:
 
 All channels support template variables like `{{monitor_name}}`, `{{status}}`, `{{error_message}}` etc., so your alerts can say *"API Gateway is down: connection timeout"* instead of *"status changed"*.
 
+Need more than a message? An **action** sends an HTTP request when a monitor stays down for a set time or comes back up, for example to start a failover job in Jenkins. See [Actions](https://docs.betterstatuspage.dev/actions/).
+
 Recovery notifications are optional per channel — because sometimes you want to know when things come back up, and sometimes you just want to sleep.
 
 **TLS certificate expiry warnings** — switch them on per HTTPS monitor and pick the lead time (14 days by default). The monitor's channels get one warning when the certificate enters that window, then reminders 7, 3 and 1 days before it expires, and an all-clear once it has been renewed (if the channel sends recoveries). The certificate is read every 6 hours; the public status page is not affected, and a certificate that has already expired fails the check and alerts as down. The admin monitor list shows how many days each certificate has left, and the test runner shows the expiry date. Certificate notifications add the template variables `{{event_type}}` (`certificate`), `{{cert_expires_in}}`, `{{cert_expires_at}}`, `{{cert_days_left}}` and `{{cert_host}}`; `{{status}}` is `cert-expiring` or `cert-renewed`.

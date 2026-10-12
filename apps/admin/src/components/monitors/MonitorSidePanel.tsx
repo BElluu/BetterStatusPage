@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react'
-import type { NotificationChannel, VaultRef } from '@bsp/shared'
+import type { Action, MonitorAction, NotificationChannel, VaultRef } from '@bsp/shared'
 import type { SidePanelMeta } from '../SidePanel'
 import { ConnectionStringSection, CredentialSection } from './CredentialSection'
 import { Field, JSON_MAPPING_FIELDS, Note, toggleInSet, type VaultPickerProps } from './monitorFormParts'
 
-export type SidePanelKey = 'request' | 'auth' | 'credentials' | 'tags' | 'channels' | 'dependencies' | 'incident'
+export type SidePanelKey = 'request' | 'auth' | 'credentials' | 'tags' | 'channels' | 'actions' | 'dependencies' | 'incident'
 
 export const PANEL_META: Record<SidePanelKey, SidePanelMeta> = {
   auth:         { icon: 'lock',          label: 'Auth' },
@@ -12,6 +12,7 @@ export const PANEL_META: Record<SidePanelKey, SidePanelMeta> = {
   request:      { icon: 'tune',          label: 'Request' },
   tags:         { icon: 'label',         label: 'Tags' },
   channels:     { icon: 'notifications', label: 'Alerts' },
+  actions:      { icon: 'bolt',          label: 'Actions' },
   dependencies: { icon: 'account_tree',  label: 'Depends on' },
   incident:     { icon: 'emergency_home', label: 'Incident' },
 }
@@ -122,6 +123,64 @@ export function ChannelsSection({ channels, selected, onChange }: {
           {!ch.enabled && <span className="text-xs" style={{ color: 'var(--m3-secondary)' }}>disabled</span>}
         </SelectableRow>
       ))}
+    </div>
+  )
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+
+export function ActionsSection({ actions, links, onChange }: {
+  actions: Action[]
+  links: MonitorAction[]
+  onChange: (links: MonitorAction[]) => void
+}) {
+  const update = (index: number, patch: Partial<MonitorAction>) =>
+    onChange(links.map((link, i) => (i === index ? { ...link, ...patch } : link)))
+
+  return (
+    <div className="space-y-3">
+      <Note tone="info">
+        An action runs once the monitor has been <strong>down</strong> for the delay you set, and is dropped if the monitor recovers first.
+        An <strong>up</strong> action runs after an outage ends. The cooldown stops the same action from running again too soon.
+      </Note>
+      {actions.length === 0 && (
+        <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>No actions configured. Create one in the Actions section.</p>
+      )}
+      {links.map((link, i) => (
+        <div key={i} className="rounded-lg px-3 py-3 space-y-3" style={{ border: '1px solid var(--m3-outline-variant)' }}>
+          <div className="flex items-center gap-2">
+            <select value={link.actionId} onChange={(e) => update(i, { actionId: Number(e.target.value) })}
+              aria-label={`Action ${i + 1}`} className="input-sig flex-1 min-w-0">
+              {actions.map((a) => <option key={a.id} value={a.id}>{a.name}{a.enabled ? '' : ' (disabled)'}</option>)}
+            </select>
+            <button type="button" onClick={() => onChange(links.filter((_, idx) => idx !== i))}
+              aria-label={`Remove action ${i + 1}`} className="btn-icon w-7 h-7">
+              <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px' }}>close</span>
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Field label="When monitor is">
+              <select value={link.onStatus} onChange={(e) => update(i, { onStatus: e.target.value as MonitorAction['onStatus'] })} className="input-sig">
+                <option value="down">down</option>
+                <option value="up">back up</option>
+              </select>
+            </Field>
+            <Field label="After (min)">
+              <input type="number" min={0} max={10080} value={link.delayMinutes}
+                onChange={(e) => update(i, { delayMinutes: Math.max(0, Math.floor(Number(e.target.value)) || 0) })} className="input-sig" />
+            </Field>
+            <Field label="Cooldown (min)">
+              <input type="number" min={0} max={10080} value={link.cooldownMinutes}
+                onChange={(e) => update(i, { cooldownMinutes: Math.max(0, Math.floor(Number(e.target.value)) || 0) })} className="input-sig" />
+            </Field>
+          </div>
+        </div>
+      ))}
+      <button type="button" disabled={actions.length === 0}
+        onClick={() => onChange([...links, { actionId: actions[0]!.id, onStatus: 'down', delayMinutes: 0, cooldownMinutes: 0 }])}
+        className="btn btn-outline btn-sm">
+        + Add action
+      </button>
     </div>
   )
 }

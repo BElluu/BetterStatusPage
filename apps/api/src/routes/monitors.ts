@@ -1,9 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { db } from '../db/client.js'
-import { monitors, monitorResults, monitorDependencies, incidentTemplates } from '../db/schema.js'
+import { monitors, monitorResults, monitorDependencies, monitorActions, incidentTemplates } from '../db/schema.js'
 import { eq, desc, gte, and, inArray } from 'drizzle-orm'
 import { withImmediateTransaction } from '../db/transaction.js'
 import { runCheck } from '../workers/scheduler.js'
+import { cancelRunsOfMonitor } from '../workers/actionRunner.js'
 import { testHttps, testSqlServer, testPostgres, testMysql, testMongo, testPing, testDns, testDocker } from '../workers/testRunner.js'
 import { auditActor, writeAudit, diffObjects, snapshot } from '../services/audit.js'
 import { requestIdentity } from '../middleware/auth.js'
@@ -209,6 +210,8 @@ export async function monitorRoutes(app: FastifyInstance) {
     const existing = (await db.select().from(monitors).where(eq(monitors.id, id)))[0]
     await db.delete(monitors).where(eq(monitors.id, id))
     if (existing) {
+      await cancelRunsOfMonitor(id)
+      await db.delete(monitorActions).where(eq(monitorActions.monitorId, id))
       await refreshPublishedMonitorIds()
       const actor = requestIdentity(req)
       writeAudit(auditActor(actor), 'delete', 'monitor', id, existing.name,

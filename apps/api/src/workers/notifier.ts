@@ -17,8 +17,8 @@ function escapeJsonString(value: string): string {
   return JSON.stringify(value).slice(1, -1)
 }
 
-const MAX_DELIVERY_ATTEMPTS = 3
-const RETRY_DELAYS_MS = [60_000, 5 * 60_000]
+export const MAX_DELIVERY_ATTEMPTS = 3
+export const RETRY_DELAYS_MS = [60_000, 5 * 60_000]
 const activeDeliveries = new Set<number>()
 
 type ChannelRow = typeof notificationChannels.$inferSelect
@@ -553,7 +553,7 @@ function postWebhookJson(url: string, payload: unknown, label: string): Promise<
   }, `${label} webhook returned HTTP`)
 }
 
-async function sendWebhook(
+export async function sendWebhook(
   config: { url: string; method: string; headers?: Record<string, string>; body?: string },
   vars: Record<string, string>,
 ) {

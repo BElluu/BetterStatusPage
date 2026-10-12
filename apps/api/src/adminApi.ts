@@ -9,6 +9,7 @@ import { brandingRoutes } from './routes/branding.js'
 import { userRoutes } from './routes/users.js'
 import { vaultCatalogRoutes, vaultRoutes } from './routes/vaults.js'
 import { notificationRoutes } from './routes/notifications.js'
+import { actionRoutes } from './routes/actions.js'
 import { maintenanceRoutes } from './routes/maintenance.js'
 import { auditRoutes } from './routes/audit.js'
 import { adminLocaleRoutes } from './routes/locales.js'
@@ -68,6 +69,13 @@ export async function adminApi(adminApp: FastifyInstance) {
     belongsTo(sub, 'channels')
     sub.addHook('preHandler', requireRole('operator'))
     await sub.register(notificationRoutes, { prefix: '/notifications' })
+  })
+
+  // actions run requests when a monitor changes state, so only admins manage them
+  await adminApp.register(async (sub) => {
+    belongsTo(sub, 'actions')
+    sub.addHook('preHandler', requireRole())
+    await sub.register(actionRoutes, { prefix: '/actions' })
   })
 
   // subscribers: operator+
