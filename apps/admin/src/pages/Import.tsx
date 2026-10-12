@@ -4,7 +4,7 @@ import { api, ApiError } from '../api/client'
 import { Alert, PageContainer, PageHeader, useToast } from '../components/ui'
 
 type Action = 'create' | 'update' | 'unchanged'
-type Kind = 'Monitor' | 'NotificationChannel'
+type Kind = 'Monitor' | 'NotificationChannel' | 'Action'
 
 interface Change { kind: Kind; key?: string; action: Action; fields?: string[] }
 interface ImportResult { dryRun: boolean; summary: Record<Action, number>; changes: Change[] }
@@ -16,7 +16,7 @@ const MAX_BYTES = 2 * 1024 * 1024
 /** How long to wait after typing before the text is checked. */
 const CHECK_DELAY_MS = 400
 
-const KIND_LABEL: Record<Kind, string> = { Monitor: 'Monitor', NotificationChannel: 'Notification channel' }
+const KIND_LABEL: Record<Kind, string> = { Monitor: 'Monitor', NotificationChannel: 'Notification channel', Action: 'Action' }
 const ACTION_LABEL: Record<Action, string> = { create: 'Create', update: 'Update', unchanged: 'No change' }
 const ACTION_STYLE: Record<Action, { background: string; color: string }> = {
   create: { background: 'var(--m3-up-bg)', color: 'var(--m3-up)' },
@@ -196,7 +196,7 @@ export default function ImportPage() {
         <h2 id="import-heading" className="font-headline font-semibold text-sm" style={{ color: 'var(--m3-on-surface)' }}>YAML</h2>
         <p className="text-sm max-w-2xl" style={{ color: 'var(--m3-secondary)' }}>
           Paste one or more documents, separated by <code className="font-mono">---</code>, or choose a file. Each document starts with its
-          {' '}<code className="font-mono">kind</code>: <code className="font-mono">Monitor</code> or <code className="font-mono">NotificationChannel</code>. An object whose <code className="font-mono">key</code> exists is updated, any other is created.
+          {' '}<code className="font-mono">kind</code>: <code className="font-mono">Monitor</code>, <code className="font-mono">NotificationChannel</code> or <code className="font-mono">Action</code> (administrators only). An object whose <code className="font-mono">key</code> exists is updated, any other is created.
           Nothing is deleted. Nothing is written until you apply, and what you apply takes effect completely or not at all.
           A secret written as <code className="font-mono">••••••••</code> keeps the stored one. To start from an existing object, open it and choose <strong>YAML</strong>.
         </p>

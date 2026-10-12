@@ -46,6 +46,7 @@ The usual pattern is a few channels with different rules — an on-call channel 
 | **Recovery** | A monitor that had alerted is confirmed `up` again | Channel is **Enabled** and **Notify on recovery** is on |
 | **Certificate** — expiring | An HTTPS monitor's certificate reaches a warning milestone | Channel is **Enabled** |
 | **Certificate** — renewed | A certificate you were warned about has been replaced | Channel is **Enabled** and **Notify on recovery** is on |
+| **Action failed** | A run of an [action](actions.md) failed after its last attempt, and the channel is one of the action's **Notify when a run fails** channels | Channel is **Enabled** (**Notify on recovery** does not matter) |
 | **Test** | You click **Send test** | Channel is **Enabled** |
 
 There are no other per-event switches. A monitor in the `affected` state (one of its dependencies is already down) does not alert, so the root cause sends the only alert. Certificate warnings are switched on per HTTPS monitor, with a lead time of 14 days by default and reminders 7, 3 and 1 days before expiry — see [Monitors](monitors.md).
@@ -228,6 +229,21 @@ A variable that does not exist for the event is left in the text unchanged — f
 | `{{event_type}}` | `alert`, `recovery`, `certificate` or `test` | `alert` |
 | `{{monitor_list}}` | Comma-separated monitor names in a digest; the monitor's own name otherwise | `Checkout API, Search API` |
 | `{{affected_count}}` | Number of monitors in a digest; `1` otherwise | `1` |
+
+### Action failures only
+
+The `action` event carries the usual variables, with `{{status}}` set to `action-failed` and `{{previous_status}}` to the status that triggered the action, and these:
+
+| Variable | Value |
+| --- | --- |
+| `{{event_type}}` | `action` |
+| `{{action_name}}` | Name of the action |
+| `{{trigger_status}}` | `down` or `up`: the status the action was waiting for |
+| `{{attempts}}` | How many attempts were made |
+| `{{monitor_name}}` | The monitor the action ran for |
+| `{{error_message}}` | The error of the last attempt, for example `HTTP 500: Job queue is full`. Never the request itself |
+
+Slack, Discord, Teams and Telegram word it as "Action *Start VM2* failed for monitor *VM1*" and list the action, the monitor, the status it waited for and the attempts. Email and webhook channels use their own template, which can use the variables above. Quiet hours apply, a digest does not: a failed action is always sent on its own.
 
 ### Certificate events only
 

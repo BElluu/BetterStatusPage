@@ -44,9 +44,11 @@ function toYaml(value: unknown): string {
 const toYamlStream = (documents: unknown[]) => documents.map(toYaml).join('---\n')
 
 /** What a token must be allowed to do with each kind of document. */
-const TOKEN_RESOURCE: Record<DocumentKind, string> = { Monitor: 'monitors', NotificationChannel: 'channels' }
-/** Who may export and import: the people who may edit monitors and channels in the panel (administrators always may). */
-const SESSION_ROLES = ['admin', 'operator']
+const TOKEN_RESOURCE: Record<DocumentKind, string> = { Monitor: 'monitors', NotificationChannel: 'channels', Action: 'actions' }
+/** Who may export and import: the people who may edit monitors and channels in the panel (administrators always may). Actions are for administrators only. */
+const SESSION_ROLES: Record<DocumentKind, string[]> = { Monitor: ['admin', 'operator'], NotificationChannel: ['admin', 'operator'], Action: ['admin'] }
+/** Actions came after the other kinds: a full export leaves them out for a reader who may not see them, instead of refusing. */
+const OPTIONAL_KINDS: DocumentKind[] = ['Action']
 
 /** The kinds `identity` may not read (or write), with the reason, or null when it may do all of them. */
 function refusal(identity: AuthIdentity, kinds: Iterable<DocumentKind>, access: 'read' | 'write'): string | null {
@@ -55,11 +57,19 @@ function refusal(identity: AuthIdentity, kinds: Iterable<DocumentKind>, access: 
     if (identity.apiToken) {
       const needed = `${TOKEN_RESOURCE[kind]}:${access}`
       if (!tokenAllows(identity.apiToken.scopes, needed)) refused.push(`${kind} (the token needs "${needed}")`)
-    } else if (!SESSION_ROLES.includes(identity.role)) {
-      refused.push(`${kind} (needs the operator role)`)
+    } else if (!SESSION_ROLES[kind].includes(identity.role)) {
+      refused.push(`${kind} (needs the ${kind === 'Action' ? 'admin' : 'operator'} role)`)
     }
   }
   return refused.length ? `You may not ${access === 'read' ? 'export' : 'import'}: ${refused.join(', ')}` : null
+}
+
+/** The kinds a file needs permission for: its own, and Action for a monitor that carries an `actions` list. */
+function kindsNeeded(documents: unknown[]): Set<DocumentKind> {
+  const kinds = kindsIn(documents)
+  const linksActions = documents.some((document) => !!document && typeof document === 'object' && (document as { kind?: unknown }).kind === 'Monitor' && 'actions' in (document as object))
+  if (linksActions) kinds.add('Action')
+  return kinds
 }
 
 /** The documents of an import request: a YAML text with one or more documents. */
@@ -99,12 +109,16 @@ export async function configRoutes(app: FastifyInstance) {
     }
     if (kind !== undefined && !key) return reply.code(400).send({ error: `key is required to export a ${kind}` })
 
-    const denied = refusal(requestIdentity(req), kind ? [kind as DocumentKind] : DOCUMENT_KINDS, 'read')
+    const identity = requestIdentity(req)
+    const denied = refusal(identity, kind ? [kind as DocumentKind] : DOCUMENT_KINDS.filter((each) => !OPTIONAL_KINDS.includes(each)), 'read')
     if (denied) return reply.code(403).send({ error: denied })
+    // Without a key a full export holds actions, and the actions of every monitor, only for who may read them.
+    const includeActions = kind === 'Action' || refusal(identity, ['Action'], 'read') === null
+    if (kind === 'Action' && !includeActions) return reply.code(403).send({ error: refusal(identity, ['Action'], 'read') })
 
     let documents: ConfigDocument[]
     try {
-      documents = await buildConfigDocuments(kind ? { kind: kind as DocumentKind, key: key! } : undefined)
+      documents = await buildConfigDocuments(kind ? { kind: kind as DocumentKind, key: key! } : undefined, { includeActions })
     } catch (error) {
       if (error instanceof ConfigExportError) return reply.code(409).send({ error: error.message })
       throw error
@@ -122,7 +136,7 @@ export async function configRoutes(app: FastifyInstance) {
     if ('error' in read) return reply.code(400).send({ error: read.error })
     if (read.documents.length === 0) return reply.code(400).send({ error: 'The file contains no documents' })
     const identity = requestIdentity(req)
-    const denied = refusal(identity, kindsIn(read.documents), 'write')
+    const denied = refusal(identity, kindsNeeded(read.documents), 'write')
     if (denied) return reply.code(403).send({ error: denied })
 
     try {
@@ -138,7 +152,7 @@ export async function configRoutes(app: FastifyInstance) {
   const mayWriteSomething = async (req: FastifyRequest, reply: FastifyReply) => {
     const token = requestIdentity(req).apiToken
     if (token && !Object.values(TOKEN_RESOURCE).some((resource) => tokenAllows(token.scopes, `${resource}:write`))) {
-      return reply.code(403).send({ error: 'This token has no permission to import: it needs "monitors:write" or "channels:write"' })
+      return reply.code(403).send({ error: 'This token has no permission to import: it needs "monitors:write", "channels:write" or "actions:write"' })
     }
   }
   // Only YAML is read, and this is checked before the body is, so a JSON body is never parsed.

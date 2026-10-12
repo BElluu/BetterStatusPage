@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import type { Action, ActionRun, ActionRunStatus } from '@bsp/shared'
-import { EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, Pagination } from '../ui'
+import { EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, Pagination, useToast } from '../ui'
 import { formatDateTime } from '../../lib/dateFormat'
 
 interface RunListResponse {
@@ -28,6 +28,8 @@ const STATUS_COLOR: Record<ActionRunStatus, string> = {
 
 /** The runs of every action, newest first; the Actions tab of the delivery history. */
 export function ActionRunHistory() {
+  const qc = useQueryClient()
+  const toast = useToast()
   const [page, setPage]         = useState(1)
   const [status, setStatus]     = useState('')
   const [actionId, setActionId] = useState('')
@@ -44,6 +46,15 @@ export function ActionRunHistory() {
     queryKey: ['action-runs', page, status, actionId],
     queryFn: () => api.get(`/admin/actions/runs?${params}`),
     refetchInterval: 30_000,
+  })
+
+  const retry = useMutation({
+    mutationFn: (id: number) => api.post<ActionRun>(`/admin/actions/runs/${id}/retry`, {}),
+    onSuccess: (run) => {
+      toast.success(run.status === 'cancelled' ? `Run cancelled: ${run.lastError ?? 'it no longer applies'}` : 'Run retried.')
+      qc.invalidateQueries({ queryKey: ['action-runs'] })
+    },
+    onError: (err) => toast.error(err instanceof Error && err.message ? err.message : 'Retry failed'),
   })
 
   function changeFilter(setter: (value: string) => void, value: string) {
@@ -95,6 +106,12 @@ export function ActionRunHistory() {
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--m3-secondary)' }}>
                     {run.status === 'pending' && run.nextAttemptAt !== null && <span className="block">Next attempt {formatDateTime(run.nextAttemptAt)}</span>}
                     {run.lastError && <span className="block break-words">{run.lastError}</span>}
+                    {run.status === 'failed' && (
+                      <button type="button" className="btn btn-outline btn-sm mt-2" disabled={retry.isPending && retry.variables === run.id}
+                        onClick={() => retry.mutate(run.id)} aria-label={`Retry run of ${run.actionName} for ${run.monitorName}`}>
+                        Retry
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -10,7 +10,7 @@ Every document says what it describes in its `kind`: `Monitor` or `NotificationC
 | **Import YAML** button on the Monitors and Notifications pages | Takes pasted or uploaded documents, shows what they would change, and creates or updates the objects when you apply them. |
 | [The API](api.md) | `GET /config/export` writes the documents, `POST /config/validate` and `POST /config/apply` read them, for scripts and pipelines. |
 
-**Who may use it.** The Operator role (and administrators), the same as for editing monitors and notification channels in the panel. An [API token](api.md#permissions) needs the permission of each kind in the file: `monitors` or `channels`, read to export and write to import, and `vault:use` besides to add a vault reference or change a monitor or channel that has one.
+**Who may use it.** The Operator role (and administrators), the same as for editing monitors and notification channels in the panel. An [API token](api.md#permissions) needs the permission of each kind in the file: `monitors`, `channels` or `actions`, read to export and write to import, and `vault:use` besides to add a vault reference or change a monitor, channel or action that has one. [Actions](actions.md) are for administrators only: an operator's export leaves them out (and the `actions` list of each monitor), and an operator cannot import an `Action` document or a monitor that carries an `actions` list. A token that predates actions keeps working for a full export, which then holds no actions.
 
 ---
 
@@ -83,9 +83,34 @@ autoIncident:
 | `kind` | Contents |
 |---|---|
 | `NotificationChannel` | One channel: its settings, its alert policy (quiet hours, rate cap, grouping) and whether it is enabled. |
-| `Monitor` | One monitor: its schedule and thresholds, its configuration and tags, the **keys** of the channels it alerts through (`notifications`) and of the monitors it depends on (`dependsOn`), and optionally its [automatic incident](#automatic-incidents). |
+| `Action` | One [action](actions.md): its HTTP request (the vault secret it reads is named, see [Secrets](#secrets)), whether it is enabled, and the **keys** of the notification channels told when a run fails (`failureNotifications`). |
+| `Monitor` | One monitor: its schedule and thresholds, its configuration and tags, the **keys** of the channels it alerts through (`notifications`) and of the monitors it depends on (`dependsOn`), the [actions](actions.md) it runs (`actions`), and optionally its [automatic incident](#automatic-incidents). |
 
-Monitors and channels are identified by their [key](api.md#monitors-and-notification-channels-have-keys), a technical name that is generated when the object is created, is not shown in the forms, and never changes.
+```yaml
+kind: Action
+key: start-vm2
+name: Start VM2
+config:
+  url: https://jenkins.example.com/job/start-vm2/build
+  method: POST
+  headers:
+    Authorization: Basic {{secret_jenkins_basic}}
+  secrets:
+    - { name: jenkins, vault: { vault: Production, secret: jenkins-login } }
+failureNotifications: [ops-slack]
+---
+kind: Monitor
+key: vm1-sql
+name: VM1 SQL
+type: sqlserver
+config: { host: vm1.internal, port: 1433, database: app, user: sa, vault: { vault: Production, secret: sql-login }, query: SELECT 1, mode: fields }
+actions:
+  - { action: start-vm2, onStatus: down, delayMinutes: 5, cooldownMinutes: 60 }
+```
+
+The `actions` list of a monitor is optional. **A monitor document without it leaves the links of the monitor as they are**, so a file written before actions existed does not remove them; `actions: []` removes them all. A link needs the `action` key, `onStatus` (`down` or `up`) and optionally `delayMinutes` and `cooldownMinutes` (0 to 10080, 0 by default); an action can be linked once per status. Runs that wait for a link the file removed are cancelled.
+
+Monitors, channels and actions are identified by their [key](api.md#monitors-and-notification-channels-have-keys), a technical name that is generated when the object is created, is not shown in the forms, and never changes.
 
 ### Automatic incidents
 
@@ -110,7 +135,7 @@ Runtime state does not belong in a configuration: the current status, the last c
 
 ## Secrets
 
-The fields that hold a secret are never exported with their value. Wherever a monitor or channel has one (a password, an OAuth2 client secret, a credential header, a Slack, Discord or Teams webhook URL, a Telegram bot token) it is written as `••••••••`, exactly as the [API masks it](api.md#secrets-are-masked). A Telegram bot token of 16 characters or more keeps its last four characters visible.
+The fields that hold a secret are never exported with their value. Wherever a monitor, channel or action has one (a password, an OAuth2 client secret, a credential header, a Slack, Discord or Teams webhook URL, a Telegram bot token) it is written as `••••••••`, exactly as the [API masks it](api.md#secrets-are-masked). A Telegram bot token of 16 characters or more keeps its last four characters visible. The credential headers of an [action](actions.md) are masked the same way, and the vault secret an action reads is written by name.
 
 The export contains nothing that `GET /monitors` and `GET /notifications/channels` do not already return. Only the known secret fields are masked, so the following are written as they are stored: credentials typed into a URL (`https://user:password@host`), a query string, a request body or a database query; header values whose name does not look like a credential; the URL of a generic webhook channel; and the Docker endpoint. Check a document before you share it, and keep such credentials in the authentication fields, in headers or in a vault.
 
@@ -172,9 +197,9 @@ Both answer with what was, or would be, done, channels first, then monitors. Eve
 
 ### How documents are applied
 
-- **By key.** A monitor or channel whose key exists is updated; a key that does not exist is created. A key cannot be changed, so a different key is a different object. To rename something, change its `name`, not its key.
-- **Nothing is deleted.** An import only creates and updates. What the documents do not mention stays as it is, and removing a monitor or channel is done in the panel or with the API's `DELETE`. This keeps a file that describes only a few objects, or an empty one, from touching the rest.
-- **A document is the whole truth for the object it describes.** A setting that is left out takes its default (a monitor without `intervalSecs` checks every 60 seconds), it does not keep its current value. The notification channels and dependencies of a monitor are replaced by the lists in the document. A document needs its `kind`; a monitor or channel also needs `key`, `name` and `type`.
+- **By key.** A monitor, channel or action whose key exists is updated; a key that does not exist is created. A key cannot be changed, so a different key is a different object. To rename something, change its `name`, not its key.
+- **Nothing is deleted.** An import only creates and updates. What the documents do not mention stays as it is, and removing a monitor, channel or action is done in the panel or with the API's `DELETE`. This keeps a file that describes only a few objects, or an empty one, from touching the rest.
+- **A document is the whole truth for the object it describes.** A setting that is left out takes its default (a monitor without `intervalSecs` checks every 60 seconds), it does not keep its current value. The notification channels and dependencies of a monitor are replaced by the lists in the document, and so are the failure channels of an action (the actions of a monitor only when the document has an `actions` list). A document needs its `kind`; a monitor or channel also needs `key`, `name` and `type`, an action `key`, `name` and `config`.
 - **All or nothing.** All documents are checked before anything is written, and the changes are made in one transaction. Applying the same documents again changes nothing.
 - **Heartbeat tokens stay.** A webhook monitor keeps its token, so the URL it is called on does not change; a new one gets a token.
 - **Changes are audited.** Each change appears in the audit log under the object it changed, and an import that changes something also gets one entry (**Import**) with the counts. An entry lists the names of the settings that changed, not their old and new values, so a secret never ends up in the log.

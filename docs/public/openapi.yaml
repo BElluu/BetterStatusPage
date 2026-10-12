@@ -655,10 +655,10 @@ paths:
   /config/export:
     get:
       tags: [Configuration]
-      summary: Export monitors and notification channels as documents
+      summary: Export monitors, notification channels and actions as documents
       description: |
-        Every object is a document with a `kind` (`Monitor` or `NotificationChannel`). Monitors
-        and channels are identified by `key`, a monitor lists the keys of its channels and dependencies. Known secret fields are written as `••••••••` and vault secrets by the
+        Every object is a document with a `kind` (`Monitor`, `NotificationChannel` or `Action`). Objects
+        are identified by `key`, a monitor lists the keys of its channels, dependencies and actions. Known secret fields are written as `••••••••` and vault secrets by the
         names of the vault and the secret. Runtime state (status, last check, heartbeat token) is not included. The
         output is the same for the same data, so it diffs well in version control.
 
@@ -667,7 +667,8 @@ paths:
         YAML 1.1 and 1.2 parsers read the same values (`"22:00"` and `"yes"` are quoted).
 
         Needs the read permission for every kind it returns: `monitors` and `channels`, or the one of
-        the requested kind.
+        the requested kind. Actions are in a full export, and in the `actions` list of each monitor, only for
+        a caller who may read them (`actions:read`, or an administrator); for anyone else they are left out.
       x-scope: per document kind
       parameters:
         - name: kind
@@ -676,7 +677,7 @@ paths:
           schema: { $ref: '#/components/schemas/ConfigKind' }
         - name: key
           in: query
-          description: The key of the monitor or channel. Required with `kind` Monitor or NotificationChannel.
+          description: The key of the monitor, channel or action. Required with `kind`.
           schema: { $ref: '#/components/schemas/Key' }
       responses:
         '200':
@@ -860,7 +861,7 @@ paths:
     post:
       tags: [Actions]
       summary: Send a saved action once, with sample values
-      description: This is the real request, so whatever it triggers starts.
+      description: This is the real request, so whatever it triggers starts. The answer says what the target replied, with any vault secret removed.
       x-scope: actions:write
       responses:
         '200':
@@ -871,10 +872,39 @@ paths:
                 type: object
                 properties:
                   ok: { type: boolean }
+                  status: { type: integer, description: The HTTP status of the answer. }
+                  snippet: { type: string, description: The start of the answer on one line, at most 500 characters. }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '422':
-          description: The request failed.
+          description: The request failed. `status` and `snippet` are there when the target answered.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  status: { type: integer }
+                  snippet: { type: string }
+  /actions/runs/{id}/retry:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      tags: [Actions]
+      summary: Retry a failed action run
+      description: Gives the run another round of attempts and tries it at once. The usual checks apply, so a run whose monitor has recovered, that lies in a maintenance window or whose link is gone comes back `cancelled` with the reason in `lastError`.
+      x-scope: actions:write
+      responses:
+        '200':
+          description: The run after the attempt.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActionRun' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The run did not fail, so there is nothing to retry.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -1422,13 +1452,35 @@ components:
           additionalProperties: { type: string }
           description: Values of headers that look like credentials are masked on read.
         body: { type: string, description: 'JSON, with {{variables}} inside string values. Not allowed with GET.' }
+        secrets:
+          type: array
+          maxItems: 10
+          description: |
+            Vault secrets the request reads, each under a `name` of letters and digits, used through placeholders in the
+            URL, a header value or the body: `{{secret_<name>}}` for a Secure Value, `{{secret_<name>_username}}`,
+            `{{secret_<name>_password}}` and `{{secret_<name>_basic}}` (Base64 of `user:password`) for a User / Password
+            secret, `{{secret_<name>_<key>}}` for each key of a JSON secret. Every secret needs a placeholder and every
+            placeholder a secret. A placeholder cannot be part of the host of the URL.
+          items:
+            type: object
+            required: [name, vault]
+            properties:
+              name: { type: string, pattern: '^[A-Za-z][A-Za-z0-9]{0,23}$' }
+              vault:
+                type: object
+                required: [vaultId, secretId]
+                properties:
+                  vaultId: { type: integer }
+                  secretId: { type: integer }
     Action:
       type: object
       properties:
         id: { type: integer }
+        key: { $ref: '#/components/schemas/Key' }
         name: { type: string }
         config: { $ref: '#/components/schemas/ActionHttpConfig' }
         enabled: { type: integer, enum: [0, 1] }
+        failureChannelIds: { type: array, items: { type: integer }, description: The notification channels told once a run has failed after its last attempt. }
         createdAt: { type: integer }
         updatedAt: { type: integer }
     ActionCreate:
@@ -1436,12 +1488,15 @@ components:
       required: [name, config]
       properties:
         name: { type: string }
+        key: { $ref: '#/components/schemas/Key' }
+        failureChannelIds: { type: array, items: { type: integer }, description: Needs the "channels:write" permission for a token. }
         config: { $ref: '#/components/schemas/ActionHttpConfig' }
         enabled: { type: integer, enum: [0, 1] }
     ActionUpdate:
       type: object
       properties:
         name: { type: string }
+        failureChannelIds: { type: array, items: { type: integer }, description: Replaces the list. Needs the "channels:write" permission for a token. }
         config: { $ref: '#/components/schemas/ActionHttpConfig' }
         enabled: { type: integer, enum: [0, 1] }
     MonitorAction:
@@ -1531,7 +1586,7 @@ components:
           additionalProperties: { type: string }
     ConfigKind:
       type: string
-      enum: [Monitor, NotificationChannel]
+      enum: [Monitor, NotificationChannel, Action]
     ConfigChannel:
       type: object
       description: The export writes every field. A document that is imported needs only `kind`, `key`, `name` and `type`; the rest take their defaults.

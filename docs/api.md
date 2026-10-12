@@ -26,7 +26,7 @@ A token has a list of permissions instead of a role. Each names a part of the ap
 |---|---|---|
 | `monitors` | Monitors, their tests, checks and dependencies | read, write |
 | `channels` | Notification channels, the SMTP settings and the delivery history | read, write |
-| `actions` | HTTP actions, their links to monitors and their run history | read, write |
+| `actions` | HTTP actions, their links to monitors, their run history, and `Action` documents of the [configuration export and import](configuration-as-code.md) | read, write |
 | `incidents` | Incidents, their updates, affected monitors and incident templates | read, write |
 | `maintenance` | Maintenance windows | read, write |
 | `subscribers` | Subscribers and subscription settings | read, write |
@@ -37,7 +37,7 @@ A token has a list of permissions instead of a role. Each names a part of the ap
 | `metrics` | Prometheus metrics ([below](#prometheus-metrics)) | read |
 | `vault:use` | Secrets of a [vault](vault.md) in a monitor, channel or SMTP configuration | – |
 
-The [configuration documents](configuration-as-code.md) follow the part of each kind: `monitors` for a `Monitor`, and `channels` for a `NotificationChannel`. The export needs `read` for each kind in it, an import `write`.
+The [configuration documents](configuration-as-code.md) follow the part of each kind: `monitors` for a `Monitor`, `channels` for a `NotificationChannel` and `actions` for an `Action`. The export needs `read` for each kind in it, an import `write`.
 
 **`vault:use`.** A vault secret is sent wherever the configuration that uses it points, and what the target answers (a query result, an error message) comes back to whoever asked. Without this permission a token cannot list the vaults and secrets, cannot add a vault reference to a monitor, channel or the SMTP settings, and cannot change the configuration of one that already has a reference (a monitor's name, schedule, tags and links stay editable, and removing the reference is allowed). With it, a token can point those at any vault secret by name; it still never reads a value. Give it only to a token that has to create things that use a vault. Vault and secret names still appear in exported documents to a token that may read the monitor or channel.
 
@@ -129,9 +129,9 @@ A monitor needs a `name` (up to 200 characters) and a known `type`. `config`, wh
 
 A maintenance window needs a `name` (up to 200 characters), a `startsAt` and an `endsAt` (milliseconds since the epoch, the end after the start), and every id in `monitorIds` must be an existing monitor. The status page layout (`PUT /layout`) needs a `tree` object.
 
-### Monitors and notification channels have keys
+### Monitors, notification channels and actions have keys
 
-Every monitor and notification channel has a unique **Key** next to its numeric `id`: 1 to 64 lowercase letters, digits, `-` and `_`, starting with a letter or digit. It is a technical value, not a setting: the admin panel does not show it in its forms. It is generated from the name when you do not send one (`Public site` becomes `public-site`, a second one `public-site-2`), or you give it when you create the object through the API. It never changes after that, not even when the name does, and an update that sends a `key` is refused with `400`. The `id` is specific to one installation, the key is what you refer to from your own tooling.
+Every monitor, notification channel and action has a unique **Key** next to its numeric `id`: 1 to 64 lowercase letters, digits, `-` and `_`, starting with a letter or digit. It is a technical value, not a setting: the admin panel does not show it in its forms. It is generated from the name when you do not send one (`Public site` becomes `public-site`, a second one `public-site-2`), or you give it when you create the object through the API. It never changes after that, not even when the name does, and an update that sends a `key` is refused with `400`. The `id` is specific to one installation, the key is what you refer to from your own tooling.
 
 ```bash
 curl -fsS -X POST -H "Authorization: Bearer $BSP_TOKEN" -H "Content-Type: application/json" \

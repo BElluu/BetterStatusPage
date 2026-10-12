@@ -159,7 +159,7 @@ export function ActionsSection({ actions, links, onChange }: {
             </button>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <Field label="When monitor is">
+            <Field label="When">
               <select value={link.onStatus} onChange={(e) => update(i, { onStatus: e.target.value as MonitorAction['onStatus'] })} className="input-sig">
                 <option value="down">down</option>
                 <option value="up">back up</option>

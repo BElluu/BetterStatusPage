@@ -1,3 +1,5 @@
+import type { VaultRef } from './monitor.js'
+
 /** An action changes something outside BetterStatusPage when a monitor goes down or comes back up. */
 
 /** The confirmed monitor status an action waits for. */
@@ -10,13 +12,30 @@ export interface ActionHttpConfig {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH'
   headers?: Record<string, string>
   body?: string
+  /** Vault secrets the request reads, each under a name of its own: see {@link ActionSecret}. */
+  secrets?: ActionSecret[]
+}
+
+/**
+ * A vault secret an action reads, used through placeholders in the URL, a header value or the body. A Secure Value is
+ * `{{secret_<name>}}`; a User / Password secret is `{{secret_<name>_username}}`, `{{secret_<name>_password}}` and
+ * `{{secret_<name>_basic}}` (the Base64 of `user:password`, for Basic authentication); a JSON secret gives
+ * `{{secret_<name>_<key>}}` for each key. The `name` is letters and digits.
+ */
+export interface ActionSecret {
+  name: string
+  vault: VaultRef
 }
 
 export interface Action {
   id: number
+  /** Stable identifier for configuration files and API clients; set when the action is created and never changed. */
+  key: string
   name: string
   config: ActionHttpConfig
   enabled: number
+  /** Notification channels told when a run of this action fails after its last attempt. */
+  failureChannelIds: number[]
   createdAt: number
   updatedAt: number
 }

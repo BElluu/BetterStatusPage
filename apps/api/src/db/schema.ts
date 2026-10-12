@@ -247,6 +247,9 @@ export const actions = sqliteTable('actions', {
   enabled: integer('enabled').notNull().default(1),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  // Additive column (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
+  /** Stable identifier for config-as-code and API clients; unlike `id` it survives export/import. */
+  key: text('key').notNull().unique().$defaultFn(randomEntityKey),
 })
 
 export const monitorActions = sqliteTable('monitor_actions', {
@@ -256,6 +259,13 @@ export const monitorActions = sqliteTable('monitor_actions', {
   onStatus: text('on_status').notNull(), // 'down' | 'up'
   delayMinutes: integer('delay_minutes').notNull().default(0),
   cooldownMinutes: integer('cooldown_minutes').notNull().default(0),
+})
+
+/** The notification channels told when a run of the action fails for good. */
+export const actionFailureChannels = sqliteTable('action_failure_channels', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  actionId: integer('action_id').notNull(),
+  channelId: integer('channel_id').notNull(),
 })
 
 export const actionRuns = sqliteTable('action_runs', {

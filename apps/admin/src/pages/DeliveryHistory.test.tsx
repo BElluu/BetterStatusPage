@@ -140,6 +140,20 @@ describe('DeliveryHistoryPage tabs', () => {
     expect(screen.getByText('Failed', { selector: 'span' })).toBeInTheDocument()
   })
 
+  it('retries a failed action run and reports a run that no longer applies', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getCurrentUser).mockReturnValue({ userId: 1, email: 'admin@example.test', role: 'admin', mustChangePassword: false, twoFactorEnabled: false })
+    vi.mocked(api.get).mockImplementation(async (path: string) => path.startsWith('/admin/actions/runs')
+      ? { runs: [{ id: 5, actionId: 1, actionName: 'Start VM2', monitorId: 5, monitorName: 'VM1 SQL', onStatus: 'down', status: 'failed', attemptCount: 3, maxAttempts: 3, nextAttemptAt: null, lastError: 'HTTP 500', createdAt: 1_700_000_000_000 }], total: 1, page: 1, pages: 1 }
+      : [])
+    vi.mocked(api.post).mockResolvedValue({ id: 5, status: 'succeeded' })
+    renderPage('/admin/delivery-history?tab=actions')
+
+    await user.click(await screen.findByRole('button', { name: /Retry run of Start VM2/ }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/actions/runs/5/retry', {}))
+  })
+
   it('keeps the addresses of the former history pages working', async () => {
     function Location() {
       const { pathname, search } = useLocation()

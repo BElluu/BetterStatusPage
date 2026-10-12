@@ -81,7 +81,7 @@ describe('config export', () => {
     for (const forbidden of ['"id":', 'currentStatus', 'lastCheckedAt', 'webhookToken', 'createdAt', 'updatedAt', 'certExpiresAt', 'version']) {
       assert.equal(text.includes(forbidden), false, forbidden)
     }
-    assert.deepEqual(Object.keys((await monitorsOf())[0]!), ['kind', 'key', 'name', 'type', 'intervalSecs', 'timeoutMs', 'retries', 'failureThreshold', 'recoveryThreshold', 'config', 'tags', 'notifications', 'dependsOn'])
+    assert.deepEqual(Object.keys((await monitorsOf())[0]!), ['kind', 'key', 'name', 'type', 'intervalSecs', 'timeoutMs', 'retries', 'failureThreshold', 'recoveryThreshold', 'config', 'tags', 'notifications', 'dependsOn', 'actions'])
     assert.deepEqual(Object.keys((await channelsOf())[0]!), ['kind', 'key', 'name', 'type', 'enabled', 'notifyOnRecovery', 'config', 'alertPolicy'])
   })
 

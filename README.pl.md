@@ -92,8 +92,6 @@ Gdy coś się psuje (albo wraca do życia), BetterStatusPage może na Ciebie nak
 
 Wszystkie kanały obsługują zmienne szablonów, takie jak `{{monitor_name}}`, `{{status}}`, `{{error_message}}` itd., dzięki czemu alert może brzmieć *„API Gateway nie działa: przekroczono czas połączenia"* zamiast *„zmiana statusu"*.
 
-Potrzebujesz czegoś więcej niż wiadomości? **Akcja** wysyła żądanie HTTP, gdy monitor pozostaje niedostępny przez ustalony czas albo wraca do działania — na przykład żeby uruchomić zadanie failover w Jenkinsie. Zobacz [Actions](https://docs.betterstatuspage.dev/actions/) *(EN)*.
-
 Powiadomienia o przywróceniu są opcjonalne dla każdego kanału — bo czasem chcesz wiedzieć, kiedy wszystko wróciło, a czasem po prostu chcesz się wyspać.
 
 **Ostrzeżenia o wygasającym certyfikacie TLS** — włączasz je dla wybranego monitora HTTPS i ustawiasz, ile dni wcześniej mają przyjść (domyślnie 14). Kanały monitora dostają jedno ostrzeżenie, gdy certyfikat wejdzie w to okno, potem przypomnienia 7, 3 i 1 dzień przed wygaśnięciem, a po odnowieniu — potwierdzenie (jeśli kanał wysyła powiadomienia o przywróceniu). Certyfikat jest odczytywany co 6 godzin; publiczna strona statusu się nie zmienia, a certyfikat, który już wygasł, i tak kończy się błędem sprawdzenia i alertem „down”. Lista monitorów w panelu admina pokazuje, ile dni zostało każdemu certyfikatowi, a tester — datę wygaśnięcia. Powiadomienia o certyfikatach dodają zmienne szablonów `{{event_type}}` (`certificate`), `{{cert_expires_in}}`, `{{cert_expires_at}}`, `{{cert_days_left}}` i `{{cert_host}}`; `{{status}}` przyjmuje wartość `cert-expiring` lub `cert-renewed`.
@@ -118,6 +116,19 @@ System alertów, który musisz wyciszyć, jest gorszy niż brak systemu alertów
 Wszystko, co zatrzymają reguły, i tak trafia do historii dostarczeń wraz z powodem — możesz więc sprawdzić, co *nie* zostało wysłane, i poluzować regułę, jeśli była zbyt restrykcyjna.
 
 > Zobacz **[docs.betterstatuspage.dev/alert-hygiene](https://docs.betterstatuspage.dev/alert-hygiene/)** — jak reguły się łączą, jak dobrać wartości i jak wygląda API *(EN)*.
+
+### 🎬 Akcje — zrób coś, gdy monitor zmieni stan
+
+Powiadomienie informuje ludzi. **Akcja** coś zmienia: wysyła żądanie HTTP, gdy monitor pozostaje niedostępny przez ustalony czas albo wraca do działania. Uruchom przez zadanie Jenkinsa serwer zapasowy, gdy główny nie działa od pięciu minut, i wyłącz go, gdy główny wróci.
+
+- **Per monitor i per status** — powiąż akcję z monitorem dla `down` albo ponownego `up`, z **opóźnieniem** (akcja `down` jest porzucana, jeśli monitor wróci wcześniej) i **cooldownem**, żeby migający check nie uruchamiał jej w kółko.
+- **Sekrety zostają w vaulcie** — token lub hasło jest czytane z sekretu [vaulta](#-sejf-na-twoje-sekrety) w chwili wysyłki (`Authorization: Basic {{secret_jenkins_basic}}`), w dowolnej liczbie, i nigdy nie trafia do zapisu akcji ani do historii uruchomień.
+- **Ponowienia i historia** — nieudane żądanie jest próbowane do 3 razy, uruchomienia przeżywają restart, a każde jest na liście w **Delivery history → Actions**, gdzie nieudane można ponowić ręcznie.
+- **Informacja o porażce** — wybierasz kanały powiadomień, które mają się dowiedzieć o uruchomieniu nieudanym po ostatniej próbie.
+- **Test naprawdę** — **Run now** wysyła żądanie i pokazuje status HTTP oraz początek odpowiedzi.
+- **Jako kod** — akcje są eksportowane i importowane jako YAML, razem z monitorami i kanałami.
+
+Akcjami zarządzają tylko administratorzy. Zobacz **[docs.betterstatuspage.dev/actions](https://docs.betterstatuspage.dev/actions/)** *(EN)*.
 
 ### 🔐 Sejf na Twoje sekrety
 
@@ -495,7 +506,7 @@ Skrypty i CI/CD mogą wywoływać API administratora z tokenem utworzonym w **Ad
 
 ### Konfiguracja jako kod
 
-Każdy monitor i kanał powiadomień można zapisać jako dokument YAML z polem `kind`, identyfikowany kluczem zamiast numerycznego id i z zamaskowanymi znanymi polami sekretów, do wersjonowania i przeglądu. Przycisk **YAML** przy monitorze i kanale pokazuje dany obiekt, a **Import** w lewym menu (oraz API) tworzy lub aktualizuje obiekty z wklejonych lub wgranych dokumentów, z podglądem zmian przed zapisem. Dokumenty są sprawdzane w całości, stosowane w jednej transakcji, a ponowne zastosowanie ich niczego nie zmienia. Import niczego nie usuwa.
+Każdy monitor, kanał powiadomień i akcję można zapisać jako dokument YAML z polem `kind`, identyfikowany kluczem zamiast numerycznego id i z zamaskowanymi znanymi polami sekretów, do wersjonowania i przeglądu. Przycisk **YAML** przy monitorze, kanale i akcji pokazuje dany obiekt, a **Import** w lewym menu (oraz API) tworzy lub aktualizuje obiekty z wklejonych lub wgranych dokumentów, z podglądem zmian przed zapisem. Dokumenty są sprawdzane w całości, stosowane w jednej transakcji, a ponowne zastosowanie ich niczego nie zmienia. Import niczego nie usuwa.
 
 > Format i zakres opisuje **[docs.betterstatuspage.dev/configuration-as-code](https://docs.betterstatuspage.dev/configuration-as-code/)** *(EN)*.
 

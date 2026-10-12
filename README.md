@@ -92,8 +92,6 @@ When something breaks (or recovers), BetterStatusPage can shout at you via:
 
 All channels support template variables like `{{monitor_name}}`, `{{status}}`, `{{error_message}}` etc., so your alerts can say *"API Gateway is down: connection timeout"* instead of *"status changed"*.
 
-Need more than a message? An **action** sends an HTTP request when a monitor stays down for a set time or comes back up, for example to start a failover job in Jenkins. See [Actions](https://docs.betterstatuspage.dev/actions/).
-
 Recovery notifications are optional per channel — because sometimes you want to know when things come back up, and sometimes you just want to sleep.
 
 **TLS certificate expiry warnings** — switch them on per HTTPS monitor and pick the lead time (14 days by default). The monitor's channels get one warning when the certificate enters that window, then reminders 7, 3 and 1 days before it expires, and an all-clear once it has been renewed (if the channel sends recoveries). The certificate is read every 6 hours; the public status page is not affected, and a certificate that has already expired fails the check and alerts as down. The admin monitor list shows how many days each certificate has left, and the test runner shows the expiry date. Certificate notifications add the template variables `{{event_type}}` (`certificate`), `{{cert_expires_in}}`, `{{cert_expires_at}}`, `{{cert_days_left}}` and `{{cert_host}}`; `{{status}}` is `cert-expiring` or `cert-renewed`.
@@ -118,6 +116,19 @@ An alerting system you had to mute is worse than no alerting system. Four contro
 Everything the rules stop is still recorded in the delivery history with the reason — so you can check what was *not* sent and loosen the rule if it was too strict.
 
 > See **[docs.betterstatuspage.dev/alert-hygiene](https://docs.betterstatuspage.dev/alert-hygiene/)** for how the rules combine, how to pick values, and the API shape.
+
+### 🎬 Actions — do something when a monitor changes
+
+A notification tells people. An **action** changes something: it sends an HTTP request when a monitor stays down for a set time, or comes back up. Start a standby server through a Jenkins job when your primary is down for five minutes, stop it again when the primary is back.
+
+- **Per monitor, per status** — link an action to a monitor for `down` or back `up`, with a **delay** (a `down` action is dropped if the monitor recovers first) and a **cooldown** so a flapping check cannot run it again and again.
+- **Secrets stay in the vault** — a token or a password is read from a [vault](#-a-vault-for-your-secrets) secret when the request is sent (`Authorization: Basic {{secret_jenkins_basic}}`), as many as you need, and is never stored with the action or shown in the run history.
+- **Retries and history** — a failed request is tried up to 3 times, runs survive a restart, and every run is listed in **Delivery history → Actions**, where a failed one can be retried by hand.
+- **Told when it fails** — choose which notification channels hear about a run that failed after its last attempt.
+- **Test it for real** — **Run now** sends the request and shows the HTTP status and the start of the answer.
+- **As code** — actions are exported and imported as YAML, next to your monitors and channels.
+
+Only administrators manage actions. See **[docs.betterstatuspage.dev/actions](https://docs.betterstatuspage.dev/actions/)**.
 
 ### 🔐 A vault for your secrets
 
@@ -495,7 +506,7 @@ Scripts and CI/CD can call the admin API with a token from **Administration → 
 
 ### Configuration as code
 
-Every monitor and notification channel can be written as a YAML document with a `kind`, identified by a key instead of a numeric id and with the known secret fields masked, for version control and review. A **YAML** button on a monitor and a channel shows that object; **Import** in the left menu (and the API) creates or updates objects from pasted or uploaded documents, with a preview before anything is written. Documents are checked completely, applied in one transaction, and applying them twice changes nothing. An import never deletes anything.
+Every monitor, notification channel and action can be written as a YAML document with a `kind`, identified by a key instead of a numeric id and with the known secret fields masked, for version control and review. A **YAML** button on a monitor, a channel and an action shows that object; **Import** in the left menu (and the API) creates or updates objects from pasted or uploaded documents, with a preview before anything is written. Documents are checked completely, applied in one transaction, and applying them twice changes nothing. An import never deletes anything.
 
 > See **[docs.betterstatuspage.dev/configuration-as-code](https://docs.betterstatuspage.dev/configuration-as-code/)** for the format and what is included.
 

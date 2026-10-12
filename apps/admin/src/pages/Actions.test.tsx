@@ -74,3 +74,91 @@ describe('Actions page', () => {
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/admin/actions/1'))
   })
 })
+
+describe('Action form', () => {
+  beforeEach(() => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/admin/actions') return actions.map((action) => ({ ...action, failureChannelIds: [] }))
+      if (path === '/admin/notifications/channels') return [{ id: 3, name: 'Ops Slack', type: 'slack', enabled: 1 }, { id: 4, name: 'Old mail', type: 'email', enabled: 0 }]
+      if (path === '/admin/vaults') return [{ id: 7, name: 'Jenkins' }]
+      if (path === '/admin/vaults/7/secrets') return [{ id: 70, name: 'api-token', type: 'value' }, { id: 71, name: 'json-thing', type: 'json' }]
+      throw new Error(`Unexpected GET ${path}`)
+    })
+  })
+
+  async function openEdit(user: ReturnType<typeof userEvent.setup>) {
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Edit Start VM2' }))
+    return screen.findByRole('dialog')
+  }
+
+  it('shows the status and the answer of Run now, for a success and for a failure', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.post).mockResolvedValueOnce({ ok: true, status: 201, snippet: 'queued' })
+    const dialog = await openEdit(user)
+
+    await user.click(within(dialog).getByRole('button', { name: /Run now/ }))
+    expect(await within(dialog).findByText(/answered with HTTP 201/)).toBeInTheDocument()
+    expect(within(dialog).getByText('queued')).toBeInTheDocument()
+
+    vi.mocked(api.post).mockRejectedValueOnce(Object.assign(new Error('HTTP 500: Job queue is full'), { body: { error: 'HTTP 500: Job queue is full', status: 500, snippet: 'Job queue is full' } }))
+    await user.click(within(dialog).getByRole('button', { name: /Run now/ }))
+    expect(await within(dialog).findByText('Job queue is full')).toBeInTheDocument()
+  })
+
+  it('saves the channels told about a failed run', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.patch).mockResolvedValue({})
+    const dialog = await openEdit(user)
+
+    await user.click(within(dialog).getByTitle('Notify when a run fails'))
+    await user.click(await within(dialog).findByRole('checkbox', { name: /Ops Slack/ }))
+    expect(within(dialog).getByText('disabled')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Save Changes' }))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/actions/1', expect.objectContaining({ failureChannelIds: [3] })))
+  })
+
+  it('warns about a credential typed in plain text, and saves several named vault secrets', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.patch).mockResolvedValue({})
+    const dialog = await openEdit(user)
+    expect(within(dialog).getByText(/looks like it holds a credential in plain text/)).toBeInTheDocument()
+
+    await user.click(within(dialog).getByTitle('Secrets'))
+    await user.click(within(dialog).getByRole('button', { name: '+ Add secret' }))
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Vault' }), '7')
+    await user.selectOptions(await within(dialog).findByRole('combobox', { name: 'Secret' }), '70')
+    expect(within(dialog).getByText('{{secret_token}}')).toBeInTheDocument()
+    expect(within(dialog).queryByText(/looks like it holds a credential in plain text/)).not.toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: '+ Add secret' }))
+    const names = within(dialog).getAllByPlaceholderText('token')
+    expect(names[1]).toHaveValue('token2')
+    await user.clear(names[1]!)
+    await user.type(names[1]!, 'login')
+    await user.selectOptions(within(dialog).getAllByRole('combobox', { name: 'Vault' })[1]!, '7')
+    await user.selectOptions(await within(dialog).findAllByRole('combobox', { name: 'Secret' }).then((all) => all[1]!), '71')
+    expect(within(dialog).getByText('{{secret_login_<key>}}')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Save Changes' }))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/actions/1', expect.objectContaining({
+      config: expect.objectContaining({ secrets: [
+        { name: 'token', vault: { vaultId: 7, secretId: 70 } },
+        { name: 'login', vault: { vaultId: 7, secretId: 71 } },
+      ] }),
+    })))
+  })
+
+  it('does not save a secret that has no vault secret chosen, or a name used twice', async () => {
+    const user = userEvent.setup()
+    const dialog = await openEdit(user)
+    await user.click(within(dialog).getByTitle('Secrets'))
+    await user.click(within(dialog).getByRole('button', { name: '+ Add secret' }))
+
+    await user.click(within(dialog).getByRole('button', { name: 'Save Changes' }))
+
+    expect(await within(dialog).findByText(/Choose a vault secret for "token"/)).toBeInTheDocument()
+    expect(api.patch).not.toHaveBeenCalled()
+  })
+})

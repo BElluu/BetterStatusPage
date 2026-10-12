@@ -1,7 +1,8 @@
-import { and, eq, gt, inArray, lt, lte, ne, type SQL } from 'drizzle-orm'
+import { and, eq, gt, inArray, lt, lte, ne, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { actionRuns, actions, monitorActions, monitors } from '../db/schema.js'
-import { MAX_DELIVERY_ATTEMPTS, RETRY_DELAYS_MS, sendWebhook } from './notifier.js'
+import { MAX_DELIVERY_ATTEMPTS, RETRY_DELAYS_MS, sendActionFailureNotifications } from './notifier.js'
+import { executeAction, type ActionHttpResult } from './actionHttp.js'
 import { isInMaintenance } from './scheduler.js'
 import type { ActionHttpConfig } from '@bsp/shared'
 
@@ -143,7 +144,8 @@ export async function attemptActionRun(runId: number, now = Date.now()): Promise
 
     const attemptNumber = run.attemptCount + 1
     try {
-      await sendWebhook(JSON.parse(action.config) as ActionHttpConfig, JSON.parse(run.variables) as Record<string, string>)
+      const result = await executeAction(JSON.parse(action.config) as ActionHttpConfig, JSON.parse(run.variables) as Record<string, string>)
+      if (!result.ok) throw new Error(result.error)
       const completedAt = Date.now()
       await db.update(actionRuns).set({
         status: 'succeeded', attemptCount: attemptNumber, nextAttemptAt: null,
@@ -154,14 +156,39 @@ export async function attemptActionRun(runId: number, now = Date.now()): Promise
       const message = error instanceof Error ? error.message : String(error)
       const exhausted = attemptNumber >= run.maxAttempts
       const delay = RETRY_DELAYS_MS[Math.min(attemptNumber - 1, RETRY_DELAYS_MS.length - 1)]!
-      await db.update(actionRuns).set({
+      const updated = await db.update(actionRuns).set({
         status: exhausted ? 'failed' : 'pending', attemptCount: attemptNumber,
         nextAttemptAt: exhausted ? null : now + delay, lastAttemptAt: completedAt,
         completedAt: exhausted ? completedAt : null, lastError: message, updatedAt: completedAt,
-      }).where(and(eq(actionRuns.id, runId), eq(actionRuns.status, 'pending')))
+      }).where(and(eq(actionRuns.id, runId), eq(actionRuns.status, 'pending'))).returning({ id: actionRuns.id })
+      // Only a run that really ended as failed (it was not cancelled while sending) is worth a notification.
+      if (exhausted && updated.length > 0) {
+        sendActionFailureNotifications({ ...run, actionName: action.name, attemptCount: attemptNumber }, message).catch((err) =>
+          console.error('[actions] Failure notification failed:', err instanceof Error ? err.message : err))
+      }
       console.error(`[actions] Run ${runId}, attempt ${attemptNumber} failed: ${message}`)
     }
   } finally { activeRuns.delete(runId) }
+}
+
+/**
+ * Queues a failed run for another round of attempts, as many as a new run gets. The guards of a normal attempt still
+ * apply, so a run that no longer qualifies (the monitor recovered, the link is gone) is cancelled with the reason.
+ * Returns false when the run is not a failed one, which also makes a double click harmless.
+ */
+export async function retryActionRun(runId: number): Promise<boolean> {
+  const now = Date.now()
+  const updated = await db.update(actionRuns)
+    .set({
+      status: 'pending',
+      maxAttempts: sql`${actionRuns.attemptCount} + ${MAX_DELIVERY_ATTEMPTS}`,
+      nextAttemptAt: now, completedAt: null, lastError: null, updatedAt: now,
+    })
+    .where(and(eq(actionRuns.id, runId), eq(actionRuns.status, 'failed')))
+    .returning({ id: actionRuns.id })
+  if (updated.length === 0) return false
+  await attemptActionRun(runId, now)
+  return true
 }
 
 export async function processDueActionRuns(now = Date.now()): Promise<number> {
@@ -177,21 +204,16 @@ export async function purgeOldActionRuns(now = Date.now()): Promise<void> {
 }
 
 /** Sends the action once with sample values, whatever any monitor is doing. This is the real request. */
-export async function testAction(actionId: number): Promise<{ ok: boolean; error?: string }> {
+export async function testAction(actionId: number): Promise<ActionHttpResult> {
   const action = (await db.select().from(actions).where(eq(actions.id, actionId)))[0]
-  if (!action) return { ok: false, error: 'Action not found' }
-  try {
-    await sendWebhook(JSON.parse(action.config) as ActionHttpConfig, {
-      monitor_name: 'Test monitor',
-      monitor_type: 'https',
-      status: 'down',
-      previous_status: 'up',
-      error_message: 'Test run from BetterStatusPage',
-      checked_at: new Date().toISOString(),
-      event_type: 'test',
-    })
-    return { ok: true }
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) }
-  }
+  if (!action) return { ok: false, snippet: '', error: 'Action not found' }
+  return executeAction(JSON.parse(action.config) as ActionHttpConfig, {
+    monitor_name: 'Test monitor',
+    monitor_type: 'https',
+    status: 'down',
+    previous_status: 'up',
+    error_message: 'Test run from BetterStatusPage',
+    checked_at: new Date().toISOString(),
+    event_type: 'test',
+  })
 }
