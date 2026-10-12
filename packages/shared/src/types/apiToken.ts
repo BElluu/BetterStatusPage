@@ -15,6 +15,7 @@ export interface TokenResource {
 export const TOKEN_RESOURCES: readonly TokenResource[] = [
   { key: 'monitors', label: 'Monitors', description: 'Monitors, their tests, checks and dependencies', levels: ['read', 'write'] },
   { key: 'channels', label: 'Notification channels', description: 'Channels, SMTP settings and delivery history', levels: ['read', 'write'] },
+  { key: 'actions', label: 'Actions', description: 'HTTP actions that run when a monitor goes down or recovers, and their run history', levels: ['read', 'write'] },
   { key: 'incidents', label: 'Incidents', description: 'Open, update and close incidents', levels: ['read', 'write'] },
   { key: 'maintenance', label: 'Maintenance windows', description: 'Schedule and change maintenance windows', levels: ['read', 'write'] },
   { key: 'subscribers', label: 'Subscribers', description: 'Subscribers and subscription settings', levels: ['read', 'write'] },

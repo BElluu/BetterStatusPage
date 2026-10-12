@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { api } from '../../api/client'
-import type { Monitor, MonitorType, NotificationChannel, MonitorTag } from '@bsp/shared'
+import type { Action, Monitor, MonitorAction, MonitorType, NotificationChannel, MonitorTag } from '@bsp/shared'
 import { ModalFooter, ModalHeader, ModalShell } from '../ModalShell'
 import { YamlViewModal } from '../YamlViewModal'
 import { AuthSection, readAuth } from './AuthSection'
 import { SidePanelFrame, SideTabStrip, type SideTab } from '../SidePanel'
-import { ChannelsSection, CredentialsSection, DependenciesSection, PANEL_META, RequestSection, hasDatabaseCredentials, type SidePanelKey } from './MonitorSidePanel'
+import { ActionsSection, ChannelsSection, CredentialsSection, DependenciesSection, PANEL_META, RequestSection, hasDatabaseCredentials, type SidePanelKey } from './MonitorSidePanel'
 import { MonitorTypeConfigFields } from './MonitorTypeConfigFields'
 import { Field, type SecretSummary, type VaultSummary } from './monitorFormParts'
 import { DATABASE_DEFAULT_PORTS, DATABASE_DEFAULT_QUERIES, isDatabaseType } from './monitorTypes'
@@ -35,6 +35,21 @@ const defaultConfigs: Record<MonitorType, Record<string, unknown>> = {
   mongodb:   { host: '', port: 27017, database: '', user: '', password: '', query: '{"ping":1}' },
   docker:    { endpoint: 'unix:///var/run/docker.sock', container: '' },
   webhook:   {},
+}
+
+/** The links the server would refuse, found before anything is saved. */
+function actionLinkProblem(links: MonitorAction[] | null): string | null {
+  if (!links) return null
+  const seen = new Set<string>()
+  for (const link of links) {
+    const key = `${link.actionId}:${link.onStatus}`
+    if (seen.has(key)) return 'An action can be linked once per status.'
+    seen.add(key)
+    for (const minutes of [link.delayMinutes, link.cooldownMinutes]) {
+      if (!Number.isInteger(minutes) || minutes < 0 || minutes > 10080) return 'Action delay and cooldown must be whole minutes from 0 to 10080.'
+    }
+  }
+  return null
 }
 
 export default function MonitorFormModal({ monitor, initialType = 'https', allTags = [], onClose, onSaved }: Props) {
@@ -69,6 +84,9 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
   const [secretsByVault, setSecretsByVault] = useState<Record<number, SecretSummary[]>>({})
   const [channels, setChannels]             = useState<NotificationChannel[]>([])
   const [selectedChannelIds, setSelectedChannelIds] = useState<Set<number>>(new Set())
+  // Actions are managed by admins only: for anyone else the list does not load and the tab stays hidden.
+  const [availableActions, setAvailableActions] = useState<Action[] | null>(null)
+  const [actionLinks, setActionLinks]           = useState<MonitorAction[] | null>(monitor ? null : [])
   const [allMonitors, setAllMonitors]       = useState<{ id: number; name: string }[]>([])
   const [selectedDependsOnIds, setSelectedDependsOnIds] = useState<Set<number>>(new Set())
 
@@ -76,10 +94,12 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     api.get<VaultSummary[]>('/admin/vaults').then(setVaults).catch(() => {})
     api.get<NotificationChannel[]>('/admin/notifications/channels').then(setChannels).catch(() => {})
     api.get<{ id: number; name: string }[]>('/admin/monitors').then(setAllMonitors).catch(() => {})
+    api.get<Action[]>('/admin/actions').then(setAvailableActions).catch(() => {})
     if (monitor) {
       api.get<number[]>(`/admin/notifications/monitor/${monitor.id}/channels`)
         .then((ids) => setSelectedChannelIds(new Set(ids)))
         .catch(() => {})
+      api.get<MonitorAction[]>(`/admin/actions/monitor/${monitor.id}`).then(setActionLinks).catch(() => {})
       api.get<{ dependsOnIds: number[] }>(`/admin/monitors/${monitor.id}/dependencies`)
         .then((r) => setSelectedDependsOnIds(new Set(r.dependsOnIds)))
         .catch(() => {})
@@ -163,6 +183,13 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     }
   }
 
+  /** Skipped when the links did not load: saving an empty list would wipe the ones the monitor already has. */
+  async function saveActionLinks(monitorId: number) {
+    if (availableActions === null || actionLinks === null) return
+    if (!isEdit && actionLinks.length === 0) return
+    await api.put(`/admin/actions/monitor/${monitorId}`, { actions: actionLinks })
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     // "Done" after webhook creation — just close and refresh
@@ -174,6 +201,12 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
       setError(config['mode'] === 'connectionString' ? 'Choose the Vault secret that holds the connection string.' : 'Enter the database user and password, or choose a secret from Vault.')
       return
     }
+    const linkProblem = actionLinkProblem(actionLinks)
+    if (linkProblem) {
+      setSidePanel('actions')
+      setError(linkProblem)
+      return
+    }
     setLoading(true)
     try {
       const body = { name, type, intervalSecs, timeoutMs, retries, failureThreshold, recoveryThreshold, ...autoIncident, config, tags }
@@ -181,10 +214,13 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
         await api.patch(`/admin/monitors/${monitor.id}`, body)
         await api.put(`/admin/notifications/monitor/${monitor.id}/channels`, { channelIds: [...selectedChannelIds] })
         await api.put(`/admin/monitors/${monitor.id}/dependencies`, { dependsOnIds: [...selectedDependsOnIds] })
+        await saveActionLinks(monitor.id)
       } else {
         const created = await api.post<{ id: number; webhookToken?: string | null }>('/admin/monitors', body)
+        if (created.webhookToken) setWebhookToken(created.webhookToken)
         await api.put(`/admin/notifications/monitor/${created.id}/channels`, { channelIds: [...selectedChannelIds] })
         await api.put(`/admin/monitors/${created.id}/dependencies`, { dependsOnIds: [...selectedDependsOnIds] })
+        await saveActionLinks(created.id)
         if (created.webhookToken) setWebhookToken(created.webhookToken)
         if (type !== 'webhook') { onSaved(); return }
         // webhook: stay open so user can copy the URL before closing
@@ -216,6 +252,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     ] : []),
     { key: 'tags',         badge: tags.length > 0 ? String(tags.length) : null },
     { key: 'channels',     badge: selectedChannelIds.size > 0 ? String(selectedChannelIds.size) : null },
+    ...(availableActions !== null && actionLinks !== null ? [{ key: 'actions' as const, badge: actionLinks.length > 0 ? String(actionLinks.length) : null }] : []),
     { key: 'dependencies', badge: selectedDependsOnIds.size > 0 ? String(selectedDependsOnIds.size) : null },
     { key: 'incident',     badge: autoIncident.autoIncidentMinutes !== null ? String(autoIncident.autoIncidentMinutes) : null },
   ]
@@ -308,6 +345,9 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
           {sidePanel === 'auth' && <AuthSection auth={auth} onChange={(next) => updateConfig('auth', next)} vaultPicker={vaultPicker} />}
           {sidePanel === 'tags' && <TagsSection tags={tags} allTags={allTags} onChange={setTags} />}
           {sidePanel === 'channels' && <ChannelsSection channels={channels} selected={selectedChannelIds} onChange={setSelectedChannelIds} />}
+          {sidePanel === 'actions' && availableActions !== null && actionLinks !== null && (
+            <ActionsSection actions={availableActions} links={actionLinks} onChange={setActionLinks} />
+          )}
           {sidePanel === 'dependencies' && (
             <DependenciesSection
               monitors={allMonitors.filter((m) => m.id !== monitor?.id)}

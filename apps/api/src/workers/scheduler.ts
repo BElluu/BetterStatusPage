@@ -12,6 +12,7 @@ import { checkMysql } from './mysql.js'
 import { checkMongo } from './mongodb.js'
 import { checkDocker } from './docker.js'
 import { sendNotifications } from './notifier.js'
+import { scheduleActionRuns } from './actionRunner.js'
 import { checkCertificateExpiry } from './certificate.js'
 import { evaluateAlertTransition, isFailureStatus } from '../services/alertThresholds.js'
 import { openIncidentForOutage, resolveIncidentForRecovery } from '../services/autoIncident.js'
@@ -188,6 +189,9 @@ export async function recordObservation(
   if (fire) {
     sendNotifications(monitor, fire.status, fire.previousStatus, result.error).catch((err) =>
       console.error('[notifier] sendNotifications failed:', err),
+    )
+    scheduleActionRuns(monitor, fire.status, fire.previousStatus, result.error).catch((err) =>
+      console.error('[actions] scheduleActionRuns failed:', err),
     )
   }
 

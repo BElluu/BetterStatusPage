@@ -159,9 +159,9 @@ describe('ChannelFormModal', () => {
     await user.type(screen.getByPlaceholderText('Value'), 'Bearer x')
     // A row without a name is ignored.
     await user.click(screen.getByRole('button', { name: 'Add header' }))
-    expect(field<HTMLTextAreaElement>('Body').value).toContain('"monitor": "{{monitor_name}}"')
+    expect(field<HTMLTextAreaElement>('Body (JSON)').value).toContain('"monitor": "{{monitor_name}}"')
     await user.selectOptions(field<HTMLSelectElement>('Method'), 'GET')
-    expect(screen.queryByText('Body', { selector: 'label' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Body (JSON)', { selector: 'label' })).not.toBeInTheDocument()
     await create(user)
 
     expect(submittedBody()['config']).toEqual({
@@ -182,8 +182,8 @@ describe('ChannelFormModal', () => {
     await user.type(field('URL'), 'https://hooks.example.test/alert')
     await user.click(screen.getByRole('button', { name: 'Add header' }))
     await user.click(screen.getAllByRole('button', { name: /^Remove header/ }).at(-1)!)
-    await user.clear(field('Body'))
-    await user.click(field('Body'))
+    await user.clear(field('Body (JSON)'))
+    await user.click(field('Body (JSON)'))
     await user.paste('{"s":"{{status}}"}')
     await create(user)
 

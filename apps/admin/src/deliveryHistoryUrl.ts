@@ -1,4 +1,4 @@
-export type DeliveryHistoryTab = 'notifications' | 'subscribers'
+export type DeliveryHistoryTab = 'notifications' | 'subscribers' | 'actions'
 
 /** Address of one delivery history tab; the subscriber tab can be narrowed to one subscriber. */
 export function deliveryHistoryUrl(tab: DeliveryHistoryTab, subscriberId?: number): string {

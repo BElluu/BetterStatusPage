@@ -134,6 +134,54 @@ CREATE TABLE IF NOT EXISTS notification_delivery_attempts (
 );
 CREATE INDEX IF NOT EXISTS idx_notification_delivery_attempts_delivery ON notification_delivery_attempts(delivery_id, attempt_number);
 
+CREATE TABLE IF NOT EXISTS actions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  config TEXT NOT NULL DEFAULT '{}',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS monitor_actions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  monitor_id INTEGER NOT NULL,
+  action_id INTEGER NOT NULL,
+  on_status TEXT NOT NULL,
+  delay_minutes INTEGER NOT NULL DEFAULT 0,
+  cooldown_minutes INTEGER NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_monitor_actions_link ON monitor_actions(monitor_id, action_id, on_status);
+
+CREATE TABLE IF NOT EXISTS action_failure_channels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  action_id INTEGER NOT NULL,
+  channel_id INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_action_failure_channels_link ON action_failure_channels(action_id, channel_id);
+
+CREATE TABLE IF NOT EXISTS action_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  action_id INTEGER NOT NULL,
+  action_name TEXT NOT NULL,
+  monitor_id INTEGER,
+  monitor_name TEXT NOT NULL,
+  on_status TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  variables TEXT NOT NULL,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL DEFAULT 3,
+  next_attempt_at INTEGER,
+  last_attempt_at INTEGER,
+  completed_at INTEGER,
+  last_error TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_action_runs_status_next ON action_runs(status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_action_runs_monitor ON action_runs(monitor_id, status);
+CREATE INDEX IF NOT EXISTS idx_action_runs_created ON action_runs(created_at);
+
 CREATE TABLE IF NOT EXISTS smtp_settings (
   id INTEGER PRIMARY KEY,
   host TEXT NOT NULL DEFAULT '',
@@ -412,6 +460,7 @@ const columnMigrations: Array<{ sql: string; desc: string }> = [
   // SQLite cannot add a UNIQUE column; existing rows are filled by backfillEntityKeys, which then adds the unique index.
   { sql: `ALTER TABLE monitors ADD COLUMN key TEXT NOT NULL DEFAULT ''`, desc: 'monitors.key' },
   { sql: `ALTER TABLE notification_channels ADD COLUMN key TEXT NOT NULL DEFAULT ''`, desc: 'notification_channels.key' },
+  { sql: `ALTER TABLE actions ADD COLUMN key TEXT NOT NULL DEFAULT ''`, desc: 'actions.key' },
   { sql: `ALTER TABLE monitors ADD COLUMN auto_incident_minutes INTEGER`, desc: 'monitors.auto_incident_minutes' },
   { sql: `ALTER TABLE monitors ADD COLUMN auto_incident_mode TEXT NOT NULL DEFAULT 'draft'`, desc: 'monitors.auto_incident_mode' },
   { sql: `ALTER TABLE monitors ADD COLUMN auto_incident_template_id INTEGER`, desc: 'monitors.auto_incident_template_id' },
@@ -522,8 +571,13 @@ function revokeTemporaryPasswordsOfSsoUsers(): void {
  * order, the same way the API derives it for a new row (`name`, then `name-2`, `name-3`, ...).
  */
 function backfillEntityKeys(): void {
-  runDataMigration('entity-keys-backfill-v1', () => {
-    for (const table of ['monitors', 'notification_channels']) {
+  backfillKeys('entity-keys-backfill-v1', ['monitors', 'notification_channels'])
+  backfillKeys('action-keys-backfill-v1', ['actions'])
+}
+
+function backfillKeys(migration: string, tables: string[]): void {
+  runDataMigration(migration, () => {
+    for (const table of tables) {
       const rows = sqlite.prepare(`SELECT id, name FROM ${table} WHERE key = '' ORDER BY id`).all() as Array<{ id: number; name: string }>
       const taken = new Set((sqlite.prepare(`SELECT key FROM ${table} WHERE key <> ''`).all() as Array<{ key: string }>).map((row) => row.key))
       const assign = sqlite.prepare(`UPDATE ${table} SET key = ? WHERE id = ?`)
@@ -578,5 +632,6 @@ export function runMigrations(): void {
   // After the backfill: before it, every existing row would share the empty default.
   sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_monitors_key ON monitors(key)`)
   sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_channels_key ON notification_channels(key)`)
+  sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_actions_key ON actions(key)`)
   console.log('✓ Migrations applied')
 }

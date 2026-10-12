@@ -5,6 +5,10 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+### Added
+
+- **Actions**: an action sends an HTTP request when a monitor stays down or comes back up, for example to start a failover job in Jenkins. **Alerts → Actions** (administrators) creates actions with a URL, method, headers and a JSON body that accept the same `{{variables}}` as a webhook channel; the **Actions** side tab of a monitor links them to a status with a delay in minutes (a `down` action is dropped if the monitor recovers first) and a cooldown. Runs are retried up to 3 times, survive a restart, and are listed in the run history in **Delivery history → Actions**, where a failed run can be retried by hand. **Run now** shows the HTTP status and the start of the answer. Tokens and passwords are kept in **vault secrets**, any number of them, each under a name and used as `{{secret_<name>}}` (or `{{secret_<name>_basic}}` for a user and password) in the URL, headers or body, so they are never stored with the action or shown in the history; the **Secrets** and **Notify when a run fails** tabs sit at the right edge of the form. Redirects are not followed. The channels chosen under **Notify when a run fails** are told once a run has failed after its last attempt (a new **Action failed** event). Actions are exported and imported as `Action` documents, and a monitor lists them in `actions`. The API gains `/actions` and a new `actions` token permission, and `GET /config/export` leaves actions out for a caller who may not read them. See [Actions](actions.md).
+
 ## [0.3.0] - 2026-10-11
 
 ### Added

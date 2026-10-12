@@ -5,11 +5,11 @@ import { CopyButton } from './CopyButton'
 import { ModalFooter, ModalHeader, ModalShell } from './ModalShell'
 import { ErrorState, LoadingState } from './ui'
 
-type YamlKind = 'Monitor' | 'NotificationChannel'
+type YamlKind = 'Monitor' | 'NotificationChannel' | 'Action'
 
 interface YamlViewModalProps {
   kind: YamlKind
-  /** The key of the monitor or channel. */
+  /** The key of the monitor, channel or action. */
   objectKey: string
   /** What is shown, for the heading: "Public site". */
   title: string

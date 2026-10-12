@@ -1,7 +1,7 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { db } from '../db/client.js'
-import { monitors, notificationChannels, monitorNotificationChannels, smtpSettings, notificationDeliveries, notificationDeliveryAttempts } from '../db/schema.js'
-import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { monitors, notificationChannels, monitorNotificationChannels, actionFailureChannels, smtpSettings, notificationDeliveries, notificationDeliveryAttempts } from '../db/schema.js'
+import { and, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm'
 import { retryNotificationDelivery, testNotificationChannel } from '../workers/notifier.js'
 import { normalizeAlertPolicy, parseAlertPolicy } from '../services/alertPolicy.js'
 import { auditActor, writeAudit, diffObjects, snapshot } from '../services/audit.js'
@@ -15,6 +15,15 @@ import { canonical, VAULT_USE_REFUSED, vaultUseProblem } from '../services/vault
 import { CHANNEL_TYPES, telegramConfigError } from '../services/channelInput.js'
 import type { NotificationChannelType } from '@bsp/shared'
 
+
+/**
+ * The history of a failed action names the action and quotes what its target answered, so it is for those who may read
+ * actions (administrators, or a token with actions:read), not for every operator who may read the delivery history.
+ */
+function mayReadActionEvents(req: FastifyRequest): boolean {
+  const identity = requestIdentity(req)
+  return identity.apiToken ? tokenAllows(identity.apiToken.scopes, 'actions:read') : identity.role === 'admin'
+}
 
 const isConfigObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
 
@@ -31,6 +40,7 @@ export async function notificationRoutes(app: FastifyInstance) {
     if (req.query.eventType) conditions.push(eq(notificationDeliveries.eventType, req.query.eventType))
     if (req.query.from) conditions.push(gte(notificationDeliveries.createdAt, Number(req.query.from)))
     if (req.query.to) conditions.push(lte(notificationDeliveries.createdAt, Number(req.query.to)))
+    if (!mayReadActionEvents(req)) conditions.push(ne(notificationDeliveries.eventType, 'action'))
     const where = conditions.length ? and(...conditions) : undefined
     const [deliveries, count] = await Promise.all([
       db.select({
@@ -54,7 +64,7 @@ export async function notificationRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>('/deliveries/:id', async (req, reply) => {
     const id = Number(req.params.id)
     const delivery = (await db.select().from(notificationDeliveries).where(eq(notificationDeliveries.id, id)))[0]
-    if (!delivery) return reply.code(404).send({ error: 'Delivery not found' })
+    if (!delivery || (delivery.eventType === 'action' && !mayReadActionEvents(req))) return reply.code(404).send({ error: 'Delivery not found' })
     const attempts = await db.select().from(notificationDeliveryAttempts)
       .where(eq(notificationDeliveryAttempts.deliveryId, id)).orderBy(desc(notificationDeliveryAttempts.attemptNumber))
     return { ...delivery, variables: undefined, attempts }
@@ -63,7 +73,7 @@ export async function notificationRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string } }>('/deliveries/:id/retry', async (req, reply) => {
     const id = Number(req.params.id)
     const existing = (await db.select().from(notificationDeliveries).where(eq(notificationDeliveries.id, id)))[0]
-    if (!existing) return reply.code(404).send({ error: 'Delivery not found' })
+    if (!existing || (existing.eventType === 'action' && !mayReadActionEvents(req))) return reply.code(404).send({ error: 'Delivery not found' })
     if (existing.status !== 'failed') return reply.code(409).send({ error: 'Only failed deliveries can be retried' })
     await retryNotificationDelivery(id)
     const actor = requestIdentity(req)
@@ -205,6 +215,7 @@ export async function notificationRoutes(app: FastifyInstance) {
     const id = Number(req.params.id)
     const existing = (await db.select().from(notificationChannels).where(eq(notificationChannels.id, id)))[0]
     await db.delete(monitorNotificationChannels).where(eq(monitorNotificationChannels.channelId, id))
+    await db.delete(actionFailureChannels).where(eq(actionFailureChannels.channelId, id))
     await db.delete(notificationChannels).where(eq(notificationChannels.id, id))
     if (existing) {
       const actor = requestIdentity(req)

@@ -69,6 +69,7 @@ The side tabs of the form hold the rest:
 | **Request** | HTTPS | Custom headers and request body |
 | **Tags** | All | Coloured labels |
 | **Alerts** | All | The [notification channels](notification-channels.md) this monitor alerts on |
+| **Actions** | All, administrators only | The [actions](actions.md) this monitor runs when it stays down or comes back up |
 | **Depends on** | All | [Dependencies](#dependencies) |
 | **Incident** | All | [Automatic incidents](incidents-and-maintenance.md#automatic-incidents) |
 

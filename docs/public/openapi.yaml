@@ -44,6 +44,7 @@ tags:
   - name: Incidents
   - name: Maintenance
   - name: Notification channels
+  - name: Actions
   - name: Layout
   - name: Configuration
 
@@ -654,10 +655,10 @@ paths:
   /config/export:
     get:
       tags: [Configuration]
-      summary: Export monitors and notification channels as documents
+      summary: Export monitors, notification channels and actions as documents
       description: |
-        Every object is a document with a `kind` (`Monitor` or `NotificationChannel`). Monitors
-        and channels are identified by `key`, a monitor lists the keys of its channels and dependencies. Known secret fields are written as `••••••••` and vault secrets by the
+        Every object is a document with a `kind` (`Monitor`, `NotificationChannel` or `Action`). Objects
+        are identified by `key`, a monitor lists the keys of its channels, dependencies and actions. Known secret fields are written as `••••••••` and vault secrets by the
         names of the vault and the secret. Runtime state (status, last check, heartbeat token) is not included. The
         output is the same for the same data, so it diffs well in version control.
 
@@ -666,7 +667,8 @@ paths:
         YAML 1.1 and 1.2 parsers read the same values (`"22:00"` and `"yes"` are quoted).
 
         Needs the read permission for every kind it returns: `monitors` and `channels`, or the one of
-        the requested kind.
+        the requested kind. Actions are in a full export, and in the `actions` list of each monitor, only for
+        a caller who may read them (`actions:read`, or an administrator); for anyone else they are left out.
       x-scope: per document kind
       parameters:
         - name: kind
@@ -675,7 +677,7 @@ paths:
           schema: { $ref: '#/components/schemas/ConfigKind' }
         - name: key
           in: query
-          description: The key of the monitor or channel. Required with `kind` Monitor or NotificationChannel.
+          description: The key of the monitor, channel or action. Required with `kind`.
           schema: { $ref: '#/components/schemas/Key' }
       responses:
         '200':
@@ -775,6 +777,213 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+
+  /actions:
+    get:
+      tags: [Actions]
+      summary: List actions
+      x-scope: actions:read
+      responses:
+        '200':
+          description: Every action, with credential headers masked.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Action' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Actions]
+      summary: Create an action
+      x-scope: actions:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActionCreate' }
+      responses:
+        '200':
+          description: The created action.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Action' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /actions/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      tags: [Actions]
+      summary: Get an action
+      x-scope: actions:read
+      responses:
+        '200':
+          description: The action, with credential headers masked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Action' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Actions]
+      summary: Update an action
+      description: Only the fields you send change. `config` replaces the whole configuration; a masked header value keeps the stored one unless the URL changes.
+      x-scope: actions:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActionUpdate' }
+      responses:
+        '200':
+          description: The updated action.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Action' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Actions]
+      summary: Delete an action
+      x-scope: actions:write
+      responses:
+        '204': { description: Deleted, unlinked from every monitor, and its waiting runs cancelled. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /actions/{id}/test:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      tags: [Actions]
+      summary: Send a saved action once, with sample values
+      description: This is the real request, so whatever it triggers starts. The answer says what the target replied, with any vault secret removed.
+      x-scope: actions:write
+      responses:
+        '200':
+          description: The request was answered with a success status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  status: { type: integer, description: The HTTP status of the answer. }
+                  snippet: { type: string, description: The start of the answer on one line, at most 500 characters. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422':
+          description: The request failed. `status` and `snippet` are there when the target answered.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  status: { type: integer }
+                  snippet: { type: string }
+  /actions/runs/{id}/retry:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      tags: [Actions]
+      summary: Retry a failed action run
+      description: Gives the run another round of attempts and tries it at once. The usual checks apply, so a run whose monitor has recovered, that lies in a maintenance window or whose link is gone comes back `cancelled` with the reason in `lastError`.
+      x-scope: actions:write
+      responses:
+        '200':
+          description: The run after the attempt.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActionRun' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The run did not fail, so there is nothing to retry.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /actions/runs:
+    get:
+      tags: [Actions]
+      summary: List action runs
+      x-scope: actions:read
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: status, in: query, schema: { type: string, enum: [pending, succeeded, failed, cancelled] } }
+        - { name: actionId, in: query, schema: { type: integer } }
+        - { name: monitorId, in: query, schema: { type: integer } }
+        - { name: from, in: query, description: Earliest creation time in milliseconds since the epoch., schema: { type: integer } }
+        - { name: to, in: query, description: Latest creation time in milliseconds since the epoch., schema: { type: integer } }
+      responses:
+        '200':
+          description: One page of runs, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runs:
+                    type: array
+                    items: { $ref: '#/components/schemas/ActionRun' }
+                  total: { type: integer }
+                  page: { type: integer }
+                  limit: { type: integer }
+                  pages: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /actions/monitor/{monitorId}:
+    parameters:
+      - { name: monitorId, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [Actions]
+      summary: List the actions linked to a monitor
+      x-scope: actions:read
+      responses:
+        '200':
+          description: The links of the monitor.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MonitorAction' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    put:
+      tags: [Actions]
+      summary: Replace the actions linked to a monitor
+      description: The list replaces every existing link. An action can be linked once per status. Runs that wait for a link that is gone are cancelled.
+      x-scope: actions:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [actions]
+              properties:
+                actions:
+                  type: array
+                  items: { $ref: '#/components/schemas/MonitorAction' }
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /layout:
     get:
@@ -1232,6 +1441,90 @@ components:
         botToken: { type: string, description: '`telegram`: the bot token (or use `vault`).' }
         chatId: { type: string, description: '`telegram`: the chat that receives the messages.' }
         vault: { $ref: '#/components/schemas/VaultRef' }
+    ActionHttpConfig:
+      type: object
+      required: [url, method]
+      properties:
+        url: { type: string, description: 'Starts with http:// or https://. May contain {{variables}}.' }
+        method: { type: string, enum: [GET, POST, PUT, PATCH] }
+        headers:
+          type: object
+          additionalProperties: { type: string }
+          description: Values of headers that look like credentials are masked on read.
+        body: { type: string, description: 'JSON, with {{variables}} inside string values. Not allowed with GET.' }
+        secrets:
+          type: array
+          maxItems: 10
+          description: |
+            Vault secrets the request reads, each under a `name` of letters and digits, used through placeholders in the
+            URL, a header value or the body: `{{secret_<name>}}` for a Secure Value, `{{secret_<name>_username}}`,
+            `{{secret_<name>_password}}` and `{{secret_<name>_basic}}` (Base64 of `user:password`) for a User / Password
+            secret, `{{secret_<name>_<key>}}` for each key of a JSON secret. Every secret needs a placeholder and every
+            placeholder a secret. A placeholder cannot be part of the host of the URL.
+          items:
+            type: object
+            required: [name, vault]
+            properties:
+              name: { type: string, pattern: '^[A-Za-z][A-Za-z0-9]{0,23}$' }
+              vault:
+                type: object
+                required: [vaultId, secretId]
+                properties:
+                  vaultId: { type: integer }
+                  secretId: { type: integer }
+    Action:
+      type: object
+      properties:
+        id: { type: integer }
+        key: { $ref: '#/components/schemas/Key' }
+        name: { type: string }
+        config: { $ref: '#/components/schemas/ActionHttpConfig' }
+        enabled: { type: integer, enum: [0, 1] }
+        failureChannelIds: { type: array, items: { type: integer }, description: The notification channels told once a run has failed after its last attempt. }
+        createdAt: { type: integer }
+        updatedAt: { type: integer }
+    ActionCreate:
+      type: object
+      required: [name, config]
+      properties:
+        name: { type: string }
+        key: { $ref: '#/components/schemas/Key' }
+        failureChannelIds: { type: array, items: { type: integer }, description: Needs the "channels:write" permission for a token. }
+        config: { $ref: '#/components/schemas/ActionHttpConfig' }
+        enabled: { type: integer, enum: [0, 1] }
+    ActionUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        failureChannelIds: { type: array, items: { type: integer }, description: Replaces the list. Needs the "channels:write" permission for a token. }
+        config: { $ref: '#/components/schemas/ActionHttpConfig' }
+        enabled: { type: integer, enum: [0, 1] }
+    MonitorAction:
+      type: object
+      required: [actionId, onStatus]
+      properties:
+        actionId: { type: integer }
+        onStatus: { type: string, enum: [down, up] }
+        delayMinutes: { type: integer, minimum: 0, maximum: 10080, default: 0, description: How long the monitor must stay in the status before the action runs. }
+        cooldownMinutes: { type: integer, minimum: 0, maximum: 10080, default: 0, description: The action does not run again for this monitor and status within this many minutes. }
+    ActionRun:
+      type: object
+      properties:
+        id: { type: integer }
+        actionId: { type: integer }
+        actionName: { type: string }
+        monitorId: { type: [integer, 'null'] }
+        monitorName: { type: string }
+        onStatus: { type: string, enum: [down, up] }
+        status: { type: string, enum: [pending, succeeded, failed, cancelled] }
+        attemptCount: { type: integer }
+        maxAttempts: { type: integer }
+        nextAttemptAt: { type: [integer, 'null'] }
+        lastAttemptAt: { type: [integer, 'null'] }
+        completedAt: { type: [integer, 'null'] }
+        lastError: { type: [string, 'null'] }
+        createdAt: { type: integer }
+        updatedAt: { type: integer }
     NotificationChannel:
       type: object
       properties:
@@ -1293,7 +1586,7 @@ components:
           additionalProperties: { type: string }
     ConfigKind:
       type: string
-      enum: [Monitor, NotificationChannel]
+      enum: [Monitor, NotificationChannel, Action]
     ConfigChannel:
       type: object
       description: The export writes every field. A document that is imported needs only `kind`, `key`, `name` and `type`; the rest take their defaults.

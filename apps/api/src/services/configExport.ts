@@ -1,6 +1,6 @@
 import { db } from '../db/client.js'
 import {
-  incidentTemplates, monitorDependencies, monitorNotificationChannels, monitors, notificationChannels, vaultSecrets, vaults,
+  actionFailureChannels, actions, incidentTemplates, monitorActions, monitorDependencies, monitorNotificationChannels, monitors, notificationChannels, vaultSecrets, vaults,
 } from '../db/schema.js'
 import { parseAlertPolicy } from './alertPolicy.js'
 import { maskSecrets } from './secretFields.js'
@@ -19,6 +19,17 @@ interface ChannelDocument {
   alertPolicy: unknown
 }
 
+interface ActionDocument {
+  kind: 'Action'
+  key: string
+  name: string
+  enabled: boolean
+  /** The request, with credential headers masked and the vault secret named instead of numbered. */
+  config: Record<string, unknown>
+  /** Keys of the notification channels told when a run of this action fails. */
+  failureNotifications: string[]
+}
+
 interface MonitorDocument {
   kind: 'Monitor'
   key: string
@@ -35,11 +46,13 @@ interface MonitorDocument {
   notifications: string[]
   /** Keys of the monitors this one depends on. */
   dependsOn: string[]
+  /** The actions it runs; left out for a reader who may not see actions. */
+  actions?: Array<{ action: string; onStatus: string; delayMinutes: number; cooldownMinutes: number }>
   /** Present only when automatic incidents are on; `template` is the template's name, left out for the default one. */
   autoIncident?: { afterMinutes: number; mode: string; template?: string }
 }
 
-export type ConfigDocument = ChannelDocument | MonitorDocument
+export type ConfigDocument = ChannelDocument | ActionDocument | MonitorDocument
 
 /** The file would refer to something it cannot name unambiguously, so it could not be read back. */
 export class ConfigExportError extends Error {}
@@ -93,21 +106,26 @@ function exportVaultRefs(value: unknown, names: VaultNames): unknown {
 }
 
 /**
- * The notification channels and monitors as documents that do not depend on this installation's
- * numeric ids, in a fixed order: channels, then monitors (each sorted by key). Secrets are masked
+ * The notification channels, actions and monitors as documents that do not depend on this installation's
+ * numeric ids, in a fixed order: channels, actions, then monitors (each sorted by key). Secrets are masked
  * exactly as the API masks them, and runtime state (current status, last check, heartbeat token) is left out.
  */
-export async function buildConfigDocuments(only?: { kind: ConfigDocument['kind']; key: string }): Promise<ConfigDocument[]> {
-  const [monitorRows, channelRows, dependencyRows, linkRows, templateRows, names] = await Promise.all([
+export async function buildConfigDocuments(only?: { kind: ConfigDocument['kind']; key: string }, options: { includeActions?: boolean } = {}): Promise<ConfigDocument[]> {
+  const includeActions = options.includeActions ?? true
+  const [monitorRows, channelRows, dependencyRows, linkRows, templateRows, names, actionRows, actionLinkRows, failureRows] = await Promise.all([
     db.select().from(monitors),
     db.select().from(notificationChannels),
     db.select().from(monitorDependencies),
     db.select().from(monitorNotificationChannels),
     db.select({ id: incidentTemplates.id, name: incidentTemplates.name }).from(incidentTemplates),
     loadVaultNames(),
+    includeActions ? db.select().from(actions) : Promise.resolve([]),
+    includeActions ? db.select().from(monitorActions) : Promise.resolve([]),
+    includeActions ? db.select().from(actionFailureChannels) : Promise.resolve([]),
   ])
   const monitorKey = new Map(monitorRows.map((row) => [row.id, row.key]))
   const channelKey = new Map(channelRows.map((row) => [row.id, row.key]))
+  const actionKey = new Map(actionRows.map((row) => [row.id, row.key]))
   const templateName = new Map(templateRows.map((row) => [row.id, row.name]))
   const keysOf = (ids: number[], lookup: Map<number, string>) => ids.flatMap((id) => lookup.get(id) ?? []).sort()
 
@@ -125,6 +143,15 @@ export async function buildConfigDocuments(only?: { kind: ConfigDocument['kind']
     alertPolicy: parseAlertPolicy(row.alertPolicy),
   })).sort(byKey)
 
+  const actionDocuments: ActionDocument[] = wanted(actionRows, 'Action').map((row) => ({
+    kind: 'Action' as const,
+    key: row.key,
+    name: row.name,
+    enabled: row.enabled === 1,
+    config: exportVaultRefs(maskSecrets('channel', JSON.parse(row.config)), names) as Json,
+    failureNotifications: keysOf(failureRows.filter((link) => link.actionId === row.id).map((link) => link.channelId), channelKey),
+  })).sort(byKey)
+
   const monitorDocuments: MonitorDocument[] = wanted(monitorRows, 'Monitor').map((row) => ({
     kind: 'Monitor' as const,
     key: row.key,
@@ -139,6 +166,12 @@ export async function buildConfigDocuments(only?: { kind: ConfigDocument['kind']
     tags: JSON.parse(row.tags ?? '[]'),
     notifications: keysOf(linkRows.filter((link) => link.monitorId === row.id).map((link) => link.channelId), channelKey),
     dependsOn: keysOf(dependencyRows.filter((dependency) => dependency.dependentId === row.id).map((dependency) => dependency.dependsOnId), monitorKey),
+    ...(includeActions ? {
+      actions: actionLinkRows.filter((link) => link.monitorId === row.id).flatMap((link) => {
+        const action = actionKey.get(link.actionId)
+        return action ? [{ action, onStatus: link.onStatus, delayMinutes: link.delayMinutes, cooldownMinutes: link.cooldownMinutes }] : []
+      }).sort((a, b) => `${a.action}:${a.onStatus}` < `${b.action}:${b.onStatus}` ? -1 : 1),
+    } : {}),
     ...(row.autoIncidentMinutes === null ? {} : {
       autoIncident: {
         afterMinutes: row.autoIncidentMinutes,
@@ -148,7 +181,7 @@ export async function buildConfigDocuments(only?: { kind: ConfigDocument['kind']
     }),
   })).sort(byKey)
 
-  return [...channelDocuments, ...monitorDocuments]
+  return [...channelDocuments, ...actionDocuments, ...monitorDocuments]
 }
 
 /** The one document of a kind and key, or undefined when there is none. */

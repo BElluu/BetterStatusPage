@@ -1,5 +1,5 @@
 import { db } from '../db/client.js'
-import { monitors, notificationChannels, monitorNotificationChannels, smtpSettings, notificationDeliveries, notificationDeliveryAttempts } from '../db/schema.js'
+import { monitors, notificationChannels, monitorNotificationChannels, actionFailureChannels, smtpSettings, notificationDeliveries, notificationDeliveryAttempts } from '../db/schema.js'
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, like, lt, lte, ne, sql } from 'drizzle-orm'
 import { resolveVaultSecret } from './resolveSecret.js'
 import { isWithinQuietHours, parseAlertPolicy, quietHoursEndAt } from '../services/alertPolicy.js'
@@ -17,8 +17,8 @@ function escapeJsonString(value: string): string {
   return JSON.stringify(value).slice(1, -1)
 }
 
-const MAX_DELIVERY_ATTEMPTS = 3
-const RETRY_DELAYS_MS = [60_000, 5 * 60_000]
+export const MAX_DELIVERY_ATTEMPTS = 3
+export const RETRY_DELAYS_MS = [60_000, 5 * 60_000]
 const activeDeliveries = new Set<number>()
 
 type ChannelRow = typeof notificationChannels.$inferSelect
@@ -186,7 +186,7 @@ async function planDelivery(
   }
 
   let groupKey: string | null = null
-  if (policy.grouping.enabled) {
+  if (policy.grouping.enabled && details.eventType !== 'action') {
     if (quietUntil !== null) {
       // Everything held for the same quiet window is released at once — digest it as one message.
       groupKey = `ch${channel.id}:${details.eventType}:q${quietUntil}`
@@ -444,6 +444,38 @@ export async function sendCertificateNotifications(monitor: typeof monitors.$inf
   }
 }
 
+/**
+ * Tells the channels chosen for an action that one of its runs failed for good. The message carries the redacted
+ * error of the last attempt and never the request, so no secret of the action reaches the delivery history.
+ */
+export async function sendActionFailureNotifications(
+  run: { actionId: number; actionName: string; monitorId: number | null; monitorName: string; onStatus: string; attemptCount: number },
+  errorMessage: string,
+): Promise<void> {
+  const links = await db.select().from(actionFailureChannels).where(eq(actionFailureChannels.actionId, run.actionId))
+  if (links.length === 0) return
+  const channels = await db.select().from(notificationChannels).where(inArray(notificationChannels.id, links.map((l) => l.channelId)))
+  const monitor = run.monitorId === null ? undefined : (await db.select({ type: monitors.type }).from(monitors).where(eq(monitors.id, run.monitorId)))[0]
+  const vars: Record<string, string> = {
+    monitor_name: run.monitorName,
+    monitor_type: monitor?.type ?? 'unknown',
+    status: 'action-failed',
+    previous_status: run.onStatus,
+    error_message: errorMessage,
+    checked_at: new Date().toISOString(),
+    event_type: 'action',
+    action_name: run.actionName,
+    trigger_status: run.onStatus,
+    attempts: String(run.attemptCount),
+    monitor_list: run.monitorName,
+    affected_count: '1',
+  }
+  for (const channel of channels) {
+    if (channel.enabled !== 1) continue
+    await dispatchToChannel(channel, vars, { monitorId: run.monitorId, monitorName: run.monitorName, eventType: 'action' })
+  }
+}
+
 async function linkedChannels(monitorId: number): Promise<ChannelRow[]> {
   const links = await db.select().from(monitorNotificationChannels)
     .where(eq(monitorNotificationChannels.monitorId, monitorId))
@@ -553,10 +585,11 @@ function postWebhookJson(url: string, payload: unknown, label: string): Promise<
   }, `${label} webhook returned HTTP`)
 }
 
-async function sendWebhook(
+/** The request a webhook configuration describes once its {{variables}} are filled in. */
+export function buildWebhookRequest(
   config: { url: string; method: string; headers?: Record<string, string>; body?: string },
   vars: Record<string, string>,
-) {
+): { url: string; init: { method: string; headers: Record<string, string>; body?: string } } {
   const url = substituteVars(config.url, vars)
   const body = config.body ? substituteVars(config.body, vars, escapeJsonString) : undefined
 
@@ -567,7 +600,15 @@ async function sendWebhook(
     }
   }
 
-  await sendHttp(url, { method: config.method ?? 'POST', headers, ...(body !== undefined ? { body } : {}) }, 'HTTP')
+  return { url, init: { method: config.method ?? 'POST', headers, ...(body !== undefined ? { body } : {}) } }
+}
+
+export async function sendWebhook(
+  config: { url: string; method: string; headers?: Record<string, string>; body?: string },
+  vars: Record<string, string>,
+) {
+  const { url, init } = buildWebhookRequest(config, vars)
+  await sendHttp(url, init, 'HTTP')
 }
 
 type Severity = 'down' | 'degraded' | 'up'
@@ -586,8 +627,20 @@ function detailLabel(vars: Record<string, string>): string {
   return vars['event_type'] === 'certificate' ? 'Details' : 'Error'
 }
 
-/** Headline of a certificate event; null for status events, which each channel words itself. */
-function certificateHeadline(vars: Record<string, string>, strong: (text: string) => string): string | null {
+/** The facts of an action failure, which the rich channels show in place of status and previous status; null for other events. */
+function actionFacts(vars: Record<string, string>): [string, string][] | null {
+  if (vars['event_type'] !== 'action') return null
+  return [
+    ['Action', vars['action_name'] ?? 'unknown'],
+    ['Monitor', vars['monitor_name'] ?? 'Unknown monitor'],
+    ['Triggered when', vars['trigger_status'] === 'up' ? 'monitor was back up' : 'monitor was down'],
+    ['Attempts', vars['attempts'] ?? ''],
+  ]
+}
+
+/** Headline of a certificate or action event; null for status events, which each channel words itself. */
+function eventHeadline(vars: Record<string, string>, strong: (text: string) => string): string | null {
+  if (vars['event_type'] === 'action') return `Action ${strong(vars['action_name'] ?? 'unknown')} failed for monitor ${strong(vars['monitor_name'] ?? 'Unknown monitor')}`
   if (vars['event_type'] !== 'certificate') return null
   const name = strong(vars['monitor_name'] ?? 'Unknown monitor')
   if (vars['status'] === 'cert-renewed') return `TLS certificate of ${name} was renewed`
@@ -607,12 +660,14 @@ async function sendDiscord(
   const color = DISCORD_COLORS[severityOf(status)]
 
   const embed = {
-    title: certificateHeadline(vars, (text) => `\`${text}\``) ?? `Monitor \`${vars['monitor_name']}\` is **${status.toUpperCase()}**`,
+    title: eventHeadline(vars, (text) => `\`${text}\``) ?? `Monitor \`${vars['monitor_name']}\` is **${status.toUpperCase()}**`,
     color,
     fields: [
-      { name: 'Status', value: vars['status'], inline: true },
-      { name: 'Previous', value: vars['previous_status'], inline: true },
-      { name: 'Type', value: vars['monitor_type'], inline: true },
+      ...(actionFacts(vars)?.map(([name, value]) => ({ name, value, inline: true })) ?? [
+        { name: 'Status', value: vars['status'], inline: true },
+        { name: 'Previous', value: vars['previous_status'], inline: true },
+        { name: 'Type', value: vars['monitor_type'], inline: true },
+      ]),
       ...(vars['error_message'] ? [{ name: detailLabel(vars), value: vars['error_message'], inline: false }] : []),
     ],
     footer: { text: `Checked at ${vars['checked_at']}` },
@@ -644,12 +699,14 @@ async function sendTeams(
 
   const summary = config.summary
     ? substituteVars(config.summary, vars)
-    : certificateHeadline(vars, (text) => text) ?? `Monitor ${monitorName} is ${statusText.toUpperCase()}`
+    : eventHeadline(vars, (text) => text) ?? `Monitor ${monitorName} is ${statusText.toUpperCase()}`
 
   const facts: { name: string; value: string }[] = [
-    { name: 'Status', value: statusText },
-    { name: 'Previous status', value: previousStatus },
-    { name: 'Monitor type', value: monitorType },
+    ...(actionFacts(vars)?.map(([name, value]) => ({ name, value })) ?? [
+      { name: 'Status', value: statusText },
+      { name: 'Previous status', value: previousStatus },
+      { name: 'Monitor type', value: monitorType },
+    ]),
     ...(vars['error_message'] ? [{ name: detailLabel(vars), value: vars['error_message'] }] : []),
     { name: 'Checked at', value: checkedAt },
   ]
@@ -660,8 +717,8 @@ async function sendTeams(
     themeColor,
     summary,
     sections: [{
-      activityTitle: `${statusEmoji} ${certificateHeadline(vars, (text) => `**${text}**`) ?? `**${monitorName}** is **${statusText.toUpperCase()}**`}`,
-      activitySubtitle: `Previously: **${previousStatus}**`,
+      activityTitle: `${statusEmoji} ${eventHeadline(vars, (text) => `**${text}**`) ?? `**${monitorName}** is **${statusText.toUpperCase()}**`}`,
+      activitySubtitle: vars['event_type'] === 'action' ? 'Action failed after its last attempt' : `Previously: **${previousStatus}**`,
       facts,
       markdown: true,
     }],
@@ -682,13 +739,15 @@ async function sendSlack(
   const color = SLACK_COLORS[severity]
   const statusEmoji = SEVERITY_EMOJI[severity]
 
-  const headline = certificateHeadline(vars, (text) => `*${text}*`) ?? `Monitor *${monitorName}* is *${statusText.toUpperCase()}*`
+  const headline = eventHeadline(vars, (text) => `*${text}*`) ?? `Monitor *${monitorName}* is *${statusText.toUpperCase()}*`
   const fallbackText = `${statusEmoji} ${headline}`
 
   const fields = [
-    { type: 'mrkdwn', text: `*Status:*\n${vars['status']}` },
-    { type: 'mrkdwn', text: `*Previous:*\n${vars['previous_status']}` },
-    { type: 'mrkdwn', text: `*Type:*\n${vars['monitor_type']}` },
+    ...(actionFacts(vars)?.map(([name, value]) => ({ type: 'mrkdwn', text: `*${name}:*\n${value}` })) ?? [
+      { type: 'mrkdwn', text: `*Status:*\n${vars['status']}` },
+      { type: 'mrkdwn', text: `*Previous:*\n${vars['previous_status']}` },
+      { type: 'mrkdwn', text: `*Type:*\n${vars['monitor_type']}` },
+    ]),
     ...(vars['error_message'] ? [{ type: 'mrkdwn', text: `*${detailLabel(vars)}:*\n${vars['error_message']}` }] : []),
   ]
 
@@ -747,7 +806,7 @@ async function sendTelegram(config: TelegramConfig, vars: Record<string, string>
   const monitorName = vars['monitor_name'] ?? 'Unknown monitor'
   const emoji = SEVERITY_EMOJI[severityOf(statusText)]
 
-  const headline = certificateHeadline(vars, (text) => `<b>${escapeHtml(text)}</b>`)
+  const headline = eventHeadline(vars, (text) => `<b>${escapeHtml(text)}</b>`)
     ?? `Monitor <b>${escapeHtml(monitorName)}</b> is <b>${escapeHtml(statusText.toUpperCase())}</b>`
 
   const detail = vars['error_message'] ? escapeHtml(vars['error_message']) : ''
@@ -755,9 +814,11 @@ async function sendTelegram(config: TelegramConfig, vars: Record<string, string>
     ...(config.text ? [escapeHtml(Array.from(substituteVars(config.text, vars)).slice(0, TELEGRAM_MAX_TEXT_LINE).join(''))] : []),
     `${emoji} ${headline}`,
     '',
-    `<b>Status:</b> ${escapeHtml(statusText)}`,
-    `<b>Previous:</b> ${escapeHtml(vars['previous_status'] ?? 'unknown')}`,
-    `<b>Type:</b> ${escapeHtml(vars['monitor_type'] ?? 'unknown')}`,
+    ...(actionFacts(vars)?.map(([name, value]) => `<b>${name}:</b> ${escapeHtml(value)}`) ?? [
+      `<b>Status:</b> ${escapeHtml(statusText)}`,
+      `<b>Previous:</b> ${escapeHtml(vars['previous_status'] ?? 'unknown')}`,
+      `<b>Type:</b> ${escapeHtml(vars['monitor_type'] ?? 'unknown')}`,
+    ]),
     ...(detailText ? [`<b>${detailLabel(vars)}:</b> ${detailText}`] : []),
     `<i>Checked at ${escapeHtml(readableTimestamp(vars['checked_at']))}</i>`,
   ].join('\n')

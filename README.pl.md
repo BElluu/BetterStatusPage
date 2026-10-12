@@ -117,6 +117,19 @@ Wszystko, co zatrzymają reguły, i tak trafia do historii dostarczeń wraz z po
 
 > Zobacz **[docs.betterstatuspage.dev/alert-hygiene](https://docs.betterstatuspage.dev/alert-hygiene/)** — jak reguły się łączą, jak dobrać wartości i jak wygląda API *(EN)*.
 
+### 🎬 Akcje — zrób coś, gdy monitor zmieni stan
+
+Powiadomienie informuje ludzi. **Akcja** coś zmienia: wysyła żądanie HTTP, gdy monitor pozostaje niedostępny przez ustalony czas albo wraca do działania. Uruchom przez zadanie Jenkinsa serwer zapasowy, gdy główny nie działa od pięciu minut, i wyłącz go, gdy główny wróci.
+
+- **Per monitor i per status** — powiąż akcję z monitorem dla `down` albo ponownego `up`, z **opóźnieniem** (akcja `down` jest porzucana, jeśli monitor wróci wcześniej) i **cooldownem**, żeby migający check nie uruchamiał jej w kółko.
+- **Sekrety zostają w vaulcie** — token lub hasło jest czytane z sekretu [vaulta](#-sejf-na-twoje-sekrety) w chwili wysyłki (`Authorization: Basic {{secret_jenkins_basic}}`), w dowolnej liczbie, i nigdy nie trafia do zapisu akcji ani do historii uruchomień.
+- **Ponowienia i historia** — nieudane żądanie jest próbowane do 3 razy, uruchomienia przeżywają restart, a każde jest na liście w **Delivery history → Actions**, gdzie nieudane można ponowić ręcznie.
+- **Informacja o porażce** — wybierasz kanały powiadomień, które mają się dowiedzieć o uruchomieniu nieudanym po ostatniej próbie.
+- **Test naprawdę** — **Run now** wysyła żądanie i pokazuje status HTTP oraz początek odpowiedzi.
+- **Jako kod** — akcje są eksportowane i importowane jako YAML, razem z monitorami i kanałami.
+
+Akcjami zarządzają tylko administratorzy. Zobacz **[docs.betterstatuspage.dev/actions](https://docs.betterstatuspage.dev/actions/)** *(EN)*.
+
 ### 🔐 Sejf na Twoje sekrety
 
 Trzymanie haseł w zmiennych środowiskowych jest w porządku — do czasu. BetterStatusPage ma wbudowany **sejf szyfrowany AES-256-GCM**, w którym możesz przechowywać dane uwierzytelniające i odwoływać się do nich w monitorach i ustawieniach SMTP. Obsługiwane typy:
@@ -493,7 +506,7 @@ Skrypty i CI/CD mogą wywoływać API administratora z tokenem utworzonym w **Ad
 
 ### Konfiguracja jako kod
 
-Każdy monitor i kanał powiadomień można zapisać jako dokument YAML z polem `kind`, identyfikowany kluczem zamiast numerycznego id i z zamaskowanymi znanymi polami sekretów, do wersjonowania i przeglądu. Przycisk **YAML** przy monitorze i kanale pokazuje dany obiekt, a **Import** w lewym menu (oraz API) tworzy lub aktualizuje obiekty z wklejonych lub wgranych dokumentów, z podglądem zmian przed zapisem. Dokumenty są sprawdzane w całości, stosowane w jednej transakcji, a ponowne zastosowanie ich niczego nie zmienia. Import niczego nie usuwa.
+Każdy monitor, kanał powiadomień i akcję można zapisać jako dokument YAML z polem `kind`, identyfikowany kluczem zamiast numerycznego id i z zamaskowanymi znanymi polami sekretów, do wersjonowania i przeglądu. Przycisk **YAML** przy monitorze, kanale i akcji pokazuje dany obiekt, a **Import** w lewym menu (oraz API) tworzy lub aktualizuje obiekty z wklejonych lub wgranych dokumentów, z podglądem zmian przed zapisem. Dokumenty są sprawdzane w całości, stosowane w jednej transakcji, a ponowne zastosowanie ich niczego nie zmienia. Import niczego nie usuwa.
 
 > Format i zakres opisuje **[docs.betterstatuspage.dev/configuration-as-code](https://docs.betterstatuspage.dev/configuration-as-code/)** *(EN)*.
 

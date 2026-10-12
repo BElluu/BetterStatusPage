@@ -10,6 +10,7 @@ import NotificationsPage from './Notifications'
 
 vi.mock('../api/client', () => ({
   api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
+  getCurrentUser: () => ({ userId: 1, email: 'op@example.test', role: 'operator' }),
 }))
 
 // The channel form has its own tests; here it only needs to prove the page opens it with the right channel.

@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm'
-import { tokenAllows, type AutoIncidentMode, type ChannelAlertPolicy, type NotificationChannelType } from '@bsp/shared'
+import { ACTION_TRIGGER_STATUSES, tokenAllows, type ActionTriggerStatus, type AutoIncidentMode, type ChannelAlertPolicy, type NotificationChannelType } from '@bsp/shared'
 import { db } from '../db/client.js'
 import { withImmediateTransaction } from '../db/transaction.js'
 import {
-  incidentTemplates, monitorDependencies, monitorNotificationChannels, monitors, notificationChannels, vaultSecrets, vaults,
+  actionFailureChannels, actions, incidentTemplates, monitorActions, monitorDependencies, monitorNotificationChannels, monitors, notificationChannels, vaultSecrets, vaults,
 } from '../db/schema.js'
 import { clip, nestedDeeperThan } from '../lib/clip.js'
 import { isValidEntityKey, ENTITY_KEY_ERROR } from '../lib/entityKey.js'
@@ -14,6 +14,8 @@ import { AUTO_INCIDENT_MINUTES_RANGE, certResetsFor, generateWebhookToken, parse
 import { refreshPublishedMonitorIds } from './publishedMonitors.js'
 import { restoreSecrets } from './secretFields.js'
 import { vaultUseProblem } from './vaultUse.js'
+import { actionConfigError, actionSecretTypeProblem } from './actionInput.js'
+import { cancelUnlinkedRuns } from '../workers/actionRunner.js'
 
 interface ConfigProblem { path: string; message: string }
 
@@ -25,14 +27,14 @@ export class ConfigInvalidError extends Error {
 }
 
 /** What a document describes. A file is a stream of documents, each with a `kind`. */
-export const DOCUMENT_KINDS = ['Monitor', 'NotificationChannel'] as const
+export const DOCUMENT_KINDS = ['Monitor', 'NotificationChannel', 'Action'] as const
 export type DocumentKind = typeof DOCUMENT_KINDS[number]
 
 type ChangeAction = 'create' | 'update' | 'unchanged'
 
 interface ConfigChange {
   kind: DocumentKind
-  /** The key of the monitor or channel. */
+  /** The key of the monitor, channel or action. */
   key?: string
   action: ChangeAction
   /** For an update: which settings differ. Never their values, which may be secrets. */
@@ -59,7 +61,10 @@ const MAX_PROBLEMS = 100
 const MAX_NAME_LENGTH = 200
 const MAX_CONFIG_DEPTH = 20
 const CHANNEL_FIELDS = ['kind', 'key', 'name', 'type', 'enabled', 'notifyOnRecovery', 'config', 'alertPolicy']
-const MONITOR_FIELDS = ['kind', 'key', 'name', 'type', 'intervalSecs', 'timeoutMs', 'retries', 'failureThreshold', 'recoveryThreshold', 'config', 'tags', 'notifications', 'dependsOn', 'autoIncident']
+const ACTION_FIELDS = ['kind', 'key', 'name', 'enabled', 'config', 'failureNotifications']
+const ACTION_LINK_FIELDS = ['action', 'onStatus', 'delayMinutes', 'cooldownMinutes']
+const MAX_ACTION_MINUTES = 7 * 24 * 60
+const MONITOR_FIELDS = ['kind', 'key', 'name', 'type', 'intervalSecs', 'timeoutMs', 'retries', 'failureThreshold', 'recoveryThreshold', 'config', 'tags', 'notifications', 'dependsOn', 'autoIncident', 'actions']
 const AUTO_INCIDENT_FIELDS = ['enabled', 'afterMinutes', 'mode', 'template']
 
 /** The kinds a list of documents contains, so that the caller can check it may import each. Documents of no known kind are ignored here. */
@@ -95,18 +100,32 @@ interface DesiredChannel {
   alertPolicy: ChannelAlertPolicy
 }
 
+interface DesiredAction {
+  path: string
+  key: string
+  name: string
+  enabled: boolean
+  config: Json
+  failureNotifications: string[]
+}
+
+interface DesiredActionLink { action: string; onStatus: ActionTriggerStatus; delayMinutes: number; cooldownMinutes: number }
+
 interface DesiredMonitor {
   path: string
   key: string
   fields: MonitorFields
   notifications: string[]
   dependsOn: string[]
+  /** Null when the document has no `actions` field: the links stay as they are. An empty list removes them. */
+  actions: DesiredActionLink[] | null
   /** Null when the block is missing or `enabled: false`: automatic incidents are off. `template` is a name; null = the default one. */
   autoIncident: { afterMinutes: number; mode: AutoIncidentMode; template: string | null } | null
 }
 
 interface Desired {
   channels: DesiredChannel[]
+  actions: DesiredAction[]
   monitors: DesiredMonitor[]
 }
 
@@ -175,6 +194,54 @@ function parseChannel(entry: Json, index: number, seen: Set<string>, problems: P
   }
 }
 
+function parseAction(entry: Json, index: number, seen: Set<string>, problems: Problems): DesiredAction | null {
+  const key = documentKey(entry, `document ${index + 1}`, seen, problems)
+  const path = key ? `Action[${key}]` : `document ${index + 1}`
+  unknownFields(entry, ACTION_FIELDS, path, problems)
+
+  const name = entry['name']
+  if (typeof name !== 'string' || !name.trim()) problems.add(`${path}.name`, 'is required')
+  else if (name.length > MAX_NAME_LENGTH) problems.add(`${path}.name`, `must be at most ${MAX_NAME_LENGTH} characters`)
+  if (entry['enabled'] !== undefined && typeof entry['enabled'] !== 'boolean') problems.add(`${path}.enabled`, 'must be true or false')
+  const config = entry['config']
+  if (!isObject(config)) problems.add(`${path}.config`, 'is required and must be an object')
+  else if (nestedDeeperThan(config, MAX_CONFIG_DEPTH)) problems.add(`${path}.config`, `is nested deeper than ${MAX_CONFIG_DEPTH} levels`)
+  const failureNotifications = keyList(entry['failureNotifications'], `${path}.failureNotifications`, problems)
+
+  if (!key || typeof name !== 'string' || !isObject(config)) return null
+  return { path, key, name, config, enabled: entry['enabled'] !== false, failureNotifications }
+}
+
+/** The `actions` list of a monitor document, or null when the document does not have one. */
+function parseActionLinks(value: unknown, path: string, problems: Problems): DesiredActionLink[] | null {
+  if (value === undefined) return null
+  const at = `${path}.actions`
+  if (!Array.isArray(value)) { problems.add(at, 'must be a list: [{ action, onStatus, delayMinutes, cooldownMinutes }]'); return null }
+  const links: DesiredActionLink[] = []
+  const seen = new Set<string>()
+  value.forEach((item, index) => {
+    const here = `${at}[${index}]`
+    if (!isObject(item)) { problems.add(here, 'must be an object: { action, onStatus, delayMinutes, cooldownMinutes }'); return }
+    unknownFields(item, ACTION_LINK_FIELDS, here, problems)
+    const action = item['action']
+    if (!isValidEntityKey(action)) problems.add(`${here}.action`, action === undefined ? 'is required: the key of an action' : ENTITY_KEY_ERROR)
+    const onStatus = item['onStatus']
+    if (!ACTION_TRIGGER_STATUSES.includes(onStatus as ActionTriggerStatus)) problems.add(`${here}.onStatus`, `must be one of: ${ACTION_TRIGGER_STATUSES.join(', ')}`)
+    const minutes: number[] = []
+    for (const field of ['delayMinutes', 'cooldownMinutes'] as const) {
+      const given = item[field] ?? 0
+      if (!(typeof given === 'number' && Number.isInteger(given) && given >= 0 && given <= MAX_ACTION_MINUTES)) problems.add(`${here}.${field}`, `must be a whole number of minutes from 0 to ${MAX_ACTION_MINUTES}`)
+      minutes.push(typeof given === 'number' ? given : 0)
+    }
+    if (isValidEntityKey(action) && ACTION_TRIGGER_STATUSES.includes(onStatus as ActionTriggerStatus)) {
+      if (seen.has(`${action}:${String(onStatus)}`)) problems.add(here, `an action can be linked once per status ("${action}" twice on ${String(onStatus)})`)
+      seen.add(`${action}:${String(onStatus)}`)
+      links.push({ action, onStatus: onStatus as ActionTriggerStatus, delayMinutes: minutes[0]!, cooldownMinutes: minutes[1]! })
+    }
+  })
+  return links
+}
+
 function parseAutoIncident(value: unknown, path: string, problems: Problems): DesiredMonitor['autoIncident'] {
   if (value === undefined || value === null) return null
   const at = `${path}.autoIncident`
@@ -214,7 +281,8 @@ function parseMonitor(entry: Json, index: number, seen: Set<string>, problems: P
   const notifications = keyList(entry['notifications'], `${path}.notifications`, problems)
   const dependsOn = keyList(entry['dependsOn'], `${path}.dependsOn`, problems)
   const autoIncident = parseAutoIncident(entry['autoIncident'], path, problems)
-  return key && 'value' in parsed ? { path, key, fields: parsed.value, notifications, dependsOn, autoIncident } : null
+  const actionLinks = parseActionLinks(entry['actions'], path, problems)
+  return key && 'value' in parsed ? { path, key, fields: parsed.value, notifications, dependsOn, actions: actionLinks, autoIncident } : null
 }
 
 /** Where a name the parser would treat specially (`__proto__`) appears in a document, or null. Walks without recursion. */
@@ -231,8 +299,9 @@ function forbiddenNameAt(document: unknown, label: string): string | null {
 }
 
 function parseDocuments(documents: unknown[], problems: Problems): Desired {
-  const desired: Desired = { channels: [], monitors: [] }
+  const desired: Desired = { channels: [], actions: [], monitors: [] }
   const channelKeys = new Set<string>()
+  const actionKeys = new Set<string>()
   const monitorKeys = new Set<string>()
 
   documents.forEach((document, index) => {
@@ -252,6 +321,11 @@ function parseDocuments(documents: unknown[], problems: Problems): Desired {
         if (channel) desired.channels.push(channel)
         break
       }
+      case 'Action': {
+        const action = parseAction(document, index, actionKeys, problems)
+        if (action) desired.actions.push(action)
+        break
+      }
       default:
         problems.add(`${label}.kind`, document['kind'] === undefined ? `is required: one of ${DOCUMENT_KINDS.join(', ')}` : `"${clip(String(document['kind']))}" is not a kind; use one of ${DOCUMENT_KINDS.join(', ')}`)
     }
@@ -263,18 +337,22 @@ function parseDocuments(documents: unknown[], problems: Problems): Desired {
 
 type MonitorRow = typeof monitors.$inferSelect
 type ChannelRow = typeof notificationChannels.$inferSelect
+type ActionRow = typeof actions.$inferSelect
 
 async function loadState() {
-  const [monitorRows, channelRows, linkRows, dependencyRows, vaultRows, secretRows, templateRows] = await Promise.all([
+  const [monitorRows, channelRows, linkRows, dependencyRows, vaultRows, secretRows, templateRows, actionRows, actionLinkRows, failureRows] = await Promise.all([
     db.select().from(monitors),
     db.select().from(notificationChannels),
     db.select().from(monitorNotificationChannels),
     db.select().from(monitorDependencies),
     db.select({ id: vaults.id, name: vaults.name }).from(vaults),
-    db.select({ id: vaultSecrets.id, vaultId: vaultSecrets.vaultId, name: vaultSecrets.name }).from(vaultSecrets),
+    db.select({ id: vaultSecrets.id, vaultId: vaultSecrets.vaultId, name: vaultSecrets.name, type: vaultSecrets.type }).from(vaultSecrets),
     db.select({ id: incidentTemplates.id, name: incidentTemplates.name, isDefault: incidentTemplates.isDefault }).from(incidentTemplates),
+    db.select().from(actions),
+    db.select().from(monitorActions),
+    db.select().from(actionFailureChannels),
   ])
-  return { monitorRows, channelRows, linkRows, dependencyRows, vaultRows, secretRows, templateRows }
+  return { monitorRows, channelRows, linkRows, dependencyRows, vaultRows, secretRows, templateRows, actionRows, actionLinkRows, failureRows }
 }
 
 type State = Awaited<ReturnType<typeof loadState>>
@@ -315,11 +393,13 @@ function vaultResolver(state: State) {
 
 // ── The plan ────────────────────────────────────────────────────────────────────────────────────────────────────
 
+interface PlannedAction { desired: DesiredAction; config: Json; existing: ActionRow | undefined; fields: string[] }
 interface PlannedChannel { desired: DesiredChannel; config: Json; existing: ChannelRow | undefined; fields: string[] }
 interface AutoIncidentSettings { minutes: number | null; mode: AutoIncidentMode; templateId: number | null }
 interface PlannedMonitor { desired: DesiredMonitor; config: Json; existing: MonitorRow | undefined; fields: string[]; auto: AutoIncidentSettings }
 interface Planned {
   channels: PlannedChannel[]
+  actions: PlannedAction[]
   monitors: PlannedMonitor[]
   changes: ConfigChange[]
 }
@@ -383,14 +463,26 @@ function plan(state: State, desired: Desired, token: ImportOptions['token']): Pl
   // What exists afterwards: everything that is there now, and everything the file adds.
   const finalMonitorKeys = new Set([...state.monitorRows.map((row) => row.key), ...desired.monitors.map((monitor) => monitor.key)])
   const finalChannelKeys = new Set([...state.channelRows.map((row) => row.key), ...desired.channels.map((channel) => channel.key)])
+  const finalActionKeys = new Set([...state.actionRows.map((row) => row.key), ...desired.actions.map((action) => action.key)])
+  const actionByKey = new Map(state.actionRows.map((row) => [row.key, row]))
+  const actionKeyById = new Map(state.actionRows.map((row) => [row.id, row.key]))
 
   const currentChannelKeys = (monitorId: number) =>
     state.linkRows.filter((link) => link.monitorId === monitorId).flatMap((link) => channelKeyById.get(link.channelId) ?? []).sort()
   const currentDependencies = (monitorId: number) =>
     state.dependencyRows.filter((edge) => edge.dependentId === monitorId).flatMap((edge) => monitorKeyById.get(edge.dependsOnId) ?? []).sort()
 
+  const currentActionLinks = (monitorId: number) =>
+    state.actionLinkRows.filter((link) => link.monitorId === monitorId).flatMap((link) => {
+      const action = actionKeyById.get(link.actionId)
+      return action ? [{ action, onStatus: link.onStatus, delayMinutes: link.delayMinutes, cooldownMinutes: link.cooldownMinutes }] : []
+    }).sort((a, b) => (`${a.action}:${a.onStatus}` < `${b.action}:${b.onStatus}` ? -1 : 1))
+  const currentFailureKeys = (actionId: number) =>
+    state.failureRows.filter((link) => link.actionId === actionId).flatMap((link) => channelKeyById.get(link.channelId) ?? []).sort()
+
   const changes: ConfigChange[] = []
   const plannedChannels: PlannedChannel[] = []
+  const plannedActions: PlannedAction[] = []
   const plannedMonitors: PlannedMonitor[] = []
 
   for (const channel of [...desired.channels].sort(byKey)) {
@@ -420,6 +512,41 @@ function plan(state: State, desired: Desired, token: ImportOptions['token']): Pl
     changes.push({ kind: 'NotificationChannel', key: channel.key, action: fields.length ? 'update' : 'unchanged', ...(fields.length ? { fields } : {}) })
   }
 
+  const mayLinkChannels = !token || tokenAllows(token.scopes, 'channels:write')
+  for (const action of [...desired.actions].sort(byKey)) {
+    const existing = actionByKey.get(action.key)
+    const stored = existing ? JSON.parse(existing.config) : undefined
+    const secrets = restoreSecrets('channel', action.config, stored)
+    if ('error' in secrets) { problems.add(`${action.path}.config`, secrets.error); continue }
+    const before = problems.list.length
+    const config = resolveVaults(secrets.config, `${action.path}.config`, problems) as Json
+    const vaultProblem = vaultUseProblem(token, config, stored)
+    if (vaultProblem) problems.add(`${action.path}.config`, vaultProblem)
+    // A reference that did not resolve still has names, not ids, so the rest of the checks would only repeat the problem.
+    if (problems.list.length === before) {
+      const problem = actionConfigError(config)
+      if (problem) problems.add(`${action.path}.config`, problem)
+      else {
+        const typeProblem = actionSecretTypeProblem(config, new Map(state.secretRows.map((row) => [row.id, row.type])))
+        if (typeProblem) problems.add(`${action.path}.config`, typeProblem)
+      }
+    }
+    for (const key of action.failureNotifications) if (!finalChannelKeys.has(key)) problems.add(`${action.path}.failureNotifications`, `unknown channel "${clip(key)}"`)
+    const refuseChannels = () => problems.add(`${action.path}.failureNotifications`, 'a token needs the "channels:write" permission to choose which channels are told when an action fails')
+    if (!existing) {
+      if (action.failureNotifications.length && !mayLinkChannels) refuseChannels()
+      plannedActions.push({ desired: action, config, existing, fields: [] })
+      changes.push({ kind: 'Action', key: action.key, action: 'create' })
+      continue
+    }
+    const current: Json = { name: existing.name, enabled: existing.enabled === 1, config: JSON.parse(existing.config), failureNotifications: currentFailureKeys(existing.id) }
+    const wanted: Json = { name: action.name, enabled: action.enabled, config, failureNotifications: [...action.failureNotifications].sort() }
+    const fields = Object.keys(wanted).filter((field) => canonical(current[field]) !== canonical(wanted[field]))
+    if (fields.includes('failureNotifications') && !mayLinkChannels) refuseChannels()
+    if (fields.length) plannedActions.push({ desired: action, config, existing, fields })
+    changes.push({ kind: 'Action', key: action.key, action: fields.length ? 'update' : 'unchanged', ...(fields.length ? { fields } : {}) })
+  }
+
   const edges = new Map<string, string[]>()
   for (const row of state.monitorRows) edges.set(row.key, currentDependencies(row.id))
 
@@ -434,6 +561,7 @@ function plan(state: State, desired: Desired, token: ImportOptions['token']): Pl
     if (vaultProblem) problems.add(`${monitor.path}.config`, vaultProblem)
 
     for (const key of monitor.notifications) if (!finalChannelKeys.has(key)) problems.add(`${monitor.path}.notifications`, `unknown channel "${clip(key)}"`)
+    for (const link of monitor.actions ?? []) if (!finalActionKeys.has(link.action)) problems.add(`${monitor.path}.actions`, `unknown action "${clip(link.action)}"`)
     for (const key of monitor.dependsOn) {
       if (key === monitor.key) problems.add(`${monitor.path}.dependsOn`, 'a monitor cannot depend on itself')
       else if (!finalMonitorKeys.has(key)) problems.add(`${monitor.path}.dependsOn`, `unknown monitor "${clip(key)}"`)
@@ -458,12 +586,15 @@ function plan(state: State, desired: Desired, token: ImportOptions['token']): Pl
       failureThreshold: existing.failureThreshold, recoveryThreshold: existing.recoveryThreshold,
       config: JSON.parse(existing.config), tags: JSON.parse(existing.tags ?? '[]'),
       notifications: currentChannelKeys(existing.id), dependsOn: currentDependencies(existing.id),
+      actions: currentActionLinks(existing.id),
       autoIncident: autoIncidentState(existing.autoIncidentMinutes, existing.autoIncidentMode, existing.autoIncidentTemplateId),
     }
     const wanted: Json = {
       name: values.name, type: values.type, intervalSecs: values.intervalSecs, timeoutMs: values.timeoutMs, retries: values.retries,
       failureThreshold: values.failureThreshold, recoveryThreshold: values.recoveryThreshold,
       config, tags: values.tags, notifications: [...monitor.notifications].sort(), dependsOn: [...monitor.dependsOn].sort(),
+      // A document without an `actions` field leaves the links alone; only an empty list removes them.
+      ...(monitor.actions !== null ? { actions: [...monitor.actions].sort((a, b) => (`${a.action}:${a.onStatus}` < `${b.action}:${b.onStatus}` ? -1 : 1)) } : {}),
       autoIncident: autoIncidentState(auto.minutes, auto.mode, auto.templateId),
     }
     const fields = Object.keys(wanted).filter((field) => canonical(current[field]) !== canonical(wanted[field]))
@@ -477,12 +608,12 @@ function plan(state: State, desired: Desired, token: ImportOptions['token']): Pl
   if (cycle) problems.add('Monitor', `dependency cycle: ${cycle}`)
 
   if (problems.any) throw new ConfigInvalidError(problems.list)
-  return { channels: plannedChannels, monitors: plannedMonitors, changes }
+  return { channels: plannedChannels, actions: plannedActions, monitors: plannedMonitors, changes }
 }
 
 // ── The write ───────────────────────────────────────────────────────────────────────────────────────────────────
 
-interface AuditEntry { action: 'create' | 'update'; entity: 'monitor' | 'notification_channel'; id: number | string; name: string; diff: Json }
+interface AuditEntry { action: 'create' | 'update'; entity: 'monitor' | 'notification_channel' | 'action'; id: number | string; name: string; diff: Json }
 
 async function execute(state: State, planned: Planned): Promise<AuditEntry[]> {
   const now = Date.now()
@@ -491,6 +622,7 @@ async function execute(state: State, planned: Planned): Promise<AuditEntry[]> {
 
   const channelId = new Map(state.channelRows.map((row) => [row.key, row.id]))
   const monitorId = new Map(state.monitorRows.map((row) => [row.key, row.id]))
+  const actionId = new Map(state.actionRows.map((row) => [row.key, row.id]))
 
   for (const { desired: channel, config, existing, fields } of planned.channels) {
     const values = {
@@ -504,6 +636,27 @@ async function execute(state: State, planned: Planned): Promise<AuditEntry[]> {
       const [row] = await db.insert(notificationChannels).values({ key: channel.key, ...values, createdAt: now, updatedAt: now }).returning({ id: notificationChannels.id })
       channelId.set(channel.key, row!.id)
       audit.push({ action: 'create', entity: 'notification_channel', id: row!.id, name: channel.name, diff: { key: channel.key, type: channel.type, source } })
+    }
+  }
+
+  for (const { desired: action, config, existing, fields } of planned.actions) {
+    const values = { name: action.name, config: JSON.stringify(config), enabled: action.enabled ? 1 : 0 }
+    let id: number
+    if (existing) {
+      id = existing.id
+      await db.update(actions).set({ ...values, updatedAt: now }).where(eq(actions.id, id))
+      audit.push({ action: 'update', entity: 'action', id, name: existing.name, diff: { key: action.key, source, changed: fields.join(', ') } })
+    } else {
+      const [row] = await db.insert(actions).values({ key: action.key, ...values, createdAt: now, updatedAt: now }).returning({ id: actions.id })
+      id = row!.id
+      actionId.set(action.key, id)
+      audit.push({ action: 'create', entity: 'action', id, name: action.name, diff: { key: action.key, source } })
+    }
+    if (!existing || fields.includes('failureNotifications')) {
+      await db.delete(actionFailureChannels).where(eq(actionFailureChannels.actionId, id))
+      if (action.failureNotifications.length) {
+        await db.insert(actionFailureChannels).values(action.failureNotifications.map((key) => ({ actionId: id, channelId: channelId.get(key)! })))
+      }
     }
   }
 
@@ -532,7 +685,7 @@ async function execute(state: State, planned: Planned): Promise<AuditEntry[]> {
       // Only a webhook monitor has a heartbeat token; keep the one it has so its URL does not change.
       if (values.type !== 'webhook') updates.webhookToken = null
       else if (!existing.webhookToken) updates.webhookToken = generateWebhookToken()
-      if (fields.some((field) => !['notifications', 'dependsOn'].includes(field))) {
+      if (fields.some((field) => !['notifications', 'dependsOn', 'actions'].includes(field))) {
         await db.update(monitors).set(updates).where(eq(monitors.id, existing.id))
       }
       audit.push({ action: 'update', entity: 'monitor', id: existing.id, name: existing.name, diff: { key: monitor.key, source, changed: fields.join(', ') } })
@@ -560,6 +713,16 @@ async function execute(state: State, planned: Planned): Promise<AuditEntry[]> {
         await db.insert(monitorNotificationChannels).values(monitor.notifications.map((key) => ({ monitorId: id, channelId: channelId.get(key)! })))
       }
     }
+    if (monitor.actions !== null && (!existing || fields.includes('actions'))) {
+      await db.delete(monitorActions).where(eq(monitorActions.monitorId, id))
+      if (monitor.actions.length) {
+        await db.insert(monitorActions).values(monitor.actions.map((link) => ({
+          monitorId: id, actionId: actionId.get(link.action)!, onStatus: link.onStatus, delayMinutes: link.delayMinutes, cooldownMinutes: link.cooldownMinutes,
+        })))
+      }
+      // Runs that wait for a link the file removed have no reason to run any more.
+      await cancelUnlinkedRuns(id, monitor.actions.map((link) => ({ actionId: actionId.get(link.action)!, onStatus: link.onStatus })))
+    }
     if (!existing || fields.includes('dependsOn')) {
       await db.delete(monitorDependencies).where(eq(monitorDependencies.dependentId, id))
       if (monitor.dependsOn.length) {
@@ -580,7 +743,7 @@ function summarise(changes: ConfigChange[]): ImportResult['summary'] {
 }
 
 /**
- * Makes the installation match the documents: a monitor or channel whose key exists is updated, one whose key does
+ * Makes the installation match the documents: a monitor, channel or action whose key exists is updated, one whose key does
  * not is created. Nothing is ever removed. Everything is checked before anything is
  * written, and the writes are one transaction, so a stream is applied completely or not at all. With `dryRun`
  * nothing is written and the result says what would happen.
