@@ -127,11 +127,60 @@ The numbers are calculated from the stored check results, so a range cannot reac
 | **URL** | `https://` | The address to request. Plain `http://` works too. Required. |
 | **Method** | `GET` | `GET`, `POST` or `HEAD`. |
 | **Expected Status** | `200` | The exact status code the final response must have. Anything else is **Down**. |
+
+The **Checks** tab on the right of the form adds what the response must contain besides its status:
+
+| Field | Default | What it does |
+| --- | --- | --- |
 | **Keyword (optional)** | — | Text the response body must contain. Case-sensitive. Missing → **Degraded**. |
+| **Degraded when slower than** | — | A response time over this many milliseconds makes the check **Degraded**. |
+| **Response checks** | — | Headers and JSON fields, see [Response checks](#response-checks). |
 
 Redirects are followed, and the expected status is compared with the last response. The
-response time is measured until the response headers arrive, before the body is read for the
-keyword. It is recorded and charted, but no response time makes a check fail.
+response time is measured until the response headers arrive, before the body is read. It is
+recorded and charted; it only changes the status when **Degraded when slower than** is set.
+
+### Response checks
+
+> [!WARNING]
+> **Not released yet.** Response checks and the slow-response limit are not in a published release. To try them, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+Beyond the status code and the keyword, a monitor can check the **headers** and the **JSON body** of
+the final response (after redirects). Add them in the **Checks** tab on the right of the form (next to the keyword and the slow-response limit); each check
+has its own result when it fails, **Degraded** or **Down**.
+
+| Check | Conditions |
+| --- | --- |
+| **Header** | exists, does not exist, equals, does not equal, contains |
+| **JSON** | exists, equals, does not equal, contains, is less than, is greater than |
+
+- A header name is matched without regard to case; its value is compared as text, so
+  `X-Replicas` **equals** `2` is true for `X-Replicas: 2`. A missing header fails every
+  condition except **does not exist** and **does not equal**.
+- A JSON check names a field with a path: `$.status`, `$.queue.length`, `$.items[0].id` or
+  `$['odd key']`. **exists** is true for a field holding `null` too. **equals** compares numbers,
+  strings and booleans as text (`true`, `150`); **contains** looks for a substring in a string
+  or an element in a list; **is less than** and **is greater than** need a numeric field.
+  Wildcards and filters are not supported.
+- The body is read only when a JSON check needs it. A body that is not JSON, or larger than
+  1 MB, fails every JSON check instead of the monitor erroring out.
+- All failed checks are listed in the error, and the worst result wins: one **Down** check makes
+  the monitor Down even if others are only Degraded. Checks do not run when the status code
+  is already wrong.
+- At most 20 checks per monitor. When a failed check names a header holding a credential
+  (`Set-Cookie`, `Cookie`, `Authorization`), the error says the header is present but not what it held.
+
+In YAML and the API they are `assertions` and `degradedAboveMs` in the monitor's `config`:
+
+```yaml
+config:
+  url: https://api.example.com/status
+  expectedStatus: 200
+  degradedAboveMs: 2000
+  assertions:
+    - { type: header, name: X-Replicas, op: equals, value: "2", onFail: down }
+    - { type: json, path: $.queue.length, op: lt, value: 100 }   # onFail defaults to degraded
+```
 
 **Request** tab:
 
@@ -455,7 +504,7 @@ them. It is available for HTTPS, Ping / TCP, DNS, the SQL databases and Docker; 
 calling its URL.
 
 The result lists each step with its duration — authentication, every redirect, the response status,
-the keyword, the query, the DNS answer — and the step that failed. For HTTPS URLs it also shows when
+the keyword, each response check, the query, the DNS answer — and the step that failed. For HTTPS URLs it also shows when
 the TLS certificate expires and whether that is inside the warning window. **report** downloads the
 full log as a text file, including the informational steps hidden in the panel, such as each CAS
 probe hop.
@@ -467,7 +516,7 @@ When you edit a saved monitor, a password, client secret or credential header th
 is tested as stored, even though the form only shows it as `••••••••`.
 
 The test uses the form's **Timeout**, limited to between 0.5 and 60 seconds. Unlike a scheduled
-check, a missing keyword or a mismatched result is shown as a failed test, not as degraded.
+check, a missing keyword, a failed response check, a slow response or a mismatched result is shown as a failed test, not as degraded; the step says what the scheduled check would report.
 
 ---
 

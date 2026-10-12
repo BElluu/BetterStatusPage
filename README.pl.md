@@ -62,17 +62,18 @@ Pełna dokumentacja (EN): **https://docs.betterstatuspage.dev**. Zanim wystawisz
 
 ## Co potrafi 🚀
 
-### 🔍 Pięć sposobów monitorowania
+### 🔍 Dziewięć sposobów monitorowania
 
 | Typ | Co sprawdza |
 |------|---------------|
-| **HTTPS** | Adresy URL, kody statusu, czasy odpowiedzi, słowa kluczowe w treści, pełne przepływy uwierzytelniania (Basic, OAuth2, CAS) oraz opcjonalne ostrzeżenia o wygasającym certyfikacie TLS |
+| **HTTPS** | Adresy URL, kody statusu, czasy odpowiedzi, słowa kluczowe w treści, sprawdzanie nagłówków i pól JSON, limit wolnej odpowiedzi, pełne przepływy uwierzytelniania (Basic, OAuth2, CAS) oraz opcjonalne ostrzeżenia o wygasającym certyfikacie TLS |
 | **Ping / TCP** | Czy host żyje — przez ICMP lub sprawdzenie portu TCP |
 | **DNS** | Czy rekordy rozwiązują się poprawnie — A, AAAA, MX, CNAME, TXT, z obsługą własnego resolvera |
 | **SQL Server** | Wykonuje zapytanie testowe na MSSQL i weryfikuje wynik |
 | **PostgreSQL** | Wykonuje zapytanie testowe na PostgreSQL i weryfikuje wynik |
 | **MySQL / MariaDB** | Wykonuje zapytanie testowe na MySQL lub MariaDB i weryfikuje wynik |
 | **MongoDB** | Wykonuje komendę testową na MongoDB i weryfikuje wynik |
+| **Docker** | Stan i healthcheck kontenera, przez Docker Engine API |
 | **Webhook** *(pasywny)* | Pozwala zewnętrznym usługom pingować *Ciebie*, by zasygnalizować, że żyją — cisza oznacza kłopoty |
 
 Każdy monitor ma: konfigurowalne interwały, timeouty, ponowienia, **kolorowe tagi** do grupowania, **30-dniowy pasek dostępności** na stronie statusu i domyślnie 90 dni przechowywanych wyników sprawdzeń, a osobna strona monitora w panelu pokazuje dostępność, percentyle czasu odpowiedzi, incydenty i ostatnie błędy. A, i jest wbudowany tester, więc możesz sprawdzić konfigurację, zanim klikniesz Zapisz i natychmiast tego pożałujesz.

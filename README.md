@@ -62,17 +62,18 @@ Full documentation: **https://docs.betterstatuspage.dev**. Before exposing a pro
 
 ## What it does 🚀
 
-### 🔍 Five ways to monitor things
+### 🔍 Nine ways to monitor things
 
 | Type | What it checks |
 |------|---------------|
-| **HTTPS** | URLs, status codes, response times, keywords in the body, full auth flows (Basic, OAuth2, CAS), and optional TLS certificate expiry warnings |
+| **HTTPS** | URLs, status codes, response times, keywords in the body, header and JSON field checks, a slow-response limit, full auth flows (Basic, OAuth2, CAS), and optional TLS certificate expiry warnings |
 | **Ping / TCP** | Whether a host is alive — via ICMP or TCP port check |
 | **DNS** | Whether your records resolve correctly — A, AAAA, MX, CNAME, TXT, with custom resolver support |
 | **SQL Server** | Runs a test query against MSSQL and validates the result |
 | **PostgreSQL** | Runs a test query against PostgreSQL and validates the result |
 | **MySQL / MariaDB** | Runs a test query against MySQL or MariaDB and validates the result |
 | **MongoDB** | Runs a test command against MongoDB and validates the result |
+| **Docker** | State and healthcheck of a container, through the Docker Engine API |
 | **Webhook** *(passive)* | Lets external services ping *you* to signal they're alive — silence means trouble |
 
 Every monitor gets: configurable intervals, timeouts, retries, **color-coded tags** for grouping, a **30-day uptime bar** on the status page, and 90 days of check results kept by default, with a per-monitor admin page for uptime, response-time percentiles, incidents and recent failures. Oh, and there's a built-in test runner so you can validate your config before hitting Save and immediately regretting it.

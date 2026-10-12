@@ -1,5 +1,6 @@
 import type { HttpsConfig } from '@bsp/shared'
 import type { MonitorStatus } from '@bsp/shared'
+import { evaluateAssertions, hasJsonAssertions } from './assertions.js'
 import { discardBody, requestWithCas, resolveHttpAuth, type HttpFetch, type HttpResponse } from './httpAuth.js'
 import { Agent, fetch as httpFetch } from 'undici'
 import { lookup as dnsLookup } from 'dns'
@@ -81,17 +82,28 @@ export async function checkHttps(
       }
     }
 
-    if (config.keyword) {
-      const body = await res.text()
-      if (!body.includes(config.keyword)) {
-        return {
-          status: 'degraded',
-          responseMs,
-          error: `Keyword "${config.keyword}" not found in response body`,
-        }
+    // The body is read once, and only when the keyword or a JSON assertion needs it.
+    let bodyText: Promise<string> | undefined
+    const readBody = (): Promise<string> => (bodyText ??= res.text())
+    if (!config.keyword && !hasJsonAssertions(config.assertions)) await discardBody(res)
+
+    // Every failed check is reported; the worst status wins, and a "down" assertion beats a "degraded" one.
+    const failures: { status: MonitorStatus; error: string }[] = []
+    if (config.keyword && !(await readBody()).includes(config.keyword)) {
+      failures.push({ status: 'degraded', error: `Keyword "${config.keyword}" not found in response body` })
+    }
+    for (const o of await evaluateAssertions(config.assertions ?? [], res.headers, readBody)) {
+      if (!o.ok) failures.push({ status: o.onFail, error: o.detail ?? o.label })
+    }
+    if (config.degradedAboveMs !== undefined && responseMs > config.degradedAboveMs) {
+      failures.push({ status: 'degraded', error: `Response took ${responseMs} ms, over the ${config.degradedAboveMs} ms limit` })
+    }
+    if (failures.length > 0) {
+      return {
+        status: failures.some((f) => f.status === 'down') ? 'down' : 'degraded',
+        responseMs,
+        error: failures.map((f) => f.error).join('; '),
       }
-    } else {
-      await discardBody(res)
     }
 
     return { status: 'up', responseMs, error: null }

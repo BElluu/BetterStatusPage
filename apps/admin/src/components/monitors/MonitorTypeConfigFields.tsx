@@ -54,9 +54,6 @@ function HttpsFields({ config, updateConfig }: ConfigProps) {
           <input type="number" value={(config['expectedStatus'] as number) ?? 200} onChange={(e) => updateConfig('expectedStatus', Number(e.target.value))} className="input-sig" />
         </Field>
       </div>
-      <Field label="Keyword (optional)">
-        <input value={(config['keyword'] as string) ?? ''} onChange={(e) => updateConfig('keyword', e.target.value)} className="input-sig" placeholder="must contain…" />
-      </Field>
       {/^https:\/\//i.test((config['url'] as string) ?? '') && <CertExpiryFields config={config} updateConfig={updateConfig} />}
     </>
   )

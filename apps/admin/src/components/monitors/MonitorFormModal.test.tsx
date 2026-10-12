@@ -121,6 +121,7 @@ describe('MonitorFormModal', () => {
     await user.selectOptions(field<HTMLSelectElement>('Method'), 'POST')
     await user.clear(field('Expected Status'))
     await user.type(field('Expected Status'), '201')
+    await user.click(screen.getByTitle('Checks'))
     await user.type(field('Keyword (optional)'), 'healthy')
 
     await user.click(screen.getByTitle('Alerts'))
@@ -148,6 +149,56 @@ describe('MonitorFormModal', () => {
     })
     expect(api.put).toHaveBeenCalledWith('/admin/notifications/monitor/42/channels', { channelIds: [3] })
     expect(api.put).toHaveBeenCalledWith('/admin/monitors/42/dependencies', { dependsOnIds: [1] })
+  })
+
+  it('saves response checks on headers and JSON fields and a slow-response limit', async () => {
+    const user = userEvent.setup()
+    const { onSaved } = renderModal()
+
+    await user.type(field('Name'), 'Cluster API')
+    await user.clear(field('URL'))
+    await user.type(field('URL'), 'https://api.example.test/status')
+    expect(screen.queryByLabelText('Check 1 header name')).not.toBeInTheDocument()
+    await user.click(screen.getByTitle('Checks'))
+    await user.type(field('Degraded when slower than (ms, optional)'), '2000')
+
+    await user.click(screen.getByRole('button', { name: '+ Add check' }))
+    expect(screen.queryByText(/JSON paths look like/)).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('Check 1 header name'), 'X-Replicas')
+    await user.selectOptions(screen.getByLabelText('Check 1 condition'), 'equals')
+    await user.type(screen.getByLabelText('Check 1 value'), '2')
+    await user.selectOptions(screen.getByLabelText('Check 1 when it fails'), 'down')
+
+    await user.click(screen.getByRole('button', { name: '+ Add check' }))
+    await user.selectOptions(screen.getByLabelText('Check 2 target'), 'json')
+    expect(screen.getByText(/JSON paths look like/)).toBeInTheDocument()
+    await user.clear(screen.getByLabelText('Check 2 JSON path'))
+    await user.type(screen.getByLabelText('Check 2 JSON path'), '$.queue.length')
+    await user.selectOptions(screen.getByLabelText('Check 2 condition'), 'lt')
+    await user.type(screen.getByLabelText('Check 2 value'), '100')
+
+    await user.click(screen.getByRole('button', { name: '+ Add check' }))
+    await user.click(screen.getByRole('button', { name: 'Remove check 3' }))
+
+    // "exists" takes no value, and the value typed before is not kept
+    await user.selectOptions(screen.getByLabelText('Check 1 condition'), 'exists')
+    expect(screen.queryByLabelText('Check 1 value')).not.toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText('Check 1 condition'), 'equals')
+    await user.type(screen.getByLabelText('Check 1 value'), '2')
+
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+    expect(createdBody()['config']).toEqual({
+      url: 'https://api.example.test/status',
+      method: 'GET',
+      expectedStatus: 200,
+      degradedAboveMs: 2000,
+      assertions: [
+        { type: 'header', name: 'X-Replicas', op: 'equals', value: '2', onFail: 'down' },
+        { type: 'json', path: '$.queue.length', op: 'lt', value: '100', onFail: 'degraded' },
+      ],
+    })
   })
 
   it('saves TLS certificate expiry warnings, offered only for HTTPS URLs', async () => {
@@ -455,6 +506,7 @@ describe('MonitorFormModal', () => {
     expect(field('Recover after (checks)')).toHaveValue(2)
     expect(field('URL')).toHaveValue('https://edge.example.test/health')
     expect(field<HTMLSelectElement>('Method')).toHaveValue('HEAD')
+    await user.click(screen.getByTitle('Checks'))
     expect(field('Keyword (optional)')).toHaveValue('ok')
     await user.click(screen.getByTitle('Depends on'))
     // A monitor can never depend on itself.

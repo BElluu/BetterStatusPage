@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import type { AutoIncidentMode, MonitorTag, MonitorType } from '@bsp/shared'
+import { validateHttpAssertions } from '../workers/assertions.js'
 import { validateDockerConfig } from '../workers/docker.js'
 
 export const MONITOR_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'postgresql', 'mysql', 'mongodb', 'docker', 'webhook']
@@ -113,6 +114,10 @@ function parseConfig(type: MonitorType, value: unknown): Parsed<Record<string, u
   if (!isRecord(value)) return { error: 'config must be an object' }
   if (type === 'docker') {
     const invalid = validateDockerConfig(value)
+    if (invalid) return { error: invalid }
+  }
+  if (type === 'https') {
+    const invalid = validateHttpAssertions(value)
     if (invalid) return { error: invalid }
   }
   return { value }
