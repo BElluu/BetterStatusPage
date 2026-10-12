@@ -11,7 +11,8 @@ test('operator creates an HTTP monitor, tests it and sees it go up', async ({ ad
 
   await page.getByPlaceholder('My Service').fill(name)
   await page.getByPlaceholder('https://example.com').fill(HEALTHY_URL)
-  await page.getByPlaceholder('must contain…').fill('ok')
+  await page.getByTitle('Checks').click()
+  await page.getByPlaceholder('body must contain').fill('ok')
 
   // The Test button runs the real probe against the configured endpoint before anything is saved.
   await page.getByRole('button', { name: /Test$/ }).click()
