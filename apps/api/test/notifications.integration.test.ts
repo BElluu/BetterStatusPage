@@ -240,6 +240,142 @@ describe('notification delivery', () => {
     assert.ok(!delivery!.lastError!.includes('SECRET'))
   })
 
+  async function pushChannelFixture(type: 'ntfy' | 'pushover', config: Record<string, unknown>) {
+    const now = Date.now()
+    const [monitor] = await db.insert(monitors).values({
+      name: 'Push API', type: 'https', intervalSecs: 60, timeoutMs: 1_000, retries: 1,
+      config: '{}', currentStatus: 'up', tags: '[]', createdAt: now, updatedAt: now,
+    }).returning()
+    const [channel] = await db.insert(notificationChannels).values({
+      name: type, type, enabled: 1, notifyOnRecovery: 1, createdAt: now, updatedAt: now, config: JSON.stringify(config),
+    }).returning()
+    await db.insert(monitorNotificationChannels).values({ monitorId: monitor!.id, channelId: channel!.id })
+    return monitor!
+  }
+
+  async function withFetch<T>(respond: (url: string, init: RequestInit | undefined) => Response, run: () => Promise<T>): Promise<T> {
+    const realFetch = globalThis.fetch
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => respond(String(input), init)) as typeof fetch
+    try {
+      return await run()
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  }
+
+  it('publishes an ntfy alert as JSON with a bearer token, priority and tags', async () => {
+    const monitor = await pushChannelFixture('ntfy', { serverUrl: 'https://ntfy.example.test/', topic: 'alerts', accessToken: 'tk_SECRET', text: 'Heads up' })
+    const calls: Array<{ url: string; auth: string | undefined; body: Record<string, unknown> }> = []
+    await withFetch((url, init) => {
+      calls.push({ url, auth: (init?.headers as Record<string, string>)['Authorization'], body: JSON.parse(String(init?.body)) })
+      return new Response('{}', { status: 200 })
+    }, () => sendNotifications(monitor, 'down', 'up', 'boom'))
+
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0]!.url, 'https://ntfy.example.test/')
+    assert.equal(calls[0]!.auth, 'Bearer tk_SECRET')
+    const body = calls[0]!.body
+    assert.equal(body['topic'], 'alerts')
+    assert.equal(body['title'], 'Monitor Push API is DOWN')
+    assert.equal(body['priority'], 4)
+    assert.deepEqual(body['tags'], ['rotating_light'])
+    assert.match(String(body['message']), /^Heads up\nStatus: down\nPrevious: up\n/)
+    assert.match(String(body['message']), /Error: boom\nChecked at /)
+  })
+
+  it('defaults ntfy to ntfy.sh, sends no auth for a public topic and reports the server error', async () => {
+    const monitor = await pushChannelFixture('ntfy', { topic: 'public-topic' })
+    let seen: { url: string; headers: Record<string, string> } | undefined
+    await withFetch((url, init) => {
+      seen = { url, headers: init?.headers as Record<string, string> }
+      return new Response(JSON.stringify({ error: 'topic is rate limited' }), { status: 429 })
+    }, () => sendNotifications(monitor, 'down', 'up', 'boom'))
+
+    assert.equal(seen!.url, 'https://ntfy.sh/')
+    assert.ok(!('Authorization' in seen!.headers))
+    const [delivery] = await db.select().from(notificationDeliveries)
+    assert.equal(delivery!.lastError, 'ntfy API returned HTTP 429: topic is rate limited')
+  })
+
+  it('reads the ntfy access token from a vault secret', async () => {
+    process.env['VAULT_ENCRYPTION_KEY'] = 'abcdef0123456789'.repeat(4)
+    const now = Date.now()
+    const [vault] = await db.insert(vaults).values({ name: 'Push', description: '', createdAt: now, updatedAt: now }).returning()
+    const [secret] = await db.insert(vaultSecrets).values({
+      vaultId: vault!.id, name: 'ntfy', type: 'value', encryptedValue: encrypt(JSON.stringify({ value: 'tk_FROMVAULT' })), createdAt: now, updatedAt: now,
+    }).returning()
+    const monitor = await pushChannelFixture('ntfy', { topic: 'alerts', vault: { vaultId: vault!.id, secretId: secret!.id } })
+    let auth: string | undefined
+    await withFetch((_url, init) => {
+      auth = (init?.headers as Record<string, string>)['Authorization']
+      return new Response('{}', { status: 200 })
+    }, () => sendNotifications(monitor, 'down', 'up', 'boom'))
+    assert.equal(auth, 'Bearer tk_FROMVAULT')
+  })
+
+  it('keeps a vault token that is not a valid header value out of the failed delivery', async () => {
+    process.env['VAULT_ENCRYPTION_KEY'] = 'abcdef0123456789'.repeat(4)
+    const now = Date.now()
+    const [vault] = await db.insert(vaults).values({ name: 'Push2', description: '', createdAt: now, updatedAt: now }).returning()
+    const [secret] = await db.insert(vaultSecrets).values({
+      vaultId: vault!.id, name: 'ntfy', type: 'value', encryptedValue: encrypt(JSON.stringify({ value: 'tk_SECRET\nsecond' })), createdAt: now, updatedAt: now,
+    }).returning()
+    const monitor = await pushChannelFixture('ntfy', { topic: 'alerts', vault: { vaultId: vault!.id, secretId: secret!.id } })
+    await withFetch(() => new Response('{}', { status: 200 }), () => sendNotifications(monitor, 'down', 'up', 'boom'))
+    const [delivery] = await db.select().from(notificationDeliveries)
+    assert.equal(delivery!.lastError, 'ntfy access token contains characters that cannot be sent in a header')
+  })
+
+  it('keeps the HTTP status when an error body is JSON null, and keeps a server path prefix', async () => {
+    const monitor = await pushChannelFixture('ntfy', { serverUrl: 'https://proxy.example.test/ntfy', topic: 'alerts' })
+    let url = ''
+    await withFetch((u) => { url = u; return new Response('null', { status: 502 }) }, () => sendNotifications(monitor, 'down', 'up', 'boom'))
+    assert.equal(url, 'https://proxy.example.test/ntfy/')
+    const [delivery] = await db.select().from(notificationDeliveries)
+    assert.equal(delivery!.lastError, 'ntfy API returned HTTP 502')
+  })
+
+  it('cuts an ntfy message to its byte limit', async () => {
+    const monitor = await pushChannelFixture('ntfy', { topic: 'alerts' })
+    let message = ''
+    await withFetch((_u, init) => { message = String(JSON.parse(String(init?.body)).message); return new Response('{}', { status: 200 }) },
+      () => sendNotifications(monitor, 'down', 'up', 'ł'.repeat(3_000)))
+    assert.ok(Buffer.byteLength(message) <= 4000)
+    assert.ok(message.includes('…'))
+  })
+
+  it('sends a Pushover alert with high priority only when the monitor is down', async () => {
+    const monitor = await pushChannelFixture('pushover', { appToken: 'APPSECRET', userKey: 'user-key', text: 'Heads up' })
+    const calls: Array<{ url: string; body: Record<string, unknown> }> = []
+    await withFetch((url, init) => {
+      calls.push({ url, body: JSON.parse(String(init?.body)) })
+      return new Response('{"status":1}', { status: 200 })
+    }, async () => {
+      await sendNotifications(monitor, 'down', 'up', 'x'.repeat(2_000))
+      await sendNotifications(monitor, 'up', 'down', '')
+    })
+
+    assert.equal(calls.length, 2)
+    assert.equal(calls[0]!.url, 'https://api.pushover.net/1/messages.json')
+    assert.equal(calls[0]!.body['token'], 'APPSECRET')
+    assert.equal(calls[0]!.body['user'], 'user-key')
+    assert.equal(calls[0]!.body['priority'], 1)
+    assert.ok(String(calls[0]!.body['message']).length <= 1024)
+    assert.equal(calls[1]!.body['priority'], 0)
+    assert.equal(calls[1]!.body['title'], 'Monitor Push API is UP')
+  })
+
+  it('does not leak the Pushover token into a failed delivery and reports its errors', async () => {
+    const monitor = await pushChannelFixture('pushover', { appToken: 'APPSECRET', userKey: 'bad-key' })
+    await withFetch(
+      () => new Response(JSON.stringify({ status: 0, errors: ['user identifier is invalid'] }), { status: 400 }),
+      () => sendNotifications(monitor, 'down', 'up', 'boom'),
+    )
+    const [delivery] = await db.select().from(notificationDeliveries)
+    assert.equal(delivery!.lastError, 'Pushover API returned HTTP 400: user identifier is invalid')
+    assert.ok(!delivery!.lastError!.includes('APPSECRET'))
+  })
+
   it('respects recovery flags and suppresses affected transitions', async () => {
     const now = Date.now()
     const [monitor] = await db.insert(monitors).values({

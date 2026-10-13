@@ -80,8 +80,9 @@ export default function ChannelFormModal({ channel, initialType, onClose, onSave
   }
   useEffect(() => {
     api.get<VaultPickerProps['vaults']>('/admin/vaults').then(setVaults).catch(() => {})
-    const storedVaultId = drafts.telegram.vault?.vaultId
-    if (storedVaultId) loadSecrets(storedVaultId)
+    for (const draft of [drafts.telegram, drafts.ntfy, drafts.pushover]) {
+      if (draft.vault?.vaultId) loadSecrets(draft.vault.vaultId)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const vaultPicker: VaultPickerProps = { vaults, secretsByVault, onLoadSecrets: loadSecrets }

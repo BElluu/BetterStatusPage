@@ -59,6 +59,8 @@ describe('maskSecrets', () => {
       { url: 'https://x.test', headers: { 'Content-Type': 'application/json', 'X-Token': SECRET_MASK } })
     assert.equal(maskSecrets('channel', { botToken: '123456:ABCDEFghijMSGo', chatId: '1' }).botToken, `${SECRET_MASK}MSGo`)
     assert.equal(maskSecrets('channel', { botToken: '1:short', chatId: '1' }).botToken, SECRET_MASK)
+    assert.equal(maskSecrets('channel', { topic: 'alerts', accessToken: 'tk_0123456789abcdefWXYZ' }).accessToken, `${SECRET_MASK}WXYZ`)
+    assert.deepEqual(maskSecrets('channel', { appToken: 'short', userKey: 'u' }), { appToken: SECRET_MASK, userKey: 'u' })
     assert.deepEqual(maskSecrets('channel', { to: 'a@b.test' }), { to: 'a@b.test' })
   })
 

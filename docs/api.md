@@ -117,9 +117,9 @@ The operations meant for automation are described in an OpenAPI 3.1 file: [opena
 
 ### Secrets are masked
 
-A password, client secret, credential header, Slack, Discord or Teams webhook URL or Telegram bot token in a monitor's or channel's `config` is never returned: it reads back as `••••••••`. Send that value back unchanged to keep the stored secret, or send a new one to replace it. A masked value that does not match the stored secret, or one that looks like a half-edited mask, is refused with `400`, so a placeholder can never be saved as a password. Secrets must be text.
+A password, client secret, credential header, Slack, Discord or Teams webhook URL, Telegram bot token, ntfy access token or Pushover application token in a monitor's or channel's `config` is never returned: it reads back as `••••••••`. Send that value back unchanged to keep the stored secret, or send a new one to replace it. A masked value that does not match the stored secret, or one that looks like a half-edited mask, is refused with `400`, so a placeholder can never be saved as a password. Secrets must be text.
 
-A kept secret has to stay where it is sent. If a request keeps a stored secret and also changes the monitor's `url`, the OAuth2 `tokenUrl`, the CAS server, a database `host` or `port`, or a webhook channel's `url`, it is refused until you enter the secret again. This also applies to a monitor test that names a saved monitor. Changing the `type` of a monitor or channel needs a new `config` in the same request.
+A kept secret has to stay where it is sent. If a request keeps a stored secret and also changes the monitor's `url`, the OAuth2 `tokenUrl`, the CAS server, a database `host` or `port`, or a webhook channel's `url` or an ntfy channel's `serverUrl`, it is refused until you enter the secret again. This also applies to a monitor test that names a saved monitor. Changing the `type` of a monitor or channel needs a new `config` in the same request.
 
 Secrets read from a [vault](vault.md) are references and are returned as they are. Credentials written into a URL (`https://user:password@host`), a query string or a request body are not recognised as secrets and are returned as stored; use the authentication fields, headers or a vault instead.
 

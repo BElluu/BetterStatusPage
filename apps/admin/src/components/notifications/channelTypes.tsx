@@ -5,7 +5,7 @@ import { CredentialSection } from '../monitors/CredentialSection'
 import type { VaultPickerProps } from '../monitors/monitorFormParts'
 import { DiscordIcon, SlackIcon, TeamsIcon, TelegramIcon } from './icons'
 
-export type ChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack' | 'telegram'
+export type ChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack' | 'telegram' | 'ntfy' | 'pushover'
 
 const VARS = ['{{monitor_name}}', '{{monitor_type}}', '{{status}}', '{{previous_status}}', '{{error_message}}', '{{checked_at}}', '{{monitor_list}}', '{{affected_count}}', '{{event_type}}', '{{cert_expires_in}}', '{{cert_expires_at}}']
 
@@ -31,6 +31,8 @@ interface DiscordDraft { webhookUrl: string; username: string; avatarUrl: string
 interface TeamsDraft { webhookUrl: string; summary: string }
 interface SlackDraft { webhookUrl: string; text: string }
 interface TelegramDraft { botToken: string; vault: VaultRef | undefined; chatId: string; text: string }
+interface NtfyDraft { serverUrl: string; topic: string; accessToken: string; vault: VaultRef | undefined; text: string }
+interface PushoverDraft { appToken: string; vault: VaultRef | undefined; userKey: string; text: string }
 
 export interface ChannelDrafts {
   email: EmailDraft
@@ -39,6 +41,8 @@ export interface ChannelDrafts {
   teams: TeamsDraft
   slack: SlackDraft
   telegram: TelegramDraft
+  ntfy: NtfyDraft
+  pushover: PushoverDraft
 }
 
 export interface ChannelFieldsProps<D> {
@@ -209,6 +213,69 @@ function TelegramFields({ draft, onChange, vaultPicker }: ChannelFieldsProps<Tel
   )
 }
 
+function NtfyFields({ draft, onChange, vaultPicker }: ChannelFieldsProps<NtfyDraft>) {
+  return (
+    <>
+      <Field label="Server URL (optional)">
+        <input value={draft.serverUrl} onChange={(e) => onChange({ ...draft, serverUrl: e.target.value })} className="input-sig" placeholder="https://ntfy.sh" />
+      </Field>
+      <Field label="Topic">
+        <input value={draft.topic} onChange={(e) => onChange({ ...draft, topic: e.target.value })} required className="input-sig" placeholder="my-status-alerts" autoComplete="off" />
+      </Field>
+      <CredentialSection
+        {...vaultPicker}
+        vault={draft.vault}
+        onVaultChange={(vault) => onChange({ ...draft, vault })}
+        mappingFields={[]}
+        valueLabel="access token"
+        secretTypes={['value']}
+      >
+        <Field label="Access Token (optional)">
+          {/* A stored token comes back masked; selecting it on focus makes replacing it a single paste. */}
+          <input value={draft.accessToken} onChange={(e) => onChange({ ...draft, accessToken: e.target.value })} onFocus={(e) => e.target.select()} className="input-sig" placeholder="tk_…" autoComplete="off" />
+        </Field>
+      </CredentialSection>
+      <Field label="Message Text (optional)">
+        <input value={draft.text} onChange={(e) => onChange({ ...draft, text: e.target.value })} className="input-sig" placeholder="Monitor {{monitor_name}} is {{status}}" />
+      </Field>
+      <InfoBox title="Push notification is sent automatically">
+        A title, status, error and timestamp are always included; a down monitor is sent with high priority. Message Text is an optional line above them (supports variables). Anyone who knows a topic on a public server can read it, so use a hard-to-guess name or an access token.
+      </InfoBox>
+      <VarsHint />
+    </>
+  )
+}
+
+function PushoverFields({ draft, onChange, vaultPicker }: ChannelFieldsProps<PushoverDraft>) {
+  return (
+    <>
+      <CredentialSection
+        {...vaultPicker}
+        vault={draft.vault}
+        onVaultChange={(vault) => onChange({ ...draft, vault })}
+        mappingFields={[]}
+        valueLabel="application token"
+        secretTypes={['value']}
+      >
+        <Field label="Application Token">
+          {/* A stored token comes back masked; selecting it on focus makes replacing it a single paste. */}
+          <input value={draft.appToken} onChange={(e) => onChange({ ...draft, appToken: e.target.value })} onFocus={(e) => e.target.select()} required className="input-sig" placeholder="azGDOR…" autoComplete="off" />
+        </Field>
+      </CredentialSection>
+      <Field label="User Key">
+        <input value={draft.userKey} onChange={(e) => onChange({ ...draft, userKey: e.target.value })} required className="input-sig" placeholder="uQiRzp…" autoComplete="off" />
+      </Field>
+      <Field label="Message Text (optional)">
+        <input value={draft.text} onChange={(e) => onChange({ ...draft, text: e.target.value })} className="input-sig" placeholder="Monitor {{monitor_name}} is {{status}}" />
+      </Field>
+      <InfoBox title="Push notification is sent automatically">
+        A title, status, error and timestamp are always included; a down monitor is sent with high priority. Message Text is an optional line above them (supports variables). Create an application at pushover.net/apps/build for the token; the user key is on your Pushover dashboard (a group key works too).
+      </InfoBox>
+      <VarsHint />
+    </>
+  )
+}
+
 function WebhookFields({ draft, onChange }: ChannelFieldsProps<WebhookDraft>) {
   const setHeaders = (headers: [string, string][]) => onChange({ ...draft, headers })
   const updateHeader = (i: number, field: 0 | 1, val: string) =>
@@ -341,10 +408,33 @@ export const CHANNEL_TYPES: { [K in ChannelType]: ChannelTypeDescriptor<ChannelD
     build: (d) => ({ ...(d.vault ? { vault: d.vault } : { botToken: d.botToken.trim() }), chatId: d.chatId.trim(), ...(d.text ? { text: d.text } : {}) }),
     Fields: TelegramFields,
   },
+  ntfy: {
+    label: 'ntfy',
+    hint: 'Topic on ntfy.sh or your server',
+    icon: materialIcon('notifications_active'),
+    defaultDraft: () => ({ serverUrl: '', topic: '', accessToken: '', vault: undefined, text: '' }),
+    parse: (c) => ({ serverUrl: str(c['serverUrl']), topic: str(c['topic']), accessToken: str(c['accessToken']), vault: (c['vault'] as VaultRef | undefined) ?? undefined, text: str(c['text']) }),
+    build: (d) => ({
+      ...(d.serverUrl.trim() ? { serverUrl: d.serverUrl.trim() } : {}),
+      topic: d.topic.trim(),
+      ...(d.vault ? { vault: d.vault } : d.accessToken.trim() ? { accessToken: d.accessToken.trim() } : {}),
+      ...(d.text ? { text: d.text } : {}),
+    }),
+    Fields: NtfyFields,
+  },
+  pushover: {
+    label: 'Pushover',
+    hint: 'Application token and user key',
+    icon: materialIcon('campaign'),
+    defaultDraft: () => ({ appToken: '', vault: undefined, userKey: '', text: '' }),
+    parse: (c) => ({ appToken: str(c['appToken']), vault: (c['vault'] as VaultRef | undefined) ?? undefined, userKey: str(c['userKey']), text: str(c['text']) }),
+    build: (d) => ({ ...(d.vault ? { vault: d.vault } : { appToken: d.appToken.trim() }), userKey: d.userKey.trim(), ...(d.text ? { text: d.text } : {}) }),
+    Fields: PushoverFields,
+  },
 }
 
 /** Display order of the type switcher. */
-export const CHANNEL_TYPE_ORDER: ChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack', 'telegram']
+export const CHANNEL_TYPE_ORDER: ChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack', 'telegram', 'ntfy', 'pushover']
 
 export function isChannelType(value: unknown): value is ChannelType {
   return typeof value === 'string' && value in CHANNEL_TYPES
@@ -358,7 +448,7 @@ export function initialDrafts(type: ChannelType | null, config: unknown): Channe
   const stored = (config && typeof config === 'object' ? config : {}) as Record<string, unknown>
   const pick = <K extends ChannelType>(k: K): ChannelDrafts[K] =>
     (type === k ? CHANNEL_TYPES[k].parse(stored) : CHANNEL_TYPES[k].defaultDraft())
-  return { email: pick('email'), webhook: pick('webhook'), discord: pick('discord'), teams: pick('teams'), slack: pick('slack'), telegram: pick('telegram') }
+  return { email: pick('email'), webhook: pick('webhook'), discord: pick('discord'), teams: pick('teams'), slack: pick('slack'), telegram: pick('telegram'), ntfy: pick('ntfy'), pushover: pick('pushover') }
 }
 
 export function buildChannelConfig<K extends ChannelType>(type: K, drafts: ChannelDrafts): Record<string, unknown> {

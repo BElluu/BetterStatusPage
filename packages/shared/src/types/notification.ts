@@ -1,6 +1,6 @@
 import type { VaultRef } from './monitor.js'
 
-export type NotificationChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack' | 'telegram'
+export type NotificationChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack' | 'telegram' | 'ntfy' | 'pushover'
 
 export interface EmailNotificationConfig {
   to: string
@@ -41,7 +41,28 @@ export interface TelegramNotificationConfig {
   text?: string
 }
 
-export type NotificationChannelConfig = EmailNotificationConfig | WebhookNotificationConfig | DiscordNotificationConfig | TeamsNotificationConfig | SlackNotificationConfig | TelegramNotificationConfig
+export interface NtfyNotificationConfig {
+  /** Server root; ntfy.sh when omitted. */
+  serverUrl?: string
+  topic: string
+  /** Access token of a protected topic; the API only ever returns it masked. Ignored when `vault` is set. */
+  accessToken?: string
+  /** Vault secret holding the access token: a `value` secret. */
+  vault?: VaultRef
+  text?: string
+}
+
+export interface PushoverNotificationConfig {
+  /** Application token; the API only ever returns it masked. Ignored when `vault` is set. */
+  appToken?: string
+  /** Vault secret holding the application token: a `value` secret. */
+  vault?: VaultRef
+  /** User or group key that receives the messages. */
+  userKey: string
+  text?: string
+}
+
+export type NotificationChannelConfig = EmailNotificationConfig | WebhookNotificationConfig | DiscordNotificationConfig | TeamsNotificationConfig | SlackNotificationConfig | TelegramNotificationConfig | NtfyNotificationConfig | PushoverNotificationConfig
 
 /** Quiet hours silence a channel during a recurring local-time window. */
 export interface QuietHoursPolicy {

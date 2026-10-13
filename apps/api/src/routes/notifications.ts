@@ -12,7 +12,7 @@ import { keyForNew, type KeyOwner } from '../lib/entityKey.js'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
 import { tokenAllows, VAULT_USE_SCOPE } from '@bsp/shared'
 import { canonical, VAULT_USE_REFUSED, vaultUseProblem } from '../services/vaultUse.js'
-import { CHANNEL_TYPES, telegramConfigError } from '../services/channelInput.js'
+import { CHANNEL_TYPES, channelConfigError } from '../services/channelInput.js'
 import type { NotificationChannelType } from '@bsp/shared'
 
 
@@ -129,10 +129,8 @@ export async function notificationRoutes(app: FastifyInstance) {
     if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
     const vaultProblem = vaultUseProblem(requestIdentity(req).apiToken, secrets.config, undefined)
     if (vaultProblem) return reply.code(403).send({ error: vaultProblem })
-    if (req.body.type === 'telegram') {
-      const problem = telegramConfigError(secrets.config)
-      if (problem) return reply.code(400).send({ error: problem })
-    }
+    const configProblem = channelConfigError(req.body.type, secrets.config)
+    if (configProblem) return reply.code(400).send({ error: configProblem })
     const resolvedKey = await keyForNew(req.body.name, req.body.key, channelKeyOwner)
     if ('error' in resolvedKey) return reply.code(resolvedKey.status).send({ error: resolvedKey.error })
     const now = Date.now()
@@ -187,9 +185,9 @@ export async function notificationRoutes(app: FastifyInstance) {
       if (vaultProblem) return reply.code(403).send({ error: vaultProblem })
       config = secrets.config
     }
-    if (effectiveType === 'telegram' && (config !== undefined || req.body.type !== undefined)) {
-      const problem = telegramConfigError(config ?? JSON.parse(existing.config))
-      if (problem) return reply.code(400).send({ error: problem })
+    if (config !== undefined || req.body.type !== undefined) {
+      const configProblem = channelConfigError(effectiveType, config ?? JSON.parse(existing.config))
+      if (configProblem) return reply.code(400).send({ error: configProblem })
     }
 
     const updates: Partial<typeof notificationChannels.$inferInsert> = { updatedAt: Date.now() }

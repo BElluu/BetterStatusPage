@@ -1,6 +1,6 @@
 # Notification channels
 
-Notification channels tell **your team** when a monitor goes down, degrades, recovers or has a TLS certificate about to expire. A channel is one destination — an email address, an HTTP endpoint, a Slack, Discord or Microsoft Teams webhook, a Telegram chat — and you decide per monitor which channels it alerts.
+Notification channels tell **your team** when a monitor goes down, degrades, recovers or has a TLS certificate about to expire. A channel is one destination — an email address, an HTTP endpoint, a Slack, Discord or Microsoft Teams webhook, a Telegram chat, an ntfy topic, a Pushover recipient — and you decide per monitor which channels it alerts.
 
 Channels live under *Admin → Alerts → **Notifications*** (operator role or higher). To notify the people who read your status page instead, see [Subscriptions](subscriptions.md). To make something happen when a monitor goes down, such as starting a failover job, see [Actions](actions.md).
 
@@ -16,8 +16,10 @@ Channels live under *Admin → Alerts → **Notifications*** (operator role or h
 | **Discord** | A Discord channel webhook | Colour-coded embed |
 | **Teams** | A Microsoft Teams webhook | Colour-coded MessageCard |
 | **Telegram** | A Telegram chat, group or channel, through your own bot | Formatted message with a severity emoji |
+| **ntfy** | A topic on ntfy.sh or your own ntfy server | Push notification, high priority when a monitor is down |
+| **Pushover** | A Pushover user or group | Push notification, high priority when a monitor is down |
 
-Email and Webhook are fully templated. Slack, Discord, Teams and Telegram build a rich message automatically and let you add one templated line on top.
+Email and Webhook are fully templated. Slack, Discord, Teams and Telegram build a rich message automatically and let you add one templated line on top; ntfy and Pushover send a plain-text push the same way.
 
 ## Creating a channel
 
@@ -201,6 +203,21 @@ For certificate events all four switch the headline to *TLS certificate of … e
 
 ---
 
+## ntfy and Pushover
+
+> [!WARNING]
+> **Not released yet.** The ntfy and Pushover channels are not in a published release. To try them, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+Both send a plain-text push notification: a headline (*Monitor API is DOWN*), then the status, previous status, monitor type, error and check time. A down monitor is sent with high priority, every other event with normal priority. The optional **Message Text** is a templated line above the facts. A message is cut to the service's limit (4000 bytes for ntfy, 1024 characters for Pushover).
+
+**ntfy** publishes to a **Topic** on **Server URL** (`https://ntfy.sh` when empty; set your own server, with or without a path prefix). A topic is 1 to 64 letters, digits, `-` or `_`. Anyone who knows a topic on a public server can read it, so pick a hard-to-guess name or protect it with an **Access Token** (optional, shown only by its last four characters once saved, or read from the [vault](vault.md)). The Server URL cannot contain a login, query or fragment, and redirects are not followed. Changing it while keeping a stored access token is refused: enter the token again. The token is sent in a header, so use an `https://` server. A token read from the vault is not covered by that refusal.
+
+**Pushover** needs an **Application Token** (create an application at pushover.net/apps/build; shown only by its last four characters once saved, or read from the [vault](vault.md)) and the **User Key** of the person or group that receives the messages. A vault secret for either token must be a **Secure Value** secret.
+
+A failed send is recorded in the delivery history with the HTTP status and the service's own reason, for example `Pushover API returned HTTP 400: user identifier is invalid`. Tokens never appear in it.
+
+---
+
 ## Template variables
 
 Any `{{name}}` in a templated field is replaced when the notification is sent. Templated fields are:
@@ -213,6 +230,8 @@ Any `{{name}}` in a templated field is replaced when the notification is sent. T
 | Discord | **Message Content** |
 | Teams | **Summary** |
 | Telegram | **Message Text** |
+| ntfy | **Message Text** |
+| Pushover | **Message Text** |
 
 A variable that does not exist for the event is left in the text unchanged — for example `{{cert_host}}` in an ordinary alert is sent literally as `{{cert_host}}`.
 
@@ -263,8 +282,8 @@ Digests are described in [Alert hygiene](alert-hygiene.md#grouping-bursts-into-o
 ## Saved secrets
 
 The webhook URL of a Slack, Discord or Microsoft Teams channel is the credential for posting to it, so a saved URL is
-never shown again, in the form or in the API: it reads back as `••••••••`. The same goes for the Telegram bot token
-(which keeps its last four characters visible) and for credential headers of a webhook channel (a header whose name
+never shown again, in the form or in the API: it reads back as `••••••••`. The same goes for the Telegram bot token, the ntfy access token and the Pushover application token
+(which keep their last four characters visible) and for credential headers of a webhook channel (a header whose name
 contains `auth`, `token`, `secret`, `key`, `pass`, `pwd`, `credential`, `cookie`, `session` or `signature`). Leave the field untouched to keep
 the stored value, or enter a new one to replace it. To change a webhook URL you paste the new one; there is nothing to edit. For a webhook channel, changing the **URL** while keeping a stored credential header is refused: enter the header again. Credentials written into a URL or the request body are not masked.
 
@@ -361,5 +380,7 @@ A channel has a unique `key` next to its `id` (see [Keys](api.md#monitors-and-no
 | `discord` | `webhookUrl`, `username`, `avatarUrl`, `content` (all but `webhookUrl` optional) |
 | `teams` | `webhookUrl`, `summary` (optional) |
 | `telegram` | `chatId`, and `botToken` or a `vault` reference to the token; `text` (optional) |
+| `ntfy` | `topic`; `serverUrl`, `accessToken` or a `vault` reference to it, and `text` (all optional) |
+| `pushover` | `userKey`, and `appToken` or a `vault` reference to the token; `text` (optional) |
 
 Creating, updating and deleting channels, and changing SMTP settings, are written to the audit log.

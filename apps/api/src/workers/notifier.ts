@@ -37,6 +37,10 @@ async function deliverToChannel(channel: ChannelRow, vars: Record<string, string
     await sendSlack(config as { webhookUrl: string; text?: string }, vars)
   } else if (channel.type === 'telegram') {
     await sendTelegram(config as unknown as TelegramConfig, vars)
+  } else if (channel.type === 'ntfy') {
+    await sendNtfy(config as unknown as NtfyConfig, vars)
+  } else if (channel.type === 'pushover') {
+    await sendPushover(config as unknown as PushoverConfig, vars)
   } else {
     throw new Error(`Unsupported notification channel type: ${channel.type}`)
   }
@@ -792,13 +796,17 @@ function readableTimestamp(iso: string | undefined): string {
 
 interface TelegramConfig { botToken?: string; vault?: VaultRef; chatId: string; text?: string }
 
-async function resolveTelegramToken(config: TelegramConfig): Promise<string> {
-  if (!config.vault) return config.botToken ?? ''
-  const secret = await resolveVaultSecret(config.vault)
+/** A credential typed into the channel, or the `value` secret of its vault reference. */
+async function resolveToken(direct: string | undefined, vault: VaultRef | undefined, vaultProblem: string): Promise<string> {
+  if (!vault) return direct ?? ''
+  const secret = await resolveVaultSecret(vault)
   const token = (secret['value'] ?? '').trim()
-  if (!token) throw new Error('Telegram vault secret has no bot token: use a value secret')
+  if (!token) throw new Error(vaultProblem)
   return token
 }
+
+const resolveTelegramToken = (config: TelegramConfig) =>
+  resolveToken(config.botToken, config.vault, 'Telegram vault secret has no bot token: use a value secret')
 
 async function sendTelegram(config: TelegramConfig, vars: Record<string, string>) {
   const botToken = await resolveTelegramToken(config)
@@ -838,10 +846,96 @@ async function sendTelegram(config: TelegramConfig, vars: Record<string, string>
     body: JSON.stringify({ chat_id: config.chatId.trim().replace(/^#(?=-?\d)/, ''), text, parse_mode: 'HTML', link_preview_options: { is_disabled: true } }),
     signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   })
-  if (!res.ok) {
-    const description = await res.json().then((j: { description?: unknown }) => typeof j.description === 'string' ? j.description : '', () => '')
-    throw new Error(`Telegram API returned HTTP ${res.status}${description ? `: ${description.slice(0, 200)}` : ''}`)
+  await failOnHttpError(res, 'Telegram', (j) => typeof j['description'] === 'string' ? j['description'] : '')
+}
+
+/** Cuts `value` to `max` characters without splitting a surrogate pair. */
+function clip(value: string, max: number): string {
+  const chars = Array.from(value)
+  return chars.length <= max ? value : `${chars.slice(0, max - 1).join('')}…`
+}
+
+/** The plain-text alert the push channels (ntfy, Pushover) show: a headline and the facts under it. */
+function plainAlert(vars: Record<string, string>, customText: string | undefined, maxBody: number): { title: string; body: string; severity: Severity } {
+  const statusText = vars['status'] ?? 'unknown'
+  const title = eventHeadline(vars, (text) => text) ?? `Monitor ${vars['monitor_name'] ?? 'Unknown monitor'} is ${statusText.toUpperCase()}`
+  const body = [
+    ...(customText ? [clip(substituteVars(customText, vars), TELEGRAM_MAX_TEXT_LINE)] : []),
+    ...(actionFacts(vars)?.map(([name, value]) => `${name}: ${value}`) ?? [
+      `Status: ${statusText}`,
+      `Previous: ${vars['previous_status'] ?? 'unknown'}`,
+      `Type: ${vars['monitor_type'] ?? 'unknown'}`,
+    ]),
+    ...(vars['error_message'] ? [`${detailLabel(vars)}: ${vars['error_message']}`] : []),
+    `Checked at ${readableTimestamp(vars['checked_at'])}`,
+  ].join('\n')
+  return { title: clip(title, 250), body: clip(body, maxBody), severity: severityOf(statusText) }
+}
+
+/** Throws `<service> API returned HTTP <status>[: <reason>]`; the reason is the service's own error text, never a credential. */
+async function failOnHttpError(res: Response, service: string, reason: (json: Record<string, unknown>) => string): Promise<void> {
+  if (res.ok) return
+  const text = await res.json().then((j: unknown) => (j && typeof j === 'object' && !Array.isArray(j) ? reason(j as Record<string, unknown>) : '')).catch(() => '')
+  throw new Error(`${service} API returned HTTP ${res.status}${text ? `: ${text.slice(0, 200)}` : ''}`)
+}
+
+const NTFY_DEFAULT_SERVER = 'https://ntfy.sh'
+/** ntfy's default message limit is 4096 bytes, not characters. */
+const NTFY_MAX_MESSAGE_BYTES = 4000
+const HEADER_SAFE_TOKEN = /^[\x21-\x7e]+$/
+
+/** Cuts `value` to `maxBytes` of UTF-8 without splitting a character. */
+function clipBytes(value: string, maxBytes: number): string {
+  if (Buffer.byteLength(value) <= maxBytes) return value
+  let out = ''
+  for (const char of value) {
+    if (Buffer.byteLength(out + char + '…') > maxBytes) break
+    out += char
   }
+  return `${out}…`
+}
+const NTFY_PRIORITY: Record<Severity, number> = { down: 4, degraded: 3, up: 3 }
+const NTFY_TAGS: Record<Severity, string> = { down: 'rotating_light', degraded: 'warning', up: 'white_check_mark' }
+
+interface NtfyConfig { serverUrl?: string; topic: string; accessToken?: string; vault?: VaultRef; text?: string }
+
+async function sendNtfy(config: NtfyConfig, vars: Record<string, string>) {
+  const token = await resolveToken(config.accessToken, config.vault, 'ntfy vault secret has no access token: use a value secret')
+  // fetch quotes an invalid header value in its error, which would put the token into the delivery history.
+  if (token && !HEADER_SAFE_TOKEN.test(token)) throw new Error('ntfy access token contains characters that cannot be sent in a header')
+  const { title, body, severity } = plainAlert(vars, config.text, NTFY_MAX_MESSAGE_BYTES)
+  // A server behind a reverse proxy may live under a path prefix, which publishing keeps.
+  const target = new URL(config.serverUrl?.trim() || NTFY_DEFAULT_SERVER)
+  if (!target.pathname.endsWith('/')) target.pathname += '/'
+  // Publishing as JSON to the server root keeps non-ASCII titles intact, which a header-based publish would not.
+  const res = await fetch(target.href, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ topic: config.topic.trim(), title, message: clipBytes(body, NTFY_MAX_MESSAGE_BYTES), priority: NTFY_PRIORITY[severity], tags: [NTFY_TAGS[severity]] }),
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
+    redirect: 'error',
+  })
+  await failOnHttpError(res, 'ntfy', (j) => typeof j['error'] === 'string' ? j['error'] : '')
+}
+
+const PUSHOVER_URL = 'https://api.pushover.net/1/messages.json'
+const PUSHOVER_MAX_MESSAGE = 1024
+/** Pushover priority 1 is high: it bypasses the recipient's quiet hours. Only a down monitor gets it. */
+const PUSHOVER_PRIORITY: Record<Severity, number> = { down: 1, degraded: 0, up: 0 }
+
+interface PushoverConfig { appToken?: string; vault?: VaultRef; userKey: string; text?: string }
+
+async function sendPushover(config: PushoverConfig, vars: Record<string, string>) {
+  const token = await resolveToken(config.appToken, config.vault, 'Pushover vault secret has no application token: use a value secret')
+  const { title, body, severity } = plainAlert(vars, config.text, PUSHOVER_MAX_MESSAGE)
+  const res = await fetch(PUSHOVER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, user: config.userKey.trim(), title, message: body, priority: PUSHOVER_PRIORITY[severity] }),
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
+    redirect: 'error',
+  })
+  await failOnHttpError(res, 'Pushover', (j) => Array.isArray(j['errors']) ? j['errors'].filter((e) => typeof e === 'string').join('; ') : '')
 }
 
 /** Send a test email directly to the given address using current SMTP settings. */
