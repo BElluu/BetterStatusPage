@@ -237,6 +237,48 @@ describe('notification configuration', () => {
     }
     assert.equal((await app.inject({ method: 'POST', url: '/notifications/channels', payload: { name: 'Vault', type: 'telegram', config: { vault: { vaultId: 1, secretId: 2 }, chatId: '-1' } } })).statusCode, 200)
   })
+
+  it('validates ntfy and Pushover configs', async () => {
+    const create = (type: string, config: unknown) => app.inject({ method: 'POST', url: '/notifications/channels', payload: { name: 'Push', type, config } })
+    for (const config of [{}, { topic: 'bad topic!' }, { topic: 'a', serverUrl: 'ftp://x.test' }, { topic: 'a', serverUrl: 'nope' }, { topic: 'a', serverUrl: 'https://user:pass@ntfy.test' }, { topic: 'a', serverUrl: 'https://ntfy.test/?a=1' }, { topic: 'a', accessToken: 'tk_a\ntk_b' }, { topic: 'a', accessToken: '••••••••XXXX1' }, { topic: 'a', vault: { vaultId: 1, secretId: 0 } }]) {
+      assert.equal((await create('ntfy', config)).statusCode, 400, JSON.stringify(config))
+    }
+    assert.equal((await create('ntfy', { topic: 'alerts' })).statusCode, 200)
+    assert.equal((await create('ntfy', { topic: 'alerts', serverUrl: 'https://ntfy.example.test', accessToken: 'tk_abc' })).statusCode, 200)
+
+    for (const config of [{}, { userKey: 'u' }, { appToken: 'a', userKey: ' ' }, { appToken: '••••••••XXXX1', userKey: 'u' }, { userKey: 'u', vault: { vaultId: 1, secretId: 0 } }]) {
+      assert.equal((await create('pushover', config)).statusCode, 400, JSON.stringify(config))
+    }
+    assert.equal((await create('pushover', { appToken: 'a', userKey: 'u' })).statusCode, 200)
+    assert.equal((await create('pushover', { vault: { vaultId: 1, secretId: 2 }, userKey: 'u' })).statusCode, 200)
+  })
+
+  it('masks ntfy and Pushover tokens, and refuses to keep an ntfy token when the server changes', async () => {
+    const ntfy = (await app.inject({
+      method: 'POST', url: '/notifications/channels',
+      payload: { name: 'ntfy', type: 'ntfy', config: { serverUrl: 'https://ntfy.one.test', topic: 'alerts', accessToken: 'tk_0123456789abcdefWXYZ' } },
+    })).json()
+    assert.equal(ntfy.config.accessToken, '••••••••WXYZ')
+    const moved = await app.inject({
+      method: 'PATCH', url: `/notifications/channels/${ntfy.id}`,
+      payload: { config: { serverUrl: 'https://evil.test', topic: 'alerts', accessToken: '••••••••WXYZ' } },
+    })
+    assert.equal(moved.statusCode, 400)
+    const kept = await app.inject({
+      method: 'PATCH', url: `/notifications/channels/${ntfy.id}`,
+      payload: { config: { serverUrl: 'https://ntfy.one.test', topic: 'other', accessToken: '••••••••WXYZ' } },
+    })
+    assert.equal(kept.statusCode, 200)
+    const [stored] = await db.select().from(notificationChannels).where(eq(notificationChannels.id, ntfy.id))
+    assert.equal(JSON.parse(stored!.config).accessToken, 'tk_0123456789abcdefWXYZ')
+
+    const pushover = (await app.inject({
+      method: 'POST', url: '/notifications/channels',
+      payload: { name: 'po', type: 'pushover', config: { appToken: 'azGDORePK8gMaC0QOYAMyEEuzJnyUi', userKey: 'user-key' } },
+    })).json()
+    assert.equal(pushover.config.appToken, '••••••••nyUi')
+    assert.equal(pushover.config.userKey, 'user-key')
+  })
 })
 
 describe('audit API', () => {

@@ -90,6 +90,8 @@ When something breaks (or recovers), BetterStatusPage can shout at you via:
 - **Microsoft Teams** — native MessageCard integration; color-coded cards, no app installation required — just an incoming webhook URL
 - **Slack** — native Block Kit integration; color-coded attachments, optional `<!here>` / `<!channel>` mentions — just an incoming webhook URL
 - **Telegram** — messages through your own bot with a severity emoji (🔴 / 🟡 / 🟢) — just a bot token and a chat ID
+- **ntfy** — push notifications to a topic on ntfy.sh or your own server, high priority when a monitor is down — just a topic
+- **Pushover** — push notifications to your phone, high priority when a monitor is down — just an application token and a user key
 
 All channels support template variables like `{{monitor_name}}`, `{{status}}`, `{{error_message}}` etc., so your alerts can say *"API Gateway is down: connection timeout"* instead of *"status changed"*.
 

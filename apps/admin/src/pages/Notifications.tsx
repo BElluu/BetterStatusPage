@@ -4,7 +4,6 @@ import { api } from '../api/client'
 import type { NotificationChannel, NotificationDelivery, NotificationDeliveryAttempt, SmtpSettings, VaultRef } from '@bsp/shared'
 import ChannelFormModal from '../components/notifications/ChannelFormModal'
 import { CHANNEL_TYPES, CHANNEL_TYPE_ORDER, type ChannelType } from '../components/notifications/channelTypes'
-import { DiscordIcon, SlackIcon, TeamsIcon, TelegramIcon } from '../components/notifications/icons'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { Link } from 'react-router-dom'
 import { deliveryHistoryUrl } from '../deliveryHistoryUrl'
@@ -124,7 +123,11 @@ export default function NotificationsPage() {
                     ? String(cfg['webhookUrl'] ?? '')
                     : ch.type === 'telegram'
                       ? String(cfg['chatId'] ?? '')
-                      : String(cfg['url'] ?? '')
+                      : ch.type === 'ntfy'
+                        ? `${String(cfg['serverUrl'] || 'https://ntfy.sh')}/${String(cfg['topic'] ?? '')}`
+                        : ch.type === 'pushover'
+                          ? String(cfg['userKey'] ?? '')
+                          : String(cfg['url'] ?? '')
                 return (
                   <tr key={ch.id}
                     className="transition-colors"
@@ -137,12 +140,7 @@ export default function NotificationsPage() {
                       <span className="flex items-center gap-1.5 w-fit px-2 py-0.5 rounded-full text-xs font-medium"
                         style={{ background: 'var(--admin-icon-container)', color: 'var(--admin-icon-color)' }}
                       >
-                        {ch.type === 'discord' ? <DiscordIcon size={12} />
-                          : ch.type === 'teams' ? <TeamsIcon size={12} />
-                          : ch.type === 'slack' ? <SlackIcon size={12} />
-                          : ch.type === 'telegram' ? <TelegramIcon size={12} />
-                          : <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '12px' }}>{ch.type === 'email' ? 'mail' : 'webhook'}</span>
-                        }
+                        {CHANNEL_TYPES[ch.type as ChannelType]?.icon(12)}
                         {ch.type}
                       </span>
                     </td>

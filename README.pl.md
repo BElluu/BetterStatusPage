@@ -90,6 +90,8 @@ Gdy coś się psuje (albo wraca do życia), BetterStatusPage może na Ciebie nak
 - **Microsoft Teams** — natywna integracja MessageCard; kolorowe karty, bez instalowania aplikacji — wystarczy URL incoming webhooka
 - **Slack** — natywna integracja Block Kit; kolorowe załączniki, opcjonalne wzmianki `<!here>` / `<!channel>` — wystarczy URL incoming webhooka
 - **Telegram** — wiadomości przez własnego bota z emoji wagi (🔴 / 🟡 / 🟢) — wystarczy token bota i ID czatu
+- **ntfy** — powiadomienia push na temat (topic) w ntfy.sh lub na własnym serwerze, z wysokim priorytetem przy awarii — wystarczy nazwa tematu
+- **Pushover** — powiadomienia push na telefon, z wysokim priorytetem przy awarii — wystarczy token aplikacji i klucz użytkownika
 
 Wszystkie kanały obsługują zmienne szablonów, takie jak `{{monitor_name}}`, `{{status}}`, `{{error_message}}` itd., dzięki czemu alert może brzmieć *„API Gateway nie działa: przekroczono czas połączenia"* zamiast *„zmiana statusu"*.
 

@@ -125,6 +125,7 @@ describe('NotificationsPage', () => {
     expect(within(panel).getAllByRole('button').map((tile) => tile.textContent)).toEqual([
       expect.stringContaining('Email'), expect.stringContaining('Webhook'), expect.stringContaining('Discord'),
       expect.stringContaining('Teams'), expect.stringContaining('Slack'), expect.stringContaining('Telegram'),
+      expect.stringContaining('ntfy'), expect.stringContaining('Pushover'),
     ])
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
 

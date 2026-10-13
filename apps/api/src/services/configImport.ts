@@ -9,7 +9,7 @@ import { clip, nestedDeeperThan } from '../lib/clip.js'
 import { isValidEntityKey, ENTITY_KEY_ERROR } from '../lib/entityKey.js'
 import { normalizeAlertPolicy, parseAlertPolicy } from './alertPolicy.js'
 import { writeAudit, type Actor } from './audit.js'
-import { CHANNEL_TYPES, telegramConfigError } from './channelInput.js'
+import { CHANNEL_TYPES, channelConfigError } from './channelInput.js'
 import { AUTO_INCIDENT_MINUTES_RANGE, certResetsFor, generateWebhookToken, parseNewMonitor, THRESHOLD_RANGE, type MonitorFields } from './monitorInput.js'
 import { refreshPublishedMonitorIds } from './publishedMonitors.js'
 import { restoreSecrets } from './secretFields.js'
@@ -493,10 +493,8 @@ function plan(state: State, desired: Desired, token: ImportOptions['token']): Pl
     const config = resolveVaults(secrets.config, `${channel.path}.config`, problems) as Json
     const vaultProblem = vaultUseProblem(token, config, stored)
     if (vaultProblem) problems.add(`${channel.path}.config`, vaultProblem)
-    if (channel.type === 'telegram') {
-      const problem = telegramConfigError(config)
-      if (problem) problems.add(`${channel.path}.config`, problem)
-    }
+    const configProblem = channelConfigError(channel.type, config)
+    if (configProblem) problems.add(`${channel.path}.config`, configProblem)
     if (!existing) {
       plannedChannels.push({ desired: channel, config, existing, fields: [] })
       changes.push({ kind: 'NotificationChannel', key: channel.key, action: 'create' })

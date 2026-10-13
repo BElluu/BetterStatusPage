@@ -48,17 +48,19 @@ const CHANNEL_SECRETS: Readonly<Record<string, readonly SecretField[]>> = {
   discord: WEBHOOK_URL_SECRET,
   teams: WEBHOOK_URL_SECRET,
   telegram: [{ path: ['botToken'], tail: true }],
+  ntfy: [{ path: ['accessToken'], tail: true }],
+  pushover: [{ path: ['appToken'], tail: true }],
 }
 
 /**
  * Where a secret ends up. Keeping a stored secret while this changes would let whoever edits the object send it to a
- * host of their choosing, so the secret must be entered again. A channel whose secret is its own URL, and Telegram
- * (fixed host), have nothing to list.
+ * host of their choosing, so the secret must be entered again. A channel whose secret is its own URL, Telegram and
+ * Pushover (fixed hosts) have nothing to list; ntfy lists its server URL.
  */
 const MONITOR_DESTINATIONS: readonly (readonly string[])[] = [
   ['url'], ['auth', 'oauth2', 'tokenUrl'], ['auth', 'cas', 'casServerUrl'], ['host'], ['port'],
 ]
-const CHANNEL_DESTINATIONS: readonly (readonly string[])[] = [['url']]
+const CHANNEL_DESTINATIONS: readonly (readonly string[])[] = [['url'], ['serverUrl']]
 
 const unique = (fields: readonly SecretField[]): SecretField[] => {
   const seen = new Set<string>()
@@ -160,7 +162,9 @@ export function restoreSecrets(kind: ConfigKind, incoming: unknown, stored: unkn
 /** The first place a configuration is sent to (URL, host, port) that differs between `incoming` and `stored`, or null. */
 export function changedDestination(kind: ConfigKind, incoming: unknown, stored: unknown): string | null {
   for (const path of kind === 'monitor' ? MONITOR_DESTINATIONS : CHANNEL_DESTINATIONS) {
-    if (JSON.stringify(valueAt(incoming, path) ?? null) !== JSON.stringify(valueAt(stored, path) ?? null)) return path.join('.')
+    // An empty value means the same as an absent one.
+    const normalised = (config: unknown) => valueAt(config, path) || null
+    if (JSON.stringify(normalised(incoming)) !== JSON.stringify(normalised(stored))) return path.join('.')
   }
   return null
 }

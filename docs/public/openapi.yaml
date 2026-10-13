@@ -13,11 +13,11 @@ info:
     and channels; without it a token cannot add, change or move a vault reference. Each operation below names the
     permission it needs in `x-scope`. A token expires after 90 days unless it was created without an expiry.
 
-    **Secrets.** Passwords, client secrets, credential headers, Slack, Discord and Teams webhook URLs and bot tokens in a `config` are never
+    **Secrets.** Passwords, client secrets, credential headers, Slack, Discord and Teams webhook URLs and bot, access and application tokens in a `config` are never
     returned: they read back as `••••••••`. Send that value back unchanged to keep the stored secret, or send a new
     value (text) to replace it. A masked value that does not match the stored secret, or one that looks like a
     half-edited mask, is refused with `400`. A kept secret must stay where it is sent: if the `url` (or the OAuth2
-    `tokenUrl`, the CAS server, a database `host` or `port`, or a webhook channel's `url`) changes in the same
+    `tokenUrl`, the CAS server, a database `host` or `port`, or a webhook channel's `url` or an ntfy channel's `serverUrl`) changes in the same
     request, enter the secret again. Changing a `type`
     needs a new `config` in the same request. Credentials written into a URL (`https://user:pass@host`), a query
     string or a request body are not recognised as secrets and are returned as stored: put them in the
@@ -1423,7 +1423,7 @@ components:
 
     NotificationChannelType:
       type: string
-      enum: [email, webhook, discord, teams, slack, telegram]
+      enum: [email, webhook, discord, teams, slack, telegram, ntfy, pushover]
     ChannelAlertPolicy:
       type: object
       description: Quiet hours, throttling and grouping. Through the API, missing parts take their defaults (all off) and values out of range are clamped; a configuration file must be in range and may not contain settings other than these.
@@ -1451,7 +1451,7 @@ components:
     NotificationChannelConfig:
       description: |
         The configuration for the channel's `type`. Webhook URLs of `slack`, `discord` and `teams`, credential headers
-        of `webhook`, and the `telegram` bot token are masked in responses.
+        of `webhook`, the `telegram` bot token, the `ntfy` access token and the `pushover` application token are masked in responses.
       type: object
       additionalProperties: true
       properties:
@@ -1467,6 +1467,11 @@ components:
         text: { type: string }
         botToken: { type: string, description: '`telegram`: the bot token (or use `vault`).' }
         chatId: { type: string, description: '`telegram`: the chat that receives the messages.' }
+        serverUrl: { type: string, description: '`ntfy`: the server root; `https://ntfy.sh` when omitted.' }
+        topic: { type: string, description: '`ntfy`: the topic to publish to (1 to 64 letters, digits, `-` or `_`).' }
+        accessToken: { type: string, description: '`ntfy`: the access token of a protected topic (or use `vault`).' }
+        appToken: { type: string, description: '`pushover`: the application token (or use `vault`).' }
+        userKey: { type: string, description: '`pushover`: the user or group key that receives the messages.' }
         vault: { $ref: '#/components/schemas/VaultRef' }
     ActionHttpConfig:
       type: object
