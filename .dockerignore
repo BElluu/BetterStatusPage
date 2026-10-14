@@ -1,5 +1,5 @@
 node_modules
-packages/shared/dist
+packages/*/dist
 apps/api/dist
 apps/admin/dist
 apps/status/dist

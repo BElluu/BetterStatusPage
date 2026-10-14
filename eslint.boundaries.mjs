@@ -1,7 +1,7 @@
 // Dependency boundaries of the shared "Better" modules (see the module graph in CLAUDE.md).
 // `apps/*` may use `packages/*`; a package may only use the packages it lists here; nothing outside a package
-// reaches into its `src/`. The npm scope is not decided yet, so it is one constant to change.
-export const BETTER_SCOPE = '@better'
+// reaches into its `src/`. The scope is one constant, so a rename stays mechanical.
+export const BETTER_SCOPE = '@better-kit'
 
 /** package folder -> the @better packages it may import. */
 export const PACKAGE_GRAPH = {

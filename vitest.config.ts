@@ -30,13 +30,13 @@ export default defineConfig({
     // --localstorage-file is given. Because jsdom's window is the global object in tests, that getter
     // shadows jsdom's working Storage. Turning Node's implementation off in the workers lets jsdom's through.
     execArgv: ['--no-webstorage'],
-    include: ['apps/{admin,status}/src/**/*.test.{ts,tsx}'],
+    include: ['apps/{admin,status}/src/**/*.test.{ts,tsx}', 'packages/ui/src/**/*.test.{ts,tsx}'],
     setupFiles: ['./vitest.setup.ts'],
     restoreMocks: true,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'json-summary'],
-      include: ['apps/admin/src/**/*.{ts,tsx}', 'apps/status/src/**/*.{ts,tsx}'],
+      include: ['apps/admin/src/**/*.{ts,tsx}', 'apps/status/src/**/*.{ts,tsx}', 'packages/ui/src/**/*.{ts,tsx}'],
       exclude: COVERAGE_EXCLUDE,
       thresholds: {
         lines: 45,
