@@ -10,10 +10,10 @@ import { withImmediateTransaction } from '../db/transaction.js'
 import { parsePagination } from '../lib/pagination.js'
 import { keyForNew, type KeyOwner } from '../lib/entityKey.js'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
-import { tokenAllows, VAULT_USE_SCOPE } from '@bsp/shared'
+import { tokenAllows, VAULT_USE_SCOPE } from '@better-kit/contracts'
 import { canonical, VAULT_USE_REFUSED, vaultUseProblem } from '../services/vaultUse.js'
 import { CHANNEL_TYPES, channelConfigError } from '../services/channelInput.js'
-import type { NotificationChannelType } from '@bsp/shared'
+import type { NotificationChannelType } from '@better-kit/contracts'
 
 
 /**

@@ -3,7 +3,7 @@ import { vaults, vaultSecrets } from '../db/schema.js'
 import { and, eq } from 'drizzle-orm'
 import { decrypt } from '../crypto/vault.js'
 import { HashicorpVaultError, readKvSecret } from '../services/hashicorpVault.js'
-import type { VaultRef } from '@bsp/shared'
+import type { VaultRef } from '@better-kit/contracts'
 
 type VaultRow = typeof vaults.$inferSelect
 type SecretRow = typeof vaultSecrets.$inferSelect

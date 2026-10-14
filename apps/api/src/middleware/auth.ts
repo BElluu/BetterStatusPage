@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { API_TOKEN_NOT_ACCEPTED, authenticateRequest, verifyCsrf, type AuthIdentity } from '../services/authSession.js'
-import { requiredScope, tokenAllows } from '@bsp/shared'
+import { requiredScope, tokenAllows } from '@better-kit/contracts'
 import { consumeApiTokenBudget } from '../services/apiTokens.js'
 
 declare module 'fastify' {

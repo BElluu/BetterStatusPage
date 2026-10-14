@@ -1,5 +1,6 @@
 import { DEFAULT_ALERT_POLICY } from '@bsp/shared'
-import type { ChannelAlertPolicy, QuietHoursPolicy } from '@bsp/shared'
+import type { ChannelAlertPolicy } from '@bsp/shared'
+import type { QuietHoursPolicy } from '@better-kit/contracts'
 
 const MINUTE_MS = 60_000
 const DAY_MINUTES = 24 * 60

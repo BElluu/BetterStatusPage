@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
-import { ACTION_TRIGGER_STATUSES, tokenAllows, type ActionTriggerStatus, type AutoIncidentMode, type ChannelAlertPolicy, type NotificationChannelType } from '@bsp/shared'
+import { ACTION_TRIGGER_STATUSES, type ActionTriggerStatus, type AutoIncidentMode, type ChannelAlertPolicy } from '@bsp/shared'
+import { tokenAllows, type NotificationChannelType } from '@better-kit/contracts'
 import { db } from '../db/client.js'
 import { withImmediateTransaction } from '../db/transaction.js'
 import {

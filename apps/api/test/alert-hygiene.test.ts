@@ -13,7 +13,8 @@ import { evaluateAlertTransition, type AlertThresholdState } from '../src/servic
 import { processDueNotificationDeliveries, sendNotifications } from '../src/workers/notifier.js'
 import { runCheck } from '../src/workers/scheduler.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
-import type { ChannelAlertPolicy, MonitorStatus, QuietHoursPolicy } from '@bsp/shared'
+import type { ChannelAlertPolicy, MonitorStatus } from '@bsp/shared'
+import type { QuietHoursPolicy } from '@better-kit/contracts'
 
 const testDb = createTestDb('bsp-alert-hygiene-test-')
 

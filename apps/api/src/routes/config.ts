@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { Document, parseAllDocuments, visit } from 'yaml'
-import { tokenAllows } from '@bsp/shared'
+import { tokenAllows } from '@better-kit/contracts'
 import { requestIdentity, requireRole } from '../middleware/auth.js'
 import { clip } from '../lib/clip.js'
 import { auditActor } from '../services/audit.js'

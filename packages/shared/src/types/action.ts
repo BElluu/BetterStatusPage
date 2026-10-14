@@ -1,4 +1,4 @@
-import type { VaultRef } from './monitor.js'
+import type { VaultRef } from '@better-kit/contracts'
 
 /** An action changes something outside BetterStatusPage when a monitor goes down or comes back up. */
 

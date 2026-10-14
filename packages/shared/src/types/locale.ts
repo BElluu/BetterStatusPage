@@ -1,3 +1,5 @@
+import type { Locale as LocaleOf } from '@better-kit/contracts'
+
 export type TranslationKey =
   | 'status.operational'
   | 'status.outage'
@@ -164,16 +166,4 @@ export type TranslationKey =
   | 'signIn.hidePassword'
   | 'signIn.noAccess'
 
-export interface Locale {
-  code: string
-  name: string
-  isDefault: number
-  translations: Partial<Record<TranslationKey, string>>
-  updatedAt: number
-}
-
-export interface LocaleSummary {
-  code: string
-  name: string
-  isDefault?: number
-}
+export type Locale = LocaleOf<TranslationKey>

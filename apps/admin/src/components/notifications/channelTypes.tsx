@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode } from 'react'
 import { Field } from '../ui'
-import type { VaultRef } from '@bsp/shared'
+import type { VaultRef } from '@better-kit/contracts'
 import { CredentialSection } from '../monitors/CredentialSection'
 import type { VaultPickerProps } from '../monitors/monitorFormParts'
 import { DiscordIcon, SlackIcon, TeamsIcon, TelegramIcon } from './icons'

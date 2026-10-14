@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { VaultRef } from '@bsp/shared'
+import type { VaultRef } from '@better-kit/contracts'
 import { Field, Note, type VaultPickerProps } from './monitorFormParts'
 
 interface CredentialSectionProps extends VaultPickerProps {

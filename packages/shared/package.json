@@ -15,6 +15,9 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput"
   },
+  "dependencies": {
+    "@better-kit/contracts": "*"
+  },
   "devDependencies": {
     "typescript": "^5.7.3"
   }

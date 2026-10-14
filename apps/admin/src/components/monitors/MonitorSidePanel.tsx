@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import type { Action, MonitorAction, NotificationChannel, VaultRef } from '@bsp/shared'
+import type { Action, MonitorAction, NotificationChannel } from '@bsp/shared'
+import type { VaultRef } from '@better-kit/contracts'
 import type { SidePanelMeta } from '../SidePanel'
 import { ConnectionStringSection, CredentialSection } from './CredentialSection'
 import { Field, JSON_MAPPING_FIELDS, Note, toggleInSet, type VaultPickerProps } from './monitorFormParts'

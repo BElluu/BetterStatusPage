@@ -1,6 +1,6 @@
 import { db } from '../db/client.js'
 import { auditLog } from '../db/schema.js'
-import type { AuditAction } from '@bsp/shared'
+import type { AuditAction } from '@better-kit/contracts'
 
 const SENSITIVE_KEY = /(password|secret|token|authorization|cookie|credential|vaultconfig|encryptedvalue|recoverycode)/i
 

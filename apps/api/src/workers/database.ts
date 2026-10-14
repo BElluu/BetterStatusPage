@@ -1,4 +1,5 @@
-import type { MonitorStatus, DatabaseConfig, VaultRef } from '@bsp/shared'
+import type { MonitorStatus, DatabaseConfig } from '@bsp/shared'
+import type { VaultRef } from '@better-kit/contracts'
 import { resolveVaultSecret } from './resolveSecret.js'
 
 /** Where to connect: a full connection string, or discrete settings. */

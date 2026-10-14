@@ -1,14 +1,7 @@
+import type { VaultRef } from '@better-kit/contracts'
 export type MonitorType = 'https' | 'ping' | 'dns' | 'sqlserver' | 'postgresql' | 'mysql' | 'mongodb' | 'docker' | 'webhook'
 export type MonitorStatus = 'up' | 'down' | 'degraded' | 'pending' | 'affected'
 export type HttpsAuthType = 'none' | 'basic' | 'oauth2' | 'cas'
-
-/** Reference to a vault secret, with optional field mapping for json-type secrets */
-export interface VaultRef {
-  vaultId: number
-  secretId: number
-  /** Only for json-type secrets: maps our field names to JSON object keys */
-  fieldMapping?: Record<string, string>
-}
 
 export interface BasicAuthConfig {
   username: string

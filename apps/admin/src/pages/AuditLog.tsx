@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { EmptyState, EmptyStateLink, ErrorState, LoadingState, PageContainer, PageHeader, Pagination } from '../components/ui'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
-import type { AuditLogEntry, AuditAction, AuditEntityType } from '@bsp/shared'
+import type { AuditLogEntry, AuditEntityType } from '@bsp/shared'
+import type { AuditAction } from '@better-kit/contracts'
 
 interface AuditPage {
   entries: AuditLogEntry[]

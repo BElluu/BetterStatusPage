@@ -11,7 +11,8 @@ import { keyForNew, type KeyOwner } from '../lib/entityKey.js'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
 import { actionConfigError, actionVaultProblem } from '../services/actionInput.js'
 import { vaultUseProblem } from '../services/vaultUse.js'
-import { ACTION_TRIGGER_STATUSES, tokenAllows, type ActionTriggerStatus } from '@bsp/shared'
+import { ACTION_TRIGGER_STATUSES, type ActionTriggerStatus } from '@bsp/shared'
+import { tokenAllows } from '@better-kit/contracts'
 
 const MAX_MINUTES = 7 * 24 * 60
 

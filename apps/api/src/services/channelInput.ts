@@ -1,4 +1,4 @@
-import type { NotificationChannelType } from '@bsp/shared'
+import type { NotificationChannelType } from '@better-kit/contracts'
 
 export const CHANNEL_TYPES: readonly NotificationChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack', 'telegram', 'ntfy', 'pushover']
 

@@ -10,7 +10,7 @@ import { Alert, EmptyState, EmptyStateLink, ErrorState, Field, LoadingState, use
 import { CredentialSection } from '../components/monitors/CredentialSection'
 import type { VaultPickerProps } from '../components/monitors/monitorFormParts'
 import { formatDate } from '../lib/dateFormat'
-import type { VaultRef } from '@bsp/shared'
+import type { VaultRef } from '@better-kit/contracts'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

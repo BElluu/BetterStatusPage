@@ -3,7 +3,8 @@ import { monitors, notificationChannels, monitorNotificationChannels, actionFail
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, like, lt, lte, ne, sql } from 'drizzle-orm'
 import { resolveVaultSecret } from './resolveSecret.js'
 import { isWithinQuietHours, parseAlertPolicy, quietHoursEndAt } from '../services/alertPolicy.js'
-import type { ChannelAlertPolicy, MonitorStatus, NotificationSuppressionReason, VaultRef } from '@bsp/shared'
+import type { ChannelAlertPolicy, MonitorStatus } from '@bsp/shared'
+import type { NotificationSuppressionReason, VaultRef } from '@better-kit/contracts'
 
 function substituteVars(template: string, vars: Record<string, string>, escape?: (value: string) => string): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {

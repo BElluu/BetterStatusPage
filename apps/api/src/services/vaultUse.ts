@@ -1,4 +1,4 @@
-import { tokenAllows, VAULT_USE_SCOPE } from '@bsp/shared'
+import { tokenAllows, VAULT_USE_SCOPE } from '@better-kit/contracts'
 
 export const VAULT_USE_REFUSED =
   `This token does not have the "${VAULT_USE_SCOPE}" permission, which it needs to add a vault reference or to change the configuration of a monitor or channel that has one`

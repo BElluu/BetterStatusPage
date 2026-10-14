@@ -1,4 +1,5 @@
-import type { HttpsAuth, HttpsAuthType, VaultRef } from '@bsp/shared'
+import type { HttpsAuth, HttpsAuthType } from '@bsp/shared'
+import type { VaultRef } from '@better-kit/contracts'
 import { CredentialSection } from './CredentialSection'
 import { Field, JSON_MAPPING_FIELDS, type VaultPickerProps } from './monitorFormParts'
 

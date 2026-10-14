@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
-import { TOKEN_PRESETS, TOKEN_RESOURCES, VAULT_USE_SCOPE } from '@bsp/shared'
+import { TOKEN_PRESETS, TOKEN_RESOURCES } from '@bsp/shared'
+import { VAULT_USE_SCOPE } from '@better-kit/contracts'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
