@@ -5,6 +5,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-14
+
 ### Added
 
 - **ntfy and Pushover notification channels**: send monitor alerts, recoveries and TLS certificate warnings as push notifications to a topic on ntfy.sh or your own ntfy server, or to a Pushover user or group. A down monitor is sent with high priority. The ntfy access token and the Pushover application token are shown only by their last four characters once saved, and can be read from the vault. The API and configuration files gain the `ntfy` (`topic`, `serverUrl`, `accessToken`) and `pushover` (`appToken`, `userKey`) channel types. See [ntfy and Pushover](notification-channels.md#ntfy-and-pushover).

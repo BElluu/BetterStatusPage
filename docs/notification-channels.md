@@ -205,9 +205,6 @@ For certificate events all four switch the headline to *TLS certificate of … e
 
 ## ntfy and Pushover
 
-> [!WARNING]
-> **Not released yet.** The ntfy and Pushover channels are not in a published release. To try them, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 Both send a plain-text push notification: a headline (*Monitor API is DOWN*), then the status, previous status, monitor type, error and check time. A down monitor is sent with high priority, every other event with normal priority. The optional **Message Text** is a templated line above the facts. A message is cut to the service's limit (4000 bytes for ntfy, 1024 characters for Pushover).
 
 **ntfy** publishes to a **Topic** on **Server URL** (`https://ntfy.sh` when empty; set your own server, with or without a path prefix). A topic is 1 to 64 letters, digits, `-` or `_`. Anyone who knows a topic on a public server can read it, so pick a hard-to-guess name or protect it with an **Access Token** (optional, shown only by its last four characters once saved, or read from the [vault](vault.md)). The Server URL cannot contain a login, query or fragment, and redirects are not followed. Changing it while keeping a stored access token is refused: enter the token again. The token is sent in a header, so use an `https://` server. A token read from the vault is not covered by that refusal.

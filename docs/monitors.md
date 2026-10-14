@@ -142,9 +142,6 @@ recorded and charted; it only changes the status when **Degraded when slower tha
 
 ### Response checks
 
-> [!WARNING]
-> **Not released yet.** Response checks and the slow-response limit are not in a published release. To try them, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 Beyond the status code and the keyword, a monitor can check the **headers** and the **JSON body** of
 the final response (after redirects). Add them in the **Checks** tab on the right of the form (next to the keyword and the slow-response limit); each check
 has its own result when it fails, **Degraded** or **Down**.

@@ -1,8 +1,5 @@
 # Actions
 
-> [!WARNING]
-> **Not released yet.** Actions are not in a published release. To try them, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 An action sends an HTTP request when a monitor **stays down** or **comes back up**. Where a [notification channel](notification-channels.md) tells people something happened, an action changes something outside BetterStatusPage: it starts a failover job, wakes a standby server, or switches a feature flag.
 
 Actions live under *Admin → Alerts → **Actions*** and are managed by administrators only. You create an action once, then link it to as many monitors as you like in the monitor's form.
