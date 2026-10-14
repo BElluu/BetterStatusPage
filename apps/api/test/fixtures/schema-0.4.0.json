@@ -1,0 +1,361 @@
+{
+  "objects": [
+    {
+      "type": "index",
+      "name": "idx_action_failure_channels_link",
+      "table": "action_failure_channels",
+      "sql": "CREATE UNIQUE INDEX idx_action_failure_channels_link ON action_failure_channels(action_id, channel_id)"
+    },
+    {
+      "type": "index",
+      "name": "idx_action_runs_created",
+      "table": "action_runs",
+      "sql": "CREATE INDEX idx_action_runs_created ON action_runs(created_at)"
+    },
+    {
+      "type": "index",
+      "name": "idx_action_runs_monitor",
+      "table": "action_runs",
+      "sql": "CREATE INDEX idx_action_runs_monitor ON action_runs(monitor_id, status)"
+    },
+    {
+      "type": "index",
+      "name": "idx_action_runs_status_next",
+      "table": "action_runs",
+      "sql": "CREATE INDEX idx_action_runs_status_next ON action_runs(status, next_attempt_at)"
+    },
+    {
+      "type": "index",
+      "name": "idx_actions_key",
+      "table": "actions",
+      "sql": "CREATE UNIQUE INDEX idx_actions_key ON actions(key)"
+    },
+    {
+      "type": "index",
+      "name": "idx_audit_log_timestamp",
+      "table": "audit_log",
+      "sql": "CREATE INDEX idx_audit_log_timestamp ON audit_log(timestamp DESC)"
+    },
+    {
+      "type": "index",
+      "name": "idx_audit_log_user",
+      "table": "audit_log",
+      "sql": "CREATE INDEX idx_audit_log_user ON audit_log(user_id)"
+    },
+    {
+      "type": "index",
+      "name": "idx_auth_sessions_expires",
+      "table": "auth_sessions",
+      "sql": "CREATE INDEX idx_auth_sessions_expires ON auth_sessions(expires_at)"
+    },
+    {
+      "type": "index",
+      "name": "idx_auth_sessions_user",
+      "table": "auth_sessions",
+      "sql": "CREATE INDEX idx_auth_sessions_user ON auth_sessions(user_id)"
+    },
+    {
+      "type": "index",
+      "name": "idx_incident_templates_name",
+      "table": "incident_templates",
+      "sql": "CREATE UNIQUE INDEX idx_incident_templates_name ON incident_templates(name)"
+    },
+    {
+      "type": "index",
+      "name": "idx_incidents_auto_monitor",
+      "table": "incidents",
+      "sql": "CREATE INDEX idx_incidents_auto_monitor ON incidents(auto_monitor_id)"
+    },
+    {
+      "type": "index",
+      "name": "idx_monitor_actions_link",
+      "table": "monitor_actions",
+      "sql": "CREATE UNIQUE INDEX idx_monitor_actions_link ON monitor_actions(monitor_id, action_id, on_status)"
+    },
+    {
+      "type": "index",
+      "name": "idx_monitor_results_monitor_checked",
+      "table": "monitor_results",
+      "sql": "CREATE INDEX idx_monitor_results_monitor_checked ON monitor_results(monitor_id, checked_at)"
+    },
+    {
+      "type": "index",
+      "name": "idx_monitors_key",
+      "table": "monitors",
+      "sql": "CREATE UNIQUE INDEX idx_monitors_key ON monitors(key)"
+    },
+    {
+      "type": "index",
+      "name": "idx_notification_channels_key",
+      "table": "notification_channels",
+      "sql": "CREATE UNIQUE INDEX idx_notification_channels_key ON notification_channels(key)"
+    },
+    {
+      "type": "index",
+      "name": "idx_notification_deliveries_created",
+      "table": "notification_deliveries",
+      "sql": "CREATE INDEX idx_notification_deliveries_created ON notification_deliveries(created_at)"
+    },
+    {
+      "type": "index",
+      "name": "idx_notification_deliveries_group",
+      "table": "notification_deliveries",
+      "sql": "CREATE INDEX idx_notification_deliveries_group ON notification_deliveries(group_key, status)"
+    },
+    {
+      "type": "index",
+      "name": "idx_notification_deliveries_status_next",
+      "table": "notification_deliveries",
+      "sql": "CREATE INDEX idx_notification_deliveries_status_next ON notification_deliveries(status, next_attempt_at)"
+    },
+    {
+      "type": "index",
+      "name": "idx_notification_deliveries_throttle",
+      "table": "notification_deliveries",
+      "sql": "CREATE INDEX idx_notification_deliveries_throttle ON notification_deliveries(channel_id, monitor_id, event_type, created_at)"
+    },
+    {
+      "type": "index",
+      "name": "idx_notification_delivery_attempts_delivery",
+      "table": "notification_delivery_attempts",
+      "sql": "CREATE INDEX idx_notification_delivery_attempts_delivery ON notification_delivery_attempts(delivery_id, attempt_number)"
+    },
+    {
+      "type": "index",
+      "name": "idx_subscriber_deliveries_created",
+      "table": "subscriber_deliveries",
+      "sql": "CREATE INDEX idx_subscriber_deliveries_created ON subscriber_deliveries(created_at)"
+    },
+    {
+      "type": "index",
+      "name": "idx_subscriber_deliveries_status_next",
+      "table": "subscriber_deliveries",
+      "sql": "CREATE INDEX idx_subscriber_deliveries_status_next ON subscriber_deliveries(status, next_attempt_at)"
+    },
+    {
+      "type": "index",
+      "name": "idx_subscribers_confirm_token",
+      "table": "subscribers",
+      "sql": "CREATE INDEX idx_subscribers_confirm_token ON subscribers(confirm_token_hash)"
+    },
+    {
+      "type": "index",
+      "name": "idx_subscribers_status",
+      "table": "subscribers",
+      "sql": "CREATE INDEX idx_subscribers_status ON subscribers(status)"
+    },
+    {
+      "type": "index",
+      "name": "idx_users_oidc_identity",
+      "table": "users",
+      "sql": "CREATE UNIQUE INDEX idx_users_oidc_identity ON users(oidc_issuer, oidc_subject)"
+    },
+    {
+      "type": "table",
+      "name": "action_failure_channels",
+      "table": "action_failure_channels",
+      "sql": "CREATE TABLE action_failure_channels (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  action_id INTEGER NOT NULL,\n  channel_id INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "table",
+      "name": "action_runs",
+      "table": "action_runs",
+      "sql": "CREATE TABLE action_runs (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  action_id INTEGER NOT NULL,\n  action_name TEXT NOT NULL,\n  monitor_id INTEGER,\n  monitor_name TEXT NOT NULL,\n  on_status TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'pending',\n  variables TEXT NOT NULL,\n  attempt_count INTEGER NOT NULL DEFAULT 0,\n  max_attempts INTEGER NOT NULL DEFAULT 3,\n  next_attempt_at INTEGER,\n  last_attempt_at INTEGER,\n  completed_at INTEGER,\n  last_error TEXT,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "table",
+      "name": "actions",
+      "table": "actions",
+      "sql": "CREATE TABLE actions (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  config TEXT NOT NULL DEFAULT '{}',\n  enabled INTEGER NOT NULL DEFAULT 1,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, key TEXT NOT NULL DEFAULT '')"
+    },
+    {
+      "type": "table",
+      "name": "api_tokens",
+      "table": "api_tokens",
+      "sql": "CREATE TABLE api_tokens (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  token_hash TEXT NOT NULL UNIQUE,\n  prefix TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  expires_at INTEGER,\n  last_used_at INTEGER,\n  scopes TEXT NOT NULL\n)"
+    },
+    {
+      "type": "table",
+      "name": "audit_log",
+      "table": "audit_log",
+      "sql": "CREATE TABLE audit_log (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  user_id INTEGER NOT NULL,\n  user_email TEXT NOT NULL,\n  action TEXT NOT NULL,\n  entity_type TEXT NOT NULL,\n  entity_id TEXT,\n  entity_name TEXT NOT NULL,\n  diff TEXT,\n  timestamp INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "table",
+      "name": "auth_sessions",
+      "table": "auth_sessions",
+      "sql": "CREATE TABLE auth_sessions (\n  id TEXT PRIMARY KEY,\n  user_id INTEGER NOT NULL,\n  csrf_token_hash TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  last_seen_at INTEGER NOT NULL,\n  expires_at INTEGER NOT NULL,\n  auth_method TEXT NOT NULL DEFAULT 'password',\n  verified_at INTEGER,\n  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\n)"
+    },
+    {
+      "type": "table",
+      "name": "branding",
+      "table": "branding",
+      "sql": "CREATE TABLE branding (\n  id INTEGER PRIMARY KEY,\n  site_name TEXT NOT NULL DEFAULT 'Status Page',\n  logo_url TEXT,\n  favicon_url TEXT,\n  primary_color TEXT NOT NULL DEFAULT '#000000',\n  accent_color TEXT NOT NULL DEFAULT '#497cff',\n  custom_css TEXT,\n  updated_at INTEGER NOT NULL\n, background_color TEXT NOT NULL DEFAULT '#faf8ff', card_background TEXT NOT NULL DEFAULT '#f2f3ff', card_border_color TEXT NOT NULL DEFAULT '#c6c6cd', text_color TEXT NOT NULL DEFAULT '#131b2e', text_muted_color TEXT NOT NULL DEFAULT '#505f76', status_up_color TEXT NOT NULL DEFAULT '#22c55e', status_down_color TEXT NOT NULL DEFAULT '#ba1a1a', status_degraded_color TEXT NOT NULL DEFAULT '#eab308', enabled INTEGER NOT NULL DEFAULT 0, logo_type TEXT NOT NULL DEFAULT 'image', logo_text TEXT, elevated_background TEXT NOT NULL DEFAULT '#e2e7ff', chart_background TEXT NOT NULL DEFAULT '#f2f3ff', chart_grid_color TEXT NOT NULL DEFAULT '#c6c6cd', logo_light_url TEXT, logo_dark_url TEXT, status_partial_color TEXT NOT NULL DEFAULT '#f97316', uptime_threshold_up REAL NOT NULL DEFAULT 99.9, uptime_threshold_degraded REAL NOT NULL DEFAULT 99, uptime_threshold_partial REAL NOT NULL DEFAULT 95, show_hero INTEGER NOT NULL DEFAULT 1, show_footer INTEGER NOT NULL DEFAULT 1, show_project_link INTEGER NOT NULL DEFAULT 1)"
+    },
+    {
+      "type": "table",
+      "name": "incident_monitors",
+      "table": "incident_monitors",
+      "sql": "CREATE TABLE incident_monitors (\n  incident_id INTEGER NOT NULL,\n  monitor_id INTEGER NOT NULL,\n  PRIMARY KEY (incident_id, monitor_id)\n)"
+    },
+    {
+      "type": "table",
+      "name": "incident_templates",
+      "table": "incident_templates",
+      "sql": "CREATE TABLE incident_templates (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  title TEXT NOT NULL,\n  body TEXT NOT NULL,\n  resolved_body TEXT NOT NULL,\n  impact TEXT NOT NULL DEFAULT 'major',\n  is_default INTEGER NOT NULL DEFAULT 0,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, translations TEXT NOT NULL DEFAULT '{}')"
+    },
+    {
+      "type": "table",
+      "name": "incident_updates",
+      "table": "incident_updates",
+      "sql": "CREATE TABLE incident_updates (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  incident_id INTEGER NOT NULL,\n  body TEXT NOT NULL,\n  status TEXT NOT NULL,\n  posted_at INTEGER NOT NULL, body_translations TEXT NOT NULL DEFAULT '{}',\n  FOREIGN KEY (incident_id) REFERENCES incidents(id) ON DELETE CASCADE\n)"
+    },
+    {
+      "type": "table",
+      "name": "incidents",
+      "table": "incidents",
+      "sql": "CREATE TABLE incidents (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  title TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'investigating',\n  impact TEXT NOT NULL DEFAULT 'minor',\n  started_at INTEGER NOT NULL,\n  resolved_at INTEGER,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, draft INTEGER NOT NULL DEFAULT 0, auto_monitor_id INTEGER, title_translations TEXT NOT NULL DEFAULT '{}')"
+    },
+    {
+      "type": "table",
+      "name": "layout",
+      "table": "layout",
+      "sql": "CREATE TABLE layout (\n  id INTEGER PRIMARY KEY,\n  tree TEXT NOT NULL,\n  updated_at INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "table",
+      "name": "locales",
+      "table": "locales",
+      "sql": "CREATE TABLE locales (\n  code               TEXT    PRIMARY KEY,\n  name               TEXT    NOT NULL,\n  is_default         INTEGER NOT NULL DEFAULT 0,\n  translations       TEXT    NOT NULL DEFAULT '{}',\n  updated_at         INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "table",
+      "name": "maintenance_window_monitors",
+      "table": "maintenance_window_monitors",
+      "sql": "CREATE TABLE maintenance_window_monitors (\n  window_id INTEGER NOT NULL,\n  monitor_id INTEGER NOT NULL,\n  PRIMARY KEY (window_id, monitor_id),\n  FOREIGN KEY (window_id) REFERENCES maintenance_windows(id) ON DELETE CASCADE\n)"
+    },
+    {
+      "type": "table",
+      "name": "maintenance_windows",
+      "table": "maintenance_windows",
+      "sql": "CREATE TABLE maintenance_windows (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  starts_at INTEGER NOT NULL,\n  ends_at INTEGER NOT NULL,\n  description TEXT,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "table",
+      "name": "monitor_actions",
+      "table": "monitor_actions",
+      "sql": "CREATE TABLE monitor_actions (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  monitor_id INTEGER NOT NULL,\n  action_id INTEGER NOT NULL,\n  on_status TEXT NOT NULL,\n  delay_minutes INTEGER NOT NULL DEFAULT 0,\n  cooldown_minutes INTEGER NOT NULL DEFAULT 0\n)"
+    },
+    {
+      "type": "table",
+      "name": "monitor_dependencies",
+      "table": "monitor_dependencies",
+      "sql": "CREATE TABLE monitor_dependencies (\n  dependent_id  INTEGER NOT NULL,\n  depends_on_id INTEGER NOT NULL,\n  PRIMARY KEY (dependent_id, depends_on_id),\n  FOREIGN KEY (dependent_id)  REFERENCES monitors(id) ON DELETE CASCADE,\n  FOREIGN KEY (depends_on_id) REFERENCES monitors(id) ON DELETE CASCADE\n)"
+    },
+    {
+      "type": "table",
+      "name": "monitor_notification_channels",
+      "table": "monitor_notification_channels",
+      "sql": "CREATE TABLE monitor_notification_channels (\n  monitor_id INTEGER NOT NULL,\n  channel_id INTEGER NOT NULL,\n  PRIMARY KEY (monitor_id, channel_id)\n)"
+    },
+    {
+      "type": "table",
+      "name": "monitor_results",
+      "table": "monitor_results",
+      "sql": "CREATE TABLE monitor_results (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  monitor_id INTEGER NOT NULL,\n  status TEXT NOT NULL,\n  response_ms INTEGER,\n  checked_at INTEGER NOT NULL,\n  error_message TEXT, unconfirmed INTEGER NOT NULL DEFAULT 0,\n  FOREIGN KEY (monitor_id) REFERENCES monitors(id) ON DELETE CASCADE\n)"
+    },
+    {
+      "type": "table",
+      "name": "monitors",
+      "table": "monitors",
+      "sql": "CREATE TABLE monitors (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  type TEXT NOT NULL,\n  interval_secs INTEGER NOT NULL DEFAULT 60,\n  timeout_ms INTEGER NOT NULL DEFAULT 10000,\n  config TEXT NOT NULL,\n  current_status TEXT NOT NULL DEFAULT 'pending',\n  last_checked_at INTEGER,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, retries INTEGER NOT NULL DEFAULT 1, webhook_token TEXT, tags TEXT NOT NULL DEFAULT '[]', failure_threshold INTEGER NOT NULL DEFAULT 1, recovery_threshold INTEGER NOT NULL DEFAULT 1, alert_confirmed_status TEXT NOT NULL DEFAULT 'pending', alert_pending_status TEXT, alert_pending_count INTEGER NOT NULL DEFAULT 0, cert_expires_at INTEGER, cert_checked_at INTEGER, cert_warned_days INTEGER, key TEXT NOT NULL DEFAULT '', auto_incident_minutes INTEGER, auto_incident_mode TEXT NOT NULL DEFAULT 'draft', auto_incident_template_id INTEGER, failing_since INTEGER)"
+    },
+    {
+      "type": "table",
+      "name": "notification_channels",
+      "table": "notification_channels",
+      "sql": "CREATE TABLE notification_channels (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  type TEXT NOT NULL,\n  config TEXT NOT NULL DEFAULT '{}',\n  enabled INTEGER NOT NULL DEFAULT 1,\n  notify_on_recovery INTEGER NOT NULL DEFAULT 0,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, alert_policy TEXT NOT NULL DEFAULT '{}', key TEXT NOT NULL DEFAULT '')"
+    },
+    {
+      "type": "table",
+      "name": "notification_deliveries",
+      "table": "notification_deliveries",
+      "sql": "CREATE TABLE notification_deliveries (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  channel_id INTEGER NOT NULL,\n  channel_name TEXT NOT NULL,\n  channel_type TEXT NOT NULL,\n  monitor_id INTEGER,\n  monitor_name TEXT NOT NULL,\n  event_type TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'pending',\n  target_status TEXT NOT NULL,\n  previous_status TEXT NOT NULL,\n  variables TEXT NOT NULL,\n  attempt_count INTEGER NOT NULL DEFAULT 0,\n  max_attempts INTEGER NOT NULL DEFAULT 3,\n  next_attempt_at INTEGER,\n  last_attempt_at INTEGER,\n  delivered_at INTEGER,\n  last_error TEXT,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, suppression_reason TEXT, group_key TEXT)"
+    },
+    {
+      "type": "table",
+      "name": "notification_delivery_attempts",
+      "table": "notification_delivery_attempts",
+      "sql": "CREATE TABLE notification_delivery_attempts (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  delivery_id INTEGER NOT NULL,\n  attempt_number INTEGER NOT NULL,\n  status TEXT NOT NULL,\n  error TEXT,\n  started_at INTEGER NOT NULL,\n  completed_at INTEGER NOT NULL,\n  FOREIGN KEY (delivery_id) REFERENCES notification_deliveries(id) ON DELETE CASCADE\n)"
+    },
+    {
+      "type": "table",
+      "name": "oidc_settings",
+      "table": "oidc_settings",
+      "sql": "CREATE TABLE oidc_settings (\n  id INTEGER PRIMARY KEY,\n  enabled INTEGER NOT NULL DEFAULT 0,\n  issuer TEXT NOT NULL DEFAULT '',\n  client_id TEXT NOT NULL DEFAULT '',\n  client_secret TEXT NOT NULL DEFAULT '',\n  scopes TEXT NOT NULL DEFAULT '',\n  redirect_uri TEXT NOT NULL DEFAULT '',\n  button_label TEXT NOT NULL DEFAULT '',\n  allow_unverified_email INTEGER NOT NULL DEFAULT 0,\n  disable_password_login INTEGER NOT NULL DEFAULT 0,\n  updated_at INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "table",
+      "name": "schema_migrations",
+      "table": "schema_migrations",
+      "sql": "CREATE TABLE schema_migrations (\n  name TEXT PRIMARY KEY,\n  applied_at INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "table",
+      "name": "smtp_settings",
+      "table": "smtp_settings",
+      "sql": "CREATE TABLE smtp_settings (\n  id INTEGER PRIMARY KEY,\n  host TEXT NOT NULL DEFAULT '',\n  port INTEGER NOT NULL DEFAULT 587,\n  secure INTEGER NOT NULL DEFAULT 0,\n  user TEXT NOT NULL DEFAULT '',\n  password TEXT NOT NULL DEFAULT '',\n  from_address TEXT NOT NULL DEFAULT '',\n  from_name TEXT NOT NULL DEFAULT 'BSP Alerts',\n  updated_at INTEGER NOT NULL\n, vault_config TEXT)"
+    },
+    {
+      "type": "table",
+      "name": "status_page_access",
+      "table": "status_page_access",
+      "sql": "CREATE TABLE status_page_access (\n  id INTEGER PRIMARY KEY,\n  private INTEGER NOT NULL DEFAULT 0,\n  sso_create_viewers INTEGER NOT NULL DEFAULT 0,\n  sso_viewer_domains TEXT NOT NULL DEFAULT '[]',\n  updated_at INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "table",
+      "name": "subscriber_deliveries",
+      "table": "subscriber_deliveries",
+      "sql": "CREATE TABLE subscriber_deliveries (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  subscriber_id INTEGER NOT NULL,\n  event_type TEXT NOT NULL,\n  event TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'pending',\n  attempt_count INTEGER NOT NULL DEFAULT 0,\n  max_attempts INTEGER NOT NULL DEFAULT 4,\n  next_attempt_at INTEGER,\n  last_error TEXT,\n  delivered_at INTEGER,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL,\n  FOREIGN KEY (subscriber_id) REFERENCES subscribers(id) ON DELETE CASCADE\n)"
+    },
+    {
+      "type": "table",
+      "name": "subscribers",
+      "table": "subscribers",
+      "sql": "CREATE TABLE subscribers (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  type TEXT NOT NULL,\n  target_key TEXT NOT NULL UNIQUE,\n  email TEXT NOT NULL,\n  webhook_url TEXT,\n  status TEXT NOT NULL DEFAULT 'pending',\n  events TEXT NOT NULL DEFAULT '[]',\n  monitor_ids TEXT NOT NULL DEFAULT '[]',\n  tags TEXT NOT NULL DEFAULT '[]',\n  confirm_token_hash TEXT,\n  confirm_expires_at INTEGER,\n  confirmation_sent_at INTEGER,\n  manage_token TEXT NOT NULL UNIQUE,\n  created_at INTEGER NOT NULL,\n  confirmed_at INTEGER,\n  unsubscribed_at INTEGER,\n  last_notified_at INTEGER,\n  last_error TEXT,\n  updated_at INTEGER NOT NULL\n, webhook_method TEXT NOT NULL DEFAULT 'POST', webhook_headers TEXT, notify_on_failure INTEGER NOT NULL DEFAULT 0, consecutive_failures INTEGER NOT NULL DEFAULT 0, failure_notified_at INTEGER, disabled_at INTEGER)"
+    },
+    {
+      "type": "table",
+      "name": "subscription_settings",
+      "table": "subscription_settings",
+      "sql": "CREATE TABLE subscription_settings (\n  id INTEGER PRIMARY KEY,\n  enabled INTEGER NOT NULL DEFAULT 0,\n  allow_email INTEGER NOT NULL DEFAULT 1,\n  allow_webhook INTEGER NOT NULL DEFAULT 0,\n  allowed_events TEXT NOT NULL DEFAULT '[]',\n  allow_component_scope INTEGER NOT NULL DEFAULT 1,\n  public_url TEXT NOT NULL DEFAULT '',\n  rss_enabled INTEGER NOT NULL DEFAULT 1,\n  updated_at INTEGER NOT NULL\n, allow_slack INTEGER NOT NULL DEFAULT 1, api_enabled INTEGER NOT NULL DEFAULT 1)"
+    },
+    {
+      "type": "table",
+      "name": "users",
+      "table": "users",
+      "sql": "CREATE TABLE users (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  email TEXT NOT NULL UNIQUE,\n  password_hash TEXT NOT NULL,\n  role TEXT NOT NULL DEFAULT 'admin',\n  created_at INTEGER NOT NULL\n, must_change_password INTEGER NOT NULL DEFAULT 0, totp_secret TEXT, totp_enabled INTEGER NOT NULL DEFAULT 0, totp_recovery_codes TEXT, oidc_issuer TEXT, oidc_subject TEXT)"
+    },
+    {
+      "type": "table",
+      "name": "vault_secrets",
+      "table": "vault_secrets",
+      "sql": "CREATE TABLE vault_secrets (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  vault_id INTEGER NOT NULL,\n  name TEXT NOT NULL,\n  type TEXT NOT NULL,\n  encrypted_value TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL,\n  FOREIGN KEY (vault_id) REFERENCES vaults(id) ON DELETE CASCADE,\n  UNIQUE (vault_id, name)\n)"
+    },
+    {
+      "type": "table",
+      "name": "vaults",
+      "table": "vaults",
+      "sql": "CREATE TABLE vaults (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  type TEXT NOT NULL DEFAULT 'local',\n  description TEXT,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, connection_config TEXT)"
+    }
+  ],
+  "migrations": [
+    "action-keys-backfill-v1",
+    "branding-defaults-match-light-mode-v2",
+    "branding-legacy-logo-variants-v1",
+    "default-incident-template-v1",
+    "entity-keys-backfill-v1",
+    "monitors-seed-alert-confirmed-status-v1",
+    "sso-users-temporary-password-revoked-v1"
+  ]
+}

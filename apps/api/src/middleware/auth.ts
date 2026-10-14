@@ -100,7 +100,7 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
 }
 
 export function requireRole(...allowed: string[]) {
-  return async (req: FastifyRequest, reply: FastifyReply) => {
+  const hook = async (req: FastifyRequest, reply: FastifyReply) => {
     const identity = await authenticateOrReject(req, reply)
     if (!identity) return reply
     const { role } = identity
@@ -108,4 +108,6 @@ export function requireRole(...allowed: string[]) {
       return reply.code(403).send({ error: 'Forbidden' })
     }
   }
+  // Readable by the route-table snapshot test; the hook itself never looks at it.
+  return Object.assign(hook, { allowedRoles: allowed })
 }
