@@ -105,7 +105,7 @@ describe('Layout', () => {
     renderLayout()
     const dialog = screen.getByRole('dialog', { name: "What's new" })
     expect(within(dialog).getByRole('link', { name: 'Full changelog' })).toHaveAttribute('href', 'https://docs.betterstatuspage.dev/changelog/')
-    expect(within(dialog).getByText('Fixes')).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: /^What's new in \d+\.\d+\.\d+/ })).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Got it' }))
     expect(screen.queryByRole('dialog', { name: "What's new" })).not.toBeInTheDocument()
     expect(localStorage.getItem('bsp-whatsnew-seen-1')).not.toBe('0.0.1')
