@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { resolveAppVersion as resolveVersion } from '@better-kit/runtime'
 
 function readPackageVersion(): string {
   const metadata: unknown = JSON.parse(
@@ -21,5 +22,5 @@ export const PACKAGE_VERSION = readPackageVersion()
 export function resolveAppVersion(
   environment: { APP_VERSION?: string | undefined } = process.env,
 ): string {
-  return environment.APP_VERSION?.trim() || PACKAGE_VERSION
+  return resolveVersion(PACKAGE_VERSION, environment)
 }

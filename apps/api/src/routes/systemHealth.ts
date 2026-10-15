@@ -1,17 +1,7 @@
 import type { FastifyInstance } from 'fastify'
-import { getSystemHealthReport } from '../services/systemHealth.js'
-import { getAvailableUpdate } from '../services/updateCheck.js'
-import { resolveAppVersion } from '../version.js'
+import { systemHealthRoutes as routes } from '../services/systemHealth.js'
 
+// The routes are built next to the sections of the report; kept so the registration point does not change.
 export async function systemHealthRoutes(app: FastifyInstance) {
-  app.get('/', async (_request, reply) => {
-    reply.header('Cache-Control', 'no-store')
-    return getSystemHealthReport()
-  })
-
-  /** Only the running version and a newer release, if any: cheap enough for the dashboard to ask on every visit. */
-  app.get('/update', async (_request, reply) => {
-    reply.header('Cache-Control', 'no-store')
-    return { version: resolveAppVersion(), update: getAvailableUpdate() }
-  })
+  await routes(app)
 }
