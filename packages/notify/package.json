@@ -20,6 +20,9 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput"
   },
+  "dependencies": {
+    "nodemailer": "^10.0.13"
+  },
   "peerDependencies": {
     "@better-kit/audit": "^0.1.0",
     "@better-kit/contracts": "^0.1.0",
@@ -28,6 +31,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
+    "@types/nodemailer": "^8.0.1",
     "typescript": "^5.7.3"
   }
 }

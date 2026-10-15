@@ -7,3 +7,6 @@ export {
 export { createNotifyDbModule, notifyMigrations } from './migrations.js'
 export { defineNotifyTables, type NotifyTableOptions, type NotifyTables } from './tables.js'
 export { buildWebhookRequest, escapeJsonString, MAX_DELIVERY_ATTEMPTS, RETRY_DELAYS_MS, substituteVars } from './template.js'
+export {
+  createNotifyEngine, type ChannelRow, type DeliveryDetails, type DeliveryRow, type NotifyEngine, type NotifyEngineOptions, type SmtpMessage,
+} from './engine.js'
