@@ -1,0 +1,2090 @@
+{
+  "down": {
+    "requests": [
+      {
+        "channel": "down",
+        "method": "POST",
+        "url": "/discord",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"embeds\":[{\"title\":\"Monitor `Checkout <API>` is **DOWN**\",\"color\":15022389,\"fields\":[{\"name\":\"Status\",\"value\":\"down\",\"inline\":true},{\"name\":\"Previous\",\"value\":\"up\",\"inline\":true},{\"name\":\"Type\",\"value\":\"https\",\"inline\":true},{\"name\":\"Error\",\"value\":\"connection refused: \\\"port\\\" 443\",\"inline\":false}],\"footer\":{\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"},\"timestamp\":\"2023-11-14T22:13:20.000Z\"}],\"avatar_url\":\"https://docs.betterstatuspage.dev/discord-avatar.png\"}"
+      },
+      {
+        "channel": "down",
+        "method": "POST",
+        "url": "/ntfy-root/",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"topic\":\"alerts\",\"title\":\"Monitor Checkout <API> is DOWN\",\"message\":\"Status: down\\nPrevious: up\\nType: https\\nError: connection refused: \\\"port\\\" 443\\nChecked at 2023-11-14 22:13:20 UTC\",\"priority\":4,\"tags\":[\"rotating_light\"]}"
+      },
+      {
+        "channel": "down",
+        "method": "POST",
+        "url": "/slack",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"text\":\"🔴 Monitor *Checkout <API>* is *DOWN*\",\"attachments\":[{\"color\":\"#E53935\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"🔴 Monitor *Checkout <API>* is *DOWN*\"}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Status:*\\ndown\"},{\"type\":\"mrkdwn\",\"text\":\"*Previous:*\\nup\"},{\"type\":\"mrkdwn\",\"text\":\"*Type:*\\nhttps\"},{\"type\":\"mrkdwn\",\"text\":\"*Error:*\\nconnection refused: \\\"port\\\" 443\"}]},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"}]}]}]}"
+      },
+      {
+        "channel": "down",
+        "method": "POST",
+        "url": "/teams",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"@type\":\"MessageCard\",\"@context\":\"https://schema.org/extensions\",\"themeColor\":\"E53935\",\"summary\":\"Monitor Checkout <API> is DOWN\",\"sections\":[{\"activityTitle\":\"🔴 **Checkout <API>** is **DOWN**\",\"activitySubtitle\":\"Previously: **up**\",\"facts\":[{\"name\":\"Status\",\"value\":\"down\"},{\"name\":\"Previous status\",\"value\":\"up\"},{\"name\":\"Monitor type\",\"value\":\"https\"},{\"name\":\"Error\",\"value\":\"connection refused: \\\"port\\\" 443\"},{\"name\":\"Checked at\",\"value\":\"2023-11-14T22:13:20.000Z\"}],\"markdown\":true}]}"
+      },
+      {
+        "channel": "down",
+        "method": "POST",
+        "url": "/webhook",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"name\":\"Checkout <API>\",\"status\":\"down\",\"event\":\"alert\"}"
+      },
+      {
+        "channel": "down",
+        "method": "POST",
+        "url": "https://api.pushover.net/1/messages.json",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"token\":\"app-token\",\"user\":\"user-key\",\"title\":\"Monitor Checkout <API> is DOWN\",\"message\":\"Status: down\\nPrevious: up\\nType: https\\nError: connection refused: \\\"port\\\" 443\\nChecked at 2023-11-14 22:13:20 UTC\",\"priority\":1}"
+      },
+      {
+        "channel": "down",
+        "method": "POST",
+        "url": "https://api.telegram.org/bot123:SECRET/sendMessage",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"chat_id\":\"-100500\",\"text\":\"🔴 Monitor <b>Checkout &lt;API&gt;</b> is <b>DOWN</b>\\n\\n<b>Status:</b> down\\n<b>Previous:</b> up\\n<b>Type:</b> https\\n<b>Error:</b> connection refused: \\\"port\\\" 443\\n<i>Checked at 2023-11-14 22:13:20 UTC</i>\",\"parse_mode\":\"HTML\",\"link_preview_options\":{\"is_disabled\":true}}"
+      }
+    ],
+    "emails": [
+      "From: Status <status@example.test>\nTo: team@example.test\nSubject: Checkout <API> is down\nMessage-ID: -\nContent-Transfer-Encoding: 7bit\nDate: -\nMIME-Version: 1.0\nContent-Type: text/plain; charset=utf-8\n\nDetail: connection refused: \"port\" 443\n"
+    ]
+  },
+  "recovery": {
+    "requests": [
+      {
+        "channel": "recovery",
+        "method": "POST",
+        "url": "/discord",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"embeds\":[{\"title\":\"Monitor `Checkout <API>` is **UP**\",\"color\":4431943,\"fields\":[{\"name\":\"Status\",\"value\":\"up\",\"inline\":true},{\"name\":\"Previous\",\"value\":\"down\",\"inline\":true},{\"name\":\"Type\",\"value\":\"https\",\"inline\":true}],\"footer\":{\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"},\"timestamp\":\"2023-11-14T22:13:20.000Z\"}],\"avatar_url\":\"https://docs.betterstatuspage.dev/discord-avatar.png\"}"
+      },
+      {
+        "channel": "recovery",
+        "method": "POST",
+        "url": "/ntfy-root/",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"topic\":\"alerts\",\"title\":\"Monitor Checkout <API> is UP\",\"message\":\"Status: up\\nPrevious: down\\nType: https\\nChecked at 2023-11-14 22:13:20 UTC\",\"priority\":3,\"tags\":[\"white_check_mark\"]}"
+      },
+      {
+        "channel": "recovery",
+        "method": "POST",
+        "url": "/slack",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"text\":\"🟢 Monitor *Checkout <API>* is *UP*\",\"attachments\":[{\"color\":\"#43A047\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"🟢 Monitor *Checkout <API>* is *UP*\"}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Status:*\\nup\"},{\"type\":\"mrkdwn\",\"text\":\"*Previous:*\\ndown\"},{\"type\":\"mrkdwn\",\"text\":\"*Type:*\\nhttps\"}]},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"}]}]}]}"
+      },
+      {
+        "channel": "recovery",
+        "method": "POST",
+        "url": "/teams",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"@type\":\"MessageCard\",\"@context\":\"https://schema.org/extensions\",\"themeColor\":\"43A047\",\"summary\":\"Monitor Checkout <API> is UP\",\"sections\":[{\"activityTitle\":\"🟢 **Checkout <API>** is **UP**\",\"activitySubtitle\":\"Previously: **down**\",\"facts\":[{\"name\":\"Status\",\"value\":\"up\"},{\"name\":\"Previous status\",\"value\":\"down\"},{\"name\":\"Monitor type\",\"value\":\"https\"},{\"name\":\"Checked at\",\"value\":\"2023-11-14T22:13:20.000Z\"}],\"markdown\":true}]}"
+      },
+      {
+        "channel": "recovery",
+        "method": "POST",
+        "url": "/webhook",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"name\":\"Checkout <API>\",\"status\":\"up\",\"event\":\"recovery\"}"
+      },
+      {
+        "channel": "recovery",
+        "method": "POST",
+        "url": "https://api.pushover.net/1/messages.json",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"token\":\"app-token\",\"user\":\"user-key\",\"title\":\"Monitor Checkout <API> is UP\",\"message\":\"Status: up\\nPrevious: down\\nType: https\\nChecked at 2023-11-14 22:13:20 UTC\",\"priority\":0}"
+      },
+      {
+        "channel": "recovery",
+        "method": "POST",
+        "url": "https://api.telegram.org/bot123:SECRET/sendMessage",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"chat_id\":\"-100500\",\"text\":\"🟢 Monitor <b>Checkout &lt;API&gt;</b> is <b>UP</b>\\n\\n<b>Status:</b> up\\n<b>Previous:</b> down\\n<b>Type:</b> https\\n<i>Checked at 2023-11-14 22:13:20 UTC</i>\",\"parse_mode\":\"HTML\",\"link_preview_options\":{\"is_disabled\":true}}"
+      }
+    ],
+    "emails": [
+      "From: Status <status@example.test>\nTo: team@example.test\nSubject: Checkout <API> is up\nMessage-ID: -\nContent-Transfer-Encoding: 7bit\nDate: -\nMIME-Version: 1.0\nContent-Type: text/plain; charset=utf-8\n\nDetail: \n"
+    ]
+  },
+  "degraded": {
+    "requests": [
+      {
+        "channel": "degraded",
+        "method": "POST",
+        "url": "/discord",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"embeds\":[{\"title\":\"Monitor `Checkout <API>` is **DEGRADED**\",\"color\":16485376,\"fields\":[{\"name\":\"Status\",\"value\":\"degraded\",\"inline\":true},{\"name\":\"Previous\",\"value\":\"up\",\"inline\":true},{\"name\":\"Type\",\"value\":\"https\",\"inline\":true},{\"name\":\"Error\",\"value\":\"slow response\",\"inline\":false}],\"footer\":{\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"},\"timestamp\":\"2023-11-14T22:13:20.000Z\"}],\"avatar_url\":\"https://docs.betterstatuspage.dev/discord-avatar.png\"}"
+      },
+      {
+        "channel": "degraded",
+        "method": "POST",
+        "url": "/ntfy-root/",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"topic\":\"alerts\",\"title\":\"Monitor Checkout <API> is DEGRADED\",\"message\":\"Status: degraded\\nPrevious: up\\nType: https\\nError: slow response\\nChecked at 2023-11-14 22:13:20 UTC\",\"priority\":3,\"tags\":[\"warning\"]}"
+      },
+      {
+        "channel": "degraded",
+        "method": "POST",
+        "url": "/slack",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"text\":\"🟡 Monitor *Checkout <API>* is *DEGRADED*\",\"attachments\":[{\"color\":\"#FB8C00\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"🟡 Monitor *Checkout <API>* is *DEGRADED*\"}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Status:*\\ndegraded\"},{\"type\":\"mrkdwn\",\"text\":\"*Previous:*\\nup\"},{\"type\":\"mrkdwn\",\"text\":\"*Type:*\\nhttps\"},{\"type\":\"mrkdwn\",\"text\":\"*Error:*\\nslow response\"}]},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"}]}]}]}"
+      },
+      {
+        "channel": "degraded",
+        "method": "POST",
+        "url": "/teams",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"@type\":\"MessageCard\",\"@context\":\"https://schema.org/extensions\",\"themeColor\":\"FB8C00\",\"summary\":\"Monitor Checkout <API> is DEGRADED\",\"sections\":[{\"activityTitle\":\"🟡 **Checkout <API>** is **DEGRADED**\",\"activitySubtitle\":\"Previously: **up**\",\"facts\":[{\"name\":\"Status\",\"value\":\"degraded\"},{\"name\":\"Previous status\",\"value\":\"up\"},{\"name\":\"Monitor type\",\"value\":\"https\"},{\"name\":\"Error\",\"value\":\"slow response\"},{\"name\":\"Checked at\",\"value\":\"2023-11-14T22:13:20.000Z\"}],\"markdown\":true}]}"
+      },
+      {
+        "channel": "degraded",
+        "method": "POST",
+        "url": "/webhook",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"name\":\"Checkout <API>\",\"status\":\"degraded\",\"event\":\"alert\"}"
+      },
+      {
+        "channel": "degraded",
+        "method": "POST",
+        "url": "https://api.pushover.net/1/messages.json",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"token\":\"app-token\",\"user\":\"user-key\",\"title\":\"Monitor Checkout <API> is DEGRADED\",\"message\":\"Status: degraded\\nPrevious: up\\nType: https\\nError: slow response\\nChecked at 2023-11-14 22:13:20 UTC\",\"priority\":0}"
+      },
+      {
+        "channel": "degraded",
+        "method": "POST",
+        "url": "https://api.telegram.org/bot123:SECRET/sendMessage",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"chat_id\":\"-100500\",\"text\":\"🟡 Monitor <b>Checkout &lt;API&gt;</b> is <b>DEGRADED</b>\\n\\n<b>Status:</b> degraded\\n<b>Previous:</b> up\\n<b>Type:</b> https\\n<b>Error:</b> slow response\\n<i>Checked at 2023-11-14 22:13:20 UTC</i>\",\"parse_mode\":\"HTML\",\"link_preview_options\":{\"is_disabled\":true}}"
+      }
+    ],
+    "emails": [
+      "From: Status <status@example.test>\nTo: team@example.test\nSubject: Checkout <API> is degraded\nMessage-ID: -\nContent-Transfer-Encoding: 7bit\nDate: -\nMIME-Version: 1.0\nContent-Type: text/plain; charset=utf-8\n\nDetail: slow response\n"
+    ]
+  },
+  "certificate-expiring": {
+    "requests": [
+      {
+        "channel": "certificate-expiring",
+        "method": "POST",
+        "url": "/discord",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"embeds\":[{\"title\":\"TLS certificate of `Checkout <API>` expires in 5 days\",\"color\":16485376,\"fields\":[{\"name\":\"Status\",\"value\":\"cert-expiring\",\"inline\":true},{\"name\":\"Previous\",\"value\":\"up\",\"inline\":true},{\"name\":\"Type\",\"value\":\"https\",\"inline\":true},{\"name\":\"Details\",\"value\":\"TLS certificate for checkout.example.test expires in 5 days (2023-11-19T22:13:20.000Z)\",\"inline\":false}],\"footer\":{\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"},\"timestamp\":\"2023-11-14T22:13:20.000Z\"}],\"avatar_url\":\"https://docs.betterstatuspage.dev/discord-avatar.png\"}"
+      },
+      {
+        "channel": "certificate-expiring",
+        "method": "POST",
+        "url": "/ntfy-root/",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"topic\":\"alerts\",\"title\":\"TLS certificate of Checkout <API> expires in 5 days\",\"message\":\"Status: cert-expiring\\nPrevious: up\\nType: https\\nDetails: TLS certificate for checkout.example.test expires in 5 days (2023-11-19T22:13:20.000Z)\\nChecked at 2023-11-14 22:13:20 UTC\",\"priority\":3,\"tags\":[\"warning\"]}"
+      },
+      {
+        "channel": "certificate-expiring",
+        "method": "POST",
+        "url": "/slack",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"text\":\"🟡 TLS certificate of *Checkout <API>* expires in 5 days\",\"attachments\":[{\"color\":\"#FB8C00\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"🟡 TLS certificate of *Checkout <API>* expires in 5 days\"}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Status:*\\ncert-expiring\"},{\"type\":\"mrkdwn\",\"text\":\"*Previous:*\\nup\"},{\"type\":\"mrkdwn\",\"text\":\"*Type:*\\nhttps\"},{\"type\":\"mrkdwn\",\"text\":\"*Details:*\\nTLS certificate for checkout.example.test expires in 5 days (2023-11-19T22:13:20.000Z)\"}]},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"}]}]}]}"
+      },
+      {
+        "channel": "certificate-expiring",
+        "method": "POST",
+        "url": "/teams",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"@type\":\"MessageCard\",\"@context\":\"https://schema.org/extensions\",\"themeColor\":\"FB8C00\",\"summary\":\"TLS certificate of Checkout <API> expires in 5 days\",\"sections\":[{\"activityTitle\":\"🟡 TLS certificate of **Checkout <API>** expires in 5 days\",\"activitySubtitle\":\"Previously: **up**\",\"facts\":[{\"name\":\"Status\",\"value\":\"cert-expiring\"},{\"name\":\"Previous status\",\"value\":\"up\"},{\"name\":\"Monitor type\",\"value\":\"https\"},{\"name\":\"Details\",\"value\":\"TLS certificate for checkout.example.test expires in 5 days (2023-11-19T22:13:20.000Z)\"},{\"name\":\"Checked at\",\"value\":\"2023-11-14T22:13:20.000Z\"}],\"markdown\":true}]}"
+      },
+      {
+        "channel": "certificate-expiring",
+        "method": "POST",
+        "url": "/webhook",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"name\":\"Checkout <API>\",\"status\":\"cert-expiring\",\"event\":\"certificate\"}"
+      },
+      {
+        "channel": "certificate-expiring",
+        "method": "POST",
+        "url": "https://api.pushover.net/1/messages.json",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"token\":\"app-token\",\"user\":\"user-key\",\"title\":\"TLS certificate of Checkout <API> expires in 5 days\",\"message\":\"Status: cert-expiring\\nPrevious: up\\nType: https\\nDetails: TLS certificate for checkout.example.test expires in 5 days (2023-11-19T22:13:20.000Z)\\nChecked at 2023-11-14 22:13:20 UTC\",\"priority\":0}"
+      },
+      {
+        "channel": "certificate-expiring",
+        "method": "POST",
+        "url": "https://api.telegram.org/bot123:SECRET/sendMessage",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"chat_id\":\"-100500\",\"text\":\"🟡 TLS certificate of <b>Checkout &lt;API&gt;</b> expires in 5 days\\n\\n<b>Status:</b> cert-expiring\\n<b>Previous:</b> up\\n<b>Type:</b> https\\n<b>Details:</b> TLS certificate for checkout.example.test expires in 5 days (2023-11-19T22:13:20.000Z)\\n<i>Checked at 2023-11-14 22:13:20 UTC</i>\",\"parse_mode\":\"HTML\",\"link_preview_options\":{\"is_disabled\":true}}"
+      }
+    ],
+    "emails": [
+      "From: Status <status@example.test>\nTo: team@example.test\nSubject: Checkout <API> is cert-expiring\nMessage-ID: -\nContent-Transfer-Encoding: quoted-printable\nDate: -\nMIME-Version: 1.0\nContent-Type: text/plain; charset=utf-8\n\nDetail: TLS certificate for checkout.example.test expires in 5 days =\n(2023-11-19T22:13:20.000Z)\n"
+    ]
+  },
+  "certificate-renewed": {
+    "requests": [
+      {
+        "channel": "certificate-renewed",
+        "method": "POST",
+        "url": "/discord",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"embeds\":[{\"title\":\"TLS certificate of `Checkout <API>` was renewed\",\"color\":4431943,\"fields\":[{\"name\":\"Status\",\"value\":\"cert-renewed\",\"inline\":true},{\"name\":\"Previous\",\"value\":\"up\",\"inline\":true},{\"name\":\"Type\",\"value\":\"https\",\"inline\":true},{\"name\":\"Details\",\"value\":\"TLS certificate for checkout.example.test was renewed and now expires 2024-02-12T22:13:20.000Z\",\"inline\":false}],\"footer\":{\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"},\"timestamp\":\"2023-11-14T22:13:20.000Z\"}],\"avatar_url\":\"https://docs.betterstatuspage.dev/discord-avatar.png\"}"
+      },
+      {
+        "channel": "certificate-renewed",
+        "method": "POST",
+        "url": "/ntfy-root/",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"topic\":\"alerts\",\"title\":\"TLS certificate of Checkout <API> was renewed\",\"message\":\"Status: cert-renewed\\nPrevious: up\\nType: https\\nDetails: TLS certificate for checkout.example.test was renewed and now expires 2024-02-12T22:13:20.000Z\\nChecked at 2023-11-14 22:13:20 UTC\",\"priority\":3,\"tags\":[\"white_check_mark\"]}"
+      },
+      {
+        "channel": "certificate-renewed",
+        "method": "POST",
+        "url": "/slack",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"text\":\"🟢 TLS certificate of *Checkout <API>* was renewed\",\"attachments\":[{\"color\":\"#43A047\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"🟢 TLS certificate of *Checkout <API>* was renewed\"}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Status:*\\ncert-renewed\"},{\"type\":\"mrkdwn\",\"text\":\"*Previous:*\\nup\"},{\"type\":\"mrkdwn\",\"text\":\"*Type:*\\nhttps\"},{\"type\":\"mrkdwn\",\"text\":\"*Details:*\\nTLS certificate for checkout.example.test was renewed and now expires 2024-02-12T22:13:20.000Z\"}]},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"}]}]}]}"
+      },
+      {
+        "channel": "certificate-renewed",
+        "method": "POST",
+        "url": "/teams",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"@type\":\"MessageCard\",\"@context\":\"https://schema.org/extensions\",\"themeColor\":\"43A047\",\"summary\":\"TLS certificate of Checkout <API> was renewed\",\"sections\":[{\"activityTitle\":\"🟢 TLS certificate of **Checkout <API>** was renewed\",\"activitySubtitle\":\"Previously: **up**\",\"facts\":[{\"name\":\"Status\",\"value\":\"cert-renewed\"},{\"name\":\"Previous status\",\"value\":\"up\"},{\"name\":\"Monitor type\",\"value\":\"https\"},{\"name\":\"Details\",\"value\":\"TLS certificate for checkout.example.test was renewed and now expires 2024-02-12T22:13:20.000Z\"},{\"name\":\"Checked at\",\"value\":\"2023-11-14T22:13:20.000Z\"}],\"markdown\":true}]}"
+      },
+      {
+        "channel": "certificate-renewed",
+        "method": "POST",
+        "url": "/webhook",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"name\":\"Checkout <API>\",\"status\":\"cert-renewed\",\"event\":\"certificate\"}"
+      },
+      {
+        "channel": "certificate-renewed",
+        "method": "POST",
+        "url": "https://api.pushover.net/1/messages.json",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"token\":\"app-token\",\"user\":\"user-key\",\"title\":\"TLS certificate of Checkout <API> was renewed\",\"message\":\"Status: cert-renewed\\nPrevious: up\\nType: https\\nDetails: TLS certificate for checkout.example.test was renewed and now expires 2024-02-12T22:13:20.000Z\\nChecked at 2023-11-14 22:13:20 UTC\",\"priority\":0}"
+      },
+      {
+        "channel": "certificate-renewed",
+        "method": "POST",
+        "url": "https://api.telegram.org/bot123:SECRET/sendMessage",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"chat_id\":\"-100500\",\"text\":\"🟢 TLS certificate of <b>Checkout &lt;API&gt;</b> was renewed\\n\\n<b>Status:</b> cert-renewed\\n<b>Previous:</b> up\\n<b>Type:</b> https\\n<b>Details:</b> TLS certificate for checkout.example.test was renewed and now expires 2024-02-12T22:13:20.000Z\\n<i>Checked at 2023-11-14 22:13:20 UTC</i>\",\"parse_mode\":\"HTML\",\"link_preview_options\":{\"is_disabled\":true}}"
+      }
+    ],
+    "emails": [
+      "From: Status <status@example.test>\nTo: team@example.test\nSubject: Checkout <API> is cert-renewed\nMessage-ID: -\nContent-Transfer-Encoding: quoted-printable\nDate: -\nMIME-Version: 1.0\nContent-Type: text/plain; charset=utf-8\n\nDetail: TLS certificate for checkout.example.test was renewed and now =\nexpires 2024-02-12T22:13:20.000Z\n"
+    ]
+  },
+  "action-failed": {
+    "requests": [
+      {
+        "channel": "action-failed",
+        "method": "POST",
+        "url": "/discord",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"embeds\":[{\"title\":\"Action `Restart` failed for monitor `Checkout <API>`\",\"color\":15022389,\"fields\":[{\"name\":\"Action\",\"value\":\"Restart\",\"inline\":true},{\"name\":\"Monitor\",\"value\":\"Checkout <API>\",\"inline\":true},{\"name\":\"Triggered when\",\"value\":\"monitor was down\",\"inline\":true},{\"name\":\"Attempts\",\"value\":\"3\",\"inline\":true},{\"name\":\"Error\",\"value\":\"HTTP 500\",\"inline\":false}],\"footer\":{\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"},\"timestamp\":\"2023-11-14T22:13:20.000Z\"}],\"avatar_url\":\"https://docs.betterstatuspage.dev/discord-avatar.png\"}"
+      },
+      {
+        "channel": "action-failed",
+        "method": "POST",
+        "url": "/ntfy-root/",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"topic\":\"alerts\",\"title\":\"Action Restart failed for monitor Checkout <API>\",\"message\":\"Action: Restart\\nMonitor: Checkout <API>\\nTriggered when: monitor was down\\nAttempts: 3\\nError: HTTP 500\\nChecked at 2023-11-14 22:13:20 UTC\",\"priority\":4,\"tags\":[\"rotating_light\"]}"
+      },
+      {
+        "channel": "action-failed",
+        "method": "POST",
+        "url": "/slack",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"text\":\"🔴 Action *Restart* failed for monitor *Checkout <API>*\",\"attachments\":[{\"color\":\"#E53935\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"🔴 Action *Restart* failed for monitor *Checkout <API>*\"}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Action:*\\nRestart\"},{\"type\":\"mrkdwn\",\"text\":\"*Monitor:*\\nCheckout <API>\"},{\"type\":\"mrkdwn\",\"text\":\"*Triggered when:*\\nmonitor was down\"},{\"type\":\"mrkdwn\",\"text\":\"*Attempts:*\\n3\"},{\"type\":\"mrkdwn\",\"text\":\"*Error:*\\nHTTP 500\"}]},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"}]}]}]}"
+      },
+      {
+        "channel": "action-failed",
+        "method": "POST",
+        "url": "/teams",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"@type\":\"MessageCard\",\"@context\":\"https://schema.org/extensions\",\"themeColor\":\"E53935\",\"summary\":\"Action Restart failed for monitor Checkout <API>\",\"sections\":[{\"activityTitle\":\"🔴 Action **Restart** failed for monitor **Checkout <API>**\",\"activitySubtitle\":\"Action failed after its last attempt\",\"facts\":[{\"name\":\"Action\",\"value\":\"Restart\"},{\"name\":\"Monitor\",\"value\":\"Checkout <API>\"},{\"name\":\"Triggered when\",\"value\":\"monitor was down\"},{\"name\":\"Attempts\",\"value\":\"3\"},{\"name\":\"Error\",\"value\":\"HTTP 500\"},{\"name\":\"Checked at\",\"value\":\"2023-11-14T22:13:20.000Z\"}],\"markdown\":true}]}"
+      },
+      {
+        "channel": "action-failed",
+        "method": "POST",
+        "url": "/webhook",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"name\":\"Checkout <API>\",\"status\":\"action-failed\",\"event\":\"action\"}"
+      },
+      {
+        "channel": "action-failed",
+        "method": "POST",
+        "url": "https://api.pushover.net/1/messages.json",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"token\":\"app-token\",\"user\":\"user-key\",\"title\":\"Action Restart failed for monitor Checkout <API>\",\"message\":\"Action: Restart\\nMonitor: Checkout <API>\\nTriggered when: monitor was down\\nAttempts: 3\\nError: HTTP 500\\nChecked at 2023-11-14 22:13:20 UTC\",\"priority\":1}"
+      },
+      {
+        "channel": "action-failed",
+        "method": "POST",
+        "url": "https://api.telegram.org/bot123:SECRET/sendMessage",
+        "contentType": "application/json",
+        "extra": {},
+        "body": "{\"chat_id\":\"-100500\",\"text\":\"🔴 Action <b>Restart</b> failed for monitor <b>Checkout &lt;API&gt;</b>\\n\\n<b>Action:</b> Restart\\n<b>Monitor:</b> Checkout &lt;API&gt;\\n<b>Triggered when:</b> monitor was down\\n<b>Attempts:</b> 3\\n<b>Error:</b> HTTP 500\\n<i>Checked at 2023-11-14 22:13:20 UTC</i>\",\"parse_mode\":\"HTML\",\"link_preview_options\":{\"is_disabled\":true}}"
+      }
+    ],
+    "emails": [
+      "From: Status <status@example.test>\nTo: team@example.test\nSubject: Checkout <API> is action-failed\nMessage-ID: -\nContent-Transfer-Encoding: 7bit\nDate: -\nMIME-Version: 1.0\nContent-Type: text/plain; charset=utf-8\n\nDetail: HTTP 500\n"
+    ]
+  },
+  "test-sends": {
+    "Email": {
+      "result": {
+        "ok": true
+      },
+      "requests": [],
+      "emails": [
+        "From: Status <status@example.test>\nTo: team@example.test\nSubject: Test Monitor is down\nMessage-ID: -\nContent-Transfer-Encoding: 7bit\nDate: -\nMIME-Version: 1.0\nContent-Type: text/plain; charset=utf-8\n\nDetail: This is a test notification\n"
+      ]
+    },
+    "Webhook": {
+      "result": {
+        "ok": true
+      },
+      "requests": [
+        {
+          "channel": "test-Webhook",
+          "method": "POST",
+          "url": "/webhook",
+          "contentType": "application/json",
+          "extra": {},
+          "body": "{\"name\":\"Test Monitor\",\"status\":\"down\",\"event\":\"test\"}"
+        }
+      ],
+      "emails": []
+    },
+    "Discord": {
+      "result": {
+        "ok": true
+      },
+      "requests": [
+        {
+          "channel": "test-Discord",
+          "method": "POST",
+          "url": "/discord",
+          "contentType": "application/json",
+          "extra": {},
+          "body": "{\"embeds\":[{\"title\":\"Monitor `Test Monitor` is **DOWN**\",\"color\":15022389,\"fields\":[{\"name\":\"Status\",\"value\":\"down\",\"inline\":true},{\"name\":\"Previous\",\"value\":\"up\",\"inline\":true},{\"name\":\"Type\",\"value\":\"https\",\"inline\":true},{\"name\":\"Error\",\"value\":\"This is a test notification\",\"inline\":false}],\"footer\":{\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"},\"timestamp\":\"2023-11-14T22:13:20.000Z\"}],\"avatar_url\":\"https://docs.betterstatuspage.dev/discord-avatar.png\"}"
+        }
+      ],
+      "emails": []
+    },
+    "Teams": {
+      "result": {
+        "ok": true
+      },
+      "requests": [
+        {
+          "channel": "test-Teams",
+          "method": "POST",
+          "url": "/teams",
+          "contentType": "application/json",
+          "extra": {},
+          "body": "{\"@type\":\"MessageCard\",\"@context\":\"https://schema.org/extensions\",\"themeColor\":\"E53935\",\"summary\":\"Monitor Test Monitor is DOWN\",\"sections\":[{\"activityTitle\":\"🔴 **Test Monitor** is **DOWN**\",\"activitySubtitle\":\"Previously: **up**\",\"facts\":[{\"name\":\"Status\",\"value\":\"down\"},{\"name\":\"Previous status\",\"value\":\"up\"},{\"name\":\"Monitor type\",\"value\":\"https\"},{\"name\":\"Error\",\"value\":\"This is a test notification\"},{\"name\":\"Checked at\",\"value\":\"2023-11-14T22:13:20.000Z\"}],\"markdown\":true}]}"
+        }
+      ],
+      "emails": []
+    },
+    "Slack": {
+      "result": {
+        "ok": true
+      },
+      "requests": [
+        {
+          "channel": "test-Slack",
+          "method": "POST",
+          "url": "/slack",
+          "contentType": "application/json",
+          "extra": {},
+          "body": "{\"text\":\"🔴 Monitor *Test Monitor* is *DOWN*\",\"attachments\":[{\"color\":\"#E53935\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"🔴 Monitor *Test Monitor* is *DOWN*\"}},{\"type\":\"section\",\"fields\":[{\"type\":\"mrkdwn\",\"text\":\"*Status:*\\ndown\"},{\"type\":\"mrkdwn\",\"text\":\"*Previous:*\\nup\"},{\"type\":\"mrkdwn\",\"text\":\"*Type:*\\nhttps\"},{\"type\":\"mrkdwn\",\"text\":\"*Error:*\\nThis is a test notification\"}]},{\"type\":\"context\",\"elements\":[{\"type\":\"mrkdwn\",\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"}]}]}]}"
+        }
+      ],
+      "emails": []
+    },
+    "Telegram": {
+      "result": {
+        "ok": true
+      },
+      "requests": [
+        {
+          "channel": "test-Telegram",
+          "method": "POST",
+          "url": "https://api.telegram.org/bot123:SECRET/sendMessage",
+          "contentType": "application/json",
+          "extra": {},
+          "body": "{\"chat_id\":\"-100500\",\"text\":\"🔴 Monitor <b>Test Monitor</b> is <b>DOWN</b>\\n\\n<b>Status:</b> down\\n<b>Previous:</b> up\\n<b>Type:</b> https\\n<b>Error:</b> This is a test notification\\n<i>Checked at 2023-11-14 22:13:20 UTC</i>\",\"parse_mode\":\"HTML\",\"link_preview_options\":{\"is_disabled\":true}}"
+        }
+      ],
+      "emails": []
+    },
+    "Ntfy": {
+      "result": {
+        "ok": true
+      },
+      "requests": [
+        {
+          "channel": "test-Ntfy",
+          "method": "POST",
+          "url": "/ntfy-root/",
+          "contentType": "application/json",
+          "extra": {},
+          "body": "{\"topic\":\"alerts\",\"title\":\"Monitor Test Monitor is DOWN\",\"message\":\"Status: down\\nPrevious: up\\nType: https\\nError: This is a test notification\\nChecked at 2023-11-14 22:13:20 UTC\",\"priority\":4,\"tags\":[\"rotating_light\"]}"
+        }
+      ],
+      "emails": []
+    },
+    "Pushover": {
+      "result": {
+        "ok": true
+      },
+      "requests": [
+        {
+          "channel": "test-Pushover",
+          "method": "POST",
+          "url": "https://api.pushover.net/1/messages.json",
+          "contentType": "application/json",
+          "extra": {},
+          "body": "{\"token\":\"app-token\",\"user\":\"user-key\",\"title\":\"Monitor Test Monitor is DOWN\",\"message\":\"Status: down\\nPrevious: up\\nType: https\\nError: This is a test notification\\nChecked at 2023-11-14 22:13:20 UTC\",\"priority\":1}"
+        }
+      ],
+      "emails": []
+    }
+  },
+  "routes": {
+    "channels": [
+      {
+        "id": 1,
+        "name": "Email",
+        "type": "email",
+        "config": {
+          "to": "team@example.test",
+          "subject": "{{monitor_name}} is {{status}}",
+          "body": "Detail: {{error_message}}"
+        },
+        "enabled": 1,
+        "notifyOnRecovery": 1,
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000000,
+        "alertPolicy": {
+          "quietHours": {
+            "enabled": false,
+            "start": "22:00",
+            "end": "07:00",
+            "timezone": "UTC",
+            "mode": "defer"
+          },
+          "throttle": {
+            "enabled": false,
+            "maxAlerts": 3,
+            "windowMinutes": 60
+          },
+          "grouping": {
+            "enabled": false,
+            "minMonitors": 3,
+            "windowSeconds": 60
+          }
+        },
+        "key": "k-RANDOM"
+      },
+      {
+        "id": 2,
+        "name": "Webhook",
+        "type": "webhook",
+        "config": {
+          "url": "http://HOST/webhook",
+          "method": "POST",
+          "body": "{\"name\":\"{{monitor_name}}\",\"status\":\"{{status}}\",\"event\":\"{{event_type}}\"}"
+        },
+        "enabled": 1,
+        "notifyOnRecovery": 1,
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000000,
+        "alertPolicy": {
+          "quietHours": {
+            "enabled": false,
+            "start": "22:00",
+            "end": "07:00",
+            "timezone": "UTC",
+            "mode": "defer"
+          },
+          "throttle": {
+            "enabled": false,
+            "maxAlerts": 3,
+            "windowMinutes": 60
+          },
+          "grouping": {
+            "enabled": false,
+            "minMonitors": 3,
+            "windowSeconds": 60
+          }
+        },
+        "key": "k-RANDOM"
+      },
+      {
+        "id": 3,
+        "name": "Discord",
+        "type": "discord",
+        "config": {
+          "webhookUrl": "••••••••"
+        },
+        "enabled": 1,
+        "notifyOnRecovery": 1,
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000000,
+        "alertPolicy": {
+          "quietHours": {
+            "enabled": false,
+            "start": "22:00",
+            "end": "07:00",
+            "timezone": "UTC",
+            "mode": "defer"
+          },
+          "throttle": {
+            "enabled": false,
+            "maxAlerts": 3,
+            "windowMinutes": 60
+          },
+          "grouping": {
+            "enabled": false,
+            "minMonitors": 3,
+            "windowSeconds": 60
+          }
+        },
+        "key": "k-RANDOM"
+      },
+      {
+        "id": 4,
+        "name": "Teams",
+        "type": "teams",
+        "config": {
+          "webhookUrl": "••••••••"
+        },
+        "enabled": 1,
+        "notifyOnRecovery": 1,
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000000,
+        "alertPolicy": {
+          "quietHours": {
+            "enabled": false,
+            "start": "22:00",
+            "end": "07:00",
+            "timezone": "UTC",
+            "mode": "defer"
+          },
+          "throttle": {
+            "enabled": false,
+            "maxAlerts": 3,
+            "windowMinutes": 60
+          },
+          "grouping": {
+            "enabled": false,
+            "minMonitors": 3,
+            "windowSeconds": 60
+          }
+        },
+        "key": "k-RANDOM"
+      },
+      {
+        "id": 5,
+        "name": "Slack",
+        "type": "slack",
+        "config": {
+          "webhookUrl": "••••••••"
+        },
+        "enabled": 1,
+        "notifyOnRecovery": 1,
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000000,
+        "alertPolicy": {
+          "quietHours": {
+            "enabled": false,
+            "start": "22:00",
+            "end": "07:00",
+            "timezone": "UTC",
+            "mode": "defer"
+          },
+          "throttle": {
+            "enabled": false,
+            "maxAlerts": 3,
+            "windowMinutes": 60
+          },
+          "grouping": {
+            "enabled": false,
+            "minMonitors": 3,
+            "windowSeconds": 60
+          }
+        },
+        "key": "k-RANDOM"
+      },
+      {
+        "id": 6,
+        "name": "Telegram",
+        "type": "telegram",
+        "config": {
+          "botToken": "••••••••",
+          "chatId": "-100500"
+        },
+        "enabled": 1,
+        "notifyOnRecovery": 1,
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000000,
+        "alertPolicy": {
+          "quietHours": {
+            "enabled": false,
+            "start": "22:00",
+            "end": "07:00",
+            "timezone": "UTC",
+            "mode": "defer"
+          },
+          "throttle": {
+            "enabled": false,
+            "maxAlerts": 3,
+            "windowMinutes": 60
+          },
+          "grouping": {
+            "enabled": false,
+            "minMonitors": 3,
+            "windowSeconds": 60
+          }
+        },
+        "key": "k-RANDOM"
+      },
+      {
+        "id": 7,
+        "name": "Ntfy",
+        "type": "ntfy",
+        "config": {
+          "serverUrl": "http://HOST/ntfy-root",
+          "topic": "alerts"
+        },
+        "enabled": 1,
+        "notifyOnRecovery": 1,
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000000,
+        "alertPolicy": {
+          "quietHours": {
+            "enabled": false,
+            "start": "22:00",
+            "end": "07:00",
+            "timezone": "UTC",
+            "mode": "defer"
+          },
+          "throttle": {
+            "enabled": false,
+            "maxAlerts": 3,
+            "windowMinutes": 60
+          },
+          "grouping": {
+            "enabled": false,
+            "minMonitors": 3,
+            "windowSeconds": 60
+          }
+        },
+        "key": "k-RANDOM"
+      },
+      {
+        "id": 8,
+        "name": "Pushover",
+        "type": "pushover",
+        "config": {
+          "appToken": "••••••••",
+          "userKey": "user-key"
+        },
+        "enabled": 1,
+        "notifyOnRecovery": 1,
+        "createdAt": 1700000000000,
+        "updatedAt": 1700000000000,
+        "alertPolicy": {
+          "quietHours": {
+            "enabled": false,
+            "start": "22:00",
+            "end": "07:00",
+            "timezone": "UTC",
+            "mode": "defer"
+          },
+          "throttle": {
+            "enabled": false,
+            "maxAlerts": 3,
+            "windowMinutes": 60
+          },
+          "grouping": {
+            "enabled": false,
+            "minMonitors": 3,
+            "windowSeconds": 60
+          }
+        },
+        "key": "k-RANDOM"
+      }
+    ],
+    "channel": {
+      "id": 2,
+      "name": "Webhook",
+      "type": "webhook",
+      "config": {
+        "url": "http://HOST/webhook",
+        "method": "POST",
+        "body": "{\"name\":\"{{monitor_name}}\",\"status\":\"{{status}}\",\"event\":\"{{event_type}}\"}"
+      },
+      "enabled": 1,
+      "notifyOnRecovery": 1,
+      "createdAt": 1700000000000,
+      "updatedAt": 1700000000000,
+      "alertPolicy": {
+        "quietHours": {
+          "enabled": false,
+          "start": "22:00",
+          "end": "07:00",
+          "timezone": "UTC",
+          "mode": "defer"
+        },
+        "throttle": {
+          "enabled": false,
+          "maxAlerts": 3,
+          "windowMinutes": 60
+        },
+        "grouping": {
+          "enabled": false,
+          "minMonitors": 3,
+          "windowSeconds": 60
+        }
+      },
+      "key": "k-RANDOM"
+    },
+    "deliveries": {
+      "deliveries": [
+        {
+          "id": 56,
+          "channelId": 8,
+          "channelName": "Pushover",
+          "channelType": "pushover",
+          "monitorId": null,
+          "monitorName": "Test Monitor",
+          "eventType": "test",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 55,
+          "channelId": 7,
+          "channelName": "Ntfy",
+          "channelType": "ntfy",
+          "monitorId": null,
+          "monitorName": "Test Monitor",
+          "eventType": "test",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 54,
+          "channelId": 6,
+          "channelName": "Telegram",
+          "channelType": "telegram",
+          "monitorId": null,
+          "monitorName": "Test Monitor",
+          "eventType": "test",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 53,
+          "channelId": 5,
+          "channelName": "Slack",
+          "channelType": "slack",
+          "monitorId": null,
+          "monitorName": "Test Monitor",
+          "eventType": "test",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 52,
+          "channelId": 4,
+          "channelName": "Teams",
+          "channelType": "teams",
+          "monitorId": null,
+          "monitorName": "Test Monitor",
+          "eventType": "test",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 51,
+          "channelId": 3,
+          "channelName": "Discord",
+          "channelType": "discord",
+          "monitorId": null,
+          "monitorName": "Test Monitor",
+          "eventType": "test",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 50,
+          "channelId": 2,
+          "channelName": "Webhook",
+          "channelType": "webhook",
+          "monitorId": null,
+          "monitorName": "Test Monitor",
+          "eventType": "test",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 49,
+          "channelId": 1,
+          "channelName": "Email",
+          "channelType": "email",
+          "monitorId": null,
+          "monitorName": "Test Monitor",
+          "eventType": "test",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 48,
+          "channelId": 8,
+          "channelName": "Pushover",
+          "channelType": "pushover",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "action",
+          "status": "delivered",
+          "targetStatus": "action-failed",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 47,
+          "channelId": 7,
+          "channelName": "Ntfy",
+          "channelType": "ntfy",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "action",
+          "status": "delivered",
+          "targetStatus": "action-failed",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 46,
+          "channelId": 6,
+          "channelName": "Telegram",
+          "channelType": "telegram",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "action",
+          "status": "delivered",
+          "targetStatus": "action-failed",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 45,
+          "channelId": 5,
+          "channelName": "Slack",
+          "channelType": "slack",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "action",
+          "status": "delivered",
+          "targetStatus": "action-failed",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 44,
+          "channelId": 4,
+          "channelName": "Teams",
+          "channelType": "teams",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "action",
+          "status": "delivered",
+          "targetStatus": "action-failed",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 43,
+          "channelId": 3,
+          "channelName": "Discord",
+          "channelType": "discord",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "action",
+          "status": "delivered",
+          "targetStatus": "action-failed",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 42,
+          "channelId": 2,
+          "channelName": "Webhook",
+          "channelType": "webhook",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "action",
+          "status": "delivered",
+          "targetStatus": "action-failed",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 41,
+          "channelId": 1,
+          "channelName": "Email",
+          "channelType": "email",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "action",
+          "status": "delivered",
+          "targetStatus": "action-failed",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 40,
+          "channelId": 8,
+          "channelName": "Pushover",
+          "channelType": "pushover",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-renewed",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 39,
+          "channelId": 7,
+          "channelName": "Ntfy",
+          "channelType": "ntfy",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-renewed",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 38,
+          "channelId": 6,
+          "channelName": "Telegram",
+          "channelType": "telegram",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-renewed",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 37,
+          "channelId": 5,
+          "channelName": "Slack",
+          "channelType": "slack",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-renewed",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 36,
+          "channelId": 4,
+          "channelName": "Teams",
+          "channelType": "teams",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-renewed",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 35,
+          "channelId": 3,
+          "channelName": "Discord",
+          "channelType": "discord",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-renewed",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 34,
+          "channelId": 2,
+          "channelName": "Webhook",
+          "channelType": "webhook",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-renewed",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 33,
+          "channelId": 1,
+          "channelName": "Email",
+          "channelType": "email",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-renewed",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 32,
+          "channelId": 8,
+          "channelName": "Pushover",
+          "channelType": "pushover",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-expiring",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 31,
+          "channelId": 7,
+          "channelName": "Ntfy",
+          "channelType": "ntfy",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-expiring",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 30,
+          "channelId": 6,
+          "channelName": "Telegram",
+          "channelType": "telegram",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-expiring",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 29,
+          "channelId": 5,
+          "channelName": "Slack",
+          "channelType": "slack",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-expiring",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 28,
+          "channelId": 4,
+          "channelName": "Teams",
+          "channelType": "teams",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-expiring",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 27,
+          "channelId": 3,
+          "channelName": "Discord",
+          "channelType": "discord",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-expiring",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 26,
+          "channelId": 2,
+          "channelName": "Webhook",
+          "channelType": "webhook",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-expiring",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 25,
+          "channelId": 1,
+          "channelName": "Email",
+          "channelType": "email",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "certificate",
+          "status": "delivered",
+          "targetStatus": "cert-expiring",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 24,
+          "channelId": 8,
+          "channelName": "Pushover",
+          "channelType": "pushover",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "degraded",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 23,
+          "channelId": 7,
+          "channelName": "Ntfy",
+          "channelType": "ntfy",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "degraded",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 22,
+          "channelId": 6,
+          "channelName": "Telegram",
+          "channelType": "telegram",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "degraded",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 21,
+          "channelId": 5,
+          "channelName": "Slack",
+          "channelType": "slack",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "degraded",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 20,
+          "channelId": 4,
+          "channelName": "Teams",
+          "channelType": "teams",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "degraded",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 19,
+          "channelId": 3,
+          "channelName": "Discord",
+          "channelType": "discord",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "degraded",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 18,
+          "channelId": 2,
+          "channelName": "Webhook",
+          "channelType": "webhook",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "degraded",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 17,
+          "channelId": 1,
+          "channelName": "Email",
+          "channelType": "email",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "degraded",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 16,
+          "channelId": 8,
+          "channelName": "Pushover",
+          "channelType": "pushover",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "recovery",
+          "status": "delivered",
+          "targetStatus": "up",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 15,
+          "channelId": 7,
+          "channelName": "Ntfy",
+          "channelType": "ntfy",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "recovery",
+          "status": "delivered",
+          "targetStatus": "up",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 14,
+          "channelId": 6,
+          "channelName": "Telegram",
+          "channelType": "telegram",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "recovery",
+          "status": "delivered",
+          "targetStatus": "up",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 13,
+          "channelId": 5,
+          "channelName": "Slack",
+          "channelType": "slack",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "recovery",
+          "status": "delivered",
+          "targetStatus": "up",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 12,
+          "channelId": 4,
+          "channelName": "Teams",
+          "channelType": "teams",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "recovery",
+          "status": "delivered",
+          "targetStatus": "up",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 11,
+          "channelId": 3,
+          "channelName": "Discord",
+          "channelType": "discord",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "recovery",
+          "status": "delivered",
+          "targetStatus": "up",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 10,
+          "channelId": 2,
+          "channelName": "Webhook",
+          "channelType": "webhook",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "recovery",
+          "status": "delivered",
+          "targetStatus": "up",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 9,
+          "channelId": 1,
+          "channelName": "Email",
+          "channelType": "email",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "recovery",
+          "status": "delivered",
+          "targetStatus": "up",
+          "previousStatus": "down",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 8,
+          "channelId": 8,
+          "channelName": "Pushover",
+          "channelType": "pushover",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 7,
+          "channelId": 7,
+          "channelName": "Ntfy",
+          "channelType": "ntfy",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 6,
+          "channelId": 6,
+          "channelName": "Telegram",
+          "channelType": "telegram",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 5,
+          "channelId": 5,
+          "channelName": "Slack",
+          "channelType": "slack",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 4,
+          "channelId": 4,
+          "channelName": "Teams",
+          "channelType": "teams",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 3,
+          "channelId": 3,
+          "channelName": "Discord",
+          "channelType": "discord",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 2,
+          "channelId": 2,
+          "channelName": "Webhook",
+          "channelType": "webhook",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        },
+        {
+          "id": 1,
+          "channelId": 1,
+          "channelName": "Email",
+          "channelType": "email",
+          "monitorId": 1,
+          "monitorName": "Checkout <API>",
+          "eventType": "alert",
+          "status": "delivered",
+          "targetStatus": "down",
+          "previousStatus": "up",
+          "attemptCount": 1,
+          "maxAttempts": 3,
+          "nextAttemptAt": null,
+          "lastAttemptAt": 1700000000000,
+          "deliveredAt": 1700000000000,
+          "lastError": null,
+          "suppressionReason": null,
+          "groupKey": null,
+          "createdAt": 1700000000000,
+          "updatedAt": 1700000000000
+        }
+      ],
+      "total": 56,
+      "page": 1,
+      "limit": 100,
+      "pages": 1
+    },
+    "delivery": {
+      "id": 1,
+      "channelId": 1,
+      "channelName": "Email",
+      "channelType": "email",
+      "monitorId": 1,
+      "monitorName": "Checkout <API>",
+      "eventType": "alert",
+      "status": "delivered",
+      "targetStatus": "down",
+      "previousStatus": "up",
+      "attemptCount": 1,
+      "maxAttempts": 3,
+      "nextAttemptAt": null,
+      "lastAttemptAt": 1700000000000,
+      "deliveredAt": 1700000000000,
+      "lastError": null,
+      "createdAt": 1700000000000,
+      "updatedAt": 1700000000000,
+      "suppressionReason": null,
+      "groupKey": null,
+      "attempts": [
+        {
+          "id": 1,
+          "deliveryId": 1,
+          "attemptNumber": 1,
+          "status": "delivered",
+          "error": null,
+          "startedAt": 1700000000000,
+          "completedAt": 1700000000000
+        }
+      ]
+    },
+    "smtp": {
+      "id": 1,
+      "host": "127.0.0.1",
+      "port": 0,
+      "secure": 0,
+      "user": "",
+      "password": "",
+      "fromAddress": "status@example.test",
+      "fromName": "Status",
+      "updatedAt": 1700000000000,
+      "vaultConfig": null,
+      "vault": null
+    }
+  }
+}
