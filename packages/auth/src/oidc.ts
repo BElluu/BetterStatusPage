@@ -4,6 +4,7 @@ import * as client from 'openid-client'
 import { and, eq, sql } from 'drizzle-orm'
 import { users } from './tables.js'
 import type { AuthOptions } from './context.js'
+import { ADMIN_ROLE } from './roles.js'
 import type { OidcConfig } from './oidcConfig.js'
 import type { SignInAudit } from './signInAudit.js'
 
@@ -185,7 +186,8 @@ export function createOidc(ctx: AuthOptions, signInAudit: SignInAudit) {
     const user = (await db.select().from(users).where(sql`lower(${users.email}) = ${email}`))[0]
     if (!user) {
       const resolved = subject ? await hooks.resolveUnknownSsoUser?.({ email, subject, issuer: cfg.issuer }) : null
-    const provision = subject && resolved ? { email, subject, role: resolved.role } : undefined
+      // A role the application did not register, or admin, is never handed out by a sign-in: no account is created.
+      const provision = subject && resolved && ctx.roles.isValid(resolved.role) && resolved.role !== ADMIN_ROLE ? { email, subject, role: resolved.role } : undefined
       return { user: null, denial: { code: 'no_matching_account', reason: `No user has the email ${email}. Create the user first.`, email }, provision }
     }
     if (user.oidcSubject && user.oidcIssuer === cfg.issuer) {

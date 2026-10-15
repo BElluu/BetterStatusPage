@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import { openDatabase, runMigrations } from '@better-kit/db'
-import { auditDbModule, auditLog, createAudit } from '../src/index.js'
+import { auditDbModule, auditLog, createAudit } from '@better-kit/audit'
 
 const dir = mkdtempSync(join(tmpdir(), 'kit-audit-'))
 const database = openDatabase({ path: join(dir, 'db.sqlite'), schema: { auditLog } })

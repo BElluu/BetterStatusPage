@@ -9,4 +9,3 @@ export const buildOidcConfig: Group['buildOidcConfig'] = (...args: Parameters<Gr
 export const defaultOidcRedirectUri: Group['defaultOidcRedirectUri'] = (...args: Parameters<Group['defaultOidcRedirectUri']>) => (auth.oidcConfig.defaultOidcRedirectUri as (...a: unknown[]) => unknown)(...args) as never
 export const resolveOidcConfigFromEnv: Group['resolveOidcConfigFromEnv'] = (...args: Parameters<Group['resolveOidcConfigFromEnv']>) => (auth.oidcConfig.resolveOidcConfigFromEnv as (...a: unknown[]) => unknown)(...args) as never
 
-export const OIDC_CALLBACK_PATH = '/api/v1/auth/oidc/callback'
