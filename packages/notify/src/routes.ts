@@ -156,7 +156,9 @@ export function createNotifyRoutes(options: NotifyRoutesOptions) {
       await audit.write(actor(req), 'update', 'notification_delivery', id, `${existing.channelName} · ${existing.sourceName}`, {
         manualRetry: { from: false, to: true },
       })
-      return wireDelivery((await db.select().from(notificationDeliveries).where(eq(notificationDeliveries.id, id)))[0]!)
+      const row = (await db.select().from(notificationDeliveries).where(eq(notificationDeliveries.id, id)))[0]
+      // The row may be gone already (the retention purge); the answer is then empty, as it has always been.
+      return row && wireDelivery(row)
     })
 
     // ── Channels CRUD ──────────────────────────────────────────────────────
