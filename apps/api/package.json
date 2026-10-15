@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@better-kit/contracts": "*",
+    "@better-kit/db": "*",
     "@bsp/shared": "*",
     "@fastify/cookie": "^11.1.1",
     "@fastify/cors": "^10.0.2",
