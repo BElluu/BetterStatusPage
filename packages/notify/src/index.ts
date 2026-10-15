@@ -10,3 +10,5 @@ export { buildWebhookRequest, escapeJsonString, MAX_DELIVERY_ATTEMPTS, RETRY_DEL
 export {
   createNotifyEngine, type ChannelRow, type DeliveryDetails, type DeliveryRow, type NotifyEngine, type NotifyEngineOptions, type SmtpMessage,
 } from './engine.js'
+export { readableTimestamp, renderSegments, type Notice, type NoticeFact, type NoticeSegment, type NoticeSeverity } from './notice.js'
+export { createTransports, type TransportChannel, type TransportOptions, type Transports } from './transports.js'

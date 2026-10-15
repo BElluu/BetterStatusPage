@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
-  buildWebhookRequest, channelConfigError, createAlertPolicy, DEFAULT_ALERT_POLICY, isWithinQuietHours, quietHoursEndAt, substituteVars,
+  buildWebhookRequest, channelConfigError, createAlertPolicy, DEFAULT_ALERT_POLICY, isWithinQuietHours, quietHoursEndAt, readableTimestamp,
+  renderSegments, substituteVars, type NoticeSegment,
 } from '@better-kit/notify'
 
 describe('alert policy', () => {
@@ -51,5 +52,20 @@ describe('channel input', () => {
     assert.match(channelConfigError('telegram', { chatId: '1', botToken: '••••abcd' }) ?? '', /full bot token/)
     assert.match(channelConfigError('ntfy', { topic: 'bad topic' }) ?? '', /topic/)
     assert.equal(channelConfigError('slack', {}), null)
+  })
+})
+
+describe('notice', () => {
+  const headline: NoticeSegment[] = [{ kind: 'Server ' }, { subject: 'a<b' }, ' is ', { state: 'DOWN' }]
+
+  it('writes the emphasised segments in the markup of each channel', () => {
+    assert.equal(renderSegments(headline, { subject: (v) => `[${v}]`, state: (v) => `*${v}*` }), 'Server [a<b] is *DOWN*')
+    assert.equal(renderSegments(headline, { kind: () => '', text: (v) => v.toUpperCase(), subject: (v) => `<${v}>`, state: (v) => v }), '<A<B> IS DOWN')
+  })
+
+  it('shows an ISO instant readably and anything else as it is', () => {
+    assert.equal(readableTimestamp('2026-10-09T17:00:22.988Z'), '2026-10-09 17:00:22 UTC')
+    assert.equal(readableTimestamp('yesterday'), 'yesterday')
+    assert.equal(readableTimestamp(undefined), 'unknown')
   })
 })
