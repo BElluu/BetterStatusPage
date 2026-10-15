@@ -17,10 +17,5 @@ export function resolveJwtSecret(env: NodeJS.ProcessEnv = process.env): string {
   return secret
 }
 
-export function validateVaultEncryptionKey(env: NodeJS.ProcessEnv = process.env): void {
-  if (env['NODE_ENV'] !== 'production') return
-  const key = env['VAULT_ENCRYPTION_KEY']
-  if (!key || !/^[0-9a-fA-F]{64}$/.test(key) || EXAMPLE_SECRETS.has(key)) {
-    throw new Error('VAULT_ENCRYPTION_KEY must be set to exactly 64 hexadecimal characters in production')
-  }
-}
+// The encryption key check lives in the vault module.
+export { validateEncryptionKey as validateVaultEncryptionKey } from '@better-kit/vault'

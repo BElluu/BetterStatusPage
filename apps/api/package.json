@@ -18,6 +18,7 @@
     "@better-kit/contracts": "*",
     "@better-kit/audit": "*",
     "@better-kit/auth": "*",
+    "@better-kit/vault": "*",
     "@better-kit/db": "*",
     "@bsp/shared": "*",
     "@fastify/cookie": "^11.1.1",

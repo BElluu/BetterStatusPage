@@ -2,7 +2,7 @@ import { createAuth, createTokenCatalogue, type Auth } from '@better-kit/auth'
 import { VAULT_USE_SCOPE } from '@better-kit/contracts'
 import { TOKEN_PRESETS, TOKEN_RESOURCES } from '@bsp/shared'
 import { db, sqlite } from '../db/client.js'
-import { decrypt, encrypt } from '../crypto/vault.js'
+import { vault } from './vault.js'
 import { resolvePublicUrl } from '../config/publicUrl.js'
 import { LOGIN_RATE_LIMIT, SENSITIVE_ACTION_RATE_LIMIT } from '../config/rateLimits.js'
 import { getStatusPageAccess, viewerProvisioningAllowed } from '../services/statusPageAccess.js'
@@ -27,7 +27,7 @@ export const auth: Auth = createAuth({
   audit,
   roles,
   tokens: tokenCatalogue,
-  secretBox: { encrypt, decrypt },
+  secretBox: vault.secretBox,
   cookies: { session: 'bsp_session', csrf: 'bsp_csrf', oidcFlow: 'bsp_oidc_flow', twoFactorChallenge: 'bsp_2fa_challenge' },
   apiTokenPrefix: 'bsp_',
   totpIssuer: 'BetterStatusPage',
