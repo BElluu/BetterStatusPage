@@ -24,12 +24,16 @@
     "nodemailer": "^10.0.13"
   },
   "peerDependencies": {
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.3.2",
     "@better-kit/audit": "^0.1.0",
     "@better-kit/contracts": "^0.1.0",
     "@better-kit/db": "^0.1.0",
     "@better-kit/vault": "^0.1.0"
   },
   "devDependencies": {
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.3.2",
     "@types/node": "^26.6.2",
     "@types/nodemailer": "^8.0.1",
     "typescript": "^5.7.3"

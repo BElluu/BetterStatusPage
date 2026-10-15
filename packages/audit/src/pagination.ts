@@ -4,7 +4,7 @@ export interface Pagination {
   offset: number
 }
 
-interface PaginationOptions {
+export interface PaginationOptions {
   defaultLimit: number
   maxLimit: number
   /** Highest page accepted; keeps OFFSET within a sane range. */
