@@ -1,6 +1,10 @@
-import type { DbModule } from '@better-kit/db'
-import * as tables from './tables.js'
-import { notifyMigrations } from './migrations.js'
+import { createNotifyDbModule } from '@better-kit/notify'
+import { randomEntityKey } from '../../../lib/entityKey.js'
 
-/** Notification channels, deliveries and SMTP settings. */
-export const notifyModule = { id: 'notify', tables, migrations: notifyMigrations } satisfies DbModule
+/** Notification channels, their delivery history and SMTP settings. */
+export const notifyModule = createNotifyDbModule({
+  sourceIdColumn: 'monitor_id',
+  sourceNameColumn: 'monitor_name',
+  smtpFromName: 'BSP Alerts',
+  newKey: randomEntityKey,
+})
