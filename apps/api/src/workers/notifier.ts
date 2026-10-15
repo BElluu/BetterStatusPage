@@ -3,23 +3,12 @@ import { monitors, notificationChannels, monitorNotificationChannels, actionFail
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, like, lt, lte, ne, sql } from 'drizzle-orm'
 import { resolveVaultSecret } from './resolveSecret.js'
 import { isWithinQuietHours, parseAlertPolicy, quietHoursEndAt } from '../services/alertPolicy.js'
+import { buildWebhookRequest, MAX_DELIVERY_ATTEMPTS, RETRY_DELAYS_MS, substituteVars } from '@better-kit/notify'
+
+export { buildWebhookRequest, MAX_DELIVERY_ATTEMPTS, RETRY_DELAYS_MS }
 import type { ChannelAlertPolicy, MonitorStatus } from '@bsp/shared'
 import type { NotificationSuppressionReason, VaultRef } from '@better-kit/contracts'
 
-function substituteVars(template: string, vars: Record<string, string>, escape?: (value: string) => string): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
-    const value = vars[key]
-    return value === undefined ? `{{${key}}}` : escape ? escape(value) : value
-  })
-}
-
-/** Escapes a value for use inside a JSON string literal in a template. */
-function escapeJsonString(value: string): string {
-  return JSON.stringify(value).slice(1, -1)
-}
-
-export const MAX_DELIVERY_ATTEMPTS = 3
-export const RETRY_DELAYS_MS = [60_000, 5 * 60_000]
 const activeDeliveries = new Set<number>()
 
 type ChannelRow = typeof notificationChannels.$inferSelect
@@ -588,24 +577,6 @@ function postWebhookJson(url: string, payload: unknown, label: string): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }, `${label} webhook returned HTTP`)
-}
-
-/** The request a webhook configuration describes once its {{variables}} are filled in. */
-export function buildWebhookRequest(
-  config: { url: string; method: string; headers?: Record<string, string>; body?: string },
-  vars: Record<string, string>,
-): { url: string; init: { method: string; headers: Record<string, string>; body?: string } } {
-  const url = substituteVars(config.url, vars)
-  const body = config.body ? substituteVars(config.body, vars, escapeJsonString) : undefined
-
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (config.headers) {
-    for (const [k, v] of Object.entries(config.headers)) {
-      headers[k] = substituteVars(v, vars)
-    }
-  }
-
-  return { url, init: { method: config.method ?? 'POST', headers, ...(body !== undefined ? { body } : {}) } }
 }
 
 export async function sendWebhook(

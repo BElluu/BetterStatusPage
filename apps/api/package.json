@@ -20,6 +20,7 @@
     "@better-kit/auth": "*",
     "@better-kit/vault": "*",
     "@better-kit/db": "*",
+    "@better-kit/notify": "*",
     "@better-kit/runtime": "*",
     "@bsp/shared": "*",
     "@fastify/cookie": "^11.1.1",

@@ -21,11 +21,13 @@
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput"
   },
   "peerDependencies": {
+    "@better-kit/audit": "^0.1.0",
+    "@better-kit/contracts": "^0.1.0",
     "@better-kit/db": "^0.1.0",
-    "@better-kit/vault": "^0.1.0",
-    "@better-kit/audit": "^0.1.0"
+    "@better-kit/vault": "^0.1.0"
   },
   "devDependencies": {
+    "@types/node": "^26.6.2",
     "typescript": "^5.7.3"
   }
 }

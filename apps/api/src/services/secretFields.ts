@@ -1,4 +1,5 @@
 import { createSecretFields, uniqueSecretFields, type SecretField } from '@better-kit/vault'
+import { CHANNEL_DESTINATIONS, CHANNEL_SECRETS } from '@better-kit/notify'
 
 export { SECRET_MASK } from '@better-kit/vault'
 export type { RestoreResult } from '@better-kit/vault'
@@ -18,7 +19,6 @@ export type { RestoreResult } from '@better-kit/vault'
 export type ConfigKind = 'monitor' | 'channel'
 
 const DATABASE_SECRETS: readonly SecretField[] = [{ path: ['password'] }]
-const WEBHOOK_URL_SECRET: readonly SecretField[] = [{ path: ['webhookUrl'] }]
 
 const MONITOR_SECRETS: Readonly<Record<string, readonly SecretField[]>> = {
   https: [
@@ -33,25 +33,9 @@ const MONITOR_SECRETS: Readonly<Record<string, readonly SecretField[]>> = {
   mongodb: DATABASE_SECRETS,
 }
 
-const CHANNEL_SECRETS: Readonly<Record<string, readonly SecretField[]>> = {
-  webhook: [{ mapAt: ['headers'] }],
-  slack: WEBHOOK_URL_SECRET,
-  discord: WEBHOOK_URL_SECRET,
-  teams: WEBHOOK_URL_SECRET,
-  telegram: [{ path: ['botToken'], tail: true }],
-  ntfy: [{ path: ['accessToken'], tail: true }],
-  pushover: [{ path: ['appToken'], tail: true }],
-}
-
-/**
- * Where a secret ends up. Keeping a stored secret while this changes would let whoever edits the object send it to a
- * host of their choosing, so the secret must be entered again. A channel whose secret is its own URL, Telegram and
- * Pushover (fixed hosts) have nothing to list; ntfy lists its server URL.
- */
 const MONITOR_DESTINATIONS: readonly (readonly string[])[] = [
   ['url'], ['auth', 'oauth2', 'tokenUrl'], ['auth', 'cas', 'casServerUrl'], ['host'], ['port'],
 ]
-const CHANNEL_DESTINATIONS: readonly (readonly string[])[] = [['url'], ['serverUrl']]
 
 const secretFields = createSecretFields<ConfigKind>({
   monitor: { fields: uniqueSecretFields(Object.values(MONITOR_SECRETS).flat()), destinations: MONITOR_DESTINATIONS },
