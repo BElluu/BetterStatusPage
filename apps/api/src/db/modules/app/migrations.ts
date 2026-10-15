@@ -303,7 +303,6 @@ CREATE TABLE IF NOT EXISTS status_page_access (
   { kind: 'column', sql: `ALTER TABLE branding ADD COLUMN show_project_link INTEGER NOT NULL DEFAULT 1`, desc: 'branding.show_project_link' },
   // SQLite cannot add a UNIQUE column; existing rows are filled by backfillEntityKeys, which then adds the unique index.
   { kind: 'column', sql: `ALTER TABLE monitors ADD COLUMN key TEXT NOT NULL DEFAULT ''`, desc: 'monitors.key' },
-  { kind: 'column', sql: `ALTER TABLE notification_channels ADD COLUMN key TEXT NOT NULL DEFAULT ''`, desc: 'notification_channels.key' },
   { kind: 'column', sql: `ALTER TABLE actions ADD COLUMN key TEXT NOT NULL DEFAULT ''`, desc: 'actions.key' },
   { kind: 'column', sql: `ALTER TABLE monitors ADD COLUMN auto_incident_minutes INTEGER`, desc: 'monitors.auto_incident_minutes' },
   { kind: 'column', sql: `ALTER TABLE monitors ADD COLUMN auto_incident_mode TEXT NOT NULL DEFAULT 'draft'`, desc: 'monitors.auto_incident_mode' },

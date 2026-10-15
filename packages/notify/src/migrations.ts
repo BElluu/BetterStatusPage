@@ -70,6 +70,8 @@ CREATE TABLE IF NOT EXISTS smtp_settings (
 ` },
     { kind: 'column', sql: `ALTER TABLE smtp_settings ADD COLUMN vault_config TEXT`, desc: 'smtp_settings.vault_config' },
     { kind: 'column', sql: `ALTER TABLE notification_channels ADD COLUMN alert_policy TEXT NOT NULL DEFAULT '{}'`, desc: 'notification_channels.alert_policy' },
+    // SQLite cannot add a UNIQUE column. The application fills the keys of existing rows and then adds the unique index.
+    { kind: 'column', sql: `ALTER TABLE notification_channels ADD COLUMN key TEXT NOT NULL DEFAULT ''`, desc: 'notification_channels.key' },
     { kind: 'column', sql: `ALTER TABLE notification_deliveries ADD COLUMN suppression_reason TEXT`, desc: 'notification_deliveries.suppression_reason' },
     { kind: 'column', sql: `ALTER TABLE notification_deliveries ADD COLUMN group_key TEXT`, desc: 'notification_deliveries.group_key' },
     { kind: 'exec', sql: `CREATE INDEX IF NOT EXISTS idx_notification_deliveries_group ON notification_deliveries(group_key, status)` },

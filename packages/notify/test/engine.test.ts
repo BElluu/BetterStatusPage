@@ -15,8 +15,6 @@ let store: Database<Record<string, unknown>>
 beforeEach(() => {
   store = openDatabase({ path: ':memory:', schema: module.tables })
   runMigrations(store.sqlite, [module])
-  // The stable channel key is added by the application's own migrations, not by this module.
-  store.sqlite.exec("ALTER TABLE notification_channels ADD COLUMN key TEXT NOT NULL DEFAULT ''")
 })
 afterEach(() => store.close())
 
