@@ -39,7 +39,7 @@ export const apiTokens = sqliteTable('api_tokens', {
   createdAt: integer('created_at').notNull(),
   expiresAt: integer('expires_at'),
   lastUsedAt: integer('last_used_at'),
-  /** JSON list of what the token may do, e.g. `["monitors:write","incidents:write"]` (see @bsp/shared apiToken). */
+  /** JSON list of what the token may do, e.g. `["notes:write","tags:read"]` (the permissions are defined by the application). */
   scopes: text('scopes').notNull(),
 })
 
@@ -48,7 +48,7 @@ export const oidcSettings = sqliteTable('oidc_settings', {
   enabled: integer('enabled').notNull().default(0),
   issuer: text('issuer').notNull().default(''),
   clientId: text('client_id').notNull().default(''),
-  /** AES-256-GCM encrypted via crypto/vault.ts; empty when no secret is set. */
+  /** Stored encrypted by the application's secret box; empty when no secret is set. */
   clientSecret: text('client_secret').notNull().default(''),
   scopes: text('scopes').notNull().default(''),
   redirectUri: text('redirect_uri').notNull().default(''),

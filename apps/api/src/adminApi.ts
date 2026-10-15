@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { acceptApiTokens, belongsTo } from '@better-kit/auth'
 import { requireAuth, requireRole } from './middleware/auth.js'
 import { oidcSettingsRoutes } from './routes/oidcSettings.js'
 import { monitorRoutes } from './routes/monitors.js'
@@ -29,16 +30,8 @@ import { metricsRoutes } from './routes/metrics.js'
 export async function adminApi(adminApp: FastifyInstance) {
   // The admin API is what scripts and CI call with an API token; the group below that manages accounts and
   // credentials opts out again. Routes outside this scope never accept a token.
-  adminApp.addHook('onRoute', (route) => { route.config = { ...route.config, allowApiToken: true } })
+  acceptApiTokens(adminApp)
   adminApp.addHook('preHandler', requireAuth)
-
-  /**
-   * Marks every route registered in `sub` as belonging to a part of the API, which is what an API token is checked
-   * against (`<part>:read` for GET, `<part>:write` otherwise). A route without a part is refused to every token.
-   */
-  const belongsTo = (sub: FastifyInstance, part: string) => {
-    sub.addHook('onRoute', (route) => { route.config = { ...route.config, tokenScope: part } })
-  }
 
   // monitors: operator+
   await adminApp.register(async (sub) => {
@@ -139,7 +132,7 @@ export async function adminApi(adminApp: FastifyInstance) {
   // signed-in session. A leaked token must not be able to mint another one, reset a password, let SSO users in,
   // or read a secret or the database.
   await adminApp.register(async (sub) => {
-    sub.addHook('onRoute', (route) => { route.config = { ...route.config, allowApiToken: false } })
+    acceptApiTokens(sub, false)
     sub.addHook('preHandler', requireRole())
     await sub.register(userRoutes,   { prefix: '/users' })
     await sub.register(oidcSettingsRoutes, { prefix: '/oidc' })

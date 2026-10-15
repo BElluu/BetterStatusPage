@@ -17,6 +17,7 @@
   "dependencies": {
     "@better-kit/contracts": "*",
     "@better-kit/audit": "*",
+    "@better-kit/auth": "*",
     "@better-kit/db": "*",
     "@bsp/shared": "*",
     "@fastify/cookie": "^11.1.1",
