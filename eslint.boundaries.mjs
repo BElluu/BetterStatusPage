@@ -33,7 +33,8 @@ const rule = (...patterns) => ({ 'no-restricted-imports': ['error', { patterns }
 export function boundaryConfigs() {
   const everyone = Object.keys(PACKAGE_GRAPH)
   const forPackage = ([name, allowed]) => {
-    const forbidden = everyone.filter((other) => other !== name && !allowed.includes(other))
+    // contracts holds only browser-safe types and is the base layer every package may use.
+    const forbidden = everyone.filter((other) => other !== name && other !== 'contracts' && !allowed.includes(other))
     const outsideGraph = forbidden.length
       ? [{
           group: forbidden.flatMap((other) => [`${BETTER_SCOPE}/${other}`, `${BETTER_SCOPE}/${other}/*`]),

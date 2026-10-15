@@ -4,6 +4,13 @@ import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/sqlite-proxy'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 
+/**
+ * The Drizzle handle as a package sees it. Which tables it knows is the application's business, so the schema is left
+ * open; each package names the tables it uses in its queries.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type SqliteDatabase = SqliteRemoteDatabase<any>
+
 type Param = string | number | bigint | null | Uint8Array
 
 export interface Database<Schema extends Record<string, unknown>> {
