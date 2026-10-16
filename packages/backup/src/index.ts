@@ -5,3 +5,5 @@ export {
 } from './service.js'
 export { createRestore, replaceFile, type RestoreExtras, type RestoreOptions, type RestoreResult } from './restore.js'
 export { createBackupRunner, spawnBackupWorker, type BackupJob, type BackupWorkerOptions } from './runner.js'
+export { createBackupScheduler, scheduleExpression, type BackupSchedulerOptions } from './scheduler.js'
+export { createBackupRoutes, type BackupRoutesOptions } from './routes.js'
