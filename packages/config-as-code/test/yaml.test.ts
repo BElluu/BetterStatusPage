@@ -9,7 +9,7 @@ describe('writing YAML', () => {
     assert.match(text, /equals: "="/)
     assert.match(text, /octal: "0o17"/)
     assert.match(text, /time: "22:00"/)
-    assert.match(text, /yes: "yes"/)
+    assert.match(text, /"yes": "yes"/)
     assert.match(text, /plain: hello/)
   })
 
