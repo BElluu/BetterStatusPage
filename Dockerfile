@@ -19,6 +19,7 @@ COPY packages/ui/package*.json ./packages/ui/
 COPY apps/api/package*.json        ./apps/api/
 COPY apps/admin/package*.json      ./apps/admin/
 COPY apps/status/package*.json     ./apps/status/
+COPY apps/template/package*.json   ./apps/template/
 
 RUN npm ci
 
@@ -61,6 +62,7 @@ COPY packages/ui/package*.json ./packages/ui/
 COPY apps/api/package*.json        ./apps/api/
 COPY apps/admin/package*.json      ./apps/admin/
 COPY apps/status/package*.json     ./apps/status/
+COPY apps/template/package*.json   ./apps/template/
 
 # Production dependencies only
 RUN npm ci --omit=dev
