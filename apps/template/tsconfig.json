@@ -3,9 +3,12 @@
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "outDir": "./dist/server",
-    "rootDir": "./src/server",
+    "outDir": "./dist",
+    "rootDir": "./src",
     "target": "ES2022"
   },
-  "include": ["src/server/**/*"]
+  "include": [
+    "src/server/**/*",
+    "src/shared/**/*"
+  ]
 }

@@ -4,7 +4,6 @@ import {
   createBackupRoutes, createBackupRunner, createBackupScheduler, createBackupService, createRestore, type BackupManifest,
 } from '@better-kit/backup'
 import { keyForNew } from '@better-kit/config-as-code'
-import { VAULT_USE_SCOPE, type TokenResource } from '@better-kit/contracts'
 import {
   CHANNEL_DESTINATIONS, CHANNEL_SECRETS, createDeliveryWorker, createNotifyEngine, createNotifyRoutes, createTransports, type Notice,
 } from '@better-kit/notify'
@@ -12,6 +11,7 @@ import {
   createAppLock, createPublicUrlResolver, currentProcessOwner, dataDir, databasePath, backupDir, isOwnerAlive,
 } from '@better-kit/runtime'
 import { createSecretFields, createVault, createVaultUseGuard, uniqueSecretFields } from '@better-kit/vault'
+import { EXTRA_SCOPES, TOKEN_RESOURCES } from '../shared/tokens.js'
 import { closeDb, db, initDb, migrate, notifyModule, sqlite } from './db.js'
 
 const NAME = 'Better Template'
@@ -27,12 +27,7 @@ export const vault = createVault({ db, audit, identity: requestIdentity })
 export const roles = createRoleRegistry()
 roles.register(['member'], { fallback: 'member', defaultForNewUsers: 'member' })
 
-/** The parts of the API an API token can be given access to. */
-const TOKEN_RESOURCES: readonly TokenResource[] = [
-  { key: 'channels', label: 'Notification channels', description: 'Channels, SMTP settings and delivery history', levels: ['read', 'write'] },
-  { key: 'audit', label: 'Audit log', description: 'Read the audit log', levels: ['read'] },
-]
-export const tokenCatalogue = createTokenCatalogue({ resources: TOKEN_RESOURCES, extraScopes: [VAULT_USE_SCOPE] })
+export const tokenCatalogue = createTokenCatalogue({ resources: TOKEN_RESOURCES, extraScopes: EXTRA_SCOPES })
 
 /** The address the application is reached at (the PUBLIC_URL environment variable). */
 export const resolvePublicUrl = createPublicUrlResolver()
