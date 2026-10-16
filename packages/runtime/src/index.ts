@@ -9,3 +9,4 @@ export { createSse, type ClientInfo, type EventStreamOptions, type SseFilter } f
 export { createUpdateCheck, isNewerVersion, updateCheckEnabled, type LatestRelease } from './updateCheck.js'
 export { createHealthRoutes, createSystemHealth, type ComponentStatus, type HealthContributor, type HealthSection, type SystemHealthReport } from './health.js'
 export { resolveAppVersion } from './version.js'
+export { createBetterApp, JWT_EXPIRES_IN, resolveJwtSecret, type BetterApp, type BetterAppOptions } from './createBetterApp.js'
