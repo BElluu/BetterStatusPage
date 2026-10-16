@@ -3,11 +3,23 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
-import AuditLogPage from './AuditLog'
+import AuditLogPage, { type AuditEntities } from './AuditLog'
 
 vi.mock('../api/client', () => ({
   api: { get: vi.fn() },
 }))
+
+const entities: AuditEntities = {
+  labels: { monitor: 'Monitor', notification_channel: 'Notification Channel', user: 'User', 'user-security': 'User Security', vault: 'Vault', vault_secret: 'Vault Secret', branding: 'Branding', 'backup-config': 'Backup Schedule' },
+  icons: { monitor: 'radio_button_checked', vault_secret: 'key', user: 'person' },
+  groups: [
+    { label: 'Monitoring', types: ['monitor'] },
+    { label: 'Notifications', types: ['notification_channel'] },
+    { label: 'Access & security', types: ['user', 'user-security', 'vault', 'vault_secret'] },
+    { label: 'Appearance', types: ['branding'] },
+    { label: 'System', types: ['backup-config'] },
+  ],
+}
 
 const entries = [
   {
@@ -26,7 +38,7 @@ let pages = 1
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><AuditLogPage /></QueryClientProvider>)
+  return render(<QueryClientProvider client={queryClient}><AuditLogPage entities={entities} /></QueryClientProvider>)
 }
 
 function lastQuery() {

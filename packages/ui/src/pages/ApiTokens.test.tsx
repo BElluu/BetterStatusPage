@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
+import type { TokenPreset, TokenResource } from '@better-kit/contracts'
 import ApiTokensPage from './ApiTokens'
 
 vi.mock('../api/client', () => ({
@@ -14,9 +15,20 @@ const token = {
   createdAt: 1, expiresAt: null, lastUsedAt: null,
 }
 
+const resources: TokenResource[] = [
+  { key: 'monitors', label: 'Monitors', description: 'Monitors', levels: ['read', 'write'] },
+  { key: 'channels', label: 'Notification channels', description: 'Channels', levels: ['read', 'write'] },
+  { key: 'incidents', label: 'Incidents', description: 'Incidents', levels: ['read', 'write'] },
+  { key: 'reports', label: 'Reports', description: 'Reports', levels: ['read'] },
+]
+const presets: TokenPreset[] = [
+  { label: 'Report incidents', description: 'Open and update incidents', scopes: ['incidents:write', 'monitors:read'] },
+  { label: 'Deploy monitoring', description: 'Create monitors and channels', scopes: ['monitors:write', 'channels:write'] },
+]
+
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><ApiTokensPage /></QueryClientProvider>)
+  return render(<QueryClientProvider client={queryClient}><ApiTokensPage resources={resources} presets={presets} /></QueryClientProvider>)
 }
 
 const checkbox = (name: string) => screen.getByRole('checkbox', { name })

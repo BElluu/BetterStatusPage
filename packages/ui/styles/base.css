@@ -84,6 +84,12 @@
   --admin-control-on:           #ffffff;
   --admin-icon-container:       #e4e7ec;
   --admin-icon-color:           #4b5563;
+  --audit-create-bg:            #d1fae5;
+  --audit-create-text:          #065f46;
+  --audit-update-bg:            #e0e7ff;
+  --audit-update-text:          #3730a3;
+  --audit-delete-bg:            #fee2e2;
+  --audit-delete-text:          #991b1b;
 }
 
 /* ── M3 Color Tokens — Dark ───────────────────────────────────────── */
@@ -128,6 +134,12 @@ html.dark {
   --admin-control-on:           #1a1c22;
   --admin-icon-container:       #30343d;
   --admin-icon-color:           #d6d9df;
+  --audit-create-bg:            #164e3b;
+  --audit-create-text:          #a7f3d0;
+  --audit-update-bg:            #37366d;
+  --audit-update-text:          #d8d7ff;
+  --audit-delete-bg:            #692d32;
+  --audit-delete-text:          #fecaca;
 
   --m3-up:        #4ade80;
   --m3-up-bg:     rgba(74, 222, 128, 0.12);

@@ -17,21 +17,9 @@
   --color-primary: var(--bsp-primary);
   --color-accent:  var(--bsp-accent);
 
-  --audit-create-bg:            #d1fae5;
-  --audit-create-text:          #065f46;
-  --audit-update-bg:            #e0e7ff;
-  --audit-update-text:          #3730a3;
-  --audit-delete-bg:            #fee2e2;
-  --audit-delete-text:          #991b1b;
 }
 
 html.dark {
-  --audit-create-bg:            #164e3b;
-  --audit-create-text:          #a7f3d0;
-  --audit-update-bg:            #37366d;
-  --audit-update-text:          #d8d7ff;
-  --audit-delete-bg:            #692d32;
-  --audit-delete-text:          #fecaca;
 }
 
 html:not(.dark) .maintenance-active-count {

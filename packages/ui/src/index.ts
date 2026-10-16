@@ -29,3 +29,5 @@ export { SingleSignOnModal } from './components/SingleSignOnModal'
 export {
   ssoConfirmChannel, SsoConfirmationNote, isSsoConfirmationRequired, isSsoSession, useSsoConfirmation, type SsoConfirmationState,
 } from './components/SsoConfirmation'
+export { default as ApiTokensPage } from './pages/ApiTokens'
+export { default as AuditLogPage, type AuditEntities } from './pages/AuditLog'
