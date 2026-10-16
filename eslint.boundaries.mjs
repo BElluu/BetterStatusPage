@@ -47,5 +47,7 @@ export function boundaryConfigs() {
     ...Object.entries(PACKAGE_GRAPH).map(forPackage),
     { files: ['packages/shared/**/*.{ts,tsx}'], rules: rule(noApps) },
     { files: ['apps/**/*.{ts,tsx}'], rules: rule(noDeepImports) },
+    // The template proves the shared modules stand on their own: it uses nothing of the products built on them.
+    { files: ['apps/template/**/*.{ts,tsx}'], rules: rule(noDeepImports, { group: ['@bsp/*'], message: 'The template is built from the shared modules only.' }) },
   ]
 }
