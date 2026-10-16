@@ -1,0 +1,163 @@
+{
+  "validate-before": {
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "body": "{\"dryRun\":true,\"summary\":{\"create\":7,\"update\":0,\"unchanged\":0},\"changes\":[{\"kind\":\"NotificationChannel\",\"key\":\"ops-slack\",\"action\":\"create\"},{\"kind\":\"NotificationChannel\",\"key\":\"tg\",\"action\":\"create\"},{\"kind\":\"Action\",\"key\":\"start-vm2\",\"action\":\"create\"},{\"kind\":\"Monitor\",\"key\":\"billing-db\",\"action\":\"create\"},{\"kind\":\"Monitor\",\"key\":\"nightly-job\",\"action\":\"create\"},{\"kind\":\"Monitor\",\"key\":\"public-site\",\"action\":\"create\"},{\"kind\":\"Monitor\",\"key\":\"vm1\",\"action\":\"create\"}]}"
+  },
+  "apply": {
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "body": "{\"dryRun\":false,\"summary\":{\"create\":7,\"update\":0,\"unchanged\":0},\"changes\":[{\"kind\":\"NotificationChannel\",\"key\":\"ops-slack\",\"action\":\"create\"},{\"kind\":\"NotificationChannel\",\"key\":\"tg\",\"action\":\"create\"},{\"kind\":\"Action\",\"key\":\"start-vm2\",\"action\":\"create\"},{\"kind\":\"Monitor\",\"key\":\"billing-db\",\"action\":\"create\"},{\"kind\":\"Monitor\",\"key\":\"nightly-job\",\"action\":\"create\"},{\"kind\":\"Monitor\",\"key\":\"public-site\",\"action\":\"create\"},{\"kind\":\"Monitor\",\"key\":\"vm1\",\"action\":\"create\"}]}"
+  },
+  "apply-again": {
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "body": "{\"dryRun\":false,\"summary\":{\"create\":0,\"update\":0,\"unchanged\":7},\"changes\":[{\"kind\":\"NotificationChannel\",\"key\":\"ops-slack\",\"action\":\"unchanged\"},{\"kind\":\"NotificationChannel\",\"key\":\"tg\",\"action\":\"unchanged\"},{\"kind\":\"Action\",\"key\":\"start-vm2\",\"action\":\"unchanged\"},{\"kind\":\"Monitor\",\"key\":\"billing-db\",\"action\":\"unchanged\"},{\"kind\":\"Monitor\",\"key\":\"nightly-job\",\"action\":\"unchanged\"},{\"kind\":\"Monitor\",\"key\":\"public-site\",\"action\":\"unchanged\"},{\"kind\":\"Monitor\",\"key\":\"vm1\",\"action\":\"unchanged\"}]}"
+  },
+  "export-all": {
+    "status": 200,
+    "type": "application/yaml; charset=utf-8",
+    "body": "kind: NotificationChannel\nkey: ops-slack\nname: Ops Slack\ntype: slack\nenabled: true\nnotifyOnRecovery: true\nconfig:\n  webhookUrl: ••••••••\n  text: \"Down: {{monitor_name}}\"\nalertPolicy:\n  quietHours:\n    enabled: false\n    start: \"22:00\"\n    end: \"07:00\"\n    timezone: UTC\n    mode: defer\n  throttle:\n    enabled: false\n    maxAlerts: 3\n    windowMinutes: 60\n  grouping:\n    enabled: false\n    minMonitors: 3\n    windowSeconds: 60\n---\nkind: NotificationChannel\nkey: tg\nname: Telegram bot\ntype: telegram\nenabled: false\nnotifyOnRecovery: false\nconfig:\n  chatId: \"-100500\"\n  vault:\n    vault: Production\n    secret: bot-token\nalertPolicy:\n  quietHours:\n    enabled: true\n    start: \"22:00\"\n    end: \"07:00\"\n    timezone: Europe/Warsaw\n    mode: suppress\n  throttle:\n    enabled: true\n    maxAlerts: 3\n    windowMinutes: 30\n  grouping:\n    enabled: false\n    minMonitors: 3\n    windowSeconds: 60\n---\nkind: Action\nkey: start-vm2\nname: Start VM2\nenabled: true\nconfig:\n  url: https://jenkins.test/job/vm2/build\n  method: POST\n  headers:\n    Authorization: ••••••••\n    X-Note: plain\n  secrets:\n    - name: jenkins\n      vault:\n        vault: Jenkins\n        secret: api-token\nfailureNotifications:\n  - ops-slack\n---\nkind: Monitor\nkey: billing-db\nname: Billing DB\ntype: postgresql\nintervalSecs: 60\ntimeoutMs: 10000\nretries: 1\nfailureThreshold: 1\nrecoveryThreshold: 1\nconfig:\n  host: db.internal\n  port: 5432\n  database: billing\n  user: app\n  password: ••••••••\n  query: select 1\n  mode: fields\ntags: []\nnotifications: []\ndependsOn: []\nactions: []\n---\nkind: Monitor\nkey: nightly-job\nname: Nightly job\ntype: webhook\nintervalSecs: 60\ntimeoutMs: 10000\nretries: 1\nfailureThreshold: 1\nrecoveryThreshold: 1\nconfig: {}\ntags: []\nnotifications: []\ndependsOn: []\nactions: []\n---\nkind: Monitor\nkey: public-site\nname: Public site\ntype: https\nintervalSecs: 30\ntimeoutMs: 10000\nretries: 1\nfailureThreshold: 1\nrecoveryThreshold: 1\nconfig:\n  url: https://example.test\n  method: GET\n  expectedStatus: 200\n  headers:\n    Authorization: ••••••••\n    Accept: application/json\n  auth:\n    type: basic\n    basic:\n      username: svc\n      password: ••••••••\ntags:\n  - label: prod\n    color: \"#00ff00\"\nnotifications:\n  - ops-slack\n  - tg\ndependsOn:\n  - billing-db\nactions: []\n---\nkind: Monitor\nkey: vm1\nname: VM1 SQL\ntype: sqlserver\nintervalSecs: 60\ntimeoutMs: 10000\nretries: 1\nfailureThreshold: 1\nrecoveryThreshold: 1\nconfig:\n  host: vm1.internal\n  port: 1433\n  database: app\n  user: sa\n  password: ••••••••\n  query: SELECT 1\n  mode: fields\ntags: []\nnotifications: []\ndependsOn: []\nactions:\n  - action: start-vm2\n    onStatus: down\n    delayMinutes: 5\n    cooldownMinutes: 60\nautoIncident:\n  afterMinutes: 5\n  mode: draft\n"
+  },
+  "export-one": {
+    "channel": {
+      "status": 200,
+      "type": "application/yaml; charset=utf-8",
+      "body": "kind: NotificationChannel\nkey: tg\nname: Telegram bot\ntype: telegram\nenabled: false\nnotifyOnRecovery: false\nconfig:\n  chatId: \"-100500\"\n  vault:\n    vault: Production\n    secret: bot-token\nalertPolicy:\n  quietHours:\n    enabled: true\n    start: \"22:00\"\n    end: \"07:00\"\n    timezone: Europe/Warsaw\n    mode: suppress\n  throttle:\n    enabled: true\n    maxAlerts: 3\n    windowMinutes: 30\n  grouping:\n    enabled: false\n    minMonitors: 3\n    windowSeconds: 60\n"
+    },
+    "action": {
+      "status": 200,
+      "type": "application/yaml; charset=utf-8",
+      "body": "kind: Action\nkey: start-vm2\nname: Start VM2\nenabled: true\nconfig:\n  url: https://jenkins.test/job/vm2/build\n  method: POST\n  headers:\n    Authorization: ••••••••\n    X-Note: plain\n  secrets:\n    - name: jenkins\n      vault:\n        vault: Jenkins\n        secret: api-token\nfailureNotifications:\n  - ops-slack\n"
+    },
+    "monitor": {
+      "status": 200,
+      "type": "application/yaml; charset=utf-8",
+      "body": "kind: Monitor\nkey: public-site\nname: Public site\ntype: https\nintervalSecs: 30\ntimeoutMs: 10000\nretries: 1\nfailureThreshold: 1\nrecoveryThreshold: 1\nconfig:\n  url: https://example.test\n  method: GET\n  expectedStatus: 200\n  headers:\n    Authorization: ••••••••\n    Accept: application/json\n  auth:\n    type: basic\n    basic:\n      username: svc\n      password: ••••••••\ntags:\n  - label: prod\n    color: \"#00ff00\"\nnotifications:\n  - ops-slack\n  - tg\ndependsOn:\n  - billing-db\nactions: []\n"
+    },
+    "monitorWithActions": {
+      "status": 200,
+      "type": "application/yaml; charset=utf-8",
+      "body": "kind: Monitor\nkey: vm1\nname: VM1 SQL\ntype: sqlserver\nintervalSecs: 60\ntimeoutMs: 10000\nretries: 1\nfailureThreshold: 1\nrecoveryThreshold: 1\nconfig:\n  host: vm1.internal\n  port: 1433\n  database: app\n  user: sa\n  password: ••••••••\n  query: SELECT 1\n  mode: fields\ntags: []\nnotifications: []\ndependsOn: []\nactions:\n  - action: start-vm2\n    onStatus: down\n    delayMinutes: 5\n    cooldownMinutes: 60\nautoIncident:\n  afterMinutes: 5\n  mode: draft\n"
+    }
+  },
+  "reapply-export": {
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "body": "{\"dryRun\":false,\"summary\":{\"create\":0,\"update\":0,\"unchanged\":7},\"changes\":[{\"kind\":\"NotificationChannel\",\"key\":\"ops-slack\",\"action\":\"unchanged\"},{\"kind\":\"NotificationChannel\",\"key\":\"tg\",\"action\":\"unchanged\"},{\"kind\":\"Action\",\"key\":\"start-vm2\",\"action\":\"unchanged\"},{\"kind\":\"Monitor\",\"key\":\"billing-db\",\"action\":\"unchanged\"},{\"kind\":\"Monitor\",\"key\":\"nightly-job\",\"action\":\"unchanged\"},{\"kind\":\"Monitor\",\"key\":\"public-site\",\"action\":\"unchanged\"},{\"kind\":\"Monitor\",\"key\":\"vm1\",\"action\":\"unchanged\"}]}"
+  },
+  "changed": {
+    "status": 200,
+    "type": "application/json; charset=utf-8",
+    "body": "{\"dryRun\":false,\"summary\":{\"create\":0,\"update\":1,\"unchanged\":0},\"changes\":[{\"kind\":\"Monitor\",\"key\":\"nightly-job\",\"action\":\"update\",\"fields\":[\"name\"]}]}"
+  },
+  "problems": {
+    "unknown kind": {
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"document 1.kind: \\\"Nope\\\" is not a kind; use one of Monitor, NotificationChannel, Action\",\"problems\":[{\"path\":\"document 1.kind\",\"message\":\"\\\"Nope\\\" is not a kind; use one of Monitor, NotificationChannel, Action\"}]}"
+    },
+    "missing kind": {
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"document 1.kind: is required: one of Monitor, NotificationChannel, Action\",\"problems\":[{\"path\":\"document 1.kind\",\"message\":\"is required: one of Monitor, NotificationChannel, Action\"}]}"
+    },
+    "duplicate key": {
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"document 2.key: \\\"a\\\" is used by another document\",\"problems\":[{\"path\":\"document 2.key\",\"message\":\"\\\"a\\\" is used by another document\"}]}"
+    },
+    "bad key and unknown field": {
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"document 1.key: Key must be 1-64 characters: lowercase letters, digits, \\\"-\\\" or \\\"_\\\", starting with a letter or digit\",\"problems\":[{\"path\":\"document 1.key\",\"message\":\"Key must be 1-64 characters: lowercase letters, digits, \\\"-\\\" or \\\"_\\\", starting with a letter or digit\"},{\"path\":\"document 1.surprise\",\"message\":\"is not a known setting\"}]}"
+    },
+    "bad values": {
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"Monitor[m].timeout: is not a known setting\",\"problems\":[{\"path\":\"Monitor[m].timeout\",\"message\":\"is not a known setting\"},{\"path\":\"Monitor[m]\",\"message\":\"intervalSecs must be a whole number from 10 to 86400\"}]}"
+    },
+    "unknown reference": {
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"Monitor[m].notifications: unknown channel \\\"ghost\\\"\",\"problems\":[{\"path\":\"Monitor[m].notifications\",\"message\":\"unknown channel \\\"ghost\\\"\"},{\"path\":\"Monitor[m].dependsOn\",\"message\":\"unknown monitor \\\"ghost\\\"\"}]}"
+    },
+    "dependency cycle": {
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"Monitor: dependency cycle: a → b → a\",\"problems\":[{\"path\":\"Monitor\",\"message\":\"dependency cycle: a → b → a\"}]}"
+    }
+  },
+  "refusals": {
+    "jsonBody": {
+      "status": 415,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"Send the documents as YAML, with Content-Type: application/yaml\"}"
+    },
+    "emptyFile": {
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"The file contains no documents\"}"
+    },
+    "notYaml": {
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"Invalid YAML: Flow sequence in block collection must be sufficiently indented and end with a ] at line 1, column 6:\\n\\na: [1\\n     ^\\n\"}"
+    },
+    "directive": {
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"Invalid YAML: %YAML directives are not supported\"}"
+    },
+    "viewer": {
+      "status": 403,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"Forbidden\"}"
+    },
+    "operatorAction": {
+      "status": 403,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"You may not import: Action (needs the admin role)\"}"
+    },
+    "tokenNoScope": {
+      "status": 403,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"This token has no permission to import: it needs \\\"monitors:write\\\", \\\"channels:write\\\" or \\\"actions:write\\\"\"}"
+    },
+    "tokenOneKind": {
+      "status": 403,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"You may not import: Monitor (the token needs \\\"monitors:write\\\"), Action (the token needs \\\"actions:write\\\")\"}"
+    },
+    "exportBadKind": {
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"kind must be one of: Monitor, NotificationChannel, Action\"}"
+    },
+    "exportNoKey": {
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"key is required to export a Monitor\"}"
+    },
+    "exportMissing": {
+      "status": 404,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"There is no Monitor with the key \\\"ghost\\\"\"}"
+    },
+    "exportOperatorNoActions": {
+      "status": 200,
+      "type": "application/yaml; charset=utf-8",
+      "body": "kind: NotificationChannel\nkey: ops-slack\nname: Ops Slack\ntype: slack\nenabled: true\nnotifyOnRecovery: true\nconfig:\n  webhookUrl: ••••••••\n  text: \"Down: {{monitor_name}}\"\nalertPolicy:\n  quietHours:\n    enabled: false\n    start: \"22:00\"\n    end: \"07:00\"\n    timezone: UTC\n    mode: defer\n  throttle:\n    enabled: false\n    maxAlerts: 3\n    windowMinutes: 60\n  grouping:\n    enabled: false\n    minMonitors: 3\n    windowSeconds: 60\n---\nkind: NotificationChannel\nkey: tg\nname: Telegram bot\ntype: telegram\nenabled: false\nnotifyOnRecovery: false\nconfig:\n  chatId: \"-100500\"\n  vault:\n    vault: Production\n    secret: bot-token\nalertPolicy:\n  quietHours:\n    enabled: true\n    start: \"22:00\"\n    end: \"07:00\"\n    timezone: Europe/Warsaw\n    mode: suppress\n  throttle:\n    enabled: true\n    maxAlerts: 3\n    windowMinutes: 30\n  grouping:\n    enabled: false\n    minMonitors: 3\n    windowSeconds: 60\n---\nkind: Monitor\nkey: billing-db\nname: Billing DB\ntype: postgresql\nintervalSecs: 60\ntimeoutMs: 10000\nretries: 1\nfailureThreshold: 1\nrecoveryThreshold: 1\nconfig:\n  host: db.internal\n  port: 5432\n  database: billing\n  user: app\n  password: ••••••••\n  query: select 1\n  mode: fields\ntags: []\nnotifications: []\ndependsOn: []\n---\nkind: Monitor\nkey: nightly-job\nname: Nightly job renamed\ntype: webhook\nintervalSecs: 60\ntimeoutMs: 10000\nretries: 1\nfailureThreshold: 1\nrecoveryThreshold: 1\nconfig: {}\ntags: []\nnotifications: []\ndependsOn: []\n---\nkind: Monitor\nkey: public-site\nname: Public site\ntype: https\nintervalSecs: 30\ntimeoutMs: 10000\nretries: 1\nfailureThreshold: 1\nrecoveryThreshold: 1\nconfig:\n  url: https://example.test\n  method: GET\n  expectedStatus: 200\n  headers:\n    Authorization: ••••••••\n    Accept: application/json\n  auth:\n    type: basic\n    basic:\n      username: svc\n      password: ••••••••\ntags:\n  - label: prod\n    color: \"#00ff00\"\nnotifications:\n  - ops-slack\n  - tg\ndependsOn:\n  - billing-db\n---\nkind: Monitor\nkey: vm1\nname: VM1 SQL\ntype: sqlserver\nintervalSecs: 60\ntimeoutMs: 10000\nretries: 1\nfailureThreshold: 1\nrecoveryThreshold: 1\nconfig:\n  host: vm1.internal\n  port: 1433\n  database: app\n  user: sa\n  password: ••••••••\n  query: SELECT 1\n  mode: fields\ntags: []\nnotifications: []\ndependsOn: []\nautoIncident:\n  afterMinutes: 5\n  mode: draft\n"
+    },
+    "exportOperatorAction": {
+      "status": 403,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"You may not export: Action (needs the admin role)\"}"
+    },
+    "exportTokenNoRead": {
+      "status": 403,
+      "type": "application/json; charset=utf-8",
+      "body": "{\"error\":\"You may not export: NotificationChannel (the token needs \\\"channels:read\\\")\"}"
+    }
+  }
+}
