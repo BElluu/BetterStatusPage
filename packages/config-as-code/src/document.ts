@@ -171,7 +171,7 @@ export function createVaultExporter(rows: VaultRows) {
 
 // ── Fields every kind of document reads the same way ─────────────────────────
 
-/** A list of keys (`notifications: [a, b]`), without repeats; problems are reported at `path`. */
+/** A list of keys (`items: [a, b]`), without repeats; problems are reported at `path`. */
 export function keyList(value: unknown, path: string, problems: Problems, isValidKey: (key: unknown) => boolean): string[] {
   if (value === undefined) return []
   if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {

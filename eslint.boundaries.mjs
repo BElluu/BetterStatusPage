@@ -12,7 +12,7 @@ export const PACKAGE_GRAPH = {
   vault: ['db'],
   notify: ['db', 'vault', 'audit'],
   backup: ['db', 'audit'],
-  'config-as-code': ['db'],
+  'config-as-code': ['db', 'contracts'],
   runtime: ['db'],
   ui: ['contracts'],
 }
