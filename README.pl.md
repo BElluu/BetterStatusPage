@@ -588,18 +588,24 @@ Zanim udostępnisz instancję publicznie:
 ```
 BetterStatusPage/
 ├── apps/
-│   ├── api/           # Backend Fastify
+│   ├── api/           # Backend Fastify: monitory, workery, incydenty, publiczne trasy
 │   │   └── src/
-│   │       ├── db/        # Schemat, migracje, seed
+│   │       ├── kit/       # Złożenie współdzielonych modułów (auth, sejf, notify, backup, ...)
+│   │       ├── db/        # Tabele i migracje aplikacji
 │   │       ├── routes/    # Obsługa endpointów
-│   │       ├── workers/   # Harmonogram, checkery, notifier
-│   │       ├── crypto/    # Szyfrowanie sejfu AES-256-GCM
-│   │       └── services/  # Nadawca SSE
-│   ├── admin/         # Panel admina (React)
-│   └── status/        # Publiczna strona statusu (React)
+│   │       ├── workers/   # Harmonogram, checkery, zdarzenia powiadomień
+│   │       └── services/  # Usługi aplikacji
+│   ├── admin/         # Panel admina (React): strony statusu na bazie @better-kit/ui
+│   ├── status/        # Publiczna strona statusu (React)
+│   └── template/      # Minimalna aplikacja zbudowana wyłącznie ze współdzielonych modułów
 └── packages/
-    └── shared/        # Współdzielone typy TypeScript (@bsp/shared)
+    ├── shared/        # Typy strony statusu (@bsp/shared)
+    └── …              # Współdzielone moduły (@better-kit/*): contracts, db, audit, auth, sejf,
+                       # notify, backup, config-as-code, runtime, ui
 ```
+
+Współdzielone moduły zawierają wszystko, co nie jest specyficzne dla strony statusu, żeby inny produkt mógł powstać
+na tej samej podstawie. Zasady warstw i start nowego produktu z `apps/template` opisuje `CLAUDE.md`.
 
 ---
 
