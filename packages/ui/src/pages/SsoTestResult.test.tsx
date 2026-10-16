@@ -1,9 +1,12 @@
+import { configureForTests } from '../testing/configure'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import SsoTestResultPage from './SsoTestResult'
+
+configureForTests()
 
 vi.mock('../api/client', () => ({
   api: { get: vi.fn() },

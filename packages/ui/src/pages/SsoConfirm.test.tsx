@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SSO_CONFIRM_CHANNEL } from '../components/SsoConfirmation'
+import { ssoConfirmChannel } from '../components/SsoConfirmation'
 import SsoConfirmPage from './SsoConfirm'
 
 const channels: { name: string; postMessage: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> }[] = []
@@ -39,7 +39,7 @@ describe('SsoConfirmPage', () => {
 
     expect(screen.getByText('Confirmed. You can close this window.')).toBeInTheDocument()
     expect(channels).toHaveLength(1)
-    expect(channels[0]!.name).toBe(SSO_CONFIRM_CHANNEL)
+    expect(channels[0]!.name).toBe(ssoConfirmChannel())
     expect(channels[0]!.postMessage).toHaveBeenCalledWith({ ok: true })
     expect(channels[0]!.close).toHaveBeenCalled()
     expect(window.close).toHaveBeenCalled()

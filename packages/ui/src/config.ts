@@ -9,9 +9,16 @@ export interface UiConfig {
   basePath: string
   /** For a user who does not belong in this interface (say, one who may only view a public page): the address to send them to instead. */
   redirectAfterSignIn?: (user: { role: string }) => string | null
+  /** Wording that names things only the application knows. */
+  texts: {
+    /** Said when a test sign-in would create an account; `{user}` is replaced by the account. */
+    ssoNewAccount: string
+    /** Added to the single sign-on settings to say who may sign in; empty adds nothing. */
+    ssoSignInHint: string
+  }
 }
 
-let current: UiConfig = { storagePrefix: 'better', apiBase: '/api/v1', csrfCookie: 'better_csrf', basePath: '' }
+let current: UiConfig = { storagePrefix: 'better', apiBase: '/api/v1', csrfCookie: 'better_csrf', basePath: '', texts: { ssoNewAccount: 'Creates the account {user} and links this identity-provider account to it.', ssoSignInHint: '' } }
 
 /**
  * Tells the interface what application it is part of. Call it before anything is rendered; what is read from storage

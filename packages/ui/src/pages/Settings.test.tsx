@@ -1,9 +1,12 @@
+import { configureForTests } from '../testing/configure'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, clearSession, getCurrentUser, setSession, type AuthUser } from '../api/client'
 import SettingsPage from './Settings'
+
+configureForTests()
 
 vi.mock('../api/client', () => ({
   api: { post: vi.fn() },

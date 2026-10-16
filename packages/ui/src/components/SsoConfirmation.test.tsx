@@ -1,14 +1,17 @@
+import { configureForTests } from '../testing/configure'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client'
-import { SSO_CONFIRM_CHANNEL, SsoConfirmationNote, isSsoConfirmationRequired, useSsoConfirmation } from './SsoConfirmation'
+import { ssoConfirmChannel, SsoConfirmationNote, isSsoConfirmationRequired, useSsoConfirmation } from './SsoConfirmation'
+
+configureForTests()
 
 const confirmationRequired = () => new ApiError('Confirm your identity', 403, 'SSO_CONFIRMATION_REQUIRED')
 
 function reportFromPopup(ok: boolean) {
-  const channel = new BroadcastChannel(SSO_CONFIRM_CHANNEL)
+  const channel = new BroadcastChannel(ssoConfirmChannel())
   channel.postMessage({ ok })
   channel.close()
 }

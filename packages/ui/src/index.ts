@@ -19,3 +19,13 @@ export {
 } from './api/client'
 export { WhatsNew, markWhatsNewSeen, pendingWhatsNew } from './components/WhatsNew'
 export { createAdminShell, type AdminShellConfig, type ExternalLink, type NavItem, type NavSection } from './shell/AdminShell'
+export { default as BackupsPage } from './pages/Backups'
+export { default as ChangePasswordPage } from './pages/ChangePassword'
+export { default as SettingsPage } from './pages/Settings'
+export { default as SsoConfirmPage } from './pages/SsoConfirm'
+export { default as SsoTestResultPage } from './pages/SsoTestResult'
+export { ResetTwoFactorModal } from './components/ResetTwoFactorModal'
+export { SingleSignOnModal } from './components/SingleSignOnModal'
+export {
+  ssoConfirmChannel, SsoConfirmationNote, isSsoConfirmationRequired, isSsoSession, useSsoConfirmation, type SsoConfirmationState,
+} from './components/SsoConfirmation'

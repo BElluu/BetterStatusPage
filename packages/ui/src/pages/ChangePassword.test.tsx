@@ -1,9 +1,12 @@
+import { configureForTests } from '../testing/configure'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, setSession } from '../api/client'
 import ChangePasswordPage from './ChangePassword'
+
+configureForTests()
 
 vi.mock('../api/client', async (importOriginal) => ({
   ...await importOriginal<typeof import('../api/client')>(),
