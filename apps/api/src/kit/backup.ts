@@ -2,17 +2,15 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import {
-  collectFiles, createBackupRoutes, createBackupRunner, createBackupScheduler, createBackupService, createRestore, replaceFile,
+  collectFiles, createBackupRunner, createBackupService, createRestore, replaceFile,
   type BackupManifest as BaseManifest,
 } from '@better-kit/backup'
 import { currentProcessOwner, isOwnerAlive } from '@better-kit/runtime'
 import { backupDir, databasePath, setupConfigPath, uploadDir } from '../config.js'
 import { closeDb, initDb } from '../db/client.js'
 import { runMigrations } from '../db/migrate.js'
-import { requestIdentity } from '../middleware/auth.js'
 import { assertAppStopped } from '../services/appLock.js'
 import { resolveAppVersion } from '../version.js'
-import { audit } from './audit.js'
 
 export const BACKUP_FORMAT_VERSION = 1
 
@@ -111,23 +109,3 @@ export function restoreBackup(input: string, options: { vaultEncryptionKey: stri
     },
   })
 }
-
-/** Makes a scheduled backup and prunes old ones. */
-export const backupScheduler = createBackupScheduler({
-  readConfig: backup.readBackupConfig,
-  run: async (config) => {
-    await backupRunner.createBackup()
-    backup.applyRetention(config.retention)
-  },
-})
-
-/** The admin routes of the backups (list, create, schedule, download, delete, verify). */
-export const backupRoutes = createBackupRoutes<BackupManifest>({
-  service: backup,
-  audit,
-  identity: requestIdentity,
-  createBackup: () => backupRunner.createBackup(),
-  validateBackup: (input) => backupRunner.validateBackup(input),
-  restartScheduler: backupScheduler.restart,
-  describeManifest: (manifest) => ({ vaultKeyMatches: currentVaultKeyMatches(manifest) }),
-})

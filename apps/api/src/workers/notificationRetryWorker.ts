@@ -1,29 +1,20 @@
-import cron, { type ScheduledTask } from 'node-cron'
-import { processDueNotificationDeliveries, purgeOldNotificationDeliveries } from './notifier.js'
+import { createDeliveryWorker } from '@better-kit/notify'
+import { notifyEngine } from '../kit/notify.js'
 import { processDueSubscriberDeliveries, purgeSubscriberData } from './subscriberNotifier.js'
 import { processDueActionRuns, purgeOldActionRuns } from './actionRunner.js'
 
-let retryTask: ScheduledTask | null = null
-let purgeTask: ScheduledTask | null = null
+/** Sends due notifications, and on the same ticks the subscriber mails and action runs of this application. */
+const worker = createDeliveryWorker({
+  engine: notifyEngine,
+  retryTasks: [
+    { failure: '[subscriptions] Retry worker failed:', run: () => processDueSubscriberDeliveries() },
+    { failure: '[actions] Run worker failed:', run: () => processDueActionRuns() },
+  ],
+  purgeTasks: [
+    { failure: '[subscriptions] Purge failed:', run: () => purgeSubscriberData() },
+    { failure: '[actions] Run history purge failed:', run: () => purgeOldActionRuns() },
+  ],
+})
 
-export function startNotificationRetryWorker(): void {
-  if (retryTask || purgeTask) return
-  retryTask = cron.schedule('*/30 * * * * *', () => {
-    processDueNotificationDeliveries().catch((error) => console.error('[notifier] Retry worker failed:', error))
-    processDueSubscriberDeliveries().catch((error) => console.error('[subscriptions] Retry worker failed:', error))
-    processDueActionRuns().catch((error) => console.error('[actions] Run worker failed:', error))
-  })
-  purgeTask = cron.schedule('0 3 * * *', () => {
-    purgeOldNotificationDeliveries().catch((error) => console.error('[notifier] Delivery history purge failed:', error))
-    purgeSubscriberData().catch((error) => console.error('[subscriptions] Purge failed:', error))
-    purgeOldActionRuns().catch((error) => console.error('[actions] Run history purge failed:', error))
-  })
-  console.log('[notifier] Retry worker started')
-}
-
-export function stopNotificationRetryWorker(): void {
-  retryTask?.destroy()
-  purgeTask?.destroy()
-  retryTask = null
-  purgeTask = null
-}
+export const startNotificationRetryWorker = worker.start
+export const stopNotificationRetryWorker = worker.stop

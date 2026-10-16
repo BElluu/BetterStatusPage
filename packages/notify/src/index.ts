@@ -13,3 +13,4 @@ export {
 export { readableTimestamp, renderSegments, type Notice, type NoticeFact, type NoticeSegment, type NoticeSeverity } from './notice.js'
 export { createTransports, type TransportChannel, type TransportOptions, type Transports } from './transports.js'
 export { createNotifyRoutes, type KeyResult, type NotifyRoutesOptions } from './routes.js'
+export { createDeliveryWorker, type DeliveryWorkerOptions, type WorkerTask } from './worker.js'

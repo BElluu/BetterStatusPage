@@ -7,3 +7,4 @@ export { createRestore, replaceFile, type RestoreExtras, type RestoreOptions, ty
 export { createBackupRunner, spawnBackupWorker, type BackupJob, type BackupWorkerOptions } from './runner.js'
 export { createBackupScheduler, scheduleExpression, type BackupSchedulerOptions } from './scheduler.js'
 export { createBackupRoutes, type BackupRoutesOptions } from './routes.js'
+export { runBackupCli, runRestoreCli, type BackupCliOptions, type RestoreCliOptions } from './cli.js'

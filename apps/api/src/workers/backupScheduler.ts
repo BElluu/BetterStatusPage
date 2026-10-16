@@ -1,4 +1,4 @@
-import { backupScheduler } from '../kit/backup.js'
+import { backupScheduler } from '../kit/backupRoutes.js'
 
 // Forwards to the scheduler in ../kit/backup.ts; kept so call sites do not change.
 export const restartBackupScheduler = backupScheduler.restart
