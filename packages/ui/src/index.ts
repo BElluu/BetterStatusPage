@@ -37,3 +37,4 @@ export { JSON_MAPPING_FIELDS, Note, SectionDivider, toggleInSet, type SecretSumm
 export { default as VaultPage } from './pages/Vault'
 export { default as LoginPage, type LoginPageProps } from './pages/Login'
 export { default as SetupPage } from './pages/Setup'
+export { RequireAuth, RequirePasswordChanged, SetupGate, createRoleGuard } from './shell/guards'
