@@ -243,9 +243,9 @@ describe('exporting', () => {
 
 describe('helpers', () => {
   it('finds a cycle and names it', () => {
-    assert.equal(findCycle(new Map([['a', ['b']], ['b', ['c']], ['c', ['a']]])), 'a -> b -> c -> a')
+    assert.equal(findCycle(new Map([['a', ['b']], ['b', ['c']], ['c', ['a']]])), 'a → b → c → a')
     assert.equal(findCycle(new Map([['a', ['b']], ['b', []]])), null)
-    assert.equal(findCycle(new Map([['a', ['a']]])), 'a -> a')
+    assert.equal(findCycle(new Map([['a', ['a']]])), 'a → a')
   })
 
   it('names vault secrets instead of numbering them, and turns names back into ids', () => {

@@ -63,13 +63,13 @@ export function forbiddenNameAt(document: unknown, label: string): string | null
   return null
 }
 
-/** A dependency cycle among `edges` (key -> keys it depends on), as `a -> b -> a`, or null. */
+/** A dependency cycle among `edges` (key -> keys it depends on), as `a → b → a`, or null. */
 export function findCycle(edges: Map<string, string[]>): string | null {
   const done = new Set<string>()
   const stack: string[] = []
   const visit = (key: string): string | null => {
     const at = stack.indexOf(key)
-    if (at >= 0) return [...stack.slice(at), key].join(' -> ')
+    if (at >= 0) return [...stack.slice(at), key].join(' → ')
     if (done.has(key)) return null
     stack.push(key)
     for (const next of edges.get(key) ?? []) {
