@@ -14,7 +14,7 @@ import {
 } from '../services/subscriptions.js'
 import { isSmtpConfigured } from '../workers/notifier.js'
 import { retrySubscriberDelivery, type SubscriberEvent } from '../workers/subscriberNotifier.js'
-import { resolvePublicUrl } from '../config/publicUrl.js'
+import { resolvePublicUrl } from '../kit/runtime.js'
 import { auditActor, diffObjects, snapshot, writeAudit } from '../services/audit.js'
 import { requestIdentity } from '../middleware/auth.js'
 import { parsePagination } from '../lib/pagination.js'

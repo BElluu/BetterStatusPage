@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Monitor, MonitorStats } from '@bsp/shared'
 import { api } from '../api/client'
-import { ToastProvider } from '../components/ui'
+import { ToastProvider } from '@better-kit/ui'
 import MonitorDetailPage from './MonitorDetail'
 
 vi.mock('../components/YamlViewModal', () => ({

@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { IncidentImpact, IncidentTemplate, IncidentTemplateTranslation } from '@bsp/shared'
 import { api } from '../../api/client'
-import { Modal, ModalFooter } from '../ModalShell'
-import { Alert, Field, LoadingState, useToast } from '../ui'
+import { Modal, ModalFooter } from '@better-kit/ui'
+import { Alert, Field, LoadingState, useToast } from '@better-kit/ui'
 
 type Draft = Pick<IncidentTemplate, 'name' | 'title' | 'body' | 'resolvedBody' | 'impact' | 'translations'>
 type Locale = { code: string; name: string; isDefault: number }

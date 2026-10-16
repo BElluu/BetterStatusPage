@@ -7,7 +7,7 @@ import { auditActor, diffObjects, snapshot, writeAudit } from '../services/audit
 import { requestIdentity } from '../middleware/auth.js'
 import { withImmediateTransaction } from '../db/transaction.js'
 import { parsePagination } from '../lib/pagination.js'
-import { keyForNew, type KeyOwner } from '../lib/entityKey.js'
+import { keyForNew, type KeyOwner } from '@better-kit/config-as-code'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
 import { actionConfigError, actionVaultProblem } from '../services/actionInput.js'
 import { vaultUseProblem } from '../services/vaultUse.js'

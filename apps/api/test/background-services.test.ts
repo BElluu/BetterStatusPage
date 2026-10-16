@@ -3,7 +3,7 @@ import { describe, it, mock } from 'node:test'
 import http from 'node:http'
 import Fastify from 'fastify'
 import { startBackgroundServices, stopBackgroundServices } from '../src/services/backgroundServices.js'
-import { createRuntimeShutdown } from '../src/services/shutdown.js'
+import { createRuntimeShutdown } from '@better-kit/runtime'
 
 describe('background service lifecycle', () => {
   it('starts and stops every service', () => {

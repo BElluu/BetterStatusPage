@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { Field } from './monitorFormParts'
+import { Field } from '@better-kit/ui'
 
 export interface ScheduleValues {
   intervalSecs: number

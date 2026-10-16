@@ -1,7 +1,7 @@
 import type { HttpsAuth, HttpsAuthType } from '@bsp/shared'
 import type { VaultRef } from '@better-kit/contracts'
-import { CredentialSection } from './CredentialSection'
-import { Field, JSON_MAPPING_FIELDS, type VaultPickerProps } from './monitorFormParts'
+import { CredentialSection } from '@better-kit/ui'
+import { Field, JSON_MAPPING_FIELDS, type VaultPickerProps } from '@better-kit/ui'
 
 const AUTH_TYPES: { value: HttpsAuthType; label: string }[] = [
   { value: 'none',   label: 'None' },

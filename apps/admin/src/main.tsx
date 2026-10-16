@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { configureUi } from '@better-kit/ui'
 import App from './App'
 import { adminUiConfig } from './uiConfig'
-import { ToastProvider } from './components/ui'
+import { ToastProvider } from '@better-kit/ui'
 import './index.css'
 
 // Remove credentials left by versions that stored JWTs in sessionStorage.

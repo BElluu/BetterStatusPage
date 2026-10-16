@@ -1,6 +1,6 @@
 import { Area, AreaChart, CartesianGrid, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { MonitorStats } from '@bsp/shared'
-import { formatClock, formatDayMonth } from '../../lib/dateFormat'
+import { formatClock, formatDayMonth } from '@better-kit/ui'
 
 export type ChartMetric = 'avg' | 'p95' | 'max'
 

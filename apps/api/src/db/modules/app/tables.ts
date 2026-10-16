@@ -1,6 +1,6 @@
 import { sqliteTable, integer, text, real, primaryKey } from 'drizzle-orm/sqlite-core'
 import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
-import { randomEntityKey } from '../../../lib/entityKey.js'
+import { randomEntityKey } from '@better-kit/config-as-code'
 
 export const monitors = sqliteTable('monitors', {
   id: integer('id').primaryKey({ autoIncrement: true }),

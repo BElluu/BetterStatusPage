@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { formatClock, formatDate, formatDateTime, formatDayMonth } from '../lib/dateFormat'
+import { formatClock, formatDate, formatDateTime, formatDayMonth } from '@better-kit/ui'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
@@ -8,11 +8,11 @@ import type { DnsConfig, DockerConfig, HttpsConfig, Monitor, MonitorStats, PingC
 import { StatusBadge } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
 import { YamlViewModal } from '../components/YamlViewModal'
-import { CopyButton } from '../components/CopyButton'
+import { CopyButton } from '@better-kit/ui'
 import { webhookUrl } from '../components/monitors/MonitorTypeConfigFields'
 import { MONITOR_TYPES } from '../components/monitors/monitorTypes'
 import { ResponseTimeChart, formatMs, type ChartMetric } from '../components/monitors/ResponseTimeChart'
-import { Alert, EmptyState, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
+import { Alert, EmptyState, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '@better-kit/ui'
 
 const DAY_MS = 86_400_000
 const RANGES = [

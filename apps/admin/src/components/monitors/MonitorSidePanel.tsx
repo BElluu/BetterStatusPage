@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react'
 import type { Action, MonitorAction, NotificationChannel } from '@bsp/shared'
 import type { VaultRef } from '@better-kit/contracts'
-import type { SidePanelMeta } from '../SidePanel'
-import { ConnectionStringSection, CredentialSection } from './CredentialSection'
-import { Field, JSON_MAPPING_FIELDS, Note, toggleInSet, type VaultPickerProps } from './monitorFormParts'
+import type { SidePanelMeta } from '@better-kit/ui'
+import { ConnectionStringSection, CredentialSection } from '@better-kit/ui'
+import { Field, JSON_MAPPING_FIELDS, Note, toggleInSet, type VaultPickerProps } from '@better-kit/ui'
 
 export type SidePanelKey = 'request' | 'checks' | 'auth' | 'credentials' | 'tags' | 'channels' | 'actions' | 'dependencies' | 'incident'
 

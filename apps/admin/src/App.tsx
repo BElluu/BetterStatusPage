@@ -1,23 +1,20 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
-import { RequireAuth, RequirePasswordChanged, SetupGate, createRoleGuard } from '@better-kit/ui'
+import {
+  BackupsPage, ChangePasswordPage, RequireAuth, RequirePasswordChanged, SettingsPage, SetupGate, SetupPage,
+  SsoConfirmPage, SsoTestResultPage, VaultPage, createRoleGuard,
+} from '@better-kit/ui'
 import { getCurrentUser } from './api/client'
 import Layout from './components/Layout'
 import LoginPage from './pages/Login'
-import SetupPage from './pages/Setup'
 const DashboardPage = lazy(() => import('./pages/Dashboard'))
 const MonitorsPage = lazy(() => import('./pages/Monitors'))
 const MonitorDetailPage = lazy(() => import('./pages/MonitorDetail'))
 const IncidentsPage = lazy(() => import('./pages/Incidents'))
 const BuilderPage = lazy(() => import('./pages/Builder'))
 const BrandingPage = lazy(() => import('./pages/Branding'))
-import ChangePasswordPage from './pages/ChangePassword'
 const UsersPage = lazy(() => import('./pages/Users'))
-const SsoTestResultPage = lazy(() => import('./pages/SsoTestResult'))
-import SsoConfirmPage from './pages/SsoConfirm'
-const SettingsPage = lazy(() => import('./pages/Settings'))
 const LocalizationPage = lazy(() => import('./pages/Localization'))
-const VaultPage = lazy(() => import('./pages/Vault'))
 const NotificationsPage = lazy(() => import('./pages/Notifications'))
 const ActionsPage = lazy(() => import('./pages/Actions'))
 const SubscribersPage = lazy(() => import('./pages/Subscribers'))
@@ -25,7 +22,6 @@ const MaintenancePage = lazy(() => import('./pages/Maintenance'))
 const ApiTokensPage = lazy(() => import('./pages/ApiTokens'))
 const ImportPage = lazy(() => import('./pages/Import'))
 const AuditLogPage = lazy(() => import('./pages/AuditLog'))
-const BackupsPage = lazy(() => import('./pages/Backups'))
 const SystemHealthPage = lazy(() => import('./pages/SystemHealth'))
 const ReportsPage = lazy(() => import('./pages/Reports'))
 const DeliveryHistoryPage = lazy(() => import('./pages/DeliveryHistory'))

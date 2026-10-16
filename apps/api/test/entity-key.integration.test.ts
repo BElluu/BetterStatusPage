@@ -3,7 +3,7 @@ import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import { monitorRoutes } from '../src/routes/monitors.js'
 import { notificationRoutes } from '../src/routes/notifications.js'
-import { isValidEntityKey, slugifyKey } from '../src/lib/entityKey.js'
+import { isValidEntityKey, slugifyKey } from '@better-kit/config-as-code'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const testDb = createTestDb('bsp-entity-key-')

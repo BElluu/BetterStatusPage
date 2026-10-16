@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import { sqlite } from '../src/db/client.js'
-import { configRoutes } from '../src/routes/config.js'
+import { configRoutes } from '../src/kit/configRoutes.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const testDb = createTestDb('bsp-config-auto-incident-')

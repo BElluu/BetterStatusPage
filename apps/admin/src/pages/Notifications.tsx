@@ -5,12 +5,12 @@ import type { NotificationChannel, NotificationDelivery } from '@bsp/shared'
 import type { NotificationDeliveryAttempt, SmtpSettings, VaultRef } from '@better-kit/contracts'
 import ChannelFormModal from '../components/notifications/ChannelFormModal'
 import { CHANNEL_TYPES, CHANNEL_TYPE_ORDER, type ChannelType } from '../components/notifications/channelTypes'
-import { ConfirmModal } from '../components/ConfirmModal'
+import { ConfirmModal } from '@better-kit/ui'
 import { Link } from 'react-router-dom'
 import { deliveryHistoryUrl } from '../deliveryHistoryUrl'
-import { ModalFooter, ModalHeader, ModalShell } from '../components/ModalShell'
-import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, Field, LoadingState, PageContainer, PageHeader, Pagination, QuickStartPanel, Switch, useToast, type FieldControlProps, type QuickStartOption } from '../components/ui'
-import { formatDateTime } from '../lib/dateFormat'
+import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
+import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, Field, LoadingState, PageContainer, PageHeader, Pagination, QuickStartPanel, Switch, useToast, type FieldControlProps, type QuickStartOption } from '@better-kit/ui'
+import { formatDateTime } from '@better-kit/ui'
 
 const CHANNEL_QUICK_START: QuickStartOption<ChannelType>[] = CHANNEL_TYPE_ORDER.map((key) => ({
   key,

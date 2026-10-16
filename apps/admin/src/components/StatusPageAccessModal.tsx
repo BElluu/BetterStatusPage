@@ -2,8 +2,8 @@ import { useId, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { AdminStatusPageAccess, StatusPageAccessSettings } from '@bsp/shared'
 import { api } from '../api/client'
-import { ModalFooter, ModalHeader, ModalShell } from './ModalShell'
-import { Alert, ErrorState, LoadingState, Switch, useToast } from './ui'
+import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
+import { Alert, ErrorState, LoadingState, Switch, useToast } from '@better-kit/ui'
 
 const QUERY_KEY = ['status-page-access']
 const CARD = { background: 'var(--m3-surface-container-lowest)', border: '1px solid var(--m3-outline-variant)', color: 'var(--m3-on-surface)' }

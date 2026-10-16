@@ -7,7 +7,7 @@ import {
 import type { SubscriberEventType, SubscriptionComponent, WebhookMethod } from '@bsp/shared'
 import { sendSmtpMail } from './notifier.js'
 import { postSubscriberWebhook } from '../services/publicWebhook.js'
-import { resolvePublicUrl } from '../config/publicUrl.js'
+import { resolvePublicUrl } from '../kit/runtime.js'
 import { loadEmailBrand, renderEmail, toneColor, type EmailBrand, type EmailContent, type StatusTone } from '../services/emailTemplate.js'
 import {
   allowedChannels, getPublicComponents, getSubscriptionSettings, readWebhookHeaders,

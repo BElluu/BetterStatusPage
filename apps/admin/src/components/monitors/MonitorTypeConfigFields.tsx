@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { CERT_REMINDER_DAYS, DEFAULT_CERT_WARN_DAYS, MAX_CERT_WARN_DAYS } from '@bsp/shared'
 import type { CertExpiryConfig, MonitorType } from '@bsp/shared'
-import { ConfirmModal } from '../ConfirmModal'
-import { CopyButton } from '../CopyButton'
-import { Alert } from '../ui'
-import { Field, Note } from './monitorFormParts'
+import { ConfirmModal } from '@better-kit/ui'
+import { CopyButton } from '@better-kit/ui'
+import { Alert } from '@better-kit/ui'
+import { Field, Note } from '@better-kit/ui'
 import { DATABASE_ENGINES, DATABASE_DEFAULT_PORTS, DATABASE_DEFAULT_QUERIES } from './monitorTypes'
 
 type Config = Record<string, unknown>

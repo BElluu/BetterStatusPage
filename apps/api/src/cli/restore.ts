@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { runRestoreCli } from '@better-kit/backup'
-import { restoreBackup } from '../services/restore.js'
+import { restoreBackup } from '../kit/backup.js'
 
 await runRestoreCli(process.argv, {
   restore: (input, vaultEncryptionKey) => restoreBackup(input, { vaultEncryptionKey }),

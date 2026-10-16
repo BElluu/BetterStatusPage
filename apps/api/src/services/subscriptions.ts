@@ -13,7 +13,7 @@ import {
 import { isSmtpConfigured, sendSmtpMail } from '../workers/notifier.js'
 import { validateWebhookUrl } from './publicWebhook.js'
 import { decrypt, encrypt } from '../crypto/vault.js'
-import { resolvePublicUrl } from '../config/publicUrl.js'
+import { resolvePublicUrl } from '../kit/runtime.js'
 import { loadEmailBrand, renderEmail, toneColor } from './emailTemplate.js'
 import { isStatusPagePrivate } from './statusPageAccess.js'
 
