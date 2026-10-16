@@ -1,7 +1,7 @@
 export { createAuth, type Auth } from './createAuth.js'
 export { authDbModule } from './module.js'
 export { apiTokens, authSessions, oidcSettings, users } from './tables.js'
-export { acceptApiTokens, belongsTo } from './routeScope.js'
+export { acceptApiTokens, belongsTo, registerAdminApi, type AdminRouteGroup } from './routeScope.js'
 export { ADMIN_ROLE, createRoleRegistry, type RoleRegistry } from './roles.js'
 export { createTokenCatalogue, type TokenCatalogue } from './tokenCatalogue.js'
 export type { AuthHooks, AuthOptions, RateLimitConfig, SessionsRevoked, SignInOutcome, UnknownSsoUser } from './context.js'
