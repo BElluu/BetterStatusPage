@@ -1,4 +1,4 @@
-import { vault } from '../kit/vault.js'
+import { vault } from './vault.js'
 
 export { HashicorpVaultError, hashicorpLimits } from '@better-kit/vault'
 export type { CredentialsRef, HashicorpAuthMethod, HashicorpConfig, HashicorpVaultRow } from '@better-kit/vault'

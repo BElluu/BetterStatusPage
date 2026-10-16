@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { adminApi } from './adminApi.js'
 import { setupRoutes } from './routes/setup.js'
-import { authRoutes } from './routes/auth.js'
+import { authRoutes } from './kit/authRoutes.js'
 import { publicRoutes } from './routes/public.js'
 import { publicLocaleRoutes } from './routes/locales.js'
 import { webhookRoutes } from './routes/webhook.js'
@@ -9,7 +9,7 @@ import { publicSubscriptionRoutes } from './routes/subscriptions.js'
 import { feedRoutes } from './routes/feeds.js'
 import { statusApiRoutes } from './routes/statusApi.js'
 import { publicStatusPageAccessRoutes } from './routes/statusPageAccess.js'
-import { healthRoutes } from './routes/health.js'
+import { healthRoutes } from './kit/healthRoutes.js'
 
 /**
  * Every HTTP route of the API. Registered by index.ts; kept in its own module so a test can build the real route

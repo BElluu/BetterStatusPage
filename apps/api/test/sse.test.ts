@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { FastifyReply } from 'fastify'
-import { sseService } from '../src/services/sse.service.js'
+import { sseService } from '../src/kit/sse.js'
 
 function client(write: (payload: string) => void): FastifyReply {
   return { raw: { write } } as unknown as FastifyReply

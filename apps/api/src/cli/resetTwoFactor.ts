@@ -4,7 +4,7 @@ import { db, closeDb, initDb } from '../db/client.js'
 import { runMigrations } from '../db/migrate.js'
 import { users } from '../db/schema.js'
 import { writeAudit } from '../services/audit.js'
-import { resetTwoFactor } from '../services/twoFactor.js'
+import { resetTwoFactor } from '../kit/twoFactor.js'
 
 function argument(name: string): string | undefined {
   const index = process.argv.indexOf(name)

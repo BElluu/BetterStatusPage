@@ -1,5 +1,5 @@
 import type { Auth } from '@better-kit/auth'
-import { auth } from '../kit/auth.js'
+import { auth } from './auth.js'
 export { DEFAULT_OIDC_BUTTON_LABEL, DEFAULT_OIDC_SCOPES, isHttpUrl, passwordLoginEnabled } from '@better-kit/auth'
 export type { OidcConfig, OidcSettingsInput } from '@better-kit/auth'
 

@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
 import { layout, monitors } from '../db/schema.js'
 import { auditActor, writeAudit } from '../services/audit.js'
-import { requestIdentity } from '../middleware/auth.js'
+import { requestIdentity } from '../kit/authMiddleware.js'
 import { refreshPublishedMonitorIds } from '../services/publishedMonitors.js'
 
 export async function layoutRoutes(app: FastifyInstance) {

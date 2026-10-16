@@ -4,7 +4,7 @@ import { db } from '../db/client.js'
 import { monitors, notificationDeliveries } from '../db/schema.js'
 import { updates } from '../kit/runtime.js'
 import { resolveAppVersion } from '../version.js'
-import { listBackups, readBackupConfig, readBackupStatus } from './backup.js'
+import { listBackups, readBackupConfig, readBackupStatus } from '../kit/backupService.js'
 import { getSchedulerHealth } from '../workers/scheduler.js'
 
 type ComponentStatus = 'ok' | 'attention' | 'error' | 'disabled'

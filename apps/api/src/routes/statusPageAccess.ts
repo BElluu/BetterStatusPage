@@ -2,10 +2,10 @@ import type { FastifyInstance } from 'fastify'
 import type { AdminStatusPageAccess, PublicStatusPageAccess, StatusPageAccessSettings } from '@bsp/shared'
 import { db } from '../db/client.js'
 import { branding } from '../db/schema.js'
-import { requestIdentity } from '../middleware/auth.js'
+import { requestIdentity } from '../kit/authMiddleware.js'
 import { auditActor, diffObjects, writeAudit } from '../services/audit.js'
-import { authenticateRequest } from '../services/authSession.js'
-import { getOidcConfig } from '../services/oidcSettings.js'
+import { authenticateRequest } from '../kit/authSession.js'
+import { getOidcConfig } from '../kit/oidcSettings.js'
 import { getStatusPageAccess, saveStatusPageAccess, StatusPageAccessError } from '../services/statusPageAccess.js'
 
 /** What the status page asks first: whether it must show the sign-in screen, and the branding to show it in. */

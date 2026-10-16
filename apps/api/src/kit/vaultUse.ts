@@ -1,4 +1,4 @@
-import { vaultUseGuard } from '../kit/vault.js'
+import { vaultUseGuard } from './vault.js'
 
 export { canonical } from '@better-kit/vault'
 

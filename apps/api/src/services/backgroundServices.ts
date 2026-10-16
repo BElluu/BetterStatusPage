@@ -1,7 +1,7 @@
-import { restartBackupScheduler, stopBackupScheduler } from '../workers/backupScheduler.js'
+import { restartBackupScheduler, stopBackupScheduler } from '../kit/backupScheduler.js'
 import { startNotificationRetryWorker, stopNotificationRetryWorker } from '../workers/notificationRetryWorker.js'
 import { startScheduler, stopScheduler } from '../workers/scheduler.js'
-import { startUpdateCheck, stopUpdateCheck } from './updateCheck.js'
+import { startUpdateCheck, stopUpdateCheck } from '../kit/updateCheck.js'
 
 export interface BackgroundServices {
   startMonitorScheduler: () => void

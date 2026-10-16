@@ -5,7 +5,7 @@ import path from 'path'
 import fs from 'fs'
 import { uploadDir } from '../config.js'
 import { auditActor, diffObjects, writeAudit } from '../services/audit.js'
-import { requestIdentity } from '../middleware/auth.js'
+import { requestIdentity } from '../kit/authMiddleware.js'
 import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS, validateUptimeThresholds, type UptimeThresholds } from '@bsp/shared'
 import { isSafeColor } from '../services/emailTemplate.js'
 

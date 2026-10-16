@@ -7,7 +7,7 @@ import Fastify from 'fastify'
 import { db } from '../src/db/client.js'
 import { vaultSecrets, vaults } from '../src/db/schema.js'
 import { configRoutes } from '../src/kit/configRoutes.js'
-import type { AuthIdentity } from '../src/services/authSession.js'
+import type { AuthIdentity } from '../src/kit/authSession.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 // Guards the extraction of the configuration engine: the YAML written for every kind of document, the answers of the

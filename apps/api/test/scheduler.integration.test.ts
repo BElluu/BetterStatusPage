@@ -7,7 +7,7 @@ import { db } from '../src/db/client.js'
 import {
   maintenanceWindowMonitors, maintenanceWindows, monitorDependencies, monitorResults, monitors,
 } from '../src/db/schema.js'
-import { sseService } from '../src/services/sse.service.js'
+import { sseService } from '../src/kit/sse.js'
 import {
   getDueMonitors, getSchedulerHealth, isCheckInFlight, isInMaintenance, purgeOldResults, recordObservation, runCheck, runSchedulerTick,
 } from '../src/workers/scheduler.js'

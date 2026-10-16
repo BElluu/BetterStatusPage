@@ -1,4 +1,4 @@
-import { vault } from '../kit/vault.js'
+import { vault } from './vault.js'
 
 // Forwards to the secret box of the vault module; kept so call sites do not change.
 export function encrypt(plaintext: string): string {

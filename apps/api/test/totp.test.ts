@@ -8,7 +8,7 @@ import {
   hashRecoveryCode,
   totpUri,
   verifyTotp,
-} from '../src/crypto/totp.js'
+} from '../src/kit/totp.js'
 
 describe('TOTP authentication', () => {
   it('generates and verifies time-based codes with a small clock-skew window', () => {

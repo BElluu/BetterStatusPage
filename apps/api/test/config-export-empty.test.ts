@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { buildConfigDocuments } from '../src/services/configExport.js'
+import { buildConfigDocuments } from '../src/kit/configExport.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const testDb = createTestDb('bsp-config-export-empty-')

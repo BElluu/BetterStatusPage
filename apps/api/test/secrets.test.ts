@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { resolveJwtSecret, validateVaultEncryptionKey } from '../src/config/secrets.js'
+import { resolveJwtSecret, validateVaultEncryptionKey } from '../src/kit/secrets.js'
 
 describe('production secret validation', () => {
   it('rejects missing, weak, and placeholder secrets', () => {

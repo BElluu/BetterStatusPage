@@ -1,6 +1,6 @@
 import type { ImportResult } from '@better-kit/config-as-code'
-import { config, DOCUMENT_KINDS, type DocumentKind } from '../kit/config.js'
-import type { Actor } from './audit.js'
+import { config, DOCUMENT_KINDS, type DocumentKind } from './config.js'
+import type { Actor } from '../services/audit.js'
 
 // Forwards to the configuration engine in ../kit/config.ts; kept so call sites do not change.
 export { ConfigInvalidError } from '@better-kit/config-as-code'

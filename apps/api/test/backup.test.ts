@@ -4,15 +4,15 @@ import fs from 'fs'
 import path from 'path'
 import { closeDb, sqlite } from '../src/db/client.js'
 import { spawnSync } from 'child_process'
-import { createBackup, currentVaultKeyMatches, INTERRUPTED_BACKUP_ERROR, isBackupLockHeld, listBackups, readBackupStatus, validateBackup, type BackupManifest } from '../src/services/backup.js'
-import { spawnBackupWorker } from '../src/services/backupRunner.js'
+import { createBackup, currentVaultKeyMatches, INTERRUPTED_BACKUP_ERROR, isBackupLockHeld, listBackups, readBackupStatus, validateBackup, type BackupManifest } from '../src/kit/backupService.js'
+import { spawnBackupWorker } from '../src/kit/backupRunner.js'
 import { PROCESS_STARTED_AT } from '@better-kit/runtime'
 import { restoreBackup } from '../src/kit/backup.js'
 import Fastify from 'fastify'
 import multipart from '@fastify/multipart'
 import { backupRoutes } from '../src/kit/backupRoutes.js'
-import { createArchive } from '../src/services/backupArchive.js'
-import { acquireAppLock, assertAppStopped } from '../src/services/appLock.js'
+import { createArchive } from '../src/kit/backupArchive.js'
+import { acquireAppLock, assertAppStopped } from '../src/kit/appLock.js'
 import { resolveAppVersion } from '../src/version.js'
 import { createTestDb, initTestDb, teardownTestDb, type TestDb } from './helpers/testDb.js'
 
@@ -234,7 +234,7 @@ describe('backup validation off the event loop', () => {
     const created = await createBackup()
     const options = {
       workerUrl: new URL('../src/workers/backupWorker.ts', import.meta.url),
-      moduleUrl: new URL('../src/services/backup.ts', import.meta.url).href,
+      moduleUrl: new URL('../src/kit/backupService.ts', import.meta.url).href,
       execArgv: ['--import', 'tsx'],
     }
     const manifest = await spawnBackupWorker<BackupManifest>({ task: 'validate', input: path.join(process.env['BACKUP_DIR']!, created.filename) }, options)

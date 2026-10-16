@@ -3,7 +3,7 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 import { SMTPServer } from 'smtp-server'
 import { db, sqlite } from '../src/db/client.js'
 import { smtpSettings, vaults, vaultSecrets } from '../src/db/schema.js'
-import { encrypt } from '../src/crypto/vault.js'
+import { encrypt } from '../src/kit/secretBox.js'
 import { isSmtpConfigured, sendSmtpMail } from '../src/workers/notifier.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 

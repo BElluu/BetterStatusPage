@@ -1,5 +1,5 @@
 import type { Auth } from '@better-kit/auth'
-import { auth } from '../kit/auth.js'
+import { auth } from './auth.js'
 export { checkEmailVerified, OIDC_CONFIRMATION_MAX_AGE_SECONDS } from '@better-kit/auth'
 export type { OidcDecision, OidcDenial, OidcDenialCode, OidcFlowState, OidcTestResult, SsoProvisioning } from '@better-kit/auth'
 

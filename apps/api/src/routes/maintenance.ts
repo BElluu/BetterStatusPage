@@ -3,7 +3,7 @@ import { db } from '../db/client.js'
 import { maintenanceWindows, maintenanceWindowMonitors, monitors } from '../db/schema.js'
 import { eq, and, lte, gte, inArray } from 'drizzle-orm'
 import { auditActor, writeAudit, diffObjects, snapshot } from '../services/audit.js'
-import { requestIdentity } from '../middleware/auth.js'
+import { requestIdentity } from '../kit/authMiddleware.js'
 import { notifyMaintenanceSubscribers } from '../workers/subscriberNotifier.js'
 
 async function withMonitorIds(win: typeof maintenanceWindows.$inferSelect) {

@@ -8,7 +8,7 @@ import { startBackgroundServices } from '../services/backgroundServices.js'
 import { branding, layout } from '../db/schema.js'
 import { SETUP_RATE_LIMIT } from '../config/rateLimits.js'
 import { withImmediateTransaction } from '../db/transaction.js'
-import { createAuthSession } from '../services/authSession.js'
+import { createAuthSession } from '../kit/authSession.js'
 
 /** First-run setup: the administrator account (by the auth package) and the status page the product starts with. */
 export const setupRoutes = createSetupRoutes({

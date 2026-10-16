@@ -6,7 +6,7 @@ import { vault } from './vault.js'
 import { resolvePublicUrl } from './runtime.js'
 import { LOGIN_RATE_LIMIT, SENSITIVE_ACTION_RATE_LIMIT } from '../config/rateLimits.js'
 import { getStatusPageAccess, viewerProvisioningAllowed } from '../services/statusPageAccess.js'
-import { sseService } from '../services/sse.service.js'
+import { sseService } from './sse.js'
 import { audit } from './audit.js'
 import { roles } from './roles.js'
 

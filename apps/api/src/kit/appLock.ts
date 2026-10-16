@@ -1,3 +1,3 @@
-import { appLock } from '../kit/runtime.js'
+import { appLock } from './runtime.js'
 
 export const { assertAppStopped, acquireAppLock } = appLock

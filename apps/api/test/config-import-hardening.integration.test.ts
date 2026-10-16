@@ -3,7 +3,7 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import { sqlite } from '../src/db/client.js'
 import { configRoutes } from '../src/kit/configRoutes.js'
-import type { AuthIdentity } from '../src/services/authSession.js'
+import type { AuthIdentity } from '../src/kit/authSession.js'
 import { SECRET_MASK } from '../src/services/secretFields.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 

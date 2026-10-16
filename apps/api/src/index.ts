@@ -6,10 +6,10 @@ import { isSetupComplete, uploadDir } from './config.js'
 import { closeDb, initDb } from './db/client.js'
 import { runMigrations } from './db/migrate.js'
 import { registerApiRoutes } from './apiRoutes.js'
-import { acquireAppLock } from './services/appLock.js'
+import { acquireAppLock } from './kit/appLock.js'
 import { startBackgroundServices, stopBackgroundServices } from './services/backgroundServices.js'
-import { validateVaultEncryptionKey } from './config/secrets.js'
-import { sseService } from './services/sse.service.js'
+import { validateVaultEncryptionKey } from './kit/secrets.js'
+import { sseService } from './kit/sse.js'
 import { registerProductionFrontends } from './services/productionFallback.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))

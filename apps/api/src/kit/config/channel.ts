@@ -7,7 +7,7 @@ import { db } from '../../db/client.js'
 import { notificationChannels } from '../../db/schema.js'
 import { normalizeAlertPolicy, parseAlertPolicy } from '../../services/alertPolicy.js'
 import { maskSecrets, restoreSecrets } from '../../services/secretFields.js'
-import { vaultUseProblem } from '../../services/vaultUse.js'
+import { vaultUseProblem } from '../vaultUse.js'
 import type { ExportState, State } from './state.js'
 import { entityKeys, exportByKey, MAX_CONFIG_DEPTH, MAX_NAME_LENGTH } from './shared.js'
 

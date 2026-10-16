@@ -8,7 +8,7 @@ import Fastify from 'fastify'
 import { SMTPServer } from 'smtp-server'
 import { db } from '../src/db/client.js'
 import { actionFailureChannels, actions, monitorNotificationChannels, monitors, notificationChannels, smtpSettings, vaults, vaultSecrets } from '../src/db/schema.js'
-import { encrypt } from '../src/crypto/vault.js'
+import { encrypt } from '../src/kit/secretBox.js'
 import { notificationRoutes } from '../src/routes/notifications.js'
 import {
   processDueNotificationDeliveries, sendActionFailureNotifications, sendCertificateNotifications, sendNotifications, testNotificationChannel,

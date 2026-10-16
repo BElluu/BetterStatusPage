@@ -8,7 +8,7 @@ import {
 } from '../src/db/schema.js'
 import { publicRoutes } from '../src/routes/public.js'
 import { refreshPublishedMonitorIds } from '../src/services/publishedMonitors.js'
-import { sseService } from '../src/services/sse.service.js'
+import { sseService } from '../src/kit/sse.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const testDb = createTestDb('bsp-published-monitors-test-')

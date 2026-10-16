@@ -5,14 +5,14 @@ import {
   maintenanceWindows, maintenanceWindowMonitors, monitorDependencies,
 } from '../db/schema.js'
 import { eq, desc, gte, ne, inArray, and, lte, sql } from 'drizzle-orm'
-import { serveEventStream, sseService } from '../services/sse.service.js'
+import { serveEventStream, sseService } from '../kit/sse.js'
 import { getPublishedMonitorIds, publishedMonitorIdsSnapshot } from '../services/publishedMonitors.js'
 import type { LayoutTree, LayoutNode, GroupNode, MonitorNode, UptimeThresholds } from '@bsp/shared'
 import { classifyUptimeDay, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 import { PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
 import { publishedIncident, withIncidentDetails } from '../services/incidentDetails.js'
 import { parseStrictPagination } from '../lib/pagination.js'
-import { authenticateRequest, type AuthIdentity } from '../services/authSession.js'
+import { authenticateRequest, type AuthIdentity } from '../kit/authSession.js'
 import { isStatusPagePrivate, protectStatusPage } from '../services/statusPageAccess.js'
 
 const STATUS_CACHE_TTL_MS = 2_000

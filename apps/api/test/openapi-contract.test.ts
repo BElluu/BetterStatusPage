@@ -13,7 +13,7 @@ import { db } from '../src/db/client.js'
 import { API_TOKEN_SCOPES } from '@bsp/shared'
 import { requiredScope } from '@better-kit/contracts'
 import { apiTokens } from '../src/db/schema.js'
-import { generateApiToken } from '../src/services/apiTokens.js'
+import { generateApiToken } from '../src/kit/apiTokens.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const SPEC_PATH = fileURLToPath(new URL('../../../docs/public/openapi.yaml', import.meta.url))

@@ -1,5 +1,5 @@
 import type { Auth } from '@better-kit/auth'
-import { auth } from '../kit/auth.js'
+import { auth } from './auth.js'
 export { API_TOKEN_NOT_ACCEPTED } from '@better-kit/auth'
 export type { AuthIdentity, AuthMethod } from '@better-kit/auth'
 

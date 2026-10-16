@@ -9,7 +9,7 @@ import multipart from '@fastify/multipart'
 import { adminApi } from '../src/adminApi.js'
 import { db } from '../src/db/client.js'
 import { apiTokens, incidents, monitorResults, monitors } from '../src/db/schema.js'
-import { generateApiToken } from '../src/services/apiTokens.js'
+import { generateApiToken } from '../src/kit/apiTokens.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const testDb = createTestDb('bsp-metrics-')

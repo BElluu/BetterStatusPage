@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it, mock } from 'node:test'
-import { checkForUpdate, getAvailableUpdate, isNewerVersion, resetUpdateCheck, startUpdateCheck, updateCheckEnabled } from '../src/services/updateCheck.js'
+import { checkForUpdate, getAvailableUpdate, isNewerVersion, resetUpdateCheck, startUpdateCheck, updateCheckEnabled } from '../src/kit/updateCheck.js'
 import { resolveAppVersion } from '../src/version.js'
 
 const RELEASE_URL = 'https://github.com/BElluu/BetterStatusPage/releases/tag/v99.0.0'

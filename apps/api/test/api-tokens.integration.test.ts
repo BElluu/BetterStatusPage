@@ -12,9 +12,9 @@ import { API_TOKEN_SCOPES } from '@bsp/shared'
 import { adminApi } from '../src/adminApi.js'
 import { db } from '../src/db/client.js'
 import { apiTokens, auditLog, authSessions, monitors, users } from '../src/db/schema.js'
-import { requireAuth } from '../src/middleware/auth.js'
-import { consumeApiTokenBudget, hashApiToken, resetApiTokenBudgets } from '../src/services/apiTokens.js'
-import { VAULT_USE_REFUSED } from '../src/services/vaultUse.js'
+import { requireAuth } from '../src/kit/authMiddleware.js'
+import { consumeApiTokenBudget, hashApiToken, resetApiTokenBudgets } from '../src/kit/apiTokens.js'
+import { VAULT_USE_REFUSED } from '../src/kit/vaultUse.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const testDb = createTestDb('bsp-api-tokens-')

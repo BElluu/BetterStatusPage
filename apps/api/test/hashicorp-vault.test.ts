@@ -6,9 +6,9 @@ import Fastify from 'fastify'
 import { eq } from 'drizzle-orm'
 import { db } from '../src/db/client.js'
 import { auditLog, vaults, vaultSecrets } from '../src/db/schema.js'
-import { vaultCatalogRoutes, vaultRoutes } from '../src/routes/vaults.js'
-import { resolveVaultSecret } from '../src/workers/resolveSecret.js'
-import { forgetHashicorpVault, hashicorpLimits } from '../src/services/hashicorpVault.js'
+import { vaultCatalogRoutes, vaultRoutes } from '../src/kit/vaultRoutes.js'
+import { resolveVaultSecret } from '../src/kit/resolveSecret.js'
+import { forgetHashicorpVault, hashicorpLimits } from '../src/kit/hashicorpVault.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const testDb = createTestDb('bsp-hashicorp-vault-')

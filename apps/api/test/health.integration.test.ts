@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import { writeSetupComplete } from '../src/config.js'
-import { healthRoutes } from '../src/routes/health.js'
+import { healthRoutes } from '../src/kit/healthRoutes.js'
 import { createTestDb, initTestDb, teardownTestDb, type TestDb } from './helpers/testDb.js'
 
 describe('health endpoints', () => {

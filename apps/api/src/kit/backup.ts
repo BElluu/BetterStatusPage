@@ -9,7 +9,7 @@ import { currentProcessOwner, isOwnerAlive } from '@better-kit/runtime'
 import { backupDir, databasePath, setupConfigPath, uploadDir } from '../config.js'
 import { closeDb, initDb } from '../db/client.js'
 import { runMigrations } from '../db/migrate.js'
-import { assertAppStopped } from '../services/appLock.js'
+import { assertAppStopped } from './appLock.js'
 import { resolveAppVersion } from '../version.js'
 
 export const BACKUP_FORMAT_VERSION = 1
@@ -56,7 +56,7 @@ export const backupRunner = createBackupRunner<BackupManifest>({
   service: backup,
   inline: import.meta.url.endsWith('.ts'),
   workerUrl: new URL('../workers/backupWorker.js', import.meta.url),
-  moduleUrl: new URL('../services/backup.js', import.meta.url).href,
+  moduleUrl: new URL('./backupService.js', import.meta.url).href,
 })
 
 const restore = createRestore<BackupManifest>({

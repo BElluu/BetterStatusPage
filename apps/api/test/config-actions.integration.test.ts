@@ -6,7 +6,7 @@ import { db, sqlite } from '../src/db/client.js'
 import { runMigrations } from '../src/db/migrate.js'
 import { actionRuns, actions, monitorActions, monitors, vaultSecrets, vaults } from '../src/db/schema.js'
 import { configRoutes } from '../src/kit/configRoutes.js'
-import type { AuthIdentity } from '../src/services/authSession.js'
+import type { AuthIdentity } from '../src/kit/authSession.js'
 import { SECRET_MASK } from '../src/services/secretFields.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 

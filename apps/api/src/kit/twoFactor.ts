@@ -1,5 +1,5 @@
 import type { Auth } from '@better-kit/auth'
-import { auth } from '../kit/auth.js'
+import { auth } from './auth.js'
 
 // Forwards to the instance in ../kit/auth.ts; kept so call sites do not change.
 type Group = Auth['twoFactor']

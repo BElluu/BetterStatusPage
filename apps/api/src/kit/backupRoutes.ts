@@ -1,5 +1,5 @@
 import { createBackupRoutes, createBackupScheduler } from '@better-kit/backup'
-import { requestIdentity } from '../middleware/auth.js'
+import { requestIdentity } from './authMiddleware.js'
 import { audit } from './audit.js'
 import { backup, backupRunner, currentVaultKeyMatches, type BackupManifest } from './backup.js'
 

@@ -3,8 +3,8 @@ import { eq } from 'drizzle-orm'
 import { STATUS_PAGE_PRIVATE, type StatusPageAccessSettings } from '@bsp/shared'
 import { db } from '../db/client.js'
 import { statusPageAccess } from '../db/schema.js'
-import { authenticateOrReject } from '../middleware/auth.js'
-import { sseService } from './sse.service.js'
+import { authenticateOrReject } from '../kit/authMiddleware.js'
+import { sseService } from '../kit/sse.js'
 
 const DOMAIN_PATTERN = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$/
 const MAX_VIEWER_DOMAINS = 50

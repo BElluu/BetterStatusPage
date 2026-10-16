@@ -1,5 +1,5 @@
 import type { Json } from '@better-kit/config-as-code'
-import { config, DOCUMENT_KINDS, type DocumentKind } from '../kit/config.js'
+import { config, DOCUMENT_KINDS, type DocumentKind } from './config.js'
 
 // Forwards to the configuration engine in ../kit/config.ts; kept so call sites do not change.
 export { ConfigExportError } from '@better-kit/config-as-code'
