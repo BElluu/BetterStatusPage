@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, api, clearSession, enterAfterSignIn, getCurrentUser, setSession, type AuthUser } from './client'
 import { navigation } from '../navigation'
+import { configureUi } from '../config'
+
+configureUi({
+  storagePrefix: 'bsp', csrfCookie: 'bsp_csrf', basePath: '/admin',
+  redirectAfterSignIn: (signedIn) => signedIn.role === 'viewer' ? '/' : null,
+})
 
 const user: AuthUser = {
   userId: 1,
@@ -77,7 +83,7 @@ describe('admin API client text bodies and error details', () => {
 })
 
 describe('enterAfterSignIn', () => {
-  it('sends a viewer to the status page and everyone else into the console', () => {
+  it('sends a user the application redirects away, and everyone else into the console', () => {
     const navigate = vi.fn()
     const assign = vi.spyOn(navigation, 'assign').mockImplementation(() => {})
 

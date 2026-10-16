@@ -12,3 +12,8 @@ export {
   DATE_FORMATS, TIME_FORMATS, formatClock, formatDate, formatDateTime, formatDayMonth, getDatePrefs, setDatePrefs, useDatePrefs,
   type DateFormat, type DatePrefs, type TimeFormat,
 } from './lib/dateFormat'
+export { uiConfig, type UiConfig } from './config'
+export { navigation } from './navigation'
+export {
+  ApiError, api, clearSession, enterAfterSignIn, getCurrentUser, isAuthenticated, mustChangePassword, setSession, type AuthUser,
+} from './api/client'
