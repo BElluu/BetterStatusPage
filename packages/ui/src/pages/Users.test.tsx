@@ -4,15 +4,29 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, getCurrentUser } from '../api/client'
 import UsersPage from './Users'
+import { configureForTests } from '../testing/configure'
 
 vi.mock('../api/client', () => ({
   api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
   getCurrentUser: vi.fn(),
 }))
 
+configureForTests()
+
+const roles = [
+  { value: 'admin', label: 'Admin', desc: 'Full access' },
+  { value: 'operator', label: 'Operator', desc: 'Everything except Users' },
+  { value: 'branding', label: 'Branding', desc: 'Branding' },
+  { value: 'viewer', label: 'Viewer', desc: 'Views only' },
+]
+const roleRank = { admin: 3, operator: 2, branding: 1, viewer: 0 }
+const actions = [{ label: 'Access settings', icon: 'lock', dialog: (close: () => void) => (
+  <div role="dialog" aria-label="Access"><p>Access settings dialog</p><button type="button" onClick={close}>Close access</button></div>
+) }]
+
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><UsersPage /></QueryClientProvider>)
+  return render(<QueryClientProvider client={queryClient}><UsersPage roles={roles} roleRank={roleRank} defaultRole="branding" actions={actions} /></QueryClientProvider>)
 }
 
 describe('UsersPage 2FA recovery', () => {
@@ -119,16 +133,14 @@ describe('UsersPage roles', () => {
     expect(await screen.findByText('tmp-456')).toBeInTheDocument()
   })
 
-  it('opens the status page access settings next to single sign-on', async () => {
-    const users = await vi.mocked(api.get)('/admin/users')
-    vi.mocked(api.get).mockImplementation(async (path: string) => (path === '/admin/status-page-access'
-      ? { private: true, ssoCreateViewers: false, ssoViewerDomains: [], ssoConfigured: true }
-      : users))
+  it('opens the dialogs the application adds next to single sign-on, and closes them', async () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(await screen.findByRole('button', { name: /Status page access/ }))
-    expect(await screen.findByRole('switch', { name: 'Private status page' })).toHaveAttribute('aria-checked', 'true')
+    await user.click(await screen.findByRole('button', { name: /Access settings/ }))
+    expect(screen.getByText('Access settings dialog')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Close access' }))
+    expect(screen.queryByText('Access settings dialog')).not.toBeInTheDocument()
   })
 
   it('shows viewers with the Viewer role selected', async () => {

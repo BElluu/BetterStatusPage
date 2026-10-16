@@ -31,3 +31,4 @@ export {
 } from './components/SsoConfirmation'
 export { default as ApiTokensPage } from './pages/ApiTokens'
 export { default as AuditLogPage, type AuditEntities } from './pages/AuditLog'
+export { default as UsersPage, type UserRole, type UsersPageAction, type UsersPageProps } from './pages/Users'
