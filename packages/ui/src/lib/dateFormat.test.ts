@@ -1,8 +1,11 @@
+import { configureUi } from '../config'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { formatClock, formatDate, formatDateTime, formatDayMonth, getDatePrefs, setDatePrefs } from './dateFormat'
 
 // 9 Oct 2026 15:04:05 local time
 const at = new Date(2026, 9, 9, 15, 4, 5).getTime()
+
+configureUi({ storagePrefix: 'bsp' })
 
 describe('dateFormat', () => {
   beforeEach(() => setDatePrefs({ date: 'dmy', time: '24h' }))

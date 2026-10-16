@@ -1,3 +1,4 @@
+import { configureUi } from '../config'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDarkMode } from './useDarkMode'
@@ -5,6 +6,8 @@ import { useDarkMode } from './useDarkMode'
 function prefersDark(matches: boolean) {
   vi.stubGlobal('matchMedia', vi.fn(() => ({ matches })))
 }
+
+configureUi({ storagePrefix: 'bsp' })
 
 describe('admin useDarkMode', () => {
   beforeEach(() => {
