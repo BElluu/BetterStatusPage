@@ -22,6 +22,7 @@
     "test:frontend": "npm run build:kit && npm run build -w @bsp/shared && vitest run",
     "test:coverage": "npm run build:kit && npm run build -w @bsp/shared && vitest run --coverage",
     "test:e2e": "playwright test",
+    "test:isolation": "npm run build:kit && node scripts/check-isolation.mjs",
     "test:e2e:template": "playwright test --config apps/template/playwright.config.ts",
     "version:check": "tsx --test apps/api/test/version.test.ts",
     "db:migrate": "npm run db:migrate -w apps/api",

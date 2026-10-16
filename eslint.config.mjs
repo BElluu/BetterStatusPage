@@ -35,5 +35,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
+  // Maintenance scripts run in Node.
+  { files: ['scripts/**/*.mjs'], languageOptions: { globals: { ...globals.node } } },
   ...boundaryConfigs(),
 )

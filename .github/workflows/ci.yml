@@ -56,6 +56,9 @@ jobs:
       - name: Template end-to-end tests
         run: npm run test:e2e:template
 
+      - name: Packages in isolation
+        run: node scripts/check-isolation.mjs
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7
