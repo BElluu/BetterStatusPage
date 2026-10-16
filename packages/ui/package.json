@@ -21,9 +21,18 @@
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput"
   },
   "peerDependencies": {
-    "@better-kit/contracts": "^0.1.0"
+    "@better-kit/contracts": "^0.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "clsx": "^2.1.1"
   },
   "devDependencies": {
-    "typescript": "^5.7.3"
-  }
+    "typescript": "^5.7.3",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "clsx": "^2.1.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "sideEffects": false
 }

@@ -8,7 +8,7 @@ const token = (name) => `color-mix(in srgb, var(${name}) calc(<alpha-value> * 10
 /** @type {import('tailwindcss').Config} */
 export default {
   // Relative to this file, not the working directory (see postcss.config.js).
-  content: { relative: true, files: ['./index.html', './src/**/*.{ts,tsx}'] },
+  content: { relative: true, files: ['./index.html', './src/**/*.{ts,tsx}', '../../packages/ui/src/**/*.{ts,tsx}'] },
   darkMode: 'class',
   theme: {
     extend: {

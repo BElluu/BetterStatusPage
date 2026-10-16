@@ -371,12 +371,12 @@ input[type='radio'] {
   background: var(--admin-selection-hover) !important;
 }
 
-html.dark .monitor-side-tab-active {
+html.dark .side-tab-active {
   background: var(--admin-selection) !important;
   color: var(--admin-on-selection) !important;
 }
 
-html.dark .monitor-side-tab-badge-active {
+html.dark .side-tab-badge-active {
   background: var(--admin-on-selection) !important;
   color: var(--admin-selection) !important;
 }
