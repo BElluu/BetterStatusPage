@@ -1,25 +1,23 @@
-import changelogSource from '../../../../docs/changelog.md?raw'
-import packageMetadata from '../../package.json'
+import { storageKey } from '../config'
 import { parseChangelog, releasesBetween, summarizeRelease, type ReleaseItem, type ReleaseNotes } from '../lib/changelog'
-import { DOCS_URL } from '../navigation'
 import { ModalFooter, ModalHeader, ModalShell } from './ModalShell'
 
-const CURRENT_VERSION = packageMetadata.version
-const seenKey = (userId: number) => `bsp-whatsnew-seen-${userId}`
+const seenKey = (userId: number) => storageKey(`whatsnew-seen-${userId}`)
 
-export function markWhatsNewSeen(userId: number): void {
-  try { localStorage.setItem(seenKey(userId), CURRENT_VERSION) } catch { /* the notes may show again next visit */ }
+/** Remembers that this user has seen the notes up to `version`. */
+export function markWhatsNewSeen(userId: number, version: string): void {
+  try { localStorage.setItem(seenKey(userId), version) } catch { /* the notes may show again next visit */ }
 }
 
 /**
  * Releases this user has not seen yet. A user with no record (new, or from before this existed) is only
  * marked as up to date, so the first run shows nothing.
  */
-export function pendingWhatsNew(userId: number, changelog: string = changelogSource, current: string = CURRENT_VERSION): ReleaseNotes[] {
+export function pendingWhatsNew(userId: number, changelog: string, current: string): ReleaseNotes[] {
   try {
     const seen = localStorage.getItem(seenKey(userId))
     if (seen === null) {
-      markWhatsNewSeen(userId)
+      markWhatsNewSeen(userId, current)
       return []
     }
     return releasesBetween(parseChangelog(changelog), seen, current).filter((release) => release.groups.length > 0)
@@ -53,7 +51,7 @@ function Section({ title, items, defaultOpen }: { title: string; items: ReleaseI
  * The newest release as collapsible sections (the first one with entries open, empty ones left out), earlier ones in one line each.
  * Only one section is open at a time, so the dialog stays small however many entries a release has.
  */
-export function WhatsNew({ releases, onClose }: { releases: ReleaseNotes[]; onClose: () => void }) {
+export function WhatsNew({ releases, onClose, docsUrl }: { releases: ReleaseNotes[]; onClose: () => void; docsUrl: string }) {
   const [latest, ...earlier] = releases.map(summarizeRelease)
   const sections = [
     { title: 'New', items: latest!.added },
@@ -76,7 +74,7 @@ export function WhatsNew({ releases, onClose }: { releases: ReleaseNotes[]; onCl
             </p>
           )}
         </div>
-        <ModalFooter start={<a href={`${DOCS_URL}/changelog/`} target="_blank" rel="noopener" className="btn btn-secondary">Full changelog</a>}>
+        <ModalFooter start={<a href={`${docsUrl}/changelog/`} target="_blank" rel="noopener" className="btn btn-secondary">Full changelog</a>}>
           <button type="button" onClick={onClose} className="btn btn-primary">Got it</button>
         </ModalFooter>
       </div>

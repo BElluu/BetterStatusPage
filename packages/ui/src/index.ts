@@ -17,3 +17,5 @@ export { navigation } from './navigation'
 export {
   ApiError, api, clearSession, enterAfterSignIn, getCurrentUser, isAuthenticated, mustChangePassword, setSession, type AuthUser,
 } from './api/client'
+export { WhatsNew, markWhatsNewSeen, pendingWhatsNew } from './components/WhatsNew'
+export { createAdminShell, type AdminShellConfig, type ExternalLink, type NavItem, type NavSection } from './shell/AdminShell'

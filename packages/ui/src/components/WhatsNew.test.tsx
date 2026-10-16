@@ -15,14 +15,14 @@ function sectionOf(name: RegExp) {
 
 describe('WhatsNew', () => {
   it('opens the first section and leaves empty ones out', () => {
-    render(<WhatsNew releases={[release({ Added: ['Alpha'], Fixed: ['Beta'] })]} onClose={() => {}} />)
+    render(<WhatsNew docsUrl="https://docs.test" releases={[release({ Added: ['Alpha'], Fixed: ['Beta'] })]} onClose={() => {}} />)
     expect(sectionOf(/^New/)).toHaveAttribute('open')
     expect(sectionOf(/^Fixes/)).not.toHaveAttribute('open')
     expect(screen.queryByText(/^Changed/)).not.toBeInTheDocument()
   })
 
   it('opens the first section that has entries when there is nothing new', () => {
-    render(<WhatsNew releases={[release({ Fixed: ['Beta'] })]} onClose={() => {}} />)
+    render(<WhatsNew docsUrl="https://docs.test" releases={[release({ Fixed: ['Beta'] })]} onClose={() => {}} />)
     expect(screen.queryByText(/^New/)).not.toBeInTheDocument()
     expect(sectionOf(/^Fixes/)).toHaveAttribute('open')
   })
