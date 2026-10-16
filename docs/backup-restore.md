@@ -87,6 +87,18 @@ docker compose up -d app
 
 Docker Compose uses a separate `bsp_backups` volume, so backup archives survive container rebuilds and application data volume changes.
 
+## How long a restore takes
+
+The time to restore is dominated by the size of the database, and almost all of that is the history of monitor results. The figures below were measured on a local SSD with synthetic data: monitors checked every 60 seconds, each with 90 days of results (the default [retention](deployment.md#environment-variables)), and nothing else in the database.
+
+| Monitors | Results | Database | Archive | Backup | Restore | Restore until `/ready` returns 200 |
+|---|---|---|---|---|---|---|
+| 50 | 6.5 million | 280 MB | 265 MB | 3.6 s | 2.5 s | 3.6 s |
+| 50, Docker Compose | 6.5 million | 280 MB | 265 MB | n/a | 5 s | 6.5 s |
+| 200 | 26 million | 1.4 GB | 1.4 GB | 16 s | 13 s | 14 s |
+
+These are the times of the commands only. A real recovery time also includes what comes before them: noticing the outage, preparing a new host, installing Docker or Node.js, pulling the image and fetching the archive from wherever you keep it. Measure your own setup with the [restore drill](#restore-drill-checklist), because disk speed and the size of your data change the result.
+
 ## Automatic backups
 
 The admin Backups page can schedule daily or weekly backups. Retention is count-based: after a successful scheduled backup, older automatic archives are removed according to the configured retention count.
@@ -123,6 +135,8 @@ The supplied key is not the key used when the backup was created. Use the origin
 ### `Database is in use` or `BetterStatusPage is still running`
 
 The application is still running. Stop the app first. Restore is not an online operation.
+
+If the application was killed instead of stopped (a crashed process, `kill -9`, a lost machine whose disk you mounted elsewhere), it leaves a marker in the data directory (`.bsp-running`) that counts as fresh for 30 seconds. Wait half a minute and run the restore again. `docker compose stop app` shuts the application down cleanly, so it does not leave one.
 
 ### `Unsupported backup format`
 
