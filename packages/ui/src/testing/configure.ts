@@ -10,6 +10,9 @@ export function configureForTests(): void {
     texts: {
       ssoNewAccount: 'Creates the Viewer account {user} for the private status page and links this identity-provider account to it.',
       ssoSignInHint: '',
+      appName: 'BetterStatusPage',
+      secretConsumers: 'monitors',
+      vaultPathExample: 'bsp/database',
     },
   })
 }

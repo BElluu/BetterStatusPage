@@ -32,3 +32,6 @@ export {
 export { default as ApiTokensPage } from './pages/ApiTokens'
 export { default as AuditLogPage, type AuditEntities } from './pages/AuditLog'
 export { default as UsersPage, type UserRole, type UsersPageAction, type UsersPageProps } from './pages/Users'
+export { ConnectionStringSection, CredentialSection } from './components/CredentialSection'
+export { JSON_MAPPING_FIELDS, Note, SectionDivider, toggleInSet, type SecretSummary, type VaultPickerProps, type VaultSummary } from './components/formParts'
+export { default as VaultPage } from './pages/Vault'

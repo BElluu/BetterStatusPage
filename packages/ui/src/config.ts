@@ -15,10 +15,16 @@ export interface UiConfig {
     ssoNewAccount: string
     /** Added to the single sign-on settings to say who may sign in; empty adds nothing. */
     ssoSignInHint: string
+    /** The name of the application, as the interface calls it in sentences. */
+    appName: string
+    /** What uses the secrets kept in a vault (`monitors`), in sentences like "... that monitors can use". */
+    secretConsumers: string
+    /** An example of the path of a secret in an external vault. */
+    vaultPathExample: string
   }
 }
 
-let current: UiConfig = { storagePrefix: 'better', apiBase: '/api/v1', csrfCookie: 'better_csrf', basePath: '', texts: { ssoNewAccount: 'Creates the account {user} and links this identity-provider account to it.', ssoSignInHint: '' } }
+let current: UiConfig = { storagePrefix: 'better', apiBase: '/api/v1', csrfCookie: 'better_csrf', basePath: '', texts: { ssoNewAccount: 'Creates the account {user} and links this identity-provider account to it.', ssoSignInHint: '', appName: 'This application', secretConsumers: 'the application', vaultPathExample: 'app/database' } }
 
 /**
  * Tells the interface what application it is part of. Call it before anything is rendered; what is read from storage
