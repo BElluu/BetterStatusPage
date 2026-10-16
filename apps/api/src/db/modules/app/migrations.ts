@@ -1,6 +1,5 @@
-import type { DatabaseSync } from 'node:sqlite'
 import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
-import { slugifyKey } from '../../../lib/entityKey.js'
+import { backfillKeys } from '@better-kit/config-as-code'
 import type { MigrationStep } from '@better-kit/db'
 
 /** Everything the application adds to the shared tables. Steps run in this order. */
@@ -378,18 +377,3 @@ CREATE TABLE IF NOT EXISTS status_page_access (
   { kind: 'exec', sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_channels_key ON notification_channels(key)` },
   { kind: 'exec', sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_actions_key ON actions(key)` },
 ]
-
-function backfillKeys(sqlite: DatabaseSync, tables: string[]): void {
-  for (const table of tables) {
-    const rows = sqlite.prepare(`SELECT id, name FROM ${table} WHERE key = '' ORDER BY id`).all() as Array<{ id: number; name: string }>
-    const taken = new Set((sqlite.prepare(`SELECT key FROM ${table} WHERE key <> ''`).all() as Array<{ key: string }>).map((row) => row.key))
-    const assign = sqlite.prepare(`UPDATE ${table} SET key = ? WHERE id = ?`)
-    for (const { id, name } of rows) {
-      const base = slugifyKey(name)
-      let key = base
-      for (let n = 2; taken.has(key); n++) key = `${base}-${n}`
-      taken.add(key)
-      assign.run(key, id)
-    }
-  }
-}
