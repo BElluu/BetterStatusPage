@@ -2,6 +2,7 @@ import { useId, useState } from 'react'
 import { VAULT_USE_SCOPE, type TokenPreset, type TokenResource } from '@better-kit/contracts'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
+import { uiConfig } from '../config'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { ModalFooter, ModalHeader, ModalShell } from '../components/ModalShell'
 import { CopyButton } from '../components/CopyButton'
@@ -137,7 +138,7 @@ export default function ApiTokensPage({ resources, presets }: { resources: reado
 
       <p className="text-sm max-w-2xl" style={{ color: 'var(--m3-secondary)' }}>
         Tokens let scripts and CI call the admin API with <code className="font-mono">Authorization: Bearer &lt;token&gt;</code>.
-        A token has only the permissions you tick. It cannot manage users, single sign-on, status page access, vaults, backups or other tokens. It belongs to no user, so revoke the tokens of an administrator who leaves.
+        A token has only the permissions you tick. It cannot manage {uiConfig().texts.tokenCannotManage}. It belongs to no user, so revoke the tokens of an administrator who leaves.
       </p>
 
       {showCreate && (
@@ -221,7 +222,7 @@ export default function ApiTokensPage({ resources, presets }: { resources: reado
               <span>
                 Use vault secrets
                 <span className="block text-xs" style={{ color: 'var(--m3-secondary)' }}>
-                  Lets the token attach a vault secret to a monitor or channel, or change one that already uses a vault. Without it the token cannot read or use credentials from a vault.
+                  Lets the token attach a vault secret to {uiConfig().texts.tokenVaultTargets}, or change one that already uses a vault. Without it the token cannot read or use credentials from a vault.
                 </span>
               </span>
             </label>

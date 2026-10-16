@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { uiConfig } from '../config'
 
 export type VaultTypeValue = 'local' | 'hashicorp'
 
@@ -16,8 +17,8 @@ interface VaultTypeOption {
 }
 
 /** Vault types in picker order; entries with a null value are announced but cannot be selected yet. */
-const VAULT_TYPE_OPTIONS: VaultTypeOption[] = [
-  { value: 'local', label: 'Local', hint: 'Encrypted in the BetterStatusPage database', icon: VAULT_TYPE_ICONS.local },
+const vaultTypeOptions = (): VaultTypeOption[] => [
+  { value: 'local', label: 'Local', hint: `Encrypted in the ${uiConfig().texts.appName} database`, icon: VAULT_TYPE_ICONS.local },
   { value: 'hashicorp', label: 'HashiCorp Vault', hint: 'Read secrets from your own HashiCorp Vault', icon: VAULT_TYPE_ICONS.hashicorp },
   { value: null, label: 'Azure Key Vault', hint: 'Coming soon', icon: 'cloud' },
   { value: null, label: 'GCP Secret Manager', hint: 'Coming soon', icon: 'cloud' },
@@ -37,14 +38,14 @@ function TypeIcon({ icon }: { icon: string }) {
   )
 }
 
-/** Vault type list in the same dropdown style as the monitor and channel type pickers. */
+/** Vault type list in the same dropdown style as the other type pickers. */
 export function VaultTypePicker({ value, onChange }: Props) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const labelId = useId()
   const buttonId = useId()
-  const selected = VAULT_TYPE_OPTIONS.find((t) => t.value === value)!
+  const selected = vaultTypeOptions().find((t) => t.value === value)!
 
   useEffect(() => {
     if (!open) return
@@ -100,7 +101,7 @@ export function VaultTypePicker({ value, onChange }: Props) {
           style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}
         >
           <div role="listbox" aria-labelledby={labelId} className="max-h-72 overflow-auto p-1.5">
-            {VAULT_TYPE_OPTIONS.map((t) => {
+            {vaultTypeOptions().map((t) => {
               const disabled = t.value === null
               const isSelected = t.value === value
               return (

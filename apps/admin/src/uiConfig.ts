@@ -14,6 +14,8 @@ export const adminUiConfig: UiConfig = {
     ssoNewAccount: 'Creates the Viewer account {user} for the private status page and links this identity-provider account to it.',
     ssoSignInHint: 'A private status page can let SSO create Viewer accounts, see Status page access.',
     appName: 'BetterStatusPage',
+    tokenCannotManage: 'users, single sign-on, status page access, vaults, backups or other tokens',
+    tokenVaultTargets: 'a monitor or channel',
     secretConsumers: 'monitors',
     vaultPathExample: 'bsp/database',
   },

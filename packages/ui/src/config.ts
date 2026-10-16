@@ -13,20 +13,24 @@ export interface UiConfig {
   brand: { name: string; logoLight: string; logoDark: string }
   /** Wording that names things only the application knows. */
   texts: {
+    /** What an API token can never manage, in the sentence "It cannot manage ..." (for example `users, single sign-on, vaults or other tokens`). */
+    tokenCannotManage: string
+    /** What a token with the vault permission can attach a vault secret to (`a job or channel`). */
+    tokenVaultTargets: string
     /** Said when a test sign-in would create an account; `{user}` is replaced by the account. */
     ssoNewAccount: string
     /** Added to the single sign-on settings to say who may sign in; empty adds nothing. */
     ssoSignInHint: string
     /** The name of the application, as the interface calls it in sentences. */
     appName: string
-    /** What uses the secrets kept in a vault (`monitors`), in sentences like "... that monitors can use". */
+    /** What uses the secrets kept in a vault (`jobs`), in sentences like "... that jobs can use". */
     secretConsumers: string
     /** An example of the path of a secret in an external vault. */
     vaultPathExample: string
   }
 }
 
-let current: UiConfig = { storagePrefix: 'better', apiBase: '/api/v1', csrfCookie: 'better_csrf', basePath: '', brand: { name: 'Better', logoLight: '', logoDark: '' }, texts: { ssoNewAccount: 'Creates the account {user} and links this identity-provider account to it.', ssoSignInHint: '', appName: 'This application', secretConsumers: 'the application', vaultPathExample: 'app/database' } }
+let current: UiConfig = { storagePrefix: 'better', apiBase: '/api/v1', csrfCookie: 'better_csrf', basePath: '', brand: { name: 'Better', logoLight: '', logoDark: '' }, texts: { ssoNewAccount: 'Creates the account {user} and links this identity-provider account to it.', ssoSignInHint: '', appName: 'This application', secretConsumers: 'the application', vaultPathExample: 'app/database', tokenCannotManage: 'users, single sign-on, vaults or other tokens', tokenVaultTargets: 'an object' } }
 
 /**
  * Tells the interface what application it is part of. Call it before anything is rendered; what is read from storage
