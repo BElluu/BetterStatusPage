@@ -11,10 +11,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./styles.css": "./styles/base.css",
+    "./tailwind-preset": "./tailwind-preset.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "styles",
+    "tailwind-preset.js"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -34,5 +38,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
-  "sideEffects": false
+  "sideEffects": [
+    "*.css"
+  ]
 }
