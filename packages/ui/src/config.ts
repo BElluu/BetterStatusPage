@@ -9,6 +9,8 @@ export interface UiConfig {
   basePath: string
   /** For a user who does not belong in this interface (say, one who may only view a public page): the address to send them to instead. */
   redirectAfterSignIn?: (user: { role: string }) => string | null
+  /** The names and pictures the application is known by. */
+  brand: { name: string; logoLight: string; logoDark: string }
   /** Wording that names things only the application knows. */
   texts: {
     /** Said when a test sign-in would create an account; `{user}` is replaced by the account. */
@@ -24,7 +26,7 @@ export interface UiConfig {
   }
 }
 
-let current: UiConfig = { storagePrefix: 'better', apiBase: '/api/v1', csrfCookie: 'better_csrf', basePath: '', texts: { ssoNewAccount: 'Creates the account {user} and links this identity-provider account to it.', ssoSignInHint: '', appName: 'This application', secretConsumers: 'the application', vaultPathExample: 'app/database' } }
+let current: UiConfig = { storagePrefix: 'better', apiBase: '/api/v1', csrfCookie: 'better_csrf', basePath: '', brand: { name: 'Better', logoLight: '', logoDark: '' }, texts: { ssoNewAccount: 'Creates the account {user} and links this identity-provider account to it.', ssoSignInHint: '', appName: 'This application', secretConsumers: 'the application', vaultPathExample: 'app/database' } }
 
 /**
  * Tells the interface what application it is part of. Call it before anything is rendered; what is read from storage

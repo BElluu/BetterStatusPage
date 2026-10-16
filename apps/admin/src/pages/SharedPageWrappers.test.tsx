@@ -1,15 +1,20 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import type { ReactNode } from 'react'
 import type { AuditEntities } from '@better-kit/ui'
 import type { TokenPreset, TokenResource } from '@better-kit/contracts'
 import AuditLog, { ENTITY_TYPES_ALL_GROUPED } from './AuditLog'
 import ApiTokens from './ApiTokens'
+import Login from './Login'
 import Users from './Users'
 
 // The shared pages are tested in the interface package; here only what this product hands them is checked.
 vi.mock('@better-kit/ui', () => ({
   ApiTokensPage: ({ resources, presets }: { resources: TokenResource[]; presets: TokenPreset[] }) => (
     <p data-testid="tokens">{resources.map((resource) => resource.key).join(',')}|{presets.map((preset) => preset.label).join(',')}</p>
+  ),
+  LoginPage: ({ headline, tagline, features }: { headline: ReactNode; tagline: string; features: Array<{ label: string }> }) => (
+    <div data-testid="login"><h2>{headline}</h2><p>{tagline}</p><p>{features.map((feature) => feature.label).join('|')}</p></div>
   ),
   UsersPage: ({ roles, roleRank, defaultRole, actions }: { roles: Array<{ value: string }>; roleRank: Record<string, number>; defaultRole: string; actions: Array<{ label: string; dialog: (close: () => void) => unknown }> }) => (
     <p data-testid="users">{roles.map((role) => role.value).join(',')}|{Object.keys(roleRank).join(',')}|{defaultRole}|{actions.map((action) => action.label).join(',')}</p>
@@ -25,6 +30,14 @@ describe('shared pages as this product configures them', () => {
     const text = screen.getByTestId('tokens').textContent!
     expect(text).toContain('monitors,channels,actions,incidents')
     expect(text).toContain('Report incidents,Deploy monitoring,Read only')
+  })
+
+  it('tells the sign-in page what this product is', () => {
+    render(<Login />)
+    const login = screen.getByTestId('login')
+    expect(login).toHaveTextContent('Monitor everything.Stay ahead of issues.')
+    expect(login).toHaveTextContent('uptime monitoring')
+    expect(login).toHaveTextContent('Live status updates|Incidents and maintenance notices|Alerts through your notification channels')
   })
 
   it('gives the users page the roles of this product and the status page access setting', () => {

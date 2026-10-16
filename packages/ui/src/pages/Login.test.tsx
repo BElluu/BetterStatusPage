@@ -1,9 +1,12 @@
+import { configureForTests } from '../testing/configure'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, setSession, type AuthUser } from '../api/client'
 import LoginPage from './Login'
+
+configureForTests()
 
 vi.mock('../api/client', async (importOriginal) => ({
   ...await importOriginal<typeof import('../api/client')>(),
@@ -27,7 +30,7 @@ function renderLogin(entry = '/admin/login') {
   return render(
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
-        <Route path="/admin/login" element={<LoginPage />} />
+        <Route path="/admin/login" element={<LoginPage headline="Welcome back" tagline="A tagline." features={[{ icon: 'bolt', label: 'A feature' }]} />} />
         <Route path="/admin/" element={<div>Admin home</div>} />
       </Routes>
     </MemoryRouter>,

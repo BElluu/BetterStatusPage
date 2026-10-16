@@ -35,3 +35,5 @@ export { default as UsersPage, type UserRole, type UsersPageAction, type UsersPa
 export { ConnectionStringSection, CredentialSection } from './components/CredentialSection'
 export { JSON_MAPPING_FIELDS, Note, SectionDivider, toggleInSet, type SecretSummary, type VaultPickerProps, type VaultSummary } from './components/formParts'
 export { default as VaultPage } from './pages/Vault'
+export { default as LoginPage, type LoginPageProps } from './pages/Login'
+export { default as SetupPage } from './pages/Setup'
