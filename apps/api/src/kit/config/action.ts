@@ -159,7 +159,6 @@ export const actionKind: ConfigKind<State, ExportState, DesiredAction, PlannedAc
   },
 
   export(state, ctx) {
-    if (!ctx.included('Action')) return []
     const channelKey = new Map(state.channelRows.map((row) => [row.id, row.key]))
     const keysOfIds = (ids: number[]) => ids.flatMap((id) => channelKey.get(id) ?? []).sort()
     return ctx.wanted(state.actionRows, 'Action').map((row) => ({

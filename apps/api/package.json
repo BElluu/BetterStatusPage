@@ -18,6 +18,8 @@
     "@better-kit/contracts": "*",
     "@better-kit/audit": "*",
     "@better-kit/auth": "*",
+    "@better-kit/backup": "*",
+    "@better-kit/config-as-code": "*",
     "@better-kit/vault": "*",
     "@better-kit/db": "*",
     "@better-kit/notify": "*",
