@@ -9,7 +9,7 @@ import { auditLog, oidcSettings, users } from '../src/db/schema.js'
 import { requireAuth, requireRole } from '../src/kit/authMiddleware.js'
 import { authRoutes } from '../src/kit/authRoutes.js'
 import { oidcSettingsRoutes } from '../src/kit/oidcSettingsRoutes.js'
-import { checkEmailVerified } from '../src/kit/oidc.js'
+import { checkEmailVerified } from '@better-kit/auth'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const testDb = createTestDb('bsp-oidc-settings-test-')

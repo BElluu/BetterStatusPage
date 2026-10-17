@@ -13,8 +13,9 @@ import { db } from '../src/db/client.js'
 import { API_TOKEN_SCOPES } from '@bsp/shared'
 import { requiredScope } from '@better-kit/contracts'
 import { apiTokens } from '../src/db/schema.js'
-import { generateApiToken } from '../src/kit/apiTokens.js'
+import { auth } from '../src/kit/auth.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
+const { generateApiToken } = auth.apiTokens
 
 const SPEC_PATH = fileURLToPath(new URL('../../../docs/public/openapi.yaml', import.meta.url))
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const

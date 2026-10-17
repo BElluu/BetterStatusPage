@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { buildOidcConfig, passwordLoginEnabled, resolveOidcConfigFromEnv } from '../src/kit/oidcConfig.js'
+import { passwordLoginEnabled } from '@better-kit/auth'
+import { auth } from '../src/kit/auth.js'
+const { buildOidcConfig, resolveOidcConfigFromEnv } = auth.oidcConfig
 
 const base = { OIDC_ISSUER: 'https://idp.example.test', OIDC_CLIENT_ID: 'bsp', PUBLIC_URL: 'https://status.example.test' }
 

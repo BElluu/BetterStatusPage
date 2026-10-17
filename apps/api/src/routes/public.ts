@@ -13,7 +13,8 @@ import { PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
 import { publishedIncident, withIncidentDetails } from '../services/incidentDetails.js'
 import { parseStrictPagination } from '../lib/pagination.js'
 import { authenticateRequest, type AuthIdentity } from '../kit/authSession.js'
-import { isStatusPagePrivate, protectStatusPage } from '../services/statusPageAccess.js'
+import { isStatusPagePrivate } from '../services/statusPageAccess.js'
+import { protectStatusPage } from '../services/statusPageGate.js'
 
 const STATUS_CACHE_TTL_MS = 2_000
 /** Daily uptime bars change slowly; a short cache absorbs bursts of page views per monitor. */

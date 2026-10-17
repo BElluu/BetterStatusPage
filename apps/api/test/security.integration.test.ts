@@ -14,7 +14,7 @@ import { authRoutes } from '../src/kit/authRoutes.js'
 import { userRoutes } from '../src/kit/userRoutes.js'
 import { vaultCatalogRoutes, vaultRoutes } from '../src/kit/vaultRoutes.js'
 import { resolveVaultSecret } from '../src/kit/resolveSecret.js'
-import { generateTotpCode } from '../src/kit/totp.js'
+import { generateTotpCode } from '@better-kit/auth'
 import { systemHealthRoutes } from '../src/routes/systemHealth.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 

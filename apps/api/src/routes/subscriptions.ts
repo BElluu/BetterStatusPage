@@ -15,11 +15,12 @@ import {
 import { isSmtpConfigured } from '../workers/notifier.js'
 import { retrySubscriberDelivery, type SubscriberEvent } from '../workers/subscriberNotifier.js'
 import { resolvePublicUrl } from '../kit/runtime.js'
-import { auditActor, diffObjects, snapshot, writeAudit } from '../services/audit.js'
+import { auditActor, diffObjects, snapshot, writeAudit } from '../kit/audit.js'
 import { requestIdentity } from '../kit/authMiddleware.js'
 import { parsePagination } from '../lib/pagination.js'
 import { csvDocument } from '../lib/csv.js'
-import { isStatusPagePrivate, protectStatusPage } from '../services/statusPageAccess.js'
+import { isStatusPagePrivate } from '../services/statusPageAccess.js'
+import { protectStatusPage } from '../services/statusPageGate.js'
 
 function sendError(reply: FastifyReply, error: unknown) {
   if (error instanceof SubscriptionError) return reply.code(error.statusCode).send({ error: error.message })

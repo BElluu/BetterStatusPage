@@ -5,16 +5,16 @@ import path from 'path'
 import { closeDb, sqlite } from '../src/db/client.js'
 import { spawnSync } from 'child_process'
 import { createBackup, currentVaultKeyMatches, INTERRUPTED_BACKUP_ERROR, isBackupLockHeld, listBackups, readBackupStatus, validateBackup, type BackupManifest } from '../src/kit/backupService.js'
-import { spawnBackupWorker } from '../src/kit/backupRunner.js'
+import { spawnBackupWorker } from '@better-kit/backup'
 import { PROCESS_STARTED_AT } from '@better-kit/runtime'
-import { restoreBackup } from '../src/kit/backup.js'
+import { backup, restoreBackup } from '../src/kit/backup.js'
 import Fastify from 'fastify'
 import multipart from '@fastify/multipart'
 import { backupRoutes } from '../src/kit/backupRoutes.js'
-import { createArchive } from '../src/kit/backupArchive.js'
 import { acquireAppLock, assertAppStopped } from '../src/kit/appLock.js'
 import { resolveAppVersion } from '../src/version.js'
 import { createTestDb, initTestDb, teardownTestDb, type TestDb } from './helpers/testDb.js'
+const { createArchive } = backup
 
 let testDb: TestDb | null = null
 let temp: string | null = null

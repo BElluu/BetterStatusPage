@@ -1,6 +1,6 @@
 import { createConfigEngine, type Json } from '@better-kit/config-as-code'
 import { withImmediateTransaction } from '../db/transaction.js'
-import { writeAudit, type Actor } from '../services/audit.js'
+import { writeAudit, type Actor } from './audit.js'
 import { refreshPublishedMonitorIds } from '../services/publishedMonitors.js'
 import { actionKind } from './config/action.js'
 import { channelKind } from './config/channel.js'

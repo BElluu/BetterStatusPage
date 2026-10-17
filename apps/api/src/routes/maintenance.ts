@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
 import { maintenanceWindows, maintenanceWindowMonitors, monitors } from '../db/schema.js'
 import { eq, and, lte, gte, inArray } from 'drizzle-orm'
-import { auditActor, writeAudit, diffObjects, snapshot } from '../services/audit.js'
+import { auditActor, writeAudit, diffObjects, snapshot } from '../kit/audit.js'
 import { requestIdentity } from '../kit/authMiddleware.js'
 import { notifyMaintenanceSubscribers } from '../workers/subscriberNotifier.js'
 

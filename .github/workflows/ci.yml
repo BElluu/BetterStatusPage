@@ -36,6 +36,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Import cycles through kit/
+        run: npm run check:cycles
+
       # Both suites fail the job when coverage drops below the thresholds (API: package.json
       # test:api:coverage, frontend: vitest.config.ts).
       - name: API tests with coverage

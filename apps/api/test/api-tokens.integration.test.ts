@@ -13,9 +13,10 @@ import { adminApi } from '../src/adminApi.js'
 import { db } from '../src/db/client.js'
 import { apiTokens, auditLog, authSessions, monitors, users } from '../src/db/schema.js'
 import { requireAuth } from '../src/kit/authMiddleware.js'
-import { consumeApiTokenBudget, hashApiToken, resetApiTokenBudgets } from '../src/kit/apiTokens.js'
+import { auth } from '../src/kit/auth.js'
 import { VAULT_USE_REFUSED } from '../src/kit/vaultUse.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
+const { consumeApiTokenBudget, hashApiToken, resetApiTokenBudgets } = auth.apiTokens
 
 const testDb = createTestDb('bsp-api-tokens-')
 process.env['UPLOAD_DIR'] = join(testDb.dir, 'uploads')

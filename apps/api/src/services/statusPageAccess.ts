@@ -1,9 +1,7 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { eq } from 'drizzle-orm'
-import { STATUS_PAGE_PRIVATE, type StatusPageAccessSettings } from '@bsp/shared'
+import type { StatusPageAccessSettings } from '@bsp/shared'
 import { db } from '../db/client.js'
 import { statusPageAccess } from '../db/schema.js'
-import { authenticateOrReject } from '../kit/authMiddleware.js'
 import { sseService } from '../kit/sse.js'
 
 const DOMAIN_PATTERN = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$/
@@ -75,26 +73,4 @@ export function viewerProvisioningAllowed(settings: StatusPageAccessSettings, em
   if (!settings.private || !settings.ssoCreateViewers) return false
   const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase()
   return email.includes('@') && settings.ssoViewerDomains.includes(domain)
-}
-
-const privateResponses = new WeakSet<FastifyRequest>()
-
-/**
- * Puts the routes of `app` (and its child plugins) behind a sign-in while the status page is private.
- * Any signed-in user may view the page; their responses must not be kept by shared caches or indexed.
- */
-export function protectStatusPage(app: FastifyInstance): void {
-  app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
-    if (!await isStatusPagePrivate()) return
-    privateResponses.add(req)
-    const identity = await authenticateOrReject(req, reply, { error: 'Sign in to view this status page', code: STATUS_PAGE_PRIVATE })
-    if (!identity) return reply
-  })
-  app.addHook('onSend', async (req, reply, payload) => {
-    if (!privateResponses.has(req)) return payload
-    reply.header('X-Robots-Tag', 'noindex, nofollow')
-    const cacheControl = reply.getHeader('cache-control')
-    if (typeof cacheControl === 'string') reply.header('Cache-Control', cacheControl.replace(/\bpublic\b/, 'private'))
-    return payload
-  })
 }

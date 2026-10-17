@@ -8,7 +8,7 @@ import { runMigrations } from './db/migrate.js'
 import { registerApiRoutes } from './apiRoutes.js'
 import { acquireAppLock } from './kit/appLock.js'
 import { startBackgroundServices, stopBackgroundServices } from './services/backgroundServices.js'
-import { validateVaultEncryptionKey } from './kit/secrets.js'
+import { validateEncryptionKey as validateVaultEncryptionKey } from '@better-kit/vault'
 import { sseService } from './kit/sse.js'
 import { registerProductionFrontends } from './services/productionFallback.js'
 

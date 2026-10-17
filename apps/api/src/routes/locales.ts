@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
 import { locales } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
-import { auditActor, diffObjects, snapshot, writeAudit } from '../services/audit.js'
+import { auditActor, diffObjects, snapshot, writeAudit } from '../kit/audit.js'
 import { requestIdentity } from '../kit/authMiddleware.js'
 
 function parseLocale(row: typeof locales.$inferSelect) {
