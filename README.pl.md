@@ -416,6 +416,8 @@ Uruchamiają się trzy rzeczy:
 
 Otwórz adres panelu admina, a przywita Cię kreator konfiguracji. Utwórz konto administratora i gotowe.
 
+Współdzielone pakiety w `packages/*` są używane z zbudowanego `dist`. `npm run dev` buduje tylko pakiety zmienione od ostatniego builda (`npm run build:kit -- --force` buduje wszystkie). Aby zobaczyć zmianę w pakiecie, gdy aplikacje działają, uruchom jego obserwowanie: `npm run dev -w @better-kit/<nazwa>`.
+
 ### Kontrola jakości
 
 ```bash

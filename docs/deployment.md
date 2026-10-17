@@ -485,8 +485,8 @@ Before exposing an instance publicly:
 | `NODE_ENV` | Yes (prod) | Set to `production`. Enables security headers, HSTS, enforces secrets. |
 | `JWT_SECRET` | Yes (prod) | Signs the HttpOnly admin session cookie. Min 32 chars. Changing it logs everyone out. |
 | `VAULT_ENCRYPTION_KEY` | Yes (prod) | 64-char hex string (32 bytes) for AES-256-GCM vault encryption. **Changing it makes all stored secrets unreadable.** |
-| `ADMIN_EMAIL` | `db:seed` only | Required only when intentionally running `npm run db:seed`. The web setup wizard does not read it. |
-| `ADMIN_PASSWORD` | `db:seed` only | Required only when intentionally running `npm run db:seed`; minimum 8 characters. |
+| `ADMIN_EMAIL` | `db:seed` only | Required only when intentionally running `npm run db:seed`, which creates this administrator and skips the web setup wizard. The wizard does not read it. |
+| `ADMIN_PASSWORD` | `db:seed` only | Required only when intentionally running `npm run db:seed`; minimum 8 characters. It becomes the password of the administrator the seed creates. |
 | `DATA_DIR` | No | Base directory for application data; the four paths below default to locations inside it. Default: `./data` (relative to the working directory) |
 | `DATABASE_PATH` | No | Path to the SQLite file. Default: `<DATA_DIR>/db.sqlite` |
 | `UPLOAD_DIR` | No | Directory for uploaded files (logos, favicons). Default: `<DATA_DIR>/uploads` |

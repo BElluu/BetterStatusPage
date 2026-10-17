@@ -416,6 +416,8 @@ Three things start:
 
 Open the admin URL and you'll be greeted by a setup wizard. Create your admin account, and you're in.
 
+The shared packages in `packages/*` are used from their built `dist`. `npm run dev` builds only the packages that changed since the last build (`npm run build:kit -- --force` builds all of them). To see an edit in a package while the apps run, watch it with `npm run dev -w @better-kit/<name>`.
+
 ### Quality checks
 
 ```bash

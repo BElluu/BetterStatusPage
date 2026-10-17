@@ -54,6 +54,7 @@ Rules (the ESLint boundary rule enforces the import ones):
 - Packages never import from `apps/*` and only along the graph in `eslint.boundaries.mjs`; they import each other through the package name, never `src/`.
 - No global singletons and nothing status-page-specific (monitors, incidents, "status page") in a package, including comments and error messages. Product names and wording come in through options (`configureUi`, factory options).
 - A package owns its tables, migrations, tests and README. Tests run in isolation with `npm run test:isolation`.
+- Packages are consumed from `dist`. `npm run build:kit` (`scripts/build-kit.mjs`) builds them in dependency order and skips a package whose sources, manifest and dependencies did not change; `--force` builds all. Watch one while editing with `npm run dev -w @better-kit/<name>`.
 - In `apps/api/src`, `kit/*.ts` is the composition root: it creates each module's instance with the product's choices (`kit/auth.ts`, `kit/vault.ts`, `kit/notify.ts`, ...) and holds the thin bindings the rest of the code imports (`kit/authMiddleware.ts`, `kit/authSession.ts`, `kit/secretBox.ts`, `kit/userRoutes.ts`, ...). Everything else in `apps/api/src` is status-page code. Paths to `kit/*.js` that are built as strings (the backup worker's `moduleUrl`) are not rewritten by an import refactor; check them by hand.
 - `apps/template` must stay buildable from `@better-kit/*` alone (lint forbids `@bsp/*` there); a boot test and a browser test run in CI.
 

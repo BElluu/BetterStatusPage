@@ -25,6 +25,7 @@ RUN npm ci
 
 # Copy source and build everything
 COPY tsconfig.base.json ./
+COPY scripts/build-kit.mjs ./scripts/build-kit.mjs
 COPY packages/ ./packages/
 COPY apps/     ./apps/
 COPY docs/changelog.md ./docs/changelog.md

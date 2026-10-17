@@ -7,7 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "db:migrate": "tsx src/db/migrate.ts",
+    "db:migrate": "tsx src/cli/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
     "backup": "node dist/cli/backup.js",
     "backup:verify": "node dist/cli/backup.js --verify",

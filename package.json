@@ -13,7 +13,7 @@
     "predev": "npm run build:kit && npm run build -w @bsp/shared",
     "dev": "concurrently \"npm run dev -w @bsp/shared\" \"npm run dev -w apps/api\" \"npm run dev -w apps/admin\" \"npm run dev -w apps/status\"",
     "start": "npm run start -w apps/api",
-    "build:kit": "npm run build -w @better-kit/contracts && npm run build -w @better-kit/db && npm run build -w @better-kit/audit && npm run build -w @better-kit/auth && npm run build -w @better-kit/vault && npm run build -w @better-kit/notify && npm run build -w @better-kit/backup && npm run build -w @better-kit/config-as-code && npm run build -w @better-kit/runtime && npm run build -w @better-kit/ui",
+    "build:kit": "node scripts/build-kit.mjs",
     "build": "npm run build:kit && npm run build -w @bsp/shared && npm run build -w @bsp/admin && npm run build -w @bsp/api && npm run build -w @bsp/status && npm run build -w @better-kit/template",
     "lint": "eslint . --max-warnings=0",
     "test": "npm run test:api && npm run test:frontend",
