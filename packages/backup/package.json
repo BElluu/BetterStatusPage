@@ -1,0 +1,40 @@
+{
+  "name": "@better-kit/backup",
+  "version": "0.1.0",
+  "description": "Backup, restore, verification, scheduler and CLI.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./worker": {
+      "types": "./dist/worker.d.ts",
+      "import": "./dist/worker.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput"
+  },
+  "peerDependencies": {
+    "@better-kit/audit": "^0.1.0",
+    "@better-kit/db": "^0.1.0",
+    "fastify": "^5.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "fastify": "^5.3.2",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "node-cron": "^4.6.0"
+  }
+}

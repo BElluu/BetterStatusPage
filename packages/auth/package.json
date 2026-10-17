@@ -1,0 +1,49 @@
+{
+  "name": "@better-kit/auth",
+  "version": "0.1.0",
+  "description": "Users, sessions, 2FA, SSO/OIDC, roles, API tokens and sign-in routes.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput"
+  },
+  "peerDependencies": {
+    "@better-kit/audit": "^0.1.0",
+    "@better-kit/contracts": "^0.1.0",
+    "@better-kit/db": "^0.1.0",
+    "@fastify/cookie": "^11.1.1",
+    "@fastify/jwt": "^10.1.0",
+    "bcryptjs": "^3.0.2",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.3.2",
+    "openid-client": "^6.8.8",
+    "qrcode": "^1.5.4",
+    "@fastify/rate-limit": "^10.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@types/qrcode": "^1.5.6",
+    "@fastify/cookie": "^11.1.1",
+    "@fastify/jwt": "^10.1.0",
+    "bcryptjs": "^3.0.2",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.3.2",
+    "openid-client": "^6.8.8",
+    "qrcode": "^1.5.4",
+    "typescript": "^5.7.3",
+    "@fastify/rate-limit": "^10.3.0"
+  }
+}

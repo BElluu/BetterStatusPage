@@ -1,69 +1,39 @@
-import { DatabaseSync } from 'node:sqlite'
-import { drizzle } from 'drizzle-orm/sqlite-proxy'
+import type { DatabaseSync } from 'node:sqlite'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
+import { openDatabase, type Database } from '@better-kit/db'
 import * as schema from './schema.js'
-import path from 'path'
-import fs from 'fs'
 import { databasePath } from '../config.js'
 
 type DrizzleDb = SqliteRemoteDatabase<typeof schema>
-type P = string | number | bigint | null | Uint8Array
 
-let _sqlite: DatabaseSync | null = null
-let _db: DrizzleDb | null = null
-
-function buildDrizzle(raw: DatabaseSync): DrizzleDb {
-  return drizzle(
-    async (sql, params, method) => {
-      const p = params as P[]
-      const stmt = raw.prepare(sql)
-      if (method === 'run') {
-        stmt.run(...p)
-        return { rows: [] }
-      } else if (method === 'get') {
-        const row = stmt.get(...p) as Record<string, unknown> | undefined
-        return { rows: row ? [Object.values(row)] : [] }
-      } else {
-        const rows = stmt.all(...p) as Record<string, unknown>[]
-        return { rows: rows.map((r) => Object.values(r)) }
-      }
-    },
-    { schema },
-  )
-}
+// The process-wide connection lives here, in the application: the database package has no state of its own.
+let _database: Database<typeof schema> | null = null
 
 /** Call once — opens the SQLite file and wires up Drizzle. */
 export function initDb(): void {
-  if (_sqlite) return
-  const dbPath = databasePath()
-  const dir = path.dirname(dbPath)
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  _sqlite = new DatabaseSync(dbPath)
-  _sqlite.exec('PRAGMA journal_mode = WAL')
-  _sqlite.exec('PRAGMA foreign_keys = ON')
-  _db = buildDrizzle(_sqlite)
+  if (_database) return
+  _database = openDatabase({ path: databasePath(), schema })
 }
 
 export function closeDb(): void {
-  _sqlite?.close()
-  _sqlite = null
-  _db = null
+  _database?.close()
+  _database = null
 }
 
 /** Raw node:sqlite handle — only accessible after initDb(). */
 export const sqlite: DatabaseSync = new Proxy({} as DatabaseSync, {
   get(_, prop) {
-    if (!_sqlite) throw new Error('DB not initialized — call initDb() first')
-    const value = Reflect.get(_sqlite, prop, _sqlite)
-    return typeof value === 'function' ? value.bind(_sqlite) : value
+    if (!_database) throw new Error('DB not initialized — call initDb() first')
+    const value = Reflect.get(_database.sqlite, prop, _database.sqlite)
+    return typeof value === 'function' ? value.bind(_database.sqlite) : value
   },
 })
 
 /** Drizzle ORM handle — only accessible after initDb(). */
 export const db: DrizzleDb = new Proxy({} as DrizzleDb, {
   get(_, prop) {
-    if (!_db) throw new Error('DB not initialized — call initDb() first')
-    const value = Reflect.get(_db, prop, _db)
-    return typeof value === 'function' ? value.bind(_db) : value
+    if (!_database) throw new Error('DB not initialized — call initDb() first')
+    const value = Reflect.get(_database.db, prop, _database.db)
+    return typeof value === 'function' ? value.bind(_database.db) : value
   },
 })

@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { api } from '../api/client'
 import { useBuilderStore } from '../components/builder/useBuilderStore'
 import BuilderPage from './Builder'
-import { ToastProvider } from '../components/ui'
+import { ToastProvider } from '@better-kit/ui'
 
 vi.mock('../api/client', () => ({
   api: { get: vi.fn(), put: vi.fn() },

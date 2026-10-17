@@ -3,7 +3,7 @@ import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import rateLimit from '@fastify/rate-limit'
 import { LOGIN_RATE_LIMIT, SETUP_RATE_LIMIT, WEBHOOK_RATE_LIMIT } from '../src/config/rateLimits.js'
-import { resolveTrustProxy } from '../src/config/proxy.js'
+import { resolveTrustProxy } from '@better-kit/runtime'
 
 describe('rate limit isolation and proxy handling', () => {
   const app = Fastify({ logger: false, trustProxy: resolveTrustProxy('1') })

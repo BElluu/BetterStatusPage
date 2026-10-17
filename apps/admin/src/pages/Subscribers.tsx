@@ -8,11 +8,11 @@ import type {
   SubscriptionMethod, SubscriptionMethodProblem, SubscriptionMethodStatus,
 } from '@bsp/shared'
 import { api } from '../api/client'
-import { ConfirmModal } from '../components/ConfirmModal'
-import { CopyButton } from '../components/CopyButton'
-import { EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, Pagination, Switch, useToast } from '../components/ui'
-import { useDebouncedValue } from '../hooks/useDebouncedValue'
-import { formatDateTime } from '../lib/dateFormat'
+import { ConfirmModal } from '@better-kit/ui'
+import { CopyButton } from '@better-kit/ui'
+import { EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, Pagination, Switch, useToast } from '@better-kit/ui'
+import { useDebouncedValue } from '@better-kit/ui'
+import { formatDateTime } from '@better-kit/ui'
 
 export const SUBSCRIBER_EVENT_LABELS: Record<SubscriberEventType, { label: string; hint: string }> = {
   'incident.created':      { label: 'New incidents',         hint: 'When an incident is published' },

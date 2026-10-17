@@ -2,11 +2,11 @@ import { useEffect, useId, useState } from 'react'
 import { api } from '../../api/client'
 import type { Action, NotificationChannel } from '@bsp/shared'
 import { CHANNEL_TYPES } from '../notifications/channelTypes'
-import type { VaultPickerProps } from '../monitors/monitorFormParts'
-import { ModalFooter, ModalHeader, ModalShell } from '../ModalShell'
-import { SidePanelFrame, SideTabStrip, type SidePanelMeta, type SideTab } from '../SidePanel'
+import type { VaultPickerProps } from '@better-kit/ui'
+import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
+import { SidePanelFrame, SideTabStrip, type SidePanelMeta, type SideTab } from '@better-kit/ui'
 import { YamlViewModal } from '../YamlViewModal'
-import { Alert, Field, Switch } from '../ui'
+import { Alert, Field, Switch } from '@better-kit/ui'
 
 interface Props {
   action: Action | null

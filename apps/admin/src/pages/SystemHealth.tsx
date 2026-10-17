@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
-import { Alert, ErrorState, LoadingState, PageContainer, PageHeader } from '../components/ui'
-import { formatDateTime } from '../lib/dateFormat'
+import { Alert, ErrorState, LoadingState, PageContainer, PageHeader } from '@better-kit/ui'
+import { formatDateTime } from '@better-kit/ui'
 
 type ComponentStatus = 'ok' | 'attention' | 'error' | 'disabled'
 

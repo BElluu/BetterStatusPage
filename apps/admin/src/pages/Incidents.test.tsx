@@ -5,7 +5,7 @@ import type { Incident } from '@bsp/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import IncidentsPage from './Incidents'
-import { ToastProvider } from '../components/ui'
+import { ToastProvider } from '@better-kit/ui'
 
 vi.mock('../api/client', () => ({
   api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },

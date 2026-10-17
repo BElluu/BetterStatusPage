@@ -9,7 +9,7 @@ import type {
 } from '@bsp/shared'
 import { PUBLIC_API_RATE_LIMIT } from '../config/rateLimits.js'
 import { feedMethodAvailable } from '../services/subscriptions.js'
-import { resolvePublicUrl } from '../config/publicUrl.js'
+import { resolvePublicUrl } from '../kit/runtime.js'
 
 const SEVERITY: Record<Exclude<ApiComponentStatus, 'under_maintenance'>, number> = {
   operational: 0,

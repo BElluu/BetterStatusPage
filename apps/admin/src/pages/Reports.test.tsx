@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UptimeReport } from '@bsp/shared'
 import { api } from '../api/client'
-import { ToastProvider } from '../components/ui'
+import { ToastProvider } from '@better-kit/ui'
 import ReportsPage from './Reports'
 
 vi.mock('../api/client', () => ({ api: { get: vi.fn(), download: vi.fn() } }))

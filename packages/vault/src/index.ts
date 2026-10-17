@@ -1,0 +1,8 @@
+export { createVault, type Vault, type VaultOptions } from './createVault.js'
+export { vaultDbModule } from './module.js'
+export { vaults, vaultSecrets } from './tables.js'
+export { createSecretBox, validateEncryptionKey, type SecretBox } from './secretBox.js'
+export { canonical, createVaultUseGuard } from './vaultUse.js'
+export { createSecretFields, SECRET_MASK, uniqueSecretFields, type RestoreResult, type SecretField } from './secretFields.js'
+export { HashicorpVaultError, hashicorpLimits, type HashicorpAuthMethod, type HashicorpConfig, type CredentialsRef, type HashicorpVaultRow } from './hashicorp.js'
+export type { VaultAudit } from './vaultRoutes.js'

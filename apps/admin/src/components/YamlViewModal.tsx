@@ -1,9 +1,9 @@
 import { useId } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
-import { CopyButton } from './CopyButton'
-import { ModalFooter, ModalHeader, ModalShell } from './ModalShell'
-import { ErrorState, LoadingState } from './ui'
+import { CopyButton } from '@better-kit/ui'
+import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
+import { ErrorState, LoadingState } from '@better-kit/ui'
 
 type YamlKind = 'Monitor' | 'NotificationChannel' | 'Action'
 

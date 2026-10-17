@@ -5,10 +5,10 @@ import fs from 'fs'
 import path from 'path'
 import { DatabaseSync } from 'node:sqlite'
 import { closeDb, initDb, sqlite } from '../src/db/client.js'
-import { BACKUP_FORMAT_VERSION, createBackup, validateBackup, type BackupManifest } from '../src/services/backup.js'
-import { createArchive } from '../src/services/backupArchive.js'
-import { restoreBackup } from '../src/services/restore.js'
+import { BACKUP_FORMAT_VERSION, createBackup, validateBackup, type BackupManifest } from '../src/kit/backupService.js'
+import { backup, restoreBackup } from '../src/kit/backup.js'
 import { createTestDb, initTestDb, teardownTestDb, type TestDb } from './helpers/testDb.js'
+const { createArchive } = backup
 
 const VAULT_KEY = 'c'.repeat(64)
 let testDb: TestDb

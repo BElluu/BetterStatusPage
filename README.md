@@ -416,6 +416,8 @@ Three things start:
 
 Open the admin URL and you'll be greeted by a setup wizard. Create your admin account, and you're in.
 
+The shared packages in `packages/*` are used from their built `dist`. `npm run dev` builds only the packages that changed since the last build (`npm run build:kit -- --force` builds all of them). To see an edit in a package while the apps run, watch it with `npm run dev -w @better-kit/<name>`.
+
 ### Quality checks
 
 ```bash
@@ -588,18 +590,24 @@ Before making an instance public:
 ```
 BetterStatusPage/
 ├── apps/
-│   ├── api/           # Fastify backend
+│   ├── api/           # Fastify backend: monitors, workers, incidents, public routes
 │   │   └── src/
-│   │       ├── db/        # Schema, migrations, seed
+│   │       ├── kit/       # Composition of the shared modules (auth, vault, notify, backup, ...)
+│   │       ├── db/        # Application tables and migrations
 │   │       ├── routes/    # Endpoint handlers
-│   │       ├── workers/   # Scheduler, checkers, notifier
-│   │       ├── crypto/    # AES-256-GCM vault encryption
-│   │       └── services/  # SSE broadcaster
-│   ├── admin/         # Admin dashboard (React)
-│   └── status/        # Public status page (React)
+│   │       ├── workers/   # Scheduler, checkers, notification events
+│   │       └── services/  # Application services
+│   ├── admin/         # Admin console (React): status-page pages on top of @better-kit/ui
+│   ├── status/        # Public status page (React)
+│   └── template/      # Minimal app built only from the shared modules
 └── packages/
-    └── shared/        # Shared TypeScript types (@bsp/shared)
+    ├── shared/        # Status-page types (@bsp/shared)
+    └── …              # Shared modules (@better-kit/*): contracts, db, audit, auth, vault,
+                       # notify, backup, config-as-code, runtime, ui
 ```
+
+The shared modules hold everything that is not specific to a status page, so another product can be built on the
+same foundation. See `CLAUDE.md` for the layering rules and how to start a new product from `apps/template`.
 
 ---
 

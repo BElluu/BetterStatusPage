@@ -1,23 +1,24 @@
 import type { FastifyInstance } from 'fastify'
-import { requireAuth, requireRole } from './middleware/auth.js'
-import { oidcSettingsRoutes } from './routes/oidcSettings.js'
+import { registerAdminApi } from '@better-kit/auth'
+import { requireAuth, requireRole } from './kit/authMiddleware.js'
+import { oidcSettingsRoutes } from './kit/oidcSettingsRoutes.js'
 import { monitorRoutes } from './routes/monitors.js'
 import { incidentRoutes } from './routes/incidents.js'
 import { incidentTemplateRoutes } from './routes/incidentTemplates.js'
 import { layoutRoutes } from './routes/layout.js'
 import { brandingRoutes } from './routes/branding.js'
-import { userRoutes } from './routes/users.js'
-import { vaultCatalogRoutes, vaultRoutes } from './routes/vaults.js'
+import { userRoutes } from './kit/userRoutes.js'
+import { vaultCatalogRoutes, vaultRoutes } from './kit/vaultRoutes.js'
 import { notificationRoutes } from './routes/notifications.js'
 import { actionRoutes } from './routes/actions.js'
 import { maintenanceRoutes } from './routes/maintenance.js'
-import { auditRoutes } from './routes/audit.js'
+import { auditRoutes } from './kit/auditRoutes.js'
 import { adminLocaleRoutes } from './routes/locales.js'
 import { adminSubscriberRoutes } from './routes/subscriptions.js'
 import { adminStatusPageAccessRoutes } from './routes/statusPageAccess.js'
-import { backupRoutes } from './routes/backups.js'
-import { apiTokenRoutes } from './routes/apiTokens.js'
-import { configRoutes } from './routes/config.js'
+import { backupRoutes } from './kit/backupRoutes.js'
+import { apiTokenRoutes } from './kit/apiTokenRoutes.js'
+import { configRoutes } from './kit/configRoutes.js'
 import { systemHealthRoutes } from './routes/systemHealth.js'
 import { reportRoutes } from './routes/reports.js'
 import { metricsRoutes } from './routes/metrics.js'
@@ -25,127 +26,61 @@ import { metricsRoutes } from './routes/metrics.js'
 /**
  * Everything under `/api/v1/admin`. Registered by index.ts; kept in its own module so a test can build the real
  * route tree and check which routes accept an API token and which permission they need.
+ *
+ * The admin API is what scripts and CI call with an API token; the last group, which manages accounts and credentials,
+ * opts out again. Routes outside this scope never accept a token.
  */
 export async function adminApi(adminApp: FastifyInstance) {
-  // The admin API is what scripts and CI call with an API token; the group below that manages accounts and
-  // credentials opts out again. Routes outside this scope never accept a token.
-  adminApp.addHook('onRoute', (route) => { route.config = { ...route.config, allowApiToken: true } })
-  adminApp.addHook('preHandler', requireAuth)
-
-  /**
-   * Marks every route registered in `sub` as belonging to a part of the API, which is what an API token is checked
-   * against (`<part>:read` for GET, `<part>:write` otherwise). A route without a part is refused to every token.
-   */
-  const belongsTo = (sub: FastifyInstance, part: string) => {
-    sub.addHook('onRoute', (route) => { route.config = { ...route.config, tokenScope: part } })
-  }
-
-  // monitors: operator+
-  await adminApp.register(async (sub) => {
-    belongsTo(sub, 'monitors')
-    sub.addHook('preHandler', requireRole('operator'))
-    await sub.register(monitorRoutes, { prefix: '/monitors' })
-  })
-
-  // incidents: operator+
-  await adminApp.register(async (sub) => {
-    belongsTo(sub, 'incidents')
-    sub.addHook('preHandler', requireRole('operator'))
-    await sub.register(incidentRoutes, { prefix: '/incidents' })
-    await sub.register(incidentTemplateRoutes, { prefix: '/incident-templates' })
-  })
-
-  // layout, branding & locales: branding+
-  await adminApp.register(async (sub) => {
-    belongsTo(sub, 'appearance')
-    sub.addHook('preHandler', requireRole('operator', 'branding'))
-    await sub.register(layoutRoutes,      { prefix: '/layout' })
-    await sub.register(brandingRoutes,    { prefix: '/branding' })
-    await sub.register(adminLocaleRoutes, { prefix: '/locales' })
-  })
-
-  // notification channels, SMTP and delivery history: operator+
-  await adminApp.register(async (sub) => {
-    belongsTo(sub, 'channels')
-    sub.addHook('preHandler', requireRole('operator'))
-    await sub.register(notificationRoutes, { prefix: '/notifications' })
-  })
-
-  // actions run requests when a monitor changes state, so only admins manage them
-  await adminApp.register(async (sub) => {
-    belongsTo(sub, 'actions')
-    sub.addHook('preHandler', requireRole())
-    await sub.register(actionRoutes, { prefix: '/actions' })
-  })
-
-  // subscribers: operator+
-  await adminApp.register(async (sub) => {
-    belongsTo(sub, 'subscribers')
-    sub.addHook('preHandler', requireRole('operator'))
-    await sub.register(adminSubscriberRoutes, { prefix: '/subscribers' })
-  })
-
-  // reports: operator+
-  await adminApp.register(async (sub) => {
-    belongsTo(sub, 'reports')
-    sub.addHook('preHandler', requireRole('operator'))
-    await sub.register(reportRoutes, { prefix: '/reports' })
-  })
-
-  // maintenance windows: operator+
-  await adminApp.register(async (sub) => {
-    belongsTo(sub, 'maintenance')
-    sub.addHook('preHandler', requireRole('operator'))
-    await sub.register(maintenanceRoutes, { prefix: '/maintenance' })
-  })
-
-  // vault catalogue (names and types only, for picking a secret in a monitor): operator+. A token needs the
-  // permission to use vault secrets to see even the names.
-  await adminApp.register(async (sub) => {
-    belongsTo(sub, 'vault')
-    sub.addHook('preHandler', requireRole('operator'))
-    await sub.register(vaultCatalogRoutes, { prefix: '/vaults' })
-  })
-
-  // audit log: admin only
-  await adminApp.register(async (sub) => {
-    belongsTo(sub, 'audit')
-    sub.addHook('preHandler', requireRole())  // only admin passes (no allowed list)
-    await sub.register(auditRoutes, { prefix: '/audit' })
-  })
-
-  // system health: admin only
-  await adminApp.register(async (sub) => {
-    belongsTo(sub, 'system')
-    sub.addHook('preHandler', requireRole())
-    await sub.register(systemHealthRoutes, { prefix: '/system-health' })
-  })
-
-  // Prometheus metrics: admin only (a scrape token carries `metrics:read`)
-  await adminApp.register(async (sub) => {
-    belongsTo(sub, 'metrics')
-    sub.addHook('preHandler', requireRole())
-    await sub.register(metricsRoutes, { prefix: '/metrics' })
-  })
-
-  // configuration export and import: the handler checks what the caller may do with each kind of object
-  await adminApp.register(async (sub) => {
-    belongsTo(sub, 'custom')
-    sub.addHook('preHandler', requireRole('operator'))
-    await sub.register(configRoutes, { prefix: '/config' })
-  })
-
-  // accounts, sign-in, who may view the page, vault management, backups & API tokens: admin only, and only from a
-  // signed-in session. A leaked token must not be able to mint another one, reset a password, let SSO users in,
-  // or read a secret or the database.
-  await adminApp.register(async (sub) => {
-    sub.addHook('onRoute', (route) => { route.config = { ...route.config, allowApiToken: false } })
-    sub.addHook('preHandler', requireRole())
-    await sub.register(userRoutes,   { prefix: '/users' })
-    await sub.register(oidcSettingsRoutes, { prefix: '/oidc' })
-    await sub.register(adminStatusPageAccessRoutes, { prefix: '/status-page-access' })
-    await sub.register(vaultRoutes,  { prefix: '/vaults' })
-    await sub.register(backupRoutes, { prefix: '/backups' })
-    await sub.register(apiTokenRoutes, { prefix: '/api-tokens' })
+  await registerAdminApi(adminApp, {
+    authenticate: requireAuth,
+    groups: [
+      // monitors: operator+
+      { part: 'monitors', guard: requireRole('operator'), routes: [[monitorRoutes, { prefix: '/monitors' }]] },
+      // incidents: operator+
+      {
+        part: 'incidents', guard: requireRole('operator'),
+        routes: [[incidentRoutes, { prefix: '/incidents' }], [incidentTemplateRoutes, { prefix: '/incident-templates' }]],
+      },
+      // layout, branding & locales: branding+
+      {
+        part: 'appearance', guard: requireRole('operator', 'branding'),
+        routes: [[layoutRoutes, { prefix: '/layout' }], [brandingRoutes, { prefix: '/branding' }], [adminLocaleRoutes, { prefix: '/locales' }]],
+      },
+      // notification channels, SMTP and delivery history: operator+
+      { part: 'channels', guard: requireRole('operator'), routes: [[notificationRoutes, { prefix: '/notifications' }]] },
+      // actions run requests when a monitor changes state, so only admins manage them
+      { part: 'actions', guard: requireRole(), routes: [[actionRoutes, { prefix: '/actions' }]] },
+      // subscribers: operator+
+      { part: 'subscribers', guard: requireRole('operator'), routes: [[adminSubscriberRoutes, { prefix: '/subscribers' }]] },
+      // reports: operator+
+      { part: 'reports', guard: requireRole('operator'), routes: [[reportRoutes, { prefix: '/reports' }]] },
+      // maintenance windows: operator+
+      { part: 'maintenance', guard: requireRole('operator'), routes: [[maintenanceRoutes, { prefix: '/maintenance' }]] },
+      // vault catalogue (names and types only, for picking a secret in a monitor): operator+. A token needs the
+      // permission to use vault secrets to see even the names.
+      { part: 'vault', guard: requireRole('operator'), routes: [[vaultCatalogRoutes, { prefix: '/vaults' }]] },
+      // audit log: admin only (no allowed list)
+      { part: 'audit', guard: requireRole(), routes: [[auditRoutes, { prefix: '/audit' }]] },
+      // system health: admin only
+      { part: 'system', guard: requireRole(), routes: [[systemHealthRoutes, { prefix: '/system-health' }]] },
+      // Prometheus metrics: admin only (a scrape token carries `metrics:read`)
+      { part: 'metrics', guard: requireRole(), routes: [[metricsRoutes, { prefix: '/metrics' }]] },
+      // configuration export and import: the handler checks what the caller may do with each kind of object
+      { part: 'custom', guard: requireRole('operator'), routes: [[configRoutes, { prefix: '/config' }]] },
+      // accounts, sign-in, who may view the page, vault management, backups & API tokens: admin only, and only from a
+      // signed-in session. A leaked token must not be able to mint another one, reset a password, let SSO users in,
+      // or read a secret or the database.
+      {
+        noTokens: true, guard: requireRole(),
+        routes: [
+          [userRoutes, { prefix: '/users' }],
+          [oidcSettingsRoutes, { prefix: '/oidc' }],
+          [adminStatusPageAccessRoutes, { prefix: '/status-page-access' }],
+          [vaultRoutes, { prefix: '/vaults' }],
+          [backupRoutes, { prefix: '/backups' }],
+          [apiTokenRoutes, { prefix: '/api-tokens' }],
+        ],
+      },
+    ],
   })
 }

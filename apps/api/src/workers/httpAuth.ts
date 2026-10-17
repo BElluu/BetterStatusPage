@@ -1,5 +1,5 @@
 import type { HttpsConfig } from '@bsp/shared'
-import { resolveVaultSecret } from './resolveSecret.js'
+import { resolveVaultSecret } from '../kit/resolveSecret.js'
 
 // Shared by the scheduled HTTPS check and the "Test" button so both authenticate the same way.
 // The scheduled check passes no step reporter; the test runner turns every step into diagnostics.

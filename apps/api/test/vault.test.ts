@@ -3,7 +3,7 @@ import { describe, it } from 'node:test'
 
 process.env['VAULT_ENCRYPTION_KEY'] = '0123456789abcdef'.repeat(4)
 
-const { decrypt, encrypt } = await import('../src/crypto/vault.js')
+const { decrypt, encrypt } = await import('../src/kit/secretBox.js')
 
 describe('vault encryption', () => {
   it('round-trips plaintext without storing it in the ciphertext', () => {

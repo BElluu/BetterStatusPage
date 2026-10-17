@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { api, ApiError } from '../api/client'
-import { Alert, PageContainer, PageHeader, useToast } from '../components/ui'
+import { Alert, PageContainer, PageHeader, useToast } from '@better-kit/ui'
 
 type Action = 'create' | 'update' | 'unchanged'
 type Kind = 'Monitor' | 'NotificationChannel' | 'Action'

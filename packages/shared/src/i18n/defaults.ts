@@ -1,3 +1,4 @@
+import { baseLanguage } from '@better-kit/contracts'
 import type { TranslationKey } from '../types/locale.js'
 import { EN_DEFAULTS } from './en.js'
 import { PL_DEFAULTS } from './pl.js'
@@ -14,7 +15,7 @@ export const BUILT_IN_DEFAULTS: Readonly<Record<string, { language: string; tran
 
 /** The built-in dictionary for a locale code ("pl", "pl-PL"), or null when the language has none. */
 export function builtInDefaultsFor(code: string): { language: string; translations: TranslationDictionary } | null {
-  const base = code.trim().toLowerCase().split(/[-_]/)[0] ?? ''
+  const base = baseLanguage(code)
   return Object.hasOwn(BUILT_IN_DEFAULTS, base) ? BUILT_IN_DEFAULTS[base]! : null
 }
 

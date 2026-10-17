@@ -1,0 +1,37 @@
+import { useState, useEffect } from 'react'
+import { storageKey } from '../config'
+
+// The public status app keeps a copy of this hook with the same behaviour, since it does not use this package.
+
+export function useDarkMode(): [boolean, () => void] {
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const stored = localStorage.getItem(storageKey('dark-mode'))
+    if (stored !== null) return stored === 'true'
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  })
+
+  useEffect(() => {
+    const html = document.documentElement
+    if (isDark) {
+      html.classList.add('dark')
+    } else {
+      html.classList.remove('dark')
+    }
+    localStorage.setItem(storageKey('dark-mode'), String(isDark))
+    // Every mounted instance (e.g. the sidebar toggle and a page that swaps its logo) listens for this, so one toggle
+    // updates them all.
+    window.dispatchEvent(new CustomEvent(storageKey('dark-mode-change'), { detail: isDark }))
+  }, [isDark])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const dark = (e as CustomEvent<boolean>).detail
+      setIsDark(dark)
+    }
+    window.addEventListener(storageKey('dark-mode-change'), handler)
+    return () => window.removeEventListener(storageKey('dark-mode-change'), handler)
+  }, [])
+
+  return [isDark, () => setIsDark((d) => !d)]
+}

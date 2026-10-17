@@ -8,7 +8,7 @@ import {
   hashRecoveryCode,
   totpUri,
   verifyTotp,
-} from '../src/crypto/totp.js'
+} from '@better-kit/auth'
 
 describe('TOTP authentication', () => {
   it('generates and verifies time-based codes with a small clock-skew window', () => {
@@ -19,7 +19,7 @@ describe('TOTP authentication', () => {
     assert.equal(verifyTotp(secret, code, now), true)
     assert.equal(verifyTotp(secret, code, now + 31_000), true)
     assert.equal(verifyTotp(secret, code, now + 61_000), false)
-    assert.match(totpUri(secret, 'admin@example.test'), /^otpauth:\/\/totp\//)
+    assert.match(totpUri(secret, 'admin@example.test', 'BetterStatusPage'), /^otpauth:\/\/totp\//)
   })
 
   it('hashes and consumes every recovery code only once', () => {

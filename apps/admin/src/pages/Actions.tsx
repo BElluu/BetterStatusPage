@@ -5,8 +5,8 @@ import type { Action } from '@bsp/shared'
 import { Link } from 'react-router-dom'
 import { deliveryHistoryUrl } from '../deliveryHistoryUrl'
 import ActionFormModal from '../components/actions/ActionFormModal'
-import { ConfirmModal } from '../components/ConfirmModal'
-import { Alert, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
+import { ConfirmModal } from '@better-kit/ui'
+import { Alert, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '@better-kit/ui'
 
 export default function ActionsPage() {
   const qc = useQueryClient()

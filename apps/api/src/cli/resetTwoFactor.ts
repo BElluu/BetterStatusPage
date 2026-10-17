@@ -3,8 +3,8 @@ import { eq } from 'drizzle-orm'
 import { db, closeDb, initDb } from '../db/client.js'
 import { runMigrations } from '../db/migrate.js'
 import { users } from '../db/schema.js'
-import { writeAudit } from '../services/audit.js'
-import { resetTwoFactor } from '../services/twoFactor.js'
+import { writeAudit } from '../kit/audit.js'
+import { auth } from '../kit/auth.js'
 
 function argument(name: string): string | undefined {
   const index = process.argv.indexOf(name)
@@ -24,7 +24,7 @@ async function main() {
     const user = (await db.select().from(users).where(eq(users.email, email)))[0]
     if (!user) throw new Error(`User not found: ${email}`)
     if (!user.totpEnabled) throw new Error(`Two-factor authentication is not enabled for: ${email}`)
-    if (!await resetTwoFactor(user.id)) throw new Error(`Two-factor authentication is already disabled for: ${email}`)
+    if (!await auth.twoFactor.resetTwoFactor(user.id)) throw new Error(`Two-factor authentication is already disabled for: ${email}`)
     await writeAudit(
       { userId: user.id, userEmail: 'system:cli' },
       'update', 'user-security', user.id, user.email,

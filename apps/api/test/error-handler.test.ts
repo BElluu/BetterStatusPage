@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
-import { errorHandler } from '../src/errorHandler.js'
+import { errorHandler } from '@better-kit/runtime'
 
 const app = Fastify({ logger: false })
 

@@ -4,8 +4,8 @@ import { db } from '../db/client.js'
 import { incidentTemplates, locales, monitors } from '../db/schema.js'
 import type { IncidentTemplateTranslation } from '@bsp/shared'
 import { parseTemplateTranslations } from '../services/autoIncident.js'
-import { auditActor, writeAudit, diffObjects, snapshot } from '../services/audit.js'
-import { requestIdentity } from '../middleware/auth.js'
+import { auditActor, writeAudit, diffObjects, snapshot } from '../kit/audit.js'
+import { requestIdentity } from '../kit/authMiddleware.js'
 
 const VALID_IMPACTS = ['minor', 'major', 'critical'] as const
 const MAX_NAME = 100

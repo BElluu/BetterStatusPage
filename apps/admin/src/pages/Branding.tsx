@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS, validateUptimeThresholds, type Branding, type UptimeThresholds } from '@bsp/shared'
 import { api } from '../api/client'
-import { ModalShell } from '../components/ModalShell'
-import { Field, Switch } from '../components/ui'
+import { ModalShell } from '@better-kit/ui'
+import { Field, Switch } from '@better-kit/ui'
 
 interface BrandingForm {
   enabled: boolean

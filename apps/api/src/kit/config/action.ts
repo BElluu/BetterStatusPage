@@ -1,0 +1,173 @@
+import { eq } from 'drizzle-orm'
+import { ENTITY_KEY_ERROR, isValidEntityKey, byKey, canonical, clip, documentKey, isObject, keyList, nestedDeeperThan, unknownFields, type AuditEntry, type ConfigChange, type ConfigKind, type Json, type Problems } from '@better-kit/config-as-code'
+import { ACTION_TRIGGER_STATUSES, type ActionTriggerStatus } from '@bsp/shared'
+import { db } from '../../db/client.js'
+import { actionFailureChannels, actions } from '../../db/schema.js'
+import { actionConfigError, actionSecretTypeProblem } from '../../services/actionInput.js'
+import { maskSecrets, restoreSecrets } from '../../services/secretFields.js'
+import { vaultUseProblem } from '../vaultUse.js'
+import type { DesiredChannel } from './channel.js'
+import { mayLinkChannels } from './channel.js'
+import type { ExportState, State } from './state.js'
+import { entityKeys, exportByKey, MAX_CONFIG_DEPTH, MAX_NAME_LENGTH } from './shared.js'
+
+const ACTION_FIELDS = ['kind', 'key', 'name', 'enabled', 'config', 'failureNotifications']
+const ACTION_LINK_FIELDS = ['action', 'onStatus', 'delayMinutes', 'cooldownMinutes']
+const MAX_ACTION_MINUTES = 7 * 24 * 60
+
+export interface DesiredAction {
+  path: string
+  key: string
+  name: string
+  enabled: boolean
+  config: Json
+  failureNotifications: string[]
+}
+
+export interface DesiredActionLink { action: string; onStatus: ActionTriggerStatus; delayMinutes: number; cooldownMinutes: number }
+
+type ActionRow = typeof actions.$inferSelect
+export interface PlannedAction { desired: DesiredAction; config: Json; existing: ActionRow | undefined; fields: string[] }
+
+const keysOf = (value: unknown, path: string, problems: Problems) => keyList(value, path, problems, isValidEntityKey)
+
+/** The `actions` list of a monitor document, or null when the document does not have one. */
+export function parseActionLinks(value: unknown, path: string, problems: Problems): DesiredActionLink[] | null {
+  if (value === undefined) return null
+  const at = `${path}.actions`
+  if (!Array.isArray(value)) { problems.add(at, 'must be a list: [{ action, onStatus, delayMinutes, cooldownMinutes }]'); return null }
+  const links: DesiredActionLink[] = []
+  const seen = new Set<string>()
+  value.forEach((item, index) => {
+    const here = `${at}[${index}]`
+    if (!isObject(item)) { problems.add(here, 'must be an object: { action, onStatus, delayMinutes, cooldownMinutes }'); return }
+    unknownFields(item, ACTION_LINK_FIELDS, here, problems)
+    const action = item['action']
+    if (!isValidEntityKey(action)) problems.add(`${here}.action`, action === undefined ? 'is required: the key of an action' : ENTITY_KEY_ERROR)
+    const onStatus = item['onStatus']
+    if (!ACTION_TRIGGER_STATUSES.includes(onStatus as ActionTriggerStatus)) problems.add(`${here}.onStatus`, `must be one of: ${ACTION_TRIGGER_STATUSES.join(', ')}`)
+    const minutes: number[] = []
+    for (const field of ['delayMinutes', 'cooldownMinutes'] as const) {
+      const given = item[field] ?? 0
+      if (!(typeof given === 'number' && Number.isInteger(given) && given >= 0 && given <= MAX_ACTION_MINUTES)) problems.add(`${here}.${field}`, `must be a whole number of minutes from 0 to ${MAX_ACTION_MINUTES}`)
+      minutes.push(typeof given === 'number' ? given : 0)
+    }
+    if (isValidEntityKey(action) && ACTION_TRIGGER_STATUSES.includes(onStatus as ActionTriggerStatus)) {
+      if (seen.has(`${action}:${String(onStatus)}`)) problems.add(here, `an action can be linked once per status ("${action}" twice on ${String(onStatus)})`)
+      seen.add(`${action}:${String(onStatus)}`)
+      links.push({ action, onStatus: onStatus as ActionTriggerStatus, delayMinutes: minutes[0]!, cooldownMinutes: minutes[1]! })
+    }
+  })
+  return links
+}
+
+export const actionKind: ConfigKind<State, ExportState, DesiredAction, PlannedAction[]> = {
+  kind: 'Action',
+
+  parse(entry, index, seen, problems) {
+    const key = documentKey(entry, `document ${index + 1}`, seen, problems, entityKeys)
+    const path = key ? `Action[${key}]` : `document ${index + 1}`
+    unknownFields(entry, ACTION_FIELDS, path, problems)
+
+    const name = entry['name']
+    if (typeof name !== 'string' || !name.trim()) problems.add(`${path}.name`, 'is required')
+    else if (name.length > MAX_NAME_LENGTH) problems.add(`${path}.name`, `must be at most ${MAX_NAME_LENGTH} characters`)
+    if (entry['enabled'] !== undefined && typeof entry['enabled'] !== 'boolean') problems.add(`${path}.enabled`, 'must be true or false')
+    const config = entry['config']
+    if (!isObject(config)) problems.add(`${path}.config`, 'is required and must be an object')
+    else if (nestedDeeperThan(config, MAX_CONFIG_DEPTH)) problems.add(`${path}.config`, `is nested deeper than ${MAX_CONFIG_DEPTH} levels`)
+    const failureNotifications = keysOf(entry['failureNotifications'], `${path}.failureNotifications`, problems)
+
+    if (!key || typeof name !== 'string' || !isObject(config)) return null
+    return { path, key, name, config, enabled: entry['enabled'] !== false, failureNotifications }
+  },
+
+  plan(desired, ctx) {
+    const { state, token, problems, resolveVaults } = ctx
+    const actionByKey = new Map(state.actionRows.map((row) => [row.key, row]))
+    const channelKeyById = new Map(state.channelRows.map((row) => [row.id, row.key]))
+    const finalChannelKeys = new Set([...state.channelRows.map((row) => row.key), ...(ctx.desired('NotificationChannel') as DesiredChannel[]).map((channel) => channel.key)])
+    const currentFailureKeys = (actionId: number) =>
+      state.failureRows.filter((link) => link.actionId === actionId).flatMap((link) => channelKeyById.get(link.channelId) ?? []).sort()
+    const mayLink = mayLinkChannels(token)
+
+    const changes: ConfigChange[] = []
+    const planned: PlannedAction[] = []
+    for (const action of [...desired].sort(byKey)) {
+      const existing = actionByKey.get(action.key)
+      const stored = existing ? JSON.parse(existing.config) : undefined
+      const secrets = restoreSecrets('channel', action.config, stored)
+      if ('error' in secrets) { problems.add(`${action.path}.config`, secrets.error); continue }
+      const before = problems.list.length
+      const config = resolveVaults(secrets.config, `${action.path}.config`) as Json
+      const vaultProblem = vaultUseProblem(token, config, stored)
+      if (vaultProblem) problems.add(`${action.path}.config`, vaultProblem)
+      // A reference that did not resolve still has names, not ids, so the rest of the checks would only repeat the problem.
+      if (problems.list.length === before) {
+        const problem = actionConfigError(config)
+        if (problem) problems.add(`${action.path}.config`, problem)
+        else {
+          const typeProblem = actionSecretTypeProblem(config, new Map(state.secretRows.map((row) => [row.id, row.type])))
+          if (typeProblem) problems.add(`${action.path}.config`, typeProblem)
+        }
+      }
+      for (const key of action.failureNotifications) if (!finalChannelKeys.has(key)) problems.add(`${action.path}.failureNotifications`, `unknown channel "${clip(key)}"`)
+      const refuseChannels = () => problems.add(`${action.path}.failureNotifications`, 'a token needs the "channels:write" permission to choose which channels are told when an action fails')
+      if (!existing) {
+        if (action.failureNotifications.length && !mayLink) refuseChannels()
+        planned.push({ desired: action, config, existing, fields: [] })
+        changes.push({ kind: 'Action', key: action.key, action: 'create' })
+        continue
+      }
+      const current: Json = { name: existing.name, enabled: existing.enabled === 1, config: JSON.parse(existing.config), failureNotifications: currentFailureKeys(existing.id) }
+      const wanted: Json = { name: action.name, enabled: action.enabled, config, failureNotifications: [...action.failureNotifications].sort() }
+      const fields = Object.keys(wanted).filter((field) => canonical(current[field]) !== canonical(wanted[field]))
+      if (fields.includes('failureNotifications') && !mayLink) refuseChannels()
+      if (fields.length) planned.push({ desired: action, config, existing, fields })
+      changes.push({ kind: 'Action', key: action.key, action: fields.length ? 'update' : 'unchanged', ...(fields.length ? { fields } : {}) })
+    }
+    return { planned, changes }
+  },
+
+  existingIds: (state) => new Map(state.actionRows.map((row) => [row.key, row.id])),
+
+  async apply(planned, { now, ids }) {
+    const audit: AuditEntry[] = []
+    const source = 'configuration import'
+    const channelId = ids('NotificationChannel')
+    for (const { desired: action, config, existing, fields } of planned) {
+      const values = { name: action.name, config: JSON.stringify(config), enabled: action.enabled ? 1 : 0 }
+      let id: number
+      if (existing) {
+        id = existing.id
+        await db.update(actions).set({ ...values, updatedAt: now }).where(eq(actions.id, id))
+        audit.push({ action: 'update', entity: 'action', id, name: existing.name, diff: { key: action.key, source, changed: fields.join(', ') } })
+      } else {
+        const [row] = await db.insert(actions).values({ key: action.key, ...values, createdAt: now, updatedAt: now }).returning({ id: actions.id })
+        id = row!.id
+        ids('Action').set(action.key, id)
+        audit.push({ action: 'create', entity: 'action', id, name: action.name, diff: { key: action.key, source } })
+      }
+      if (!existing || fields.includes('failureNotifications')) {
+        await db.delete(actionFailureChannels).where(eq(actionFailureChannels.actionId, id))
+        if (action.failureNotifications.length) {
+          await db.insert(actionFailureChannels).values(action.failureNotifications.map((key) => ({ actionId: id, channelId: channelId.get(key)! })))
+        }
+      }
+    }
+    return audit
+  },
+
+  export(state, ctx) {
+    const channelKey = new Map(state.channelRows.map((row) => [row.id, row.key]))
+    const keysOfIds = (ids: number[]) => ids.flatMap((id) => channelKey.get(id) ?? []).sort()
+    return ctx.wanted(state.actionRows, 'Action').map((row) => ({
+      kind: 'Action' as const,
+      key: row.key,
+      name: row.name,
+      enabled: row.enabled === 1,
+      config: ctx.exportVaultRefs(maskSecrets('channel', JSON.parse(row.config))) as Json,
+      failureNotifications: keysOfIds(state.failureRows.filter((link) => link.actionId === row.id).map((link) => link.channelId)),
+    })).sort(exportByKey)
+  },
+}

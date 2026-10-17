@@ -3,7 +3,7 @@ import { after, before, describe, it } from 'node:test'
 import { db, sqlite } from '../src/db/client.js'
 import { authSessions, users } from '../src/db/schema.js'
 import { withImmediateTransaction } from '../src/db/transaction.js'
-import { resetTwoFactor } from '../src/services/twoFactor.js'
+import { auth } from '../src/kit/auth.js'
 import { createTestDb, initTestDb, teardownTestDb, type TestDb } from './helpers/testDb.js'
 import { eq } from 'drizzle-orm'
 
@@ -48,7 +48,7 @@ describe('database transaction helper', () => {
     `)
 
     try {
-      await assert.rejects(resetTwoFactor(user!.id), /Failed query: delete from "auth_sessions"/)
+      await assert.rejects(auth.twoFactor.resetTwoFactor(user!.id), /Failed query: delete from "auth_sessions"/)
     } finally {
       sqlite.exec('DROP TRIGGER reject_session_delete')
     }

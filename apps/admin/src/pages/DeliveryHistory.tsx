@@ -5,7 +5,7 @@ import { api, getCurrentUser } from '../api/client'
 import { deliveryHistoryUrl, type DeliveryHistoryTab } from '../deliveryHistoryUrl'
 import { ActionRunHistory } from '../components/actions/ActionRunHistory'
 import { SubscriberDeliveryHistory } from '../components/subscribers/SubscriberDeliveryHistory'
-import { PageContainer, PageHeader } from '../components/ui'
+import { PageContainer, PageHeader } from '@better-kit/ui'
 import { DeliveryHistory as NotificationDeliveryHistory } from './Notifications'
 
 const TABS: { key: DeliveryHistoryTab; label: string }[] = [

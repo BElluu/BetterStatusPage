@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
-import { resolveTranslation, type TranslationKey, type LocaleSummary } from '@bsp/shared'
+import { resolveTranslation, type TranslationKey } from '@bsp/shared'
+import { type LocaleSummary } from '@better-kit/contracts'
 import { getJSON } from '../api'
 
 const LS_KEY = 'bsp-locale'

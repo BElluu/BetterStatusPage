@@ -4,7 +4,7 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 import { SMTPServer } from 'smtp-server'
 import { db } from '../src/db/client.js'
 import { monitorNotificationChannels, monitors, notificationChannels, notificationDeliveries, notificationDeliveryAttempts, smtpSettings, vaults, vaultSecrets } from '../src/db/schema.js'
-import { encrypt } from '../src/crypto/vault.js'
+import { encrypt } from '../src/kit/secretBox.js'
 import { processDueNotificationDeliveries, purgeOldNotificationDeliveries, retryNotificationDelivery, sendNotifications } from '../src/workers/notifier.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 

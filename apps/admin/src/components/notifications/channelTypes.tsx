@@ -1,8 +1,8 @@
 import type { ComponentType, ReactNode } from 'react'
-import { Field } from '../ui'
-import type { VaultRef } from '@bsp/shared'
-import { CredentialSection } from '../monitors/CredentialSection'
-import type { VaultPickerProps } from '../monitors/monitorFormParts'
+import { Field } from '@better-kit/ui'
+import type { VaultRef } from '@better-kit/contracts'
+import { CredentialSection } from '@better-kit/ui'
+import type { VaultPickerProps } from '@better-kit/ui'
 import { DiscordIcon, SlackIcon, TeamsIcon, TelegramIcon } from './icons'
 
 export type ChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack' | 'telegram' | 'ntfy' | 'pushover'

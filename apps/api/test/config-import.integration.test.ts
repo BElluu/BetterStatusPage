@@ -4,7 +4,7 @@ import Fastify from 'fastify'
 import { parseAllDocuments, stringify } from 'yaml'
 import { db, sqlite } from '../src/db/client.js'
 import { vaultSecrets, vaults } from '../src/db/schema.js'
-import { configRoutes } from '../src/routes/config.js'
+import { configRoutes } from '../src/kit/configRoutes.js'
 import { SECRET_MASK } from '../src/services/secretFields.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 

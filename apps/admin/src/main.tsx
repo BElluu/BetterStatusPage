@@ -1,9 +1,17 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { configureUi } from '@better-kit/ui'
 import App from './App'
-import { ToastProvider } from './components/ui/Toast'
+import { adminUiConfig } from './uiConfig'
+import { ToastProvider } from '@better-kit/ui'
 import './index.css'
+
+// Remove credentials left by versions that stored JWTs in sessionStorage.
+sessionStorage.removeItem('token')
+sessionStorage.removeItem('mustChangePwd')
+
+configureUi(adminUiConfig)
 
 const storedDarkMode = localStorage.getItem('bsp-dark-mode')
 if (storedDarkMode === 'true' || (storedDarkMode === null && window.matchMedia('(prefers-color-scheme: dark)').matches)) {

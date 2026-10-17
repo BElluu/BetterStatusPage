@@ -5,7 +5,7 @@ import { branding, incidents, maintenanceWindowMonitors, maintenanceWindows } fr
 import type { SubscriberEventType } from '@bsp/shared'
 import { PUBLIC_FEED_RATE_LIMIT } from '../config/rateLimits.js'
 import { feedMethodAvailable, getPublicComponents, getSubscriptionSettings } from '../services/subscriptions.js'
-import { resolvePublicUrl } from '../config/publicUrl.js'
+import { resolvePublicUrl } from '../kit/runtime.js'
 import { publishedIncident, withIncidentDetails } from '../services/incidentDetails.js'
 
 const FEED_SIZE = 50
