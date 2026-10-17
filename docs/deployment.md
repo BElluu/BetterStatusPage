@@ -103,6 +103,10 @@ Setup runs only once. When it finishes, `setup.json` is written to the data dire
 
 The status page is at `http://your-server:3000`.
 
+### ICMP ping monitors
+
+ICMP [Ping monitors](monitors.md#ping--tcp) need the host kernel to allow unprivileged ICMP. If every ICMP check reports *ICMP is not permitted for the server process*, uncomment the `sysctls` block in `docker-compose.yml` (`net.ipv4.ping_group_range: "0 2147483647"`) and run `docker compose up -d`. TCP mode is not affected.
+
 ### Useful commands
 
 ```bash

@@ -255,6 +255,21 @@ holds each value.
 **ICMP** runs the server's system `ping` command with the timeout rounded up to whole seconds.
 Prefer TCP when the host or a firewall drops ICMP.
 
+**ICMP in a container.** The server runs as an unprivileged user, so the host kernel must allow
+unprivileged ICMP (`net.ipv4.ping_group_range`). Docker sets a permissive range by default, but some
+hosts and hardened runtimes restrict it. Then every ICMP check fails with *ICMP is not permitted for
+the server process*, even though the target is up. Allow it for the container, for example in
+`docker-compose.yml`:
+
+```yaml
+sysctls:
+  net.ipv4.ping_group_range: "0 2147483647"
+```
+
+Granting `NET_RAW` (`cap_add`) does not help while the container runs as a non-root user. The image
+uses BusyBox `ping`; a custom image or bare-metal host needs a `ping` command installed (for example
+`iputils-ping`), otherwise the error is *The ping command could not be run on the server*.
+
 ---
 
 ## DNS

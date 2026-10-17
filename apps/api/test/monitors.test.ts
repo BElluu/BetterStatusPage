@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { createServer as createHttpServer } from 'node:http'
 import { createServer as createTcpServer } from 'node:net'
 import { after, before, describe, it } from 'node:test'
+import ping from 'ping'
 import { checkHttps } from '../src/workers/https.js'
 import { checkPing } from '../src/workers/ping.js'
 import { checkDns } from '../src/workers/dns.js'
@@ -140,6 +141,23 @@ describe('monitor workers', () => {
     const result = await checkPing({ host: '127.0.0.1', mode: 'icmp' }, 2_000)
     assert.equal(result.status, 'up')
     assert.equal(typeof result.responseMs, 'number')
+  })
+
+  it('reports a local ICMP permission problem instead of an unreachable host', async (t) => {
+    const probe = t.mock.method(ping.promise, 'probe', async () => ({
+      alive: false, output: 'PING 127.0.0.1 (127.0.0.1): 56 data bytes\nping: permission denied (are you root?)',
+    }) as never)
+    const denied = await checkPing({ host: '127.0.0.1', mode: 'icmp' }, 1_000)
+    assert.equal(denied.status, 'down')
+    assert.match(denied.error ?? '', /net\.ipv4\.ping_group_range/)
+
+    probe.mock.mockImplementation(async () => ({ alive: false, output: '100% packet loss' }) as never)
+    const unreachable = await checkPing({ host: '10.255.255.1', mode: 'icmp' }, 1_000)
+    assert.equal(unreachable.error, '100% packet loss')
+
+    probe.mock.mockImplementation(async () => { throw new Error('spawn ping ENOENT') })
+    const missing = await checkPing({ host: '127.0.0.1', mode: 'icmp' }, 1_000)
+    assert.match(missing.error ?? '', /ping command could not be run/)
   })
 
   it('supports Basic and OAuth2 authentication', async () => {
