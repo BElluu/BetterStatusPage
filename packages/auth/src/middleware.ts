@@ -113,10 +113,11 @@ export function createMiddleware(sessions: Sessions, apiTokens: ApiTokens) {
       }
     }
     // Readable by the route-table snapshot test; the hook itself never looks at it.
-    return Object.assign(hook, { allowedRoles: allowed })
+    return Object.assign(hook, { allowedRoles: allowed, requiresAuth: true })
   }
 
-  return { authenticateOrReject, requireAuth, requireRole }
+  // Readable by the route-table snapshot test, like `allowedRoles`; the hook itself never looks at it.
+  return { authenticateOrReject, requireAuth: Object.assign(requireAuth, { requiresAuth: true }), requireRole }
 }
 
 export type Middleware = ReturnType<typeof createMiddleware>

@@ -86,7 +86,7 @@ function checkIntegrity(file: string): void {
 export function createBackupService<Manifest extends BackupManifest = BackupManifest>(options: BackupServiceOptions<Manifest>) {
   const { createArchive, extractArchive } = createArchiveFormat({ magic: options.magic })
   const { backupDir } = options
-  const filePattern = new RegExp(`^${options.name}-backup-\\d+\\.backup$`)
+  const filePattern = new RegExp(`^${options.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-backup-\\d+\\.backup$`)
   let operation: Promise<unknown> | null = null
 
   const configFile = () => path.join(backupDir(), 'config.json')

@@ -34,8 +34,13 @@ describe('role registry', () => {
   it('refuses a fallback that is not a role and refuses registering once frozen', () => {
     const roles = createRoleRegistry()
     assert.throws(() => roles.register(['a'], { fallback: 'b', defaultForNewUsers: 'a' }), /registered roles/)
+    roles.register(['a'], { fallback: 'a', defaultForNewUsers: 'a' })
     roles.freeze()
     assert.throws(() => roles.register(['a'], { fallback: 'a', defaultForNewUsers: 'a' }), /after the auth module was created/)
+  })
+
+  it('refuses to be frozen before any role was registered, so an unknown role is never an administrator', () => {
+    assert.throws(() => createRoleRegistry().freeze(), /Register the application roles/)
   })
 })
 

@@ -1,250 +1,250 @@
-DELETE /api/v1/admin/actions/:id | token=yes | scope=actions | roles=admin
-DELETE /api/v1/admin/api-tokens/:id | token=no | scope=- | roles=admin
-DELETE /api/v1/admin/backups/:filename | token=no | scope=- | roles=admin
-DELETE /api/v1/admin/incident-templates/:id | token=yes | scope=incidents | roles=admin,operator
-DELETE /api/v1/admin/incidents/:id | token=yes | scope=incidents | roles=admin,operator
-DELETE /api/v1/admin/locales/:code | token=yes | scope=appearance | roles=admin,operator,branding
-DELETE /api/v1/admin/maintenance/:id | token=yes | scope=maintenance | roles=admin,operator
-DELETE /api/v1/admin/monitors/:id | token=yes | scope=monitors | roles=admin,operator
-DELETE /api/v1/admin/notifications/channels/:id | token=yes | scope=channels | roles=admin,operator
-DELETE /api/v1/admin/subscribers/:id | token=yes | scope=subscribers | roles=admin,operator
-DELETE /api/v1/admin/users/:id | token=no | scope=- | roles=admin
-DELETE /api/v1/admin/vaults/:id | token=no | scope=- | roles=admin
-DELETE /api/v1/admin/vaults/:id/secrets/:secretId | token=no | scope=- | roles=admin
-GET /api/v1/admin/actions/ | token=yes | scope=actions | roles=admin
-GET /api/v1/admin/actions/:id | token=yes | scope=actions | roles=admin
-GET /api/v1/admin/actions/monitor/:monitorId | token=yes | scope=actions | roles=admin
-GET /api/v1/admin/actions/runs | token=yes | scope=actions | roles=admin
-GET /api/v1/admin/api-tokens/ | token=no | scope=- | roles=admin
-GET /api/v1/admin/audit/ | token=yes | scope=audit | roles=admin
-GET /api/v1/admin/backups/ | token=no | scope=- | roles=admin
-GET /api/v1/admin/backups/:filename/download | token=no | scope=- | roles=admin
-GET /api/v1/admin/branding/ | token=yes | scope=appearance | roles=admin,operator,branding
-GET /api/v1/admin/config/export | token=yes | scope=custom | roles=admin,operator
-GET /api/v1/admin/incident-templates/ | token=yes | scope=incidents | roles=admin,operator
-GET /api/v1/admin/incidents/ | token=yes | scope=incidents | roles=admin,operator
-GET /api/v1/admin/layout/ | token=yes | scope=appearance | roles=admin,operator,branding
-GET /api/v1/admin/layout/monitors | token=yes | scope=appearance | roles=admin,operator,branding
-GET /api/v1/admin/locales/ | token=yes | scope=appearance | roles=admin,operator,branding
-GET /api/v1/admin/locales/:code | token=yes | scope=appearance | roles=admin,operator,branding
-GET /api/v1/admin/maintenance/ | token=yes | scope=maintenance | roles=admin,operator
-GET /api/v1/admin/maintenance/:id | token=yes | scope=maintenance | roles=admin,operator
-GET /api/v1/admin/maintenance/active | token=yes | scope=maintenance | roles=admin,operator
-GET /api/v1/admin/metrics/ | token=yes | scope=metrics | roles=admin
-GET /api/v1/admin/monitors/ | token=yes | scope=monitors | roles=admin,operator
-GET /api/v1/admin/monitors/:id | token=yes | scope=monitors | roles=admin,operator
-GET /api/v1/admin/monitors/:id/dependencies | token=yes | scope=monitors | roles=admin,operator
-GET /api/v1/admin/monitors/:id/history | token=yes | scope=monitors | roles=admin,operator
-GET /api/v1/admin/monitors/:id/stats | token=yes | scope=monitors | roles=admin,operator
-GET /api/v1/admin/monitors/events | token=yes | scope=monitors | roles=admin,operator
-GET /api/v1/admin/notifications/channels | token=yes | scope=channels | roles=admin,operator
-GET /api/v1/admin/notifications/channels/:id | token=yes | scope=channels | roles=admin,operator
-GET /api/v1/admin/notifications/deliveries | token=yes | scope=channels | roles=admin,operator
-GET /api/v1/admin/notifications/deliveries/:id | token=yes | scope=channels | roles=admin,operator
-GET /api/v1/admin/notifications/monitor/:monitorId/channels | token=yes | scope=channels | roles=admin,operator
-GET /api/v1/admin/notifications/smtp | token=yes | scope=channels | roles=admin,operator
-GET /api/v1/admin/oidc/ | token=no | scope=- | roles=admin
-GET /api/v1/admin/oidc/test-sign-in | token=no | scope=- | roles=admin
-GET /api/v1/admin/oidc/test-sign-in/:id | token=no | scope=- | roles=admin
-GET /api/v1/admin/reports/uptime | token=yes | scope=reports | roles=admin,operator
-GET /api/v1/admin/reports/uptime/export | token=yes | scope=reports | roles=admin,operator
-GET /api/v1/admin/status-page-access/ | token=no | scope=- | roles=admin
-GET /api/v1/admin/subscribers/ | token=yes | scope=subscribers | roles=admin,operator
-GET /api/v1/admin/subscribers/deliveries | token=yes | scope=subscribers | roles=admin,operator
-GET /api/v1/admin/subscribers/export | token=yes | scope=subscribers | roles=admin,operator
-GET /api/v1/admin/subscribers/settings | token=yes | scope=subscribers | roles=admin,operator
-GET /api/v1/admin/system-health/ | token=yes | scope=system | roles=admin
-GET /api/v1/admin/system-health/update | token=yes | scope=system | roles=admin
-GET /api/v1/admin/users/ | token=no | scope=- | roles=admin
-GET /api/v1/admin/vaults/ | token=yes | scope=vault | roles=admin,operator
-GET /api/v1/admin/vaults/:id | token=no | scope=- | roles=admin
-GET /api/v1/admin/vaults/:id/secrets | token=yes | scope=vault | roles=admin,operator
-GET /api/v1/admin/vaults/:id/secrets/:secretId/reveal | token=no | scope=- | roles=admin
-GET /api/v1/auth/config | token=no | scope=- | roles=none
-GET /api/v1/auth/oidc/callback | token=no | scope=- | roles=none
-GET /api/v1/auth/oidc/confirm | token=no | scope=- | roles=none
-GET /api/v1/auth/oidc/login | token=no | scope=- | roles=none
-GET /api/v1/auth/session | token=no | scope=- | roles=none
-GET /api/v1/hook/:token | token=no | scope=- | roles=none
-GET /api/v1/public/access | token=no | scope=- | roles=none
-GET /api/v1/public/components.json | token=no | scope=- | roles=none
-GET /api/v1/public/events | token=no | scope=- | roles=none
-GET /api/v1/public/incidents | token=no | scope=- | roles=none
-GET /api/v1/public/incidents.atom | token=no | scope=- | roles=none
-GET /api/v1/public/incidents.rss | token=no | scope=- | roles=none
-GET /api/v1/public/incidents/:id | token=no | scope=- | roles=none
-GET /api/v1/public/layout | token=no | scope=- | roles=none
-GET /api/v1/public/locales/ | token=no | scope=- | roles=none
-GET /api/v1/public/locales/:code | token=no | scope=- | roles=none
-GET /api/v1/public/monitor/:id/history | token=no | scope=- | roles=none
-GET /api/v1/public/monitor/:id/uptime | token=no | scope=- | roles=none
-GET /api/v1/public/slack.rss | token=no | scope=- | roles=none
-GET /api/v1/public/status | token=no | scope=- | roles=none
-GET /api/v1/public/subscriptions/options | token=no | scope=- | roles=none
-GET /api/v1/public/summary.json | token=no | scope=- | roles=none
-GET /api/v1/setup/status | token=no | scope=- | roles=none
-GET /health | token=no | scope=- | roles=none
-GET /ready | token=no | scope=- | roles=none
-HEAD /api/v1/admin/actions | token=yes | scope=actions | roles=admin
-HEAD /api/v1/admin/actions/ | token=yes | scope=actions | roles=admin
-HEAD /api/v1/admin/actions/:id | token=yes | scope=actions | roles=admin
-HEAD /api/v1/admin/actions/monitor/:monitorId | token=yes | scope=actions | roles=admin
-HEAD /api/v1/admin/actions/runs | token=yes | scope=actions | roles=admin
-HEAD /api/v1/admin/api-tokens | token=no | scope=- | roles=admin
-HEAD /api/v1/admin/api-tokens/ | token=no | scope=- | roles=admin
-HEAD /api/v1/admin/audit | token=yes | scope=audit | roles=admin
-HEAD /api/v1/admin/audit/ | token=yes | scope=audit | roles=admin
-HEAD /api/v1/admin/backups | token=no | scope=- | roles=admin
-HEAD /api/v1/admin/backups/ | token=no | scope=- | roles=admin
-HEAD /api/v1/admin/backups/:filename/download | token=no | scope=- | roles=admin
-HEAD /api/v1/admin/branding | token=yes | scope=appearance | roles=admin,operator,branding
-HEAD /api/v1/admin/branding/ | token=yes | scope=appearance | roles=admin,operator,branding
-HEAD /api/v1/admin/config/export | token=yes | scope=custom | roles=admin,operator
-HEAD /api/v1/admin/incident-templates | token=yes | scope=incidents | roles=admin,operator
-HEAD /api/v1/admin/incident-templates/ | token=yes | scope=incidents | roles=admin,operator
-HEAD /api/v1/admin/incidents | token=yes | scope=incidents | roles=admin,operator
-HEAD /api/v1/admin/incidents/ | token=yes | scope=incidents | roles=admin,operator
-HEAD /api/v1/admin/layout | token=yes | scope=appearance | roles=admin,operator,branding
-HEAD /api/v1/admin/layout/ | token=yes | scope=appearance | roles=admin,operator,branding
-HEAD /api/v1/admin/layout/monitors | token=yes | scope=appearance | roles=admin,operator,branding
-HEAD /api/v1/admin/locales | token=yes | scope=appearance | roles=admin,operator,branding
-HEAD /api/v1/admin/locales/ | token=yes | scope=appearance | roles=admin,operator,branding
-HEAD /api/v1/admin/locales/:code | token=yes | scope=appearance | roles=admin,operator,branding
-HEAD /api/v1/admin/maintenance | token=yes | scope=maintenance | roles=admin,operator
-HEAD /api/v1/admin/maintenance/ | token=yes | scope=maintenance | roles=admin,operator
-HEAD /api/v1/admin/maintenance/:id | token=yes | scope=maintenance | roles=admin,operator
-HEAD /api/v1/admin/maintenance/active | token=yes | scope=maintenance | roles=admin,operator
-HEAD /api/v1/admin/metrics | token=yes | scope=metrics | roles=admin
-HEAD /api/v1/admin/metrics/ | token=yes | scope=metrics | roles=admin
-HEAD /api/v1/admin/monitors | token=yes | scope=monitors | roles=admin,operator
-HEAD /api/v1/admin/monitors/ | token=yes | scope=monitors | roles=admin,operator
-HEAD /api/v1/admin/monitors/:id | token=yes | scope=monitors | roles=admin,operator
-HEAD /api/v1/admin/monitors/:id/dependencies | token=yes | scope=monitors | roles=admin,operator
-HEAD /api/v1/admin/monitors/:id/history | token=yes | scope=monitors | roles=admin,operator
-HEAD /api/v1/admin/monitors/:id/stats | token=yes | scope=monitors | roles=admin,operator
-HEAD /api/v1/admin/monitors/events | token=yes | scope=monitors | roles=admin,operator
-HEAD /api/v1/admin/notifications/channels | token=yes | scope=channels | roles=admin,operator
-HEAD /api/v1/admin/notifications/channels/:id | token=yes | scope=channels | roles=admin,operator
-HEAD /api/v1/admin/notifications/deliveries | token=yes | scope=channels | roles=admin,operator
-HEAD /api/v1/admin/notifications/deliveries/:id | token=yes | scope=channels | roles=admin,operator
-HEAD /api/v1/admin/notifications/monitor/:monitorId/channels | token=yes | scope=channels | roles=admin,operator
-HEAD /api/v1/admin/notifications/smtp | token=yes | scope=channels | roles=admin,operator
-HEAD /api/v1/admin/oidc | token=no | scope=- | roles=admin
-HEAD /api/v1/admin/oidc/ | token=no | scope=- | roles=admin
-HEAD /api/v1/admin/oidc/test-sign-in | token=no | scope=- | roles=admin
-HEAD /api/v1/admin/oidc/test-sign-in/:id | token=no | scope=- | roles=admin
-HEAD /api/v1/admin/reports/uptime | token=yes | scope=reports | roles=admin,operator
-HEAD /api/v1/admin/reports/uptime/export | token=yes | scope=reports | roles=admin,operator
-HEAD /api/v1/admin/status-page-access | token=no | scope=- | roles=admin
-HEAD /api/v1/admin/status-page-access/ | token=no | scope=- | roles=admin
-HEAD /api/v1/admin/subscribers | token=yes | scope=subscribers | roles=admin,operator
-HEAD /api/v1/admin/subscribers/ | token=yes | scope=subscribers | roles=admin,operator
-HEAD /api/v1/admin/subscribers/deliveries | token=yes | scope=subscribers | roles=admin,operator
-HEAD /api/v1/admin/subscribers/export | token=yes | scope=subscribers | roles=admin,operator
-HEAD /api/v1/admin/subscribers/settings | token=yes | scope=subscribers | roles=admin,operator
-HEAD /api/v1/admin/system-health | token=yes | scope=system | roles=admin
-HEAD /api/v1/admin/system-health/ | token=yes | scope=system | roles=admin
-HEAD /api/v1/admin/system-health/update | token=yes | scope=system | roles=admin
-HEAD /api/v1/admin/users | token=no | scope=- | roles=admin
-HEAD /api/v1/admin/users/ | token=no | scope=- | roles=admin
-HEAD /api/v1/admin/vaults | token=yes | scope=vault | roles=admin,operator
-HEAD /api/v1/admin/vaults/ | token=yes | scope=vault | roles=admin,operator
-HEAD /api/v1/admin/vaults/:id | token=no | scope=- | roles=admin
-HEAD /api/v1/admin/vaults/:id/secrets | token=yes | scope=vault | roles=admin,operator
-HEAD /api/v1/admin/vaults/:id/secrets/:secretId/reveal | token=no | scope=- | roles=admin
-HEAD /api/v1/auth/config | token=no | scope=- | roles=none
-HEAD /api/v1/auth/oidc/callback | token=no | scope=- | roles=none
-HEAD /api/v1/auth/oidc/confirm | token=no | scope=- | roles=none
-HEAD /api/v1/auth/oidc/login | token=no | scope=- | roles=none
-HEAD /api/v1/auth/session | token=no | scope=- | roles=none
-HEAD /api/v1/hook/:token | token=no | scope=- | roles=none
-HEAD /api/v1/public/access | token=no | scope=- | roles=none
-HEAD /api/v1/public/components.json | token=no | scope=- | roles=none
-HEAD /api/v1/public/events | token=no | scope=- | roles=none
-HEAD /api/v1/public/incidents | token=no | scope=- | roles=none
-HEAD /api/v1/public/incidents.atom | token=no | scope=- | roles=none
-HEAD /api/v1/public/incidents.rss | token=no | scope=- | roles=none
-HEAD /api/v1/public/incidents/:id | token=no | scope=- | roles=none
-HEAD /api/v1/public/layout | token=no | scope=- | roles=none
-HEAD /api/v1/public/locales | token=no | scope=- | roles=none
-HEAD /api/v1/public/locales/ | token=no | scope=- | roles=none
-HEAD /api/v1/public/locales/:code | token=no | scope=- | roles=none
-HEAD /api/v1/public/monitor/:id/history | token=no | scope=- | roles=none
-HEAD /api/v1/public/monitor/:id/uptime | token=no | scope=- | roles=none
-HEAD /api/v1/public/slack.rss | token=no | scope=- | roles=none
-HEAD /api/v1/public/status | token=no | scope=- | roles=none
-HEAD /api/v1/public/subscriptions/options | token=no | scope=- | roles=none
-HEAD /api/v1/public/summary.json | token=no | scope=- | roles=none
-HEAD /api/v1/setup/status | token=no | scope=- | roles=none
-HEAD /health | token=no | scope=- | roles=none
-HEAD /ready | token=no | scope=- | roles=none
-PATCH /api/v1/admin/actions/:id | token=yes | scope=actions | roles=admin
-PATCH /api/v1/admin/branding/ | token=yes | scope=appearance | roles=admin,operator,branding
-PATCH /api/v1/admin/incident-templates/:id | token=yes | scope=incidents | roles=admin,operator
-PATCH /api/v1/admin/incidents/:id | token=yes | scope=incidents | roles=admin,operator
-PATCH /api/v1/admin/locales/:code | token=yes | scope=appearance | roles=admin,operator,branding
-PATCH /api/v1/admin/maintenance/:id | token=yes | scope=maintenance | roles=admin,operator
-PATCH /api/v1/admin/monitors/:id | token=yes | scope=monitors | roles=admin,operator
-PATCH /api/v1/admin/notifications/channels/:id | token=yes | scope=channels | roles=admin,operator
-PATCH /api/v1/admin/users/:id/role | token=no | scope=- | roles=admin
-PATCH /api/v1/admin/vaults/:id | token=no | scope=- | roles=admin
-PATCH /api/v1/admin/vaults/:id/secrets/:secretId | token=no | scope=- | roles=admin
-POST /api/v1/admin/actions/ | token=yes | scope=actions | roles=admin
-POST /api/v1/admin/actions/:id/test | token=yes | scope=actions | roles=admin
-POST /api/v1/admin/actions/runs/:id/retry | token=yes | scope=actions | roles=admin
-POST /api/v1/admin/api-tokens/ | token=no | scope=- | roles=admin
-POST /api/v1/admin/backups/ | token=no | scope=- | roles=admin
-POST /api/v1/admin/backups/validate | token=no | scope=- | roles=admin
-POST /api/v1/admin/branding/logo | token=yes | scope=appearance | roles=admin,operator,branding
-POST /api/v1/admin/branding/logo/dark | token=yes | scope=appearance | roles=admin,operator,branding
-POST /api/v1/admin/branding/logo/light | token=yes | scope=appearance | roles=admin,operator,branding
-POST /api/v1/admin/config/apply | token=yes | scope=custom | roles=admin,operator
-POST /api/v1/admin/config/validate | token=yes | scope=custom | roles=admin,operator
-POST /api/v1/admin/incident-templates/ | token=yes | scope=incidents | roles=admin,operator
-POST /api/v1/admin/incidents/ | token=yes | scope=incidents | roles=admin,operator
-POST /api/v1/admin/incidents/:id/monitors | token=yes | scope=incidents | roles=admin,operator
-POST /api/v1/admin/incidents/:id/updates | token=yes | scope=incidents | roles=admin,operator
-POST /api/v1/admin/locales/ | token=yes | scope=appearance | roles=admin,operator,branding
-POST /api/v1/admin/locales/:code/set-default | token=yes | scope=appearance | roles=admin,operator,branding
-POST /api/v1/admin/maintenance/ | token=yes | scope=maintenance | roles=admin,operator
-POST /api/v1/admin/monitors/ | token=yes | scope=monitors | roles=admin,operator
-POST /api/v1/admin/monitors/:id/check-now | token=yes | scope=monitors | roles=admin,operator
-POST /api/v1/admin/monitors/:id/reset-token | token=yes | scope=monitors | roles=admin,operator
-POST /api/v1/admin/monitors/test | token=yes | scope=monitors | roles=admin,operator
-POST /api/v1/admin/notifications/channels | token=yes | scope=channels | roles=admin,operator
-POST /api/v1/admin/notifications/channels/:id/test | token=yes | scope=channels | roles=admin,operator
-POST /api/v1/admin/notifications/deliveries/:id/retry | token=yes | scope=channels | roles=admin,operator
-POST /api/v1/admin/notifications/smtp/test | token=yes | scope=channels | roles=admin,operator
-POST /api/v1/admin/oidc/test | token=no | scope=- | roles=admin
-POST /api/v1/admin/subscribers/deliveries/:id/retry | token=yes | scope=subscribers | roles=admin,operator
-POST /api/v1/admin/users/ | token=no | scope=- | roles=admin
-POST /api/v1/admin/users/:id/reset-2fa | token=no | scope=- | roles=admin
-POST /api/v1/admin/users/:id/reset-password | token=no | scope=- | roles=admin
-POST /api/v1/admin/vaults/ | token=no | scope=- | roles=admin
-POST /api/v1/admin/vaults/:id/secrets | token=no | scope=- | roles=admin
-POST /api/v1/admin/vaults/:id/test | token=no | scope=- | roles=admin
-POST /api/v1/admin/vaults/test-connection | token=no | scope=- | roles=admin
-POST /api/v1/auth/2fa/disable | token=no | scope=- | roles=none
-POST /api/v1/auth/2fa/enable | token=no | scope=- | roles=none
-POST /api/v1/auth/2fa/setup | token=no | scope=- | roles=none
-POST /api/v1/auth/2fa/verify | token=no | scope=- | roles=none
-POST /api/v1/auth/change-password | token=no | scope=- | roles=none
-POST /api/v1/auth/login | token=no | scope=- | roles=none
-POST /api/v1/auth/logout | token=no | scope=- | roles=none
-POST /api/v1/auth/logout-all | token=no | scope=- | roles=none
-POST /api/v1/hook/:token | token=no | scope=- | roles=none
-POST /api/v1/public/subscriptions/ | token=no | scope=- | roles=none
-POST /api/v1/public/subscriptions/confirm | token=no | scope=- | roles=none
-POST /api/v1/public/subscriptions/preferences | token=no | scope=- | roles=none
-POST /api/v1/public/subscriptions/unsubscribe | token=no | scope=- | roles=none
-POST /api/v1/setup/complete | token=no | scope=- | roles=none
-PUT /api/v1/admin/actions/monitor/:monitorId | token=yes | scope=actions | roles=admin
-PUT /api/v1/admin/backups/config | token=no | scope=- | roles=admin
-PUT /api/v1/admin/layout/ | token=yes | scope=appearance | roles=admin,operator,branding
-PUT /api/v1/admin/monitors/:id/dependencies | token=yes | scope=monitors | roles=admin,operator
-PUT /api/v1/admin/notifications/monitor/:monitorId/channels | token=yes | scope=channels | roles=admin,operator
-PUT /api/v1/admin/notifications/smtp | token=yes | scope=channels | roles=admin,operator
-PUT /api/v1/admin/oidc/ | token=no | scope=- | roles=admin
-PUT /api/v1/admin/status-page-access/ | token=no | scope=- | roles=admin
-PUT /api/v1/admin/subscribers/settings | token=yes | scope=subscribers | roles=admin,operator
-PUT /api/v1/public/subscriptions/preferences | token=no | scope=- | roles=none
+DELETE /api/v1/admin/actions/:id | auth=yes | token=yes | scope=actions | roles=admin
+DELETE /api/v1/admin/api-tokens/:id | auth=yes | token=no | scope=- | roles=admin
+DELETE /api/v1/admin/backups/:filename | auth=yes | token=no | scope=- | roles=admin
+DELETE /api/v1/admin/incident-templates/:id | auth=yes | token=yes | scope=incidents | roles=admin,operator
+DELETE /api/v1/admin/incidents/:id | auth=yes | token=yes | scope=incidents | roles=admin,operator
+DELETE /api/v1/admin/locales/:code | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+DELETE /api/v1/admin/maintenance/:id | auth=yes | token=yes | scope=maintenance | roles=admin,operator
+DELETE /api/v1/admin/monitors/:id | auth=yes | token=yes | scope=monitors | roles=admin,operator
+DELETE /api/v1/admin/notifications/channels/:id | auth=yes | token=yes | scope=channels | roles=admin,operator
+DELETE /api/v1/admin/subscribers/:id | auth=yes | token=yes | scope=subscribers | roles=admin,operator
+DELETE /api/v1/admin/users/:id | auth=yes | token=no | scope=- | roles=admin
+DELETE /api/v1/admin/vaults/:id | auth=yes | token=no | scope=- | roles=admin
+DELETE /api/v1/admin/vaults/:id/secrets/:secretId | auth=yes | token=no | scope=- | roles=admin
+GET /api/v1/admin/actions/ | auth=yes | token=yes | scope=actions | roles=admin
+GET /api/v1/admin/actions/:id | auth=yes | token=yes | scope=actions | roles=admin
+GET /api/v1/admin/actions/monitor/:monitorId | auth=yes | token=yes | scope=actions | roles=admin
+GET /api/v1/admin/actions/runs | auth=yes | token=yes | scope=actions | roles=admin
+GET /api/v1/admin/api-tokens/ | auth=yes | token=no | scope=- | roles=admin
+GET /api/v1/admin/audit/ | auth=yes | token=yes | scope=audit | roles=admin
+GET /api/v1/admin/backups/ | auth=yes | token=no | scope=- | roles=admin
+GET /api/v1/admin/backups/:filename/download | auth=yes | token=no | scope=- | roles=admin
+GET /api/v1/admin/branding/ | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+GET /api/v1/admin/config/export | auth=yes | token=yes | scope=custom | roles=admin,operator
+GET /api/v1/admin/incident-templates/ | auth=yes | token=yes | scope=incidents | roles=admin,operator
+GET /api/v1/admin/incidents/ | auth=yes | token=yes | scope=incidents | roles=admin,operator
+GET /api/v1/admin/layout/ | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+GET /api/v1/admin/layout/monitors | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+GET /api/v1/admin/locales/ | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+GET /api/v1/admin/locales/:code | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+GET /api/v1/admin/maintenance/ | auth=yes | token=yes | scope=maintenance | roles=admin,operator
+GET /api/v1/admin/maintenance/:id | auth=yes | token=yes | scope=maintenance | roles=admin,operator
+GET /api/v1/admin/maintenance/active | auth=yes | token=yes | scope=maintenance | roles=admin,operator
+GET /api/v1/admin/metrics/ | auth=yes | token=yes | scope=metrics | roles=admin
+GET /api/v1/admin/monitors/ | auth=yes | token=yes | scope=monitors | roles=admin,operator
+GET /api/v1/admin/monitors/:id | auth=yes | token=yes | scope=monitors | roles=admin,operator
+GET /api/v1/admin/monitors/:id/dependencies | auth=yes | token=yes | scope=monitors | roles=admin,operator
+GET /api/v1/admin/monitors/:id/history | auth=yes | token=yes | scope=monitors | roles=admin,operator
+GET /api/v1/admin/monitors/:id/stats | auth=yes | token=yes | scope=monitors | roles=admin,operator
+GET /api/v1/admin/monitors/events | auth=yes | token=yes | scope=monitors | roles=admin,operator
+GET /api/v1/admin/notifications/channels | auth=yes | token=yes | scope=channels | roles=admin,operator
+GET /api/v1/admin/notifications/channels/:id | auth=yes | token=yes | scope=channels | roles=admin,operator
+GET /api/v1/admin/notifications/deliveries | auth=yes | token=yes | scope=channels | roles=admin,operator
+GET /api/v1/admin/notifications/deliveries/:id | auth=yes | token=yes | scope=channels | roles=admin,operator
+GET /api/v1/admin/notifications/monitor/:monitorId/channels | auth=yes | token=yes | scope=channels | roles=admin,operator
+GET /api/v1/admin/notifications/smtp | auth=yes | token=yes | scope=channels | roles=admin,operator
+GET /api/v1/admin/oidc/ | auth=yes | token=no | scope=- | roles=admin
+GET /api/v1/admin/oidc/test-sign-in | auth=yes | token=no | scope=- | roles=admin
+GET /api/v1/admin/oidc/test-sign-in/:id | auth=yes | token=no | scope=- | roles=admin
+GET /api/v1/admin/reports/uptime | auth=yes | token=yes | scope=reports | roles=admin,operator
+GET /api/v1/admin/reports/uptime/export | auth=yes | token=yes | scope=reports | roles=admin,operator
+GET /api/v1/admin/status-page-access/ | auth=yes | token=no | scope=- | roles=admin
+GET /api/v1/admin/subscribers/ | auth=yes | token=yes | scope=subscribers | roles=admin,operator
+GET /api/v1/admin/subscribers/deliveries | auth=yes | token=yes | scope=subscribers | roles=admin,operator
+GET /api/v1/admin/subscribers/export | auth=yes | token=yes | scope=subscribers | roles=admin,operator
+GET /api/v1/admin/subscribers/settings | auth=yes | token=yes | scope=subscribers | roles=admin,operator
+GET /api/v1/admin/system-health/ | auth=yes | token=yes | scope=system | roles=admin
+GET /api/v1/admin/system-health/update | auth=yes | token=yes | scope=system | roles=admin
+GET /api/v1/admin/users/ | auth=yes | token=no | scope=- | roles=admin
+GET /api/v1/admin/vaults/ | auth=yes | token=yes | scope=vault | roles=admin,operator
+GET /api/v1/admin/vaults/:id | auth=yes | token=no | scope=- | roles=admin
+GET /api/v1/admin/vaults/:id/secrets | auth=yes | token=yes | scope=vault | roles=admin,operator
+GET /api/v1/admin/vaults/:id/secrets/:secretId/reveal | auth=yes | token=no | scope=- | roles=admin
+GET /api/v1/auth/config | auth=no | token=no | scope=- | roles=none
+GET /api/v1/auth/oidc/callback | auth=no | token=no | scope=- | roles=none
+GET /api/v1/auth/oidc/confirm | auth=yes | token=no | scope=- | roles=none
+GET /api/v1/auth/oidc/login | auth=no | token=no | scope=- | roles=none
+GET /api/v1/auth/session | auth=yes | token=no | scope=- | roles=none
+GET /api/v1/hook/:token | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/access | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/components.json | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/events | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/incidents | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/incidents.atom | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/incidents.rss | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/incidents/:id | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/layout | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/locales/ | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/locales/:code | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/monitor/:id/history | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/monitor/:id/uptime | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/slack.rss | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/status | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/subscriptions/options | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/summary.json | auth=no | token=no | scope=- | roles=none
+GET /api/v1/setup/status | auth=no | token=no | scope=- | roles=none
+GET /health | auth=no | token=no | scope=- | roles=none
+GET /ready | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/admin/actions | auth=yes | token=yes | scope=actions | roles=admin
+HEAD /api/v1/admin/actions/ | auth=yes | token=yes | scope=actions | roles=admin
+HEAD /api/v1/admin/actions/:id | auth=yes | token=yes | scope=actions | roles=admin
+HEAD /api/v1/admin/actions/monitor/:monitorId | auth=yes | token=yes | scope=actions | roles=admin
+HEAD /api/v1/admin/actions/runs | auth=yes | token=yes | scope=actions | roles=admin
+HEAD /api/v1/admin/api-tokens | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/api-tokens/ | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/audit | auth=yes | token=yes | scope=audit | roles=admin
+HEAD /api/v1/admin/audit/ | auth=yes | token=yes | scope=audit | roles=admin
+HEAD /api/v1/admin/backups | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/backups/ | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/backups/:filename/download | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/branding | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+HEAD /api/v1/admin/branding/ | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+HEAD /api/v1/admin/config/export | auth=yes | token=yes | scope=custom | roles=admin,operator
+HEAD /api/v1/admin/incident-templates | auth=yes | token=yes | scope=incidents | roles=admin,operator
+HEAD /api/v1/admin/incident-templates/ | auth=yes | token=yes | scope=incidents | roles=admin,operator
+HEAD /api/v1/admin/incidents | auth=yes | token=yes | scope=incidents | roles=admin,operator
+HEAD /api/v1/admin/incidents/ | auth=yes | token=yes | scope=incidents | roles=admin,operator
+HEAD /api/v1/admin/layout | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+HEAD /api/v1/admin/layout/ | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+HEAD /api/v1/admin/layout/monitors | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+HEAD /api/v1/admin/locales | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+HEAD /api/v1/admin/locales/ | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+HEAD /api/v1/admin/locales/:code | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+HEAD /api/v1/admin/maintenance | auth=yes | token=yes | scope=maintenance | roles=admin,operator
+HEAD /api/v1/admin/maintenance/ | auth=yes | token=yes | scope=maintenance | roles=admin,operator
+HEAD /api/v1/admin/maintenance/:id | auth=yes | token=yes | scope=maintenance | roles=admin,operator
+HEAD /api/v1/admin/maintenance/active | auth=yes | token=yes | scope=maintenance | roles=admin,operator
+HEAD /api/v1/admin/metrics | auth=yes | token=yes | scope=metrics | roles=admin
+HEAD /api/v1/admin/metrics/ | auth=yes | token=yes | scope=metrics | roles=admin
+HEAD /api/v1/admin/monitors | auth=yes | token=yes | scope=monitors | roles=admin,operator
+HEAD /api/v1/admin/monitors/ | auth=yes | token=yes | scope=monitors | roles=admin,operator
+HEAD /api/v1/admin/monitors/:id | auth=yes | token=yes | scope=monitors | roles=admin,operator
+HEAD /api/v1/admin/monitors/:id/dependencies | auth=yes | token=yes | scope=monitors | roles=admin,operator
+HEAD /api/v1/admin/monitors/:id/history | auth=yes | token=yes | scope=monitors | roles=admin,operator
+HEAD /api/v1/admin/monitors/:id/stats | auth=yes | token=yes | scope=monitors | roles=admin,operator
+HEAD /api/v1/admin/monitors/events | auth=yes | token=yes | scope=monitors | roles=admin,operator
+HEAD /api/v1/admin/notifications/channels | auth=yes | token=yes | scope=channels | roles=admin,operator
+HEAD /api/v1/admin/notifications/channels/:id | auth=yes | token=yes | scope=channels | roles=admin,operator
+HEAD /api/v1/admin/notifications/deliveries | auth=yes | token=yes | scope=channels | roles=admin,operator
+HEAD /api/v1/admin/notifications/deliveries/:id | auth=yes | token=yes | scope=channels | roles=admin,operator
+HEAD /api/v1/admin/notifications/monitor/:monitorId/channels | auth=yes | token=yes | scope=channels | roles=admin,operator
+HEAD /api/v1/admin/notifications/smtp | auth=yes | token=yes | scope=channels | roles=admin,operator
+HEAD /api/v1/admin/oidc | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/oidc/ | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/oidc/test-sign-in | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/oidc/test-sign-in/:id | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/reports/uptime | auth=yes | token=yes | scope=reports | roles=admin,operator
+HEAD /api/v1/admin/reports/uptime/export | auth=yes | token=yes | scope=reports | roles=admin,operator
+HEAD /api/v1/admin/status-page-access | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/status-page-access/ | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/subscribers | auth=yes | token=yes | scope=subscribers | roles=admin,operator
+HEAD /api/v1/admin/subscribers/ | auth=yes | token=yes | scope=subscribers | roles=admin,operator
+HEAD /api/v1/admin/subscribers/deliveries | auth=yes | token=yes | scope=subscribers | roles=admin,operator
+HEAD /api/v1/admin/subscribers/export | auth=yes | token=yes | scope=subscribers | roles=admin,operator
+HEAD /api/v1/admin/subscribers/settings | auth=yes | token=yes | scope=subscribers | roles=admin,operator
+HEAD /api/v1/admin/system-health | auth=yes | token=yes | scope=system | roles=admin
+HEAD /api/v1/admin/system-health/ | auth=yes | token=yes | scope=system | roles=admin
+HEAD /api/v1/admin/system-health/update | auth=yes | token=yes | scope=system | roles=admin
+HEAD /api/v1/admin/users | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/users/ | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/vaults | auth=yes | token=yes | scope=vault | roles=admin,operator
+HEAD /api/v1/admin/vaults/ | auth=yes | token=yes | scope=vault | roles=admin,operator
+HEAD /api/v1/admin/vaults/:id | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/vaults/:id/secrets | auth=yes | token=yes | scope=vault | roles=admin,operator
+HEAD /api/v1/admin/vaults/:id/secrets/:secretId/reveal | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/auth/config | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/auth/oidc/callback | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/auth/oidc/confirm | auth=yes | token=no | scope=- | roles=none
+HEAD /api/v1/auth/oidc/login | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/auth/session | auth=yes | token=no | scope=- | roles=none
+HEAD /api/v1/hook/:token | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/access | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/components.json | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/events | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/incidents | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/incidents.atom | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/incidents.rss | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/incidents/:id | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/layout | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/locales | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/locales/ | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/locales/:code | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/monitor/:id/history | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/monitor/:id/uptime | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/slack.rss | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/status | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/subscriptions/options | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/summary.json | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/setup/status | auth=no | token=no | scope=- | roles=none
+HEAD /health | auth=no | token=no | scope=- | roles=none
+HEAD /ready | auth=no | token=no | scope=- | roles=none
+PATCH /api/v1/admin/actions/:id | auth=yes | token=yes | scope=actions | roles=admin
+PATCH /api/v1/admin/branding/ | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+PATCH /api/v1/admin/incident-templates/:id | auth=yes | token=yes | scope=incidents | roles=admin,operator
+PATCH /api/v1/admin/incidents/:id | auth=yes | token=yes | scope=incidents | roles=admin,operator
+PATCH /api/v1/admin/locales/:code | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+PATCH /api/v1/admin/maintenance/:id | auth=yes | token=yes | scope=maintenance | roles=admin,operator
+PATCH /api/v1/admin/monitors/:id | auth=yes | token=yes | scope=monitors | roles=admin,operator
+PATCH /api/v1/admin/notifications/channels/:id | auth=yes | token=yes | scope=channels | roles=admin,operator
+PATCH /api/v1/admin/users/:id/role | auth=yes | token=no | scope=- | roles=admin
+PATCH /api/v1/admin/vaults/:id | auth=yes | token=no | scope=- | roles=admin
+PATCH /api/v1/admin/vaults/:id/secrets/:secretId | auth=yes | token=no | scope=- | roles=admin
+POST /api/v1/admin/actions/ | auth=yes | token=yes | scope=actions | roles=admin
+POST /api/v1/admin/actions/:id/test | auth=yes | token=yes | scope=actions | roles=admin
+POST /api/v1/admin/actions/runs/:id/retry | auth=yes | token=yes | scope=actions | roles=admin
+POST /api/v1/admin/api-tokens/ | auth=yes | token=no | scope=- | roles=admin
+POST /api/v1/admin/backups/ | auth=yes | token=no | scope=- | roles=admin
+POST /api/v1/admin/backups/validate | auth=yes | token=no | scope=- | roles=admin
+POST /api/v1/admin/branding/logo | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+POST /api/v1/admin/branding/logo/dark | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+POST /api/v1/admin/branding/logo/light | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+POST /api/v1/admin/config/apply | auth=yes | token=yes | scope=custom | roles=admin,operator
+POST /api/v1/admin/config/validate | auth=yes | token=yes | scope=custom | roles=admin,operator
+POST /api/v1/admin/incident-templates/ | auth=yes | token=yes | scope=incidents | roles=admin,operator
+POST /api/v1/admin/incidents/ | auth=yes | token=yes | scope=incidents | roles=admin,operator
+POST /api/v1/admin/incidents/:id/monitors | auth=yes | token=yes | scope=incidents | roles=admin,operator
+POST /api/v1/admin/incidents/:id/updates | auth=yes | token=yes | scope=incidents | roles=admin,operator
+POST /api/v1/admin/locales/ | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+POST /api/v1/admin/locales/:code/set-default | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+POST /api/v1/admin/maintenance/ | auth=yes | token=yes | scope=maintenance | roles=admin,operator
+POST /api/v1/admin/monitors/ | auth=yes | token=yes | scope=monitors | roles=admin,operator
+POST /api/v1/admin/monitors/:id/check-now | auth=yes | token=yes | scope=monitors | roles=admin,operator
+POST /api/v1/admin/monitors/:id/reset-token | auth=yes | token=yes | scope=monitors | roles=admin,operator
+POST /api/v1/admin/monitors/test | auth=yes | token=yes | scope=monitors | roles=admin,operator
+POST /api/v1/admin/notifications/channels | auth=yes | token=yes | scope=channels | roles=admin,operator
+POST /api/v1/admin/notifications/channels/:id/test | auth=yes | token=yes | scope=channels | roles=admin,operator
+POST /api/v1/admin/notifications/deliveries/:id/retry | auth=yes | token=yes | scope=channels | roles=admin,operator
+POST /api/v1/admin/notifications/smtp/test | auth=yes | token=yes | scope=channels | roles=admin,operator
+POST /api/v1/admin/oidc/test | auth=yes | token=no | scope=- | roles=admin
+POST /api/v1/admin/subscribers/deliveries/:id/retry | auth=yes | token=yes | scope=subscribers | roles=admin,operator
+POST /api/v1/admin/users/ | auth=yes | token=no | scope=- | roles=admin
+POST /api/v1/admin/users/:id/reset-2fa | auth=yes | token=no | scope=- | roles=admin
+POST /api/v1/admin/users/:id/reset-password | auth=yes | token=no | scope=- | roles=admin
+POST /api/v1/admin/vaults/ | auth=yes | token=no | scope=- | roles=admin
+POST /api/v1/admin/vaults/:id/secrets | auth=yes | token=no | scope=- | roles=admin
+POST /api/v1/admin/vaults/:id/test | auth=yes | token=no | scope=- | roles=admin
+POST /api/v1/admin/vaults/test-connection | auth=yes | token=no | scope=- | roles=admin
+POST /api/v1/auth/2fa/disable | auth=yes | token=no | scope=- | roles=none
+POST /api/v1/auth/2fa/enable | auth=yes | token=no | scope=- | roles=none
+POST /api/v1/auth/2fa/setup | auth=yes | token=no | scope=- | roles=none
+POST /api/v1/auth/2fa/verify | auth=no | token=no | scope=- | roles=none
+POST /api/v1/auth/change-password | auth=yes | token=no | scope=- | roles=none
+POST /api/v1/auth/login | auth=no | token=no | scope=- | roles=none
+POST /api/v1/auth/logout | auth=yes | token=no | scope=- | roles=none
+POST /api/v1/auth/logout-all | auth=yes | token=no | scope=- | roles=none
+POST /api/v1/hook/:token | auth=no | token=no | scope=- | roles=none
+POST /api/v1/public/subscriptions/ | auth=no | token=no | scope=- | roles=none
+POST /api/v1/public/subscriptions/confirm | auth=no | token=no | scope=- | roles=none
+POST /api/v1/public/subscriptions/preferences | auth=no | token=no | scope=- | roles=none
+POST /api/v1/public/subscriptions/unsubscribe | auth=no | token=no | scope=- | roles=none
+POST /api/v1/setup/complete | auth=no | token=no | scope=- | roles=none
+PUT /api/v1/admin/actions/monitor/:monitorId | auth=yes | token=yes | scope=actions | roles=admin
+PUT /api/v1/admin/backups/config | auth=yes | token=no | scope=- | roles=admin
+PUT /api/v1/admin/layout/ | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+PUT /api/v1/admin/monitors/:id/dependencies | auth=yes | token=yes | scope=monitors | roles=admin,operator
+PUT /api/v1/admin/notifications/monitor/:monitorId/channels | auth=yes | token=yes | scope=channels | roles=admin,operator
+PUT /api/v1/admin/notifications/smtp | auth=yes | token=yes | scope=channels | roles=admin,operator
+PUT /api/v1/admin/oidc/ | auth=yes | token=no | scope=- | roles=admin
+PUT /api/v1/admin/status-page-access/ | auth=yes | token=no | scope=- | roles=admin
+PUT /api/v1/admin/subscribers/settings | auth=yes | token=yes | scope=subscribers | roles=admin,operator
+PUT /api/v1/public/subscriptions/preferences | auth=no | token=no | scope=- | roles=none

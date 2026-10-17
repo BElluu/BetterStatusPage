@@ -13,7 +13,10 @@ export interface RoleRegistry {
   /** Every role, `admin` first, in the order they were registered. */
   list(): readonly string[]
   readonly defaultForNewUsers: string
-  /** Called by createAuth: after this, registering throws, so the set of roles cannot change under a running app. */
+  /**
+   * Called by createAuth: after this, registering throws, so the set of roles cannot change under a running app.
+   * It also throws when the application never registered its roles, because the fallback would then be `admin`.
+   */
   freeze(): void
 }
 
@@ -22,6 +25,7 @@ export function createRoleRegistry(): RoleRegistry {
   let fallback: string = ADMIN_ROLE
   let defaultForNewUsers: string = ADMIN_ROLE
   let frozen = false
+  let registered = false
 
   const isValid = (role: string) => roles.includes(role)
 
@@ -34,6 +38,7 @@ export function createRoleRegistry(): RoleRegistry {
       }
       fallback = options.fallback
       defaultForNewUsers = options.defaultForNewUsers
+      registered = true
     },
     normalize(raw) {
       try {
@@ -47,6 +52,9 @@ export function createRoleRegistry(): RoleRegistry {
     isValid,
     list: () => roles,
     get defaultForNewUsers() { return defaultForNewUsers },
-    freeze() { frozen = true },
+    freeze() {
+      if (!registered) throw new Error('Register the application roles before creating the auth module: without them every unknown role would be an administrator')
+      frozen = true
+    },
   }
 }

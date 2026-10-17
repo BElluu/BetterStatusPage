@@ -196,7 +196,7 @@ export function createSignInRoutes(ctx: AuthOptions, parts: {
         const cfg = await getOidcTestConfig()
         if (!cfg) return reply.code(404).send({ error: 'OIDC is not configured' })
         const result = await runOidcTest(cfg, callbackUrlFor(cfg, query), flow)
-        return reply.redirect(`/admin/sso-test?result=${storeOidcTestResult(flow.adminUserId!, result)}`)
+        return reply.redirect(`${ctx.urls.ssoTest}?result=${storeOidcTestResult(flow.adminUserId!, result)}`)
       }
 
       const { config: cfg } = await getOidcConfig()

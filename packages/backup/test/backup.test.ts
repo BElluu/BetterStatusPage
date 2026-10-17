@@ -31,10 +31,10 @@ function readNotes(source: string): string[] {
 
 interface Manifest extends BackupManifest { note: string }
 
-function serviceFor(owner = { alive: true }) {
+function serviceFor(owner = { alive: true }, name = 'kit') {
   fs.mkdirSync(file('data'), { recursive: true })
   return createBackupService<Manifest>({
-    name: 'kit', magic: 'KITBKP01', formatVersion: 1,
+    name, magic: 'KITBKP01', formatVersion: 1,
     backupDir: () => file('backups'),
     databasePath: () => file('data', 'app.sqlite'),
     appVersion: () => '1.2.3',
@@ -78,6 +78,12 @@ describe('archive format', () => {
 })
 
 describe('backup service', () => {
+  it('takes a product name literally: a dot in it does not match any other character', () => {
+    const service = serviceFor({ alive: true }, 'my.app')
+    assert.equal(path.basename(service.backupFile('my.app-backup-1.backup')), 'my.app-backup-1.backup')
+    assert.throws(() => service.backupFile('myxapp-backup-1.backup'), /Invalid backup filename/)
+  })
+
   it('writes the database, the extra files and a manifest with the application’s fields in order', async () => {
     const service = serviceFor()
     writeDatabase(file('data', 'app.sqlite'), ['one'])
