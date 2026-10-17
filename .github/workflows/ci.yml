@@ -1,9 +1,25 @@
 name: CI
 
+# Documentation-only changes skip CI. docs/changelog.md is baked into the image and parsed by the
+# app, and docs/public/openapi.yaml is checked by an API test, so both still trigger it.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**/*.md'
+      - 'docs/src/**'
+      - 'README*.md'
+      - 'SECURITY.md'
+      - 'LICENSE'
+      - '!docs/changelog.md'
   pull_request:
+    paths-ignore:
+      - 'docs/**/*.md'
+      - 'docs/src/**'
+      - 'README*.md'
+      - 'SECURITY.md'
+      - 'LICENSE'
+      - '!docs/changelog.md'
 
 permissions:
   contents: read
