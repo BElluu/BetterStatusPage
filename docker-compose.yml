@@ -14,6 +14,10 @@ services:
       - bsp_data:/app/data
       - bsp_backups:/app/backups
     restart: unless-stopped
+    # ICMP ping monitors run as the unprivileged "node" user. If the host kernel does not allow
+    # unprivileged ICMP, uncomment this (cap_add: [NET_RAW] alone does not help a non-root user).
+    # sysctls:
+    #   net.ipv4.ping_group_range: "0 2147483647"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
       interval: 30s
