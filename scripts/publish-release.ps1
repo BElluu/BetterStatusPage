@@ -95,7 +95,10 @@ try {
   if ($requestedVersion -gt $currentVersion) {
     Invoke-External -File 'npm.cmd' -Arguments @(
       'version', $Version,
-      '--workspaces',
+      '--workspace', 'apps/admin',
+      '--workspace', 'apps/api',
+      '--workspace', 'apps/status',
+      '--workspace', 'packages/shared',
       '--include-workspace-root',
       '--no-git-tag-version'
     )
