@@ -30,6 +30,18 @@ function withoutLoneSurrogates(value: string): string {
   return out
 }
 
+/** Whether a placeholder sits in the scheme, host or port of a URL, where it would choose the address the request goes to. */
+export function placeholderInAuthority(url: string): boolean {
+  if (!url.includes('{{')) return false
+  // Asked of the URL parser itself, which skips extra slashes (`https:///{{x}}/`) and reads `\` as `/`: a placeholder is
+  // in the authority when two different values for it lead to two different hosts, or to no valid URL at all.
+  const hostFor = (value: string): string | null => {
+    try { return new URL(url.replace(/\{\{\w+\}\}/g, value)).host } catch { return null }
+  }
+  const first = hostFor('aaaa')
+  return first === null || first !== hostFor('bbbb')
+}
+
 /** Drops line breaks and NUL from a value that goes into a header, where they would split or reject the request. */
 export function stripLineBreaks(value: string): string {
   return value.replace(/[\r\n\0]/g, '')
@@ -44,6 +56,8 @@ export function buildWebhookRequest(
   config: { url: string; method: string; headers?: Record<string, string>; body?: string },
   vars: Record<string, string>,
 ): { url: string; init: { method: string; headers: Record<string, string>; body?: string } } {
+  // A value is text for a path or query; in the host it would let whoever controls the value choose where the request goes.
+  if (placeholderInAuthority(config.url)) throw new Error('A placeholder cannot be part of the host of the URL')
   const url = substituteVars(config.url, vars, encodeUrlPart)
   const body = config.body ? substituteVars(config.body, vars, escapeJsonString) : undefined
 

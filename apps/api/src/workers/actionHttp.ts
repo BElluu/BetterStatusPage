@@ -1,6 +1,7 @@
 import { buildWebhookRequest } from './notifier.js'
 import { resolveVaultSecret } from '../kit/resolveSecret.js'
-import { placeholderInAuthority, secretPlaceholders } from '../services/actionInput.js'
+import { placeholderInAuthority } from '@better-kit/notify'
+import { secretPlaceholders } from '../services/actionInput.js'
 import { db } from '../db/client.js'
 import { vaultSecrets } from '../db/schema.js'
 import { and, eq } from 'drizzle-orm'
@@ -120,9 +121,9 @@ export async function executeAction(config: ActionHttpConfig, variables: Record<
   // Checked on the template: a monitor whose name happens to read {{secret}} is only text once it is filled in.
   const missing = secretPlaceholders(config as unknown as Record<string, unknown>).find((name) => !(name in secrets))
   if (missing) return { ok: false, snippet: '', error: `{{${missing}}} is not provided by the vault secret` }
-  // A secret goes wherever the URL points, and variables (a monitor name, which an operator can rename) must not steer that.
-  if ((config.secrets?.length ?? 0) > 0 && placeholderInAuthority(config.url)) {
-    return { ok: false, snippet: '', error: 'A placeholder in the host of the URL is not allowed when the action uses a vault secret' }
+  // The request goes wherever the URL points, and variables (a monitor name, or the message of a heartbeat) must not steer that.
+  if (placeholderInAuthority(config.url)) {
+    return { ok: false, snippet: '', error: 'A placeholder in the host of the URL is not allowed' }
   }
   // In the URL every value is one piece of a path or query, so it cannot add a segment, a dot segment or a host.
   const { url, init } = buildWebhookRequest(config, { ...variables, ...secrets })

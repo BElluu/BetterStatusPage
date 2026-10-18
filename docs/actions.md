@@ -84,6 +84,9 @@ The same action can be linked once per status, so one action can serve both `dow
 
 A variable that does not exist is left as written. How a value is put in depends on where it goes: in the **URL** it is URL-encoded (a value that is only dots, `.` or `..`, is sent as the text `%2E`, so it cannot climb a path level), in the **body** it is escaped so it stays valid inside a JSON string, in a **header value** line breaks are removed. The placeholders of [vault secrets](#secrets-from-the-vault) (`{{secret_<name>}}` and friends) work in the same three places.
 
+> [!WARNING]
+> **Not released yet.** A placeholder in the host of the URL (`https://{{error_message}}/x`) is refused when the action is saved, with or without a secret, and an action saved earlier fails when it runs, because a value filled in at that time, such as the `msg` of a heartbeat, would choose where the request goes. A placeholder in the user or password of the URL (`https://{{secret_x}}@host/`) is refused too: send credentials in the `Authorization` header, for example with `{{secret_x_basic}}`. This is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
 ---
 
 ## Retries and run history

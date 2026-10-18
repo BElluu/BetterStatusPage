@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { cancelRunsOfAction } from '../../workers/actionRunner.js'
-import { ENTITY_KEY_ERROR, isValidEntityKey, byKey, canonical, clip, documentKey, isObject, keyList, nestedDeeperThan, unknownFields, type AuditEntry, type ConfigChange, type ConfigKind, type Json, type Problems } from '@better-kit/config-as-code'
+import { ENTITY_KEY_ERROR, isValidEntityKey, byKey, canonical, documentKey, isObject, keyList, nestedDeeperThan, unknownFields, type AuditEntry, type ConfigChange, type ConfigKind, type Json, type Problems } from '@better-kit/config-as-code'
 import { ACTION_TRIGGER_STATUSES, type ActionTriggerStatus } from '@bsp/shared'
 import { db } from '../../db/client.js'
 import { actionFailureChannels, actions, monitorActions } from '../../db/schema.js'
@@ -10,7 +10,7 @@ import { vaultUseProblem } from '../vaultUse.js'
 import type { DesiredChannel } from './channel.js'
 import { mayLinkChannels } from './channel.js'
 import type { ExportState, State } from './state.js'
-import { entityKeys, exportByKey, MAX_CONFIG_DEPTH, MAX_NAME_LENGTH } from './shared.js'
+import { entityKeys, exportByKey, MAX_CONFIG_DEPTH, MAX_NAME_LENGTH, missingLink } from './shared.js'
 
 const ACTION_FIELDS = ['kind', 'key', 'name', 'enabled', 'config', 'failureNotifications']
 const ACTION_LINK_FIELDS = ['action', 'onStatus', 'delayMinutes', 'cooldownMinutes']
@@ -87,7 +87,8 @@ export const actionKind: ConfigKind<State, ExportState, DesiredAction, PlannedAc
     const { state, token, problems, resolveVaults } = ctx
     const actionByKey = new Map(state.actionRows.map((row) => [row.key, row]))
     const channelKeyById = new Map(state.channelRows.map((row) => [row.id, row.key]))
-    const finalChannelKeys = new Set([...state.channelRows.map((row) => row.key), ...(ctx.desired('NotificationChannel') as DesiredChannel[]).map((channel) => channel.key)])
+    const removedChannels = ctx.removed('NotificationChannel')
+    const finalChannelKeys = new Set([...state.channelRows.map((row) => row.key).filter((key) => !removedChannels.has(key)), ...(ctx.desired('NotificationChannel') as DesiredChannel[]).map((channel) => channel.key)])
     const currentFailureKeys = (actionId: number) =>
       state.failureRows.filter((link) => link.actionId === actionId).flatMap((link) => channelKeyById.get(link.channelId) ?? []).sort()
     const mayLink = mayLinkChannels(token)
@@ -112,7 +113,7 @@ export const actionKind: ConfigKind<State, ExportState, DesiredAction, PlannedAc
           if (typeProblem) problems.add(`${action.path}.config`, typeProblem)
         }
       }
-      for (const key of action.failureNotifications) if (!finalChannelKeys.has(key)) problems.add(`${action.path}.failureNotifications`, `unknown channel "${clip(key)}"`)
+      for (const key of action.failureNotifications) if (!finalChannelKeys.has(key)) problems.add(`${action.path}.failureNotifications`, missingLink('channel', key, removedChannels))
       const refuseChannels = () => problems.add(`${action.path}.failureNotifications`, 'a token needs the "channels:write" permission to choose which channels are told when an action fails')
       if (!existing) {
         if (action.failureNotifications.length && !mayLink) refuseChannels()

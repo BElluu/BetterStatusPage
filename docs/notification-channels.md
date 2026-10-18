@@ -187,6 +187,9 @@ https://hooks.example.com/notify?monitor={{monitor_name}}&status={{status}}
 
 Each value is URL-encoded, so a monitor name with spaces or `&` stays one query value. In a header value, line breaks are removed.
 
+> [!WARNING]
+> **Not released yet.** In the URL of a webhook channel each variable is URL-encoded as described above, and a placeholder in the host (`https://{{error_message}}/x`) is refused when the channel is saved, and fails the delivery of a channel saved earlier, because a value would choose where the request goes. This is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
 ---
 
 ## Slack, Discord, Microsoft Teams and Telegram

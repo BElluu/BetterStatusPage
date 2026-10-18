@@ -461,8 +461,9 @@ By default an HTTPS monitor verifies the server certificate, so a device with a 
 and still use status codes, keywords and response checks. It is off by default.
 
 - It **disables certificate verification** for the requests to the monitored URL's host and port, and for
-  the redirects the check follows. Requests to a separate authentication server (OAuth 2.0 token, CAS)
-  keep verifying its certificate. Use it only for endpoints you trust.
+  the redirects to the same host and port. A redirect to another host or port, and the requests to a
+  separate authentication server (OAuth 2.0 token, CAS), keep verifying the certificate, in the check and in
+  the **Test** button alike. Use it only for endpoints you trust.
 - It applies to `https://` URLs only; it is cleared in the form when the URL stops being `https://`.
 - [Certificate expiry warnings](#tls-certificate-expiry-warnings) do not apply to a monitor that ignores
   TLS errors: the option is hidden in the form, no warnings are sent and the certificate expiry shown for

@@ -241,6 +241,8 @@ curl -fsS -X POST -H "Authorization: Bearer $BSP_TOKEN" -H "Content-Type: applic
 - **Listed before it happens.** Deletions are changes with `"action": "delete"`, and `summary` gains a `delete` count. `validate` lists them without deleting.
 - **Same permission as deleting.** A token needs the write permission of every kind in the file, as for any import, and that is also what `DELETE` needs. A user needs the role that may delete that kind in the panel.
 - **Links go with the object.** Deleting a monitor removes its notification, dependency and action links and cancels its queued action runs; deleting a channel or an action removes the links to it. A kept monitor that depends on a deleted one loses that dependency.
+- **A link to what the import deletes is refused.** A document that lists a channel, action or monitor which the same import deletes (it is in the installation, but not in the file) makes the import fail with a problem naming the link, because the link would be dropped without a word. Add the object to the file or remove the link.
+- **The preview is not locked.** `apply` plans again on what is stored at that moment, so something created between the preview and `apply` by someone else, of a kind the file holds, is deleted as well. Run `validate` and `apply` close together.
 - **Still all or nothing, and audited.** The deletions are part of the same transaction. Each appears in the audit log as a **Delete**, and the **Import** entry has the `deleted` count.
 
 ### Secrets in a document

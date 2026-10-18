@@ -288,6 +288,22 @@ describe('importing a changed file', () => {
       assert.equal(rows('monitors').length, 3)
     })
 
+    it('refuses a link to something the same import deletes, and keeps the link without prune', async () => {
+      await applied(baseline())
+      // The file asks for the "pager" channel and the "billing-db" monitor that it leaves out, so prune would drop both links.
+      const documents = [channel(), site(), heartbeat()]
+      const response = await prune('apply', documents)
+      assert.equal(response.statusCode, 400, response.body)
+      const messages = response.json().problems.map((problem: Doc) => problem['message'])
+      assert.match(messages[0], /^channel "pager" is deleted by this import/)
+      assert.match(messages[1], /^monitor "billing-db" is deleted by this import/)
+      assert.equal(rows('monitors').length, 3, 'nothing was deleted')
+      assert.equal(rows('monitor_notification_channels').length, 2)
+
+      assert.equal((await post('apply?prune=false', documents)).statusCode, 200)
+      assert.equal(rows('monitor_dependencies').length, 1)
+    })
+
     it('refuses a prune value that is not true or false', async () => {
       assert.equal((await prune('apply', [heartbeat()], 'yes')).statusCode, 400)
     })

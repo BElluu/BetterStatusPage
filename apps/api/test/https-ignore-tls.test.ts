@@ -107,3 +107,53 @@ describe('ignoreTls input', () => {
     assert.deepEqual(certResetsFor(off, { ...off, certExpiry: { enabled: true, warnDays: 7 } }), { certCheckedAt: null })
   })
 })
+
+describe('ignoreTls with a redirect', () => {
+  let monitored: Server
+  let other: Server
+  let monitoredUrl = ''
+  let otherServed = 0
+
+  const listen = async (server: Server) => {
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Test server did not bind')
+    return address.port
+  }
+
+  before(async () => {
+    const tls = { key: fixture('self-signed-key.pem'), cert: fixture('self-signed-cert.pem') }
+    other = createServer(tls, (_req, res) => { otherServed++; res.writeHead(200).end('other') })
+    const otherPort = await listen(other)
+    monitored = createServer(tls, (req, res) => {
+      if (req.url === '/to-other') return void res.writeHead(302, { location: `https://127.0.0.1:${otherPort}/` }).end()
+      if (req.url === '/to-self') return void res.writeHead(302, { location: '/ok' }).end()
+      res.writeHead(200).end('ok')
+    })
+    monitoredUrl = `https://127.0.0.1:${await listen(monitored)}`
+  })
+
+  beforeEach(() => { otherServed = 0 })
+
+  after(async () => {
+    await new Promise<void>((resolve) => monitored.close(() => resolve()))
+    await new Promise<void>((resolve) => other.close(() => resolve()))
+  })
+
+  it('follows a redirect inside the monitored origin without verifying it', async () => {
+    const result = await checkHttps({ url: `${monitoredUrl}/to-self`, method: 'GET', expectedStatus: 200, keyword: 'ok', ignoreTls: true }, 5000)
+    assert.equal(result.status, 'up')
+  })
+
+  it('verifies the certificate of another origin it is redirected to, in the check and in the test', async () => {
+    const config = { url: `${monitoredUrl}/to-other`, method: 'GET' as const, expectedStatus: 200, ignoreTls: true }
+
+    const checked = await checkHttps(config, 5000)
+    assert.equal(checked.status, 'down')
+    assert.equal(otherServed, 0)
+
+    const tested = await testHttps(config, 5000)
+    assert.equal(tested.overall, 'error')
+    assert.equal(otherServed, 0)
+  })
+})

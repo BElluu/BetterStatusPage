@@ -96,6 +96,9 @@ If the test does not arrive, double-check the webhook URL. A deleted or disabled
 
 The **Message Content** field (the optional plain-text line above the embed) supports template variables. The text of `{{error_message}}` is shown as plain text: markdown such as links and emphasis is escaped, and `@` is broken so it cannot ping `@everyone`, `@here`, a user or a role. Mentions you type into the field itself work as before. In **Avatar URL** a variable is URL-encoded.
 
+> [!WARNING]
+> **Not released yet.** Escaping the text of `{{error_message}}` in the message content, and URL-encoding a variable in the avatar URL, are not in a published release. This is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
 | Variable | Example value |
 |----------|--------------|
 | `{{monitor_name}}` | `API Gateway` |

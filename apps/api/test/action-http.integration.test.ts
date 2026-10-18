@@ -6,7 +6,8 @@ import { db } from '../src/db/client.js'
 import { encrypt } from '../src/kit/secretBox.js'
 import { actionRuns, actions, monitorActions, monitors, vaults, vaultSecrets } from '../src/db/schema.js'
 import { actionRoutes } from '../src/routes/actions.js'
-import { placeholderInAuthority, placeholderInCredentials } from '../src/services/actionInput.js'
+import { placeholderInAuthority } from '@better-kit/notify'
+import { placeholderInCredentials } from '../src/services/actionInput.js'
 import { executeAction, redact } from '../src/workers/actionHttp.js'
 import { processDueActionRuns, scheduleActionRuns } from '../src/workers/actionRunner.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
@@ -161,6 +162,24 @@ describe('what a variable can do to a request that carries a secret', () => {
 
     const created = await app.inject({ method: 'POST', url: '/actions', payload: { name: 'A', config: { url: 'https://{{monitor_name}}.corp.test/', method: 'POST', headers: { A: '{{secret_jenkins}}' }, secrets: [{ name: 'jenkins', vault: ref }] } } })
     assert.equal(created.statusCode, 400)
+  })
+})
+
+describe('a placeholder in the host of an action URL', () => {
+  it('is refused when the action is saved, also without a secret', async () => {
+    for (const url of ['https://{{error_message}}/x', 'https://{{monitor_name}}.corp.test/']) {
+      const created = await app.inject({ method: 'POST', url: '/actions', payload: { name: 'A', config: { url, method: 'POST' } } })
+      assert.equal(created.statusCode, 400, url)
+      assert.match(created.json<{ error: string }>().error, /host of the URL/)
+    }
+  })
+
+  it('is refused when an action that was saved earlier runs', async () => {
+    const result = await executeAction(config({ url: 'http://{{error_message}}/build' }), { error_message: '127.0.0.1' })
+
+    assert.equal(result.ok, false)
+    assert.match(result.error!, /host of the URL/)
+    assert.equal(received.length, 0)
   })
 })
 
