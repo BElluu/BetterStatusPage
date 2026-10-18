@@ -3,11 +3,12 @@ import { db } from '../db/client.js'
 import { monitors } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
 import { recordObservation } from '../workers/scheduler.js'
+import { WEBHOOK_TOKEN_PATTERN } from '../services/monitorInput.js'
 import { WEBHOOK_RATE_LIMIT } from '../config/rateLimits.js'
 
 async function handleWebhook(req: FastifyRequest<{ Params: { token: string } }>, reply: FastifyReply) {
   const { token } = req.params
-  if (!/^[0-9a-f]{48}$/.test(token)) return reply.code(404).send({ error: 'Not found' })
+  if (!WEBHOOK_TOKEN_PATTERN.test(token)) return reply.code(404).send({ error: 'Not found' })
   const row = (await db.select().from(monitors).where(eq(monitors.webhookToken, token)))[0]
   if (!row) return reply.code(404).send({ error: 'Not found' })
 

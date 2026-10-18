@@ -15,6 +15,9 @@ const AUTO_INCIDENT_MODES: readonly AutoIncidentMode[] = ['draft', 'published']
 const MAX_NAME_LENGTH = 200
 const MAX_TAGS = 20
 
+/** What a heartbeat token looks like: the heartbeat route and the configuration import both accept exactly this. */
+export const WEBHOOK_TOKEN_PATTERN = /^[0-9a-f]{48}$/
+
 /** The secret part of a webhook monitor's heartbeat URL. */
 export function generateWebhookToken(): string {
   return randomBytes(24).toString('hex')
