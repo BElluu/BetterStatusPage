@@ -204,7 +204,7 @@ export default function MonitorsPage() {
                 >
                   <td className="px-4 py-3">
                     <Link to={`/admin/monitors/${monitor.id}`} className="font-medium hover:underline focus-ring rounded" style={{ color: 'var(--m3-on-surface)' }}>{monitor.name}</Link>
-                    {monitor.type === 'https' && typeof monitor.certExpiresAt === 'number' && <CertExpiryChip monitor={monitor} />}
+                    {monitor.type === 'https' && typeof monitor.certExpiresAt === 'number' && (monitor.config as HttpsConfig).ignoreTls !== true && <CertExpiryChip monitor={monitor} />}
                     {(monitor.tags ?? []).length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
                         {(monitor.tags ?? []).map((t, j) => {

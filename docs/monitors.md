@@ -187,7 +187,8 @@ config:
   `Content-Type: application/json` as a header if the endpoint needs it. Use a body only with
   `POST`; leave it empty for `GET` and `HEAD`.
 
-For `https://` URLs the form also offers [certificate expiry warnings](#tls-certificate-expiry-warnings).
+For `https://` URLs the form also offers [certificate expiry warnings](#tls-certificate-expiry-warnings)
+and [Ignore TLS certificate errors](#ignore-tls-certificate-errors).
 
 ---
 
@@ -421,6 +422,36 @@ There is no separate grace period. Set the interval a little longer than the tim
 job's runs — for an hourly job, `3900` seconds (65 minutes) — or use **Alert after (checks)** to
 require several missed intervals before anyone is paged. **Timeout** and **Attempts** do not apply
 to webhook monitors.
+
+---
+
+## Ignore TLS certificate errors
+
+> [!WARNING]
+> **Not released yet.** This feature is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+*Admin → Monitors → edit an HTTPS monitor → **Ignore TLS certificate errors***
+
+By default an HTTPS monitor verifies the server certificate, so a device with a self-signed certificate
+(a network controller on a LAN, for example) is Down. Turn this option on to accept any certificate
+and still use status codes, keywords and response checks. It is off by default.
+
+- It **disables certificate verification** for the requests to the monitored URL's host and port, and for
+  the redirects the check follows. Requests to a separate authentication server (OAuth 2.0 token, CAS)
+  keep verifying its certificate. Use it only for endpoints you trust.
+- It applies to `https://` URLs only; it is cleared in the form when the URL stops being `https://`.
+- [Certificate expiry warnings](#tls-certificate-expiry-warnings) do not apply to a monitor that ignores
+  TLS errors: the option is hidden in the form, no warnings are sent and the certificate expiry shown for
+  the monitor, including the `bsp_monitor_certificate_expiry_timestamp_seconds` metric, is forgotten
+  when the option is turned on. The **Test** button reports that the certificate is not verified.
+
+In YAML and the API it is `ignoreTls: true` in the monitor's `config`:
+
+```yaml
+config:
+  url: https://unifi.lan:8443/status
+  ignoreTls: true
+```
 
 ---
 

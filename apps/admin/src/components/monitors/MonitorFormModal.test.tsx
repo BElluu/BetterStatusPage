@@ -225,6 +225,36 @@ describe('MonitorFormModal', () => {
     })
   })
 
+  it('saves Ignore TLS certificate errors, which replaces the certificate expiry warnings and needs an HTTPS URL', async () => {
+    const user = userEvent.setup()
+    const { onSaved } = renderModal()
+
+    await user.type(field('Name'), 'Controller')
+    await user.clear(field('URL'))
+    await user.type(field('URL'), 'http://unifi.lan')
+    expect(screen.queryByRole('checkbox', { name: 'Ignore TLS certificate errors' })).not.toBeInTheDocument()
+
+    await user.clear(field('URL'))
+    await user.type(field('URL'), 'https://unifi.lan')
+    expect(screen.getByRole('checkbox', { name: /TLS certificate expires/ })).toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: 'Ignore TLS certificate errors' }))
+    expect(screen.getByText(/The server certificate is not verified/)).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /TLS certificate expires/ })).not.toBeInTheDocument()
+
+    // Leaving HTTPS drops the setting, so it cannot stay on unseen.
+    await user.clear(field('URL'))
+    await user.type(field('URL'), 'http://unifi.lan')
+    await user.clear(field('URL'))
+    await user.type(field('URL'), 'https://unifi.lan')
+    expect(screen.getByRole('checkbox', { name: 'Ignore TLS certificate errors' })).not.toBeChecked()
+
+    await user.click(screen.getByRole('checkbox', { name: 'Ignore TLS certificate errors' }))
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+    expect(createdBody()['config']).toEqual({ url: 'https://unifi.lan', method: 'GET', expectedStatus: 200, ignoreTls: true })
+  })
+
   it('blocks submission while a required field is empty', async () => {
     const user = userEvent.setup()
     renderModal()

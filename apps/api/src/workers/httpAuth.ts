@@ -33,6 +33,20 @@ export interface HttpResponse {
 
 export type HttpFetch = (url: string, init: HttpRequest) => Promise<HttpResponse>
 
+/** Whether the monitor skips certificate verification: only an `https://` URL can opt out of it. */
+export function skipsTlsVerification(config: { url: string; ignoreTls?: boolean }): boolean {
+  return config.ignoreTls === true && /^https:\/\//i.test(config.url)
+}
+
+/**
+ * Skips certificate verification only for requests to the monitored endpoint's own origin, so credentials
+ * sent to a separate token or CAS server are still sent over a verified connection.
+ */
+export function insecureForOrigin(monitorUrl: string, verified: HttpFetch, insecure: HttpFetch): HttpFetch {
+  const origin = new URL(monitorUrl).origin
+  return (url, init) => (new URL(url).origin === origin ? insecure : verified)(url, init)
+}
+
 export interface HttpFlowOptions {
   fetch: HttpFetch
   /** Aborts every request of the flow; the caller's timeout covers authentication too. */

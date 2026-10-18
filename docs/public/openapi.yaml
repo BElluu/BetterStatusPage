@@ -1193,6 +1193,10 @@ components:
                 username: { type: string }
                 password: { type: string }
                 vault: { $ref: '#/components/schemas/VaultRef' }
+        ignoreTls:
+          type: boolean
+          default: false
+          description: Accepts any server certificate (self-signed, expired, wrong host). Certificate expiry warnings do not apply while it is on.
         certExpiry:
           type: object
           properties:

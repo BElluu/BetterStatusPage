@@ -1,7 +1,7 @@
 import type { HttpsConfig } from '@bsp/shared'
 import type { MonitorStatus } from '@bsp/shared'
 import { evaluateAssertions, hasJsonAssertions } from './assertions.js'
-import { discardBody, requestWithCas, resolveHttpAuth, type HttpFetch, type HttpResponse } from './httpAuth.js'
+import { discardBody, insecureForOrigin, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type HttpResponse } from './httpAuth.js'
 import { Agent, fetch as httpFetch } from 'undici'
 import { lookup as dnsLookup } from 'dns'
 import type { LookupFunction } from 'net'
@@ -41,8 +41,16 @@ const httpAgent = new Agent({
   keepAliveMaxTimeout: 30 * 60_000,
 })
 
+// Same pool for monitors that opted out of certificate verification (`ignoreTls`).
+const insecureHttpAgent = new Agent({
+  connect: { lookup: cachedLookup, rejectUnauthorized: false },
+  keepAliveTimeout: 5 * 60_000,
+  keepAliveMaxTimeout: 30 * 60_000,
+})
+
 /** Scheduled checks reuse the pooled agent so repeated checks measure the endpoint, not the handshake. */
 const pooledFetch: HttpFetch = (url, init) => httpFetch(url, { ...init, dispatcher: httpAgent })
+const insecurePooledFetch: HttpFetch = (url, init) => httpFetch(url, { ...init, dispatcher: insecureHttpAgent })
 
 export async function checkHttps(
   config: HttpsConfig,
@@ -52,7 +60,8 @@ export async function checkHttps(
   // One deadline for the whole exchange: token/ticket requests, redirects and reading the body.
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(new Error(`Timed out after ${timeoutMs} ms`)), timeoutMs)
-  const opts = { fetch: pooledFetch, signal: controller.signal }
+  const fetchWith = skipsTlsVerification(config) ? insecureForOrigin(config.url, pooledFetch, insecurePooledFetch) : pooledFetch
+  const opts = { fetch: fetchWith, signal: controller.signal }
   try {
     const auth = await resolveHttpAuth(config.auth, config.url, opts)
 
@@ -61,7 +70,7 @@ export async function checkHttps(
     if (auth.cas) {
       res = await requestWithCas(config, { ...auth, cas: auth.cas }, opts)
     } else {
-      res = await pooledFetch(auth.url, {
+      res = await fetchWith(auth.url, {
         method,
         headers: { ...(config.headers ?? {}), ...auth.headers },
         ...(config.body !== undefined && method !== 'GET' && method !== 'HEAD' ? { body: config.body } : {}),

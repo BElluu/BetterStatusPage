@@ -23,15 +23,18 @@ export function generateWebhookToken(): string {
   return randomBytes(24).toString('hex')
 }
 
-const configUrl = (config: unknown): unknown => (config && typeof config === 'object' ? (config as { url?: unknown }).url : undefined)
+const configField = (config: unknown, key: string): unknown => (config && typeof config === 'object' ? (config as Record<string, unknown>)[key] : undefined)
+const configUrl = (config: unknown): unknown => configField(config, 'url')
+const ignoresTls = (config: unknown): boolean => configField(config, 'ignoreTls') === true
 
 /**
  * What a changed monitor configuration resets: the certificate is read again on the next check, so a changed
- * warning setting takes effect right away, and a different endpoint also forgets what was known about the old one.
+ * warning setting takes effect right away, and a different endpoint, or a change of whether the certificate is
+ * verified, also forgets what was known about the old certificate.
  */
 export function certResetsFor(previousConfig: unknown, nextConfig: unknown):
   { certCheckedAt: null; certExpiresAt?: null; certWarnedDays?: null } {
-  return configUrl(previousConfig) === configUrl(nextConfig)
+  return configUrl(previousConfig) === configUrl(nextConfig) && ignoresTls(previousConfig) === ignoresTls(nextConfig)
     ? { certCheckedAt: null }
     : { certCheckedAt: null, certExpiresAt: null, certWarnedDays: null }
 }
@@ -122,6 +125,7 @@ function parseConfig(type: MonitorType, value: unknown): Parsed<Record<string, u
   if (type === 'https') {
     const invalid = validateHttpAssertions(value)
     if (invalid) return { error: invalid }
+    if (value['ignoreTls'] !== undefined && typeof value['ignoreTls'] !== 'boolean') return { error: 'ignoreTls must be true or false' }
   }
   return { value }
 }

@@ -42,7 +42,7 @@ function HttpsFields({ config, updateConfig }: ConfigProps) {
   return (
     <>
       <Field label="URL">
-        <input value={(config['url'] as string) ?? ''} onChange={(e) => updateConfig('url', e.target.value)} required className="input-sig" placeholder="https://example.com" />
+        <input value={(config['url'] as string) ?? ''} onChange={(e) => { updateConfig('url', e.target.value); if (!/^https:\/\//i.test(e.target.value)) updateConfig('ignoreTls', undefined) }} required className="input-sig" placeholder="https://example.com" />
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Method">
@@ -54,8 +54,28 @@ function HttpsFields({ config, updateConfig }: ConfigProps) {
           <input type="number" value={(config['expectedStatus'] as number) ?? 200} onChange={(e) => updateConfig('expectedStatus', Number(e.target.value))} className="input-sig" />
         </Field>
       </div>
-      {/^https:\/\//i.test((config['url'] as string) ?? '') && <CertExpiryFields config={config} updateConfig={updateConfig} />}
+      {/^https:\/\//i.test((config['url'] as string) ?? '') && <IgnoreTlsField config={config} updateConfig={updateConfig} />}
+      {/^https:\/\//i.test((config['url'] as string) ?? '') && config['ignoreTls'] !== true && <CertExpiryFields config={config} updateConfig={updateConfig} />}
     </>
+  )
+}
+
+function IgnoreTlsField({ config, updateConfig }: ConfigProps) {
+  const ignoreTls = config['ignoreTls'] === true
+  return (
+    <div className="space-y-2">
+      <label className="flex items-center gap-2 text-sm cursor-pointer select-none" style={{ color: 'var(--m3-on-surface-variant)' }}>
+        <input type="checkbox" checked={ignoreTls} onChange={(e) => updateConfig('ignoreTls', e.target.checked || undefined)} />
+        Ignore TLS certificate errors
+      </label>
+      {ignoreTls && (
+        <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
+          The server certificate is not verified, so a self-signed, expired or mismatched certificate is accepted. Use it only for
+          endpoints you trust, such as devices on your LAN. Redirects the check follows are not verified either; requests to a separate
+          authentication server still are. Certificate expiry warnings are off for this monitor.
+        </p>
+      )}
+    </div>
   )
 }
 

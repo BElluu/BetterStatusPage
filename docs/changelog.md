@@ -7,6 +7,7 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ### Added
 
+- **Ignore TLS certificate errors**: an HTTPS monitor can accept self-signed, expired or mismatched certificates, so devices on a LAN keep status code, keyword and response checks. Off by default; set in the monitor form, or as `ignoreTls` in the monitor's `config` in the API and configuration files. It disables certificate verification, and certificate expiry warnings do not apply to such a monitor. See [Ignore TLS certificate errors](monitors.md#ignore-tls-certificate-errors).
 - **Resizable and sortable table columns**: the lists of users, API tokens, monitors, notification channels, actions and the uptime report can be sorted by clicking a column title (click again to reverse, a third time to switch the sorting off; empty values stay last). Every admin table, including the audit log, has columns that can be resized: drag the line on the right edge of a column title, or focus it and use the left and right arrow keys; the column next to it takes or gives the space, so the other columns stay put. Double-click or Home restores the default layout. Sorting and widths are kept until the page is reloaded.
 - **Heartbeat token in configuration files**: a `webhook` monitor document can carry `heartbeatToken`, so a monitor that is created again keeps the URL its senders call. The export writes the mask instead of the value, and an import without it keeps the stored token. See [Heartbeat token](configuration-as-code.md#heartbeat-token).
 

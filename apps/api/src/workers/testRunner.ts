@@ -1,7 +1,7 @@
 import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig } from '@bsp/shared'
 import { evaluateAssertions, validateHttpAssertions } from './assertions.js'
 import { evaluateContainer, inspectContainer, validateDockerConfig } from './docker.js'
-import { CookieJar, discardBody, errMsg, redactedCookies, requestWithCas, resolveHttpAuth, type HttpFetch, type HttpResponse, type ResolvedHttpAuth } from './httpAuth.js'
+import { CookieJar, discardBody, errMsg, insecureForOrigin, redactedCookies, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type HttpResponse, type ResolvedHttpAuth } from './httpAuth.js'
 import { firstValue, resolveConnectionString, resolveFieldCredentials, type DatabaseConnection, type DatabaseDriver, type DatabaseSession } from './database.js'
 import { sqlServerDriver } from './sqlserver.js'
 import { postgresDriver } from './postgres.js'
@@ -11,6 +11,7 @@ import { certificateTarget, certMilestone, normalizeCertExpiry, readCertificate 
 import { expiresInPhrase } from './notifier.js'
 import { checkPing } from './ping.js'
 import { Resolver } from 'dns/promises'
+import { Agent, fetch as undiciFetch } from 'undici'
 
 export interface TestStep {
   label: string
@@ -45,7 +46,8 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
   // exactly like the scheduled check, and is always cleared.
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(new Error(`Timed out after ${timeoutMs} ms`)), timeoutMs)
-  const opts = { fetch: globalFetch, signal: controller.signal, onStep: (s: TestStep) => { steps.push(s) } }
+  const doFetch = skipsTlsVerification(config) ? insecureForOrigin(config.url, globalFetch, insecureFetch) : globalFetch
+  const opts = { fetch: doFetch, signal: controller.signal, onStep: (s: TestStep) => { steps.push(s) } }
   try {
     // ── Auth resolution ─────────────────────────────────────────────────────
     let auth: ResolvedHttpAuth
@@ -64,7 +66,7 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
       steps.push({ label: `${method} ${config.url}`, status: 'info' })
       const res = auth.cas
         ? await requestWithCas(config, { ...auth, cas: auth.cas }, opts)
-        : await followRedirects(config, auth.headers, controller.signal, steps)
+        : await followRedirects(config, auth.headers, controller.signal, steps, doFetch)
 
       const responseMs = Date.now() - t
 
@@ -111,7 +113,9 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
     clearTimeout(timer)
   }
 
-  if (certificateTarget(config.url)) steps.push(await certificateStep(config, timeoutMs))
+  if (skipsTlsVerification(config)) {
+    steps.push({ label: 'TLS certificate is not verified', status: 'info', detail: 'Ignore TLS certificate errors is on' })
+  } else if (certificateTarget(config.url)) steps.push(await certificateStep(config, timeoutMs))
 
   return { overall: 'ok', steps, totalMs: Date.now() - totalStart }
 }
@@ -138,6 +142,8 @@ export async function certificateStep(config: HttpsConfig, timeoutMs: number): P
 }
 
 const globalFetch: HttpFetch = (url, init) => fetch(url, init)
+const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } })
+const insecureFetch: HttpFetch = (url, init) => undiciFetch(url, { ...init, dispatcher: insecureAgent })
 
 /**
  * Follows redirects by hand so every hop shows up as a step, while sending exactly what the
@@ -150,6 +156,7 @@ async function followRedirects(
   authHeaders: Record<string, string>,
   signal: AbortSignal,
   steps: TestStep[],
+  doFetch: HttpFetch,
 ): Promise<HttpResponse> {
   let method = (config.method ?? 'GET').toUpperCase()
   let body: string | undefined = config.body
@@ -159,7 +166,7 @@ async function followRedirects(
   for (let hops = 0; hops < 10; hops++) {
     // The previous hop was a redirect; only the final response keeps its body.
     if (hops > 0) await discardBody(res)
-    res = await globalFetch(currentUrl, {
+    res = await doFetch(currentUrl, {
       method,
       headers: sendCredentials ? { ...(config.headers ?? {}), ...authHeaders } : withoutCredentials(config.headers),
       ...(body !== undefined && method !== 'GET' && method !== 'HEAD' ? { body } : {}),
