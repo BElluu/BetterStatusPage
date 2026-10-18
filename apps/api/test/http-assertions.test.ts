@@ -82,7 +82,7 @@ describe('JSON assertions', () => {
       { type: 'json', path: '$.nothing', op: 'exists' },
       { type: 'json', path: '$.tags', op: 'contains', value: 'y' },
       { type: 'json', path: '$.name', op: 'contains', value: 'p' },
-      { type: 'json', path: '$.absent', op: 'not-exists' },
+      { type: 'json', path: '$.absent', op: 'not-exists' } as unknown as HttpAssertion,
       { type: 'json', path: '$.absent', op: 'not-equals', value: 'x' },
     ])
     assert.equal(result.status, 'up', result.error ?? '')

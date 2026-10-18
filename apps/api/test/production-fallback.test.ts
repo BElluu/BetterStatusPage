@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, it } from 'node:test'
-import Fastify from 'fastify'
+import Fastify, { type FastifyReply } from 'fastify'
 import {
   createProductionFallback,
   registerProductionFrontends,
@@ -12,7 +12,7 @@ import {
 describe('production SPA fallback', () => {
   it('returns JSON 404 for unknown API routes and the status app for frontend routes', async () => {
     const app = Fastify({ logger: false })
-    app.decorateReply('sendFile', function (filename: string, root: string) {
+    app.decorateReply('sendFile', function (this: FastifyReply, filename: string, root?: string) {
       return this.type('text/html').send(`${root}/${filename}`)
     })
     app.setNotFoundHandler(createProductionFallback('/status-dist'))

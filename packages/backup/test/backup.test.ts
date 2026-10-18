@@ -61,7 +61,8 @@ describe('archive format', () => {
     format.createArchive(file('x.archive'), [{ name: 'a.txt', source: file('a.txt') }])
     const bytes = fs.readFileSync(file('x.archive'))
     const flipped = Buffer.from(bytes)
-    flipped[flipped.indexOf('alpha')] ^= 1
+    const at = flipped.indexOf('alpha')
+    flipped[at] = flipped[at]! ^ 1
     fs.writeFileSync(file('flipped.archive'), flipped)
     fs.writeFileSync(file('short.archive'), bytes.subarray(0, bytes.length - 8))
     assert.throws(() => format.extractArchive(file('flipped.archive'), file('o1')), /Checksum mismatch: a.txt/)

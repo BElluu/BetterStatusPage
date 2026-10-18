@@ -18,7 +18,7 @@ after(() => {
   teardownTestDb(testDb)
 })
 
-const tables = Object.values(schema).filter((value): value is SQLiteTable => value instanceof SQLiteTable)
+const tables = Object.values(schema).filter((value) => value instanceof SQLiteTable) as SQLiteTable[]
 
 describe('column migrations', () => {
   it('are idempotent across restarts', () => {

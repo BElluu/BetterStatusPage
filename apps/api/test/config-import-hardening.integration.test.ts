@@ -35,7 +35,7 @@ beforeEach(() => {
 
 type Doc = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 const bearer = { authorization: 'Bearer test' }
-const post = (path: string, body: unknown, contentType = 'application/yaml', server = app) => server.inject({
+const post = (path: string, body: unknown, contentType = 'application/yaml', server: Pick<typeof app, 'inject'> = app) => server.inject({
   method: 'POST', url: `/config/${path}`,
   headers: { ...bearer, 'content-type': contentType },
   payload: typeof body === 'string' ? body : Array.isArray(body) ? body.map((d) => JSON.stringify(d)).join('\n---\n') : JSON.stringify(body),
@@ -217,7 +217,7 @@ describe('permission per kind of document', () => {
     const server = Fastify({ logger: false })
     server.addHook('onRoute', (route) => { route.config = { ...route.config, allowApiToken: true, tokenScope: 'custom' } })
     server.addHook('onRequest', async (request) => {
-      const identity: AuthIdentity = { userId: 1, email: 'caller@example.test', role: role as AuthIdentity['role'], sessionId: scopes ? 'api-token:1' : 'session' }
+      const identity: AuthIdentity = { userId: 1, email: 'caller@example.test', role: role as AuthIdentity['role'], sessionId: scopes ? 'api-token:1' : 'session', mustChangePassword: false, twoFactorEnabled: false, authMethod: 'password' }
       if (scopes) identity.apiToken = { id: 1, name: 'ci', scopes }
       request.user = identity
     })

@@ -73,6 +73,8 @@ Copy `apps/template` (server in `src/server`, interface in `web/`). The server i
 
 ## Conventions
 
+- Tests and the end-to-end scenarios run through `tsx`, which does not check types; `npm run typecheck` (`tsconfig.test.json`) does, and CI runs it. Run it after editing tests.
+
 - Rename code, CSS, and DB identifiers when UI wording changes; names must match what the UI says.
 - Do not reference other products as the model for a feature in docs, README, or code comments.
 - README links point to `https://docs.betterstatuspage.dev/<slug>/`; the changelog lives in `docs/changelog.md`.

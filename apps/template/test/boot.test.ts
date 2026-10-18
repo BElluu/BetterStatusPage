@@ -42,7 +42,7 @@ async function call(method: string, url: string, body?: unknown) {
     else cookies.set(name!, value.join('='))
   }
   const text = await response.text()
-  return { status: response.status, json: text && response.headers.get('content-type')?.includes('json') ? JSON.parse(text) as Record<string, any> : text } // eslint-disable-line @typescript-eslint/no-explicit-any
+  return { status: response.status, json: (text && response.headers.get('content-type')?.includes('json') ? JSON.parse(text) : text) as Record<string, any> } // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 before(async () => {

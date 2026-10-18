@@ -10,7 +10,8 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: process.env['CI'] ? 2 : 0,
-  reporter: process.env['CI'] ? [['html', { open: 'never' }], ['list']] : 'list',
+  // The github reporter marks a test that passed only on a retry as a warning on the run.
+  reporter: process.env['CI'] ? [['html', { open: 'never' }], ['list'], ['github']] : 'list',
   use: { baseURL: `http://127.0.0.1:${webPort}`, trace: 'on-first-retry', screenshot: 'only-on-failure' },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [

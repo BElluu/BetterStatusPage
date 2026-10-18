@@ -27,8 +27,8 @@ let adminId = 0
 let adminHeaders: Record<string, string> = {}
 let operatorHeaders: Record<string, string> = {}
 
-function sessionHeaders(response: { headers: Record<string, string | string[] | undefined> }) {
-  const raw = response.headers['set-cookie']
+function sessionHeaders(response: { headers: object }) {
+  const raw = (response.headers as Record<string, string | string[] | undefined>)['set-cookie']
   const setCookies = Array.isArray(raw) ? raw : raw ? [raw] : []
   const values = setCookies.map((value) => value.split(';', 1)[0]!)
   const csrf = values.find((value) => value.startsWith('bsp_csrf='))?.slice('bsp_csrf='.length)

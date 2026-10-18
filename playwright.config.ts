@@ -10,7 +10,8 @@ export default defineConfig({
   // Scenarios share one API instance and database.
   workers: 1,
   retries: process.env['CI'] ? 2 : 0,
-  reporter: process.env['CI'] ? [['html', { open: 'never' }], ['list']] : 'list',
+  // The github reporter marks a test that passed only on a retry as a warning on the run.
+  reporter: process.env['CI'] ? [['html', { open: 'never' }], ['list'], ['github']] : 'list',
   use: {
     baseURL: 'http://127.0.0.1:5174',
     trace: 'on-first-retry',

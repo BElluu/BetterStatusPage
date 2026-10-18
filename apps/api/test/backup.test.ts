@@ -58,7 +58,7 @@ describe('backup and restore', () => {
 
     const corrupted = path.join(temp!, 'corrupted.backup')
     const bytes = fs.readFileSync(backupPath)
-    bytes[bytes.length - 5] ^= 0xff
+    bytes[bytes.length - 5] = bytes[bytes.length - 5]! ^ 0xff
     fs.writeFileSync(corrupted, bytes)
     assert.throws(() => validateBackup(corrupted), /Checksum mismatch/)
 
