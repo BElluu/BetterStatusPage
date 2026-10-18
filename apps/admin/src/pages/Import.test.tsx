@@ -10,7 +10,7 @@ vi.mock('../api/client', async () => {
   return { ...actual, api: { get: vi.fn(), post: vi.fn(), postText: vi.fn() } }
 })
 
-type Summary = { create: number; update: number; unchanged: number }
+type Summary = { create: number; update: number; unchanged: number; delete: number }
 const result = (summary: Partial<Summary>, changes: unknown[] = [], dryRun = true) => ({
   dryRun, summary: { create: 0, update: 0, unchanged: 0, ...summary }, changes,
 })
@@ -55,6 +55,26 @@ describe('ImportPage', () => {
     expect(rows).toHaveLength(2)
     expect(rows[0]).toHaveTextContent('CreateNotification channelpager')
     expect(rows[1]).toHaveTextContent('UpdateMonitorpublic-siteintervalSecs, dependsOn')
+  })
+
+  it('asks for deletions only when the switch is on, and lists them', async () => {
+    postText().mockResolvedValue(result({ delete: 1 }, [{ kind: 'Monitor', key: 'old', action: 'delete' }]) as never)
+    const user = renderPage()
+    paste()
+    await waitFor(() => expect(postText()).toHaveBeenCalledWith('/admin/config/validate', YAML, 'application/yaml'))
+
+    await user.click(screen.getByLabelText(/Delete what the file does not mention/))
+    await appears('Apply and delete 1')
+    expect(postText()).toHaveBeenLastCalledWith('/admin/config/validate?prune=true', YAML, 'application/yaml')
+    expect(screen.getAllByText('1 to delete')).toHaveLength(2) // the summary and the warning
+    expect(within(screen.getByRole('table')).getAllByRole('row')[1]).toHaveTextContent('DeleteMonitorold')
+
+    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Apply and delete 1' }))
+    expect(postText()).toHaveBeenCalledTimes(2) // nothing is sent before the confirmation
+    expect(screen.getByRole('dialog')).toHaveTextContent('Monitor old')
+    await user.click(screen.getByRole('button', { name: 'Delete 1 and apply' }))
+    await waitFor(() => expect(postText()).toHaveBeenLastCalledWith('/admin/config/apply?prune=true', YAML, 'application/yaml'))
   })
 
   it('hides the preview and Apply as soon as the text changes, until the new text is checked', async () => {

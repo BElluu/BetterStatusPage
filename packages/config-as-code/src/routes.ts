@@ -102,7 +102,9 @@ export function createConfigRoutes<Actor>(options: ConfigRoutesOptions<Actor>) {
       return reply.type('application/yaml; charset=utf-8').send(toYamlStream(documents))
     })
 
-    async function run(req: FastifyRequest<{ Body: unknown }>, reply: FastifyReply, dryRun: boolean) {
+    async function run(req: FastifyRequest<{ Body: unknown; Querystring: { prune?: string } }>, reply: FastifyReply, dryRun: boolean) {
+      const { prune } = req.query
+      if (prune !== undefined && prune !== 'true' && prune !== 'false') return reply.code(400).send({ error: 'prune must be true or false' })
       const read = readDocuments(req.body)
       if ('error' in read) return reply.code(400).send({ error: read.error })
       if (read.documents.length === 0) return reply.code(400).send({ error: 'The file contains no documents' })
@@ -111,7 +113,7 @@ export function createConfigRoutes<Actor>(options: ConfigRoutesOptions<Actor>) {
       if (denied) return reply.code(403).send({ error: denied })
 
       try {
-        return await engine.importDocuments(read.documents, { dryRun, actor: options.actor(req), token: caller.apiToken })
+        return await engine.importDocuments(read.documents, { dryRun, actor: options.actor(req), token: caller.apiToken, prune: prune === 'true' })
       } catch (error) {
         if (error instanceof ConfigInvalidError) return reply.code(400).send({ error: error.message, problems: error.problems })
         throw error
@@ -134,8 +136,8 @@ export function createConfigRoutes<Actor>(options: ConfigRoutesOptions<Actor>) {
     }
     const routeOptions = { onRequest: [...options.guards, mayWriteSomething, onlyYaml], bodyLimit: BODY_LIMIT }
     // What importing the documents would change, without changing anything.
-    app.post<{ Body: unknown }>('/validate', routeOptions, (req, reply) => run(req, reply, true))
+    app.post<{ Body: unknown; Querystring: { prune?: string } }>('/validate', routeOptions, (req, reply) => run(req, reply, true))
     // Makes the installation match the documents, completely or not at all.
-    app.post<{ Body: unknown }>('/apply', routeOptions, (req, reply) => run(req, reply, false))
+    app.post<{ Body: unknown; Querystring: { prune?: string } }>('/apply', routeOptions, (req, reply) => run(req, reply, false))
   }
 }

@@ -7,6 +7,7 @@ Every document says what it describes in its `kind`: `Monitor` or `NotificationC
 | Where | What it does |
 |---|---|
 | **YAML** button on a monitor or a notification channel | Shows that one object as a document, to copy or download. Read only. |
+| **Export YAML** button on the Monitors and Notifications pages | Shows every monitor, notification channel and action you may read as one file, to copy or download. Read only. |
 | **Import YAML** button on the Monitors and Notifications pages | Takes pasted or uploaded documents, shows what they would change, and creates or updates the objects when you apply them. |
 | [The API](api.md) | `GET /config/export` writes the documents, `POST /config/validate` and `POST /config/apply` read them, for scripts and pipelines. |
 
@@ -18,7 +19,7 @@ Every document says what it describes in its `kind`: `Monitor` or `NotificationC
 
 ### The YAML of an object
 
-Open a monitor (its page, or **Edit**) or a notification channel (**Edit**) and click **YAML**. The dialog shows the saved object as a document, with **Copy** and **Download**. It is only a view: to change the object, change it in the panel, or edit a copy of the document and import it.
+Open a monitor (its page, or **Edit**) or a notification channel (**Edit**) and click **YAML**. The dialog shows the saved object as a document, with **Copy** and **Download**. **Export YAML** on **Monitors** or **Notifications** does the same for everything at once, which is the file to keep in a repository. It is only a view: to change the object, change it in the panel, or edit a copy of the document and import it.
 
 The view shows what is saved, not what you have typed into an open form.
 
@@ -216,12 +217,31 @@ Both answer with what was, or would be, done, channels first, then monitors. Eve
 ### How documents are applied
 
 - **By key.** A monitor, channel or action whose key exists is updated; a key that does not exist is created. A key cannot be changed, so a different key is a different object. To rename something, change its `name`, not its key.
-- **Nothing is deleted.** An import only creates and updates. What the documents do not mention stays as it is, and removing a monitor, channel or action is done in the panel or with the API's `DELETE`. This keeps a file that describes only a few objects, or an empty one, from touching the rest.
+- **Nothing is deleted, unless you ask for it.** An import only creates and updates. What the documents do not mention stays as it is, and removing a monitor, channel or action is done in the panel or with the API's `DELETE`. This keeps a file that describes only a few objects, or an empty one, from touching the rest. To make the file the single source of truth, add [`prune`](#removing-what-the-file-leaves-out).
 - **A document is the whole truth for the object it describes.** A setting that is left out takes its default (a monitor without `intervalSecs` checks every 60 seconds), it does not keep its current value. The notification channels and dependencies of a monitor are replaced by the lists in the document, and so are the failure channels of an action (the actions of a monitor only when the document has an `actions` list). A document needs its `kind`; a monitor or channel also needs `key`, `name` and `type`, an action `key`, `name` and `config`.
 - **All or nothing.** All documents are checked before anything is written, and the changes are made in one transaction. Applying the same documents again changes nothing.
 - **Heartbeat tokens stay.** A webhook monitor keeps its token, so the URL it is called on does not change; a new one gets a token, unless the document sets one (see [Heartbeat token](#heartbeat-token)).
 - **Changes are audited.** Each change appears in the audit log under the object it changed, and an import that changes something also gets one entry (**Import**) with the counts. An entry lists the names of the settings that changed, not their old and new values, so a secret never ends up in the log.
 - **Not documents:** see [What is left out](#what-is-left-out). A document can refer to a vault by name, but the vault has to exist, and a token needs `vault:use` to add such a reference, or to change the configuration of a monitor or channel that has one. Without it a token can still change the name, schedule, tags and links of such a monitor.
+
+### Removing what the file leaves out
+
+> [!WARNING]
+> **Not released yet.** Pruning is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+With `?prune=true` on `validate` and `apply` (the **Delete what the file does not mention** switch on the Import page, which asks for confirmation before it applies), an import also deletes the objects the documents do not mention, so a monitor, channel or action removed from the file is removed from the installation:
+
+```bash
+# What would be deleted? Nothing is written.
+curl -fsS -X POST -H "Authorization: Bearer $BSP_TOKEN" -H "Content-Type: application/yaml"   --data-binary @bsp.yaml "$BSP_URL/api/v1/admin/config/validate?prune=true"
+```
+
+- **Off by default.** Without `prune`, or with `prune=false`, nothing is deleted. Any other value is refused with `400`.
+- **Only the kinds in the file.** A kind is pruned only when the file holds at least one document of it. A file with only monitors never touches channels or actions, and a file with no documents is refused, so an empty file cannot delete everything.
+- **Listed before it happens.** Deletions are changes with `"action": "delete"`, and `summary` gains a `delete` count. `validate` lists them without deleting.
+- **Same permission as deleting.** A token needs the write permission of every kind in the file, as for any import, and that is also what `DELETE` needs. A user needs the role that may delete that kind in the panel.
+- **Links go with the object.** Deleting a monitor removes its notification, dependency and action links and cancels its queued action runs; deleting a channel or an action removes the links to it. A kept monitor that depends on a deleted one loses that dependency.
+- **Still all or nothing, and audited.** The deletions are part of the same transaction. Each appears in the audit log as a **Delete**, and the **Import** entry has the `deleted` count.
 
 ### Secrets in a document
 

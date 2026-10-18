@@ -703,6 +703,12 @@ paths:
         Runs every check of an import and reports the changes it would make, without making any. Use it to review a
         file in a pull request or a pipeline before `apply`.
       x-scope: per document kind
+      parameters:
+        - name: prune
+          in: query
+          required: false
+          description: 'With `true`, also delete the objects of the kinds in the file that the documents do not mention (changes with `action: delete`). Any value but `true` or `false` is refused with `400`.'
+          schema: { type: boolean, default: false }
       requestBody:
         required: true
         description: 'One or more documents, as written by the export, separated by `---`. Only YAML is read: send it with `Content-Type: application/yaml` (`text/yaml` and `application/x-yaml` also work). Any other type is refused with `415`.'
@@ -737,7 +743,7 @@ paths:
       description: |
         Creates and updates the monitors and notification channels the documents describe, with their
         links. Monitors and channels are matched by `key`; a key that is not in the installation creates a new
-        object. Nothing is ever deleted: what the documents do not mention stays as it is.
+        object. Nothing is deleted unless `prune=true`: what the documents do not mention stays as it is.
 
         The documents are checked completely before anything is written and applied in one transaction, so they take
         effect entirely or not at all. Applying them again changes nothing.
@@ -751,6 +757,12 @@ paths:
         `vault:use` to add a vault reference or change a monitor or channel that has one (and `channels:write` to change which channels a monitor alerts through). A user needs the role that may edit that kind in the panel:
         the Operator role (or Admin) for both.
       x-scope: per document kind
+      parameters:
+        - name: prune
+          in: query
+          required: false
+          description: 'With `true`, also delete the objects of the kinds in the file that the documents do not mention (changes with `action: delete`). Any value but `true` or `false` is refused with `400`.'
+          schema: { type: boolean, default: false }
       requestBody:
         required: true
         description: 'One or more documents, as written by the export, separated by `---`. Only YAML is read: send it with `Content-Type: application/yaml` (`text/yaml` and `application/x-yaml` also work). Any other type is refused with `415`.'
@@ -1693,7 +1705,7 @@ components:
       properties:
         kind: { $ref: '#/components/schemas/ConfigKind' }
         key: { $ref: '#/components/schemas/Key' }
-        action: { type: string, enum: [create, update, unchanged] }
+        action: { type: string, enum: [create, update, delete, unchanged] }
         fields:
           type: array
           description: For an update, the names of the settings that differ. Never their values, which may be secrets.
@@ -1710,6 +1722,7 @@ components:
             create: { type: integer }
             update: { type: integer }
             unchanged: { type: integer }
+            delete: { type: integer, description: Present only when the request has `prune=true`. }
         changes:
           type: array
           items: { $ref: '#/components/schemas/ConfigImportChange' }

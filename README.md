@@ -511,7 +511,7 @@ Scripts and CI/CD can call the admin API with a token from **Administration → 
 
 ### Configuration as code
 
-Every monitor, notification channel and action can be written as a YAML document with a `kind`, identified by a key instead of a numeric id and with the known secret fields masked, for version control and review. A **YAML** button on a monitor, a channel and an action shows that object; **Import** in the left menu (and the API) creates or updates objects from pasted or uploaded documents, with a preview before anything is written. Documents are checked completely, applied in one transaction, and applying them twice changes nothing. An import never deletes anything.
+Every monitor, notification channel and action can be written as a YAML document with a `kind`, identified by a key instead of a numeric id and with the known secret fields masked, for version control and review. A **YAML** button on a monitor, a channel and an action shows that object; **Export YAML** and **Import YAML** on the Monitors and Notifications pages (and the API) write out all of them and create or updates objects from pasted or uploaded documents, with a preview before anything is written. Documents are checked completely, applied in one transaction, and applying them twice changes nothing. An import deletes nothing unless you switch on **prune**, which removes what the file does not mention (listed in the preview first).
 
 > See **[docs.betterstatuspage.dev/configuration-as-code](https://docs.betterstatuspage.dev/configuration-as-code/)** for the format and what is included.
 

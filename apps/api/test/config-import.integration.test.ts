@@ -248,6 +248,57 @@ describe('importing a changed file', () => {
     assert.equal(rows('notification_channels').length, 2)
   })
 
+  describe('with prune', () => {
+    const prune = (path: string, documents: unknown, value = 'true') => post(`${path}?prune=${value}`, documents)
+
+    it('deletes what the file does not mention, in the kinds it holds, with its links', async () => {
+      await applied(baseline())
+      const response = await prune('apply', [channel(), database(), heartbeat()])
+      assert.equal(response.statusCode, 200, response.body)
+      assert.deepEqual(response.json().summary, { create: 0, update: 0, delete: 2, unchanged: 3 })
+      assert.deepEqual(rows('monitors').map((m) => m['key']).sort(), ['billing-db', 'nightly-job'])
+      assert.deepEqual(rows('notification_channels').map((c) => c['key']), ['ops-slack'])
+      assert.equal(rows('monitor_notification_channels').length, 0)
+      assert.equal(rows('monitor_dependencies').length, 0)
+      const entries = rows('audit_log').filter((e) => e['action'] === 'delete')
+      assert.deepEqual(entries.map((e) => e['entity_type']).sort(), ['monitor', 'notification_channel'])
+    })
+
+    it('leaves a kind alone when the file holds no document of it', async () => {
+      await applied(baseline())
+      await prune('apply', [heartbeat()])
+      assert.deepEqual(rows('monitors').map((m) => m['key']), ['nightly-job'])
+      assert.equal(rows('notification_channels').length, 2)
+    })
+
+    it('shows the deletions in a dry run and writes nothing', async () => {
+      await applied(baseline())
+      const before = everything()
+      const response = await prune('validate', [heartbeat()])
+      assert.equal(response.statusCode, 200, response.body)
+      const result = response.json()
+      assert.equal(result.summary.delete, 2)
+      assert.equal(change(result, 'Monitor', 'public-site')['action'], 'delete')
+      assert.equal(everything(), before)
+    })
+
+    it('deletes nothing without prune, or with prune=false', async () => {
+      await applied(baseline())
+      assert.equal((await prune('apply', [heartbeat()], 'false')).json().summary.delete, undefined)
+      assert.equal(rows('monitors').length, 3)
+    })
+
+    it('refuses a prune value that is not true or false', async () => {
+      assert.equal((await prune('apply', [heartbeat()], 'yes')).statusCode, 400)
+    })
+
+    it('does not prune a kind the file does not hold documents for, even with an empty list', async () => {
+      await applied(baseline())
+      assert.equal((await prune('apply', '')).statusCode, 400)
+      assert.equal(rows('monitors').length, 3)
+    })
+  })
+
   it('takes a setting that is left out as its default, but keeps the links of nothing else', async () => {
     await applied(baseline())
     const result = await applied({ ...site(), intervalSecs: undefined, notifications: undefined })

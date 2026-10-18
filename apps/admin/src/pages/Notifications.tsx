@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import type { NotificationChannel, NotificationDelivery } from '@bsp/shared'
 import type { NotificationDeliveryAttempt, SmtpSettings, VaultRef } from '@better-kit/contracts'
 import ChannelFormModal from '../components/notifications/ChannelFormModal'
+import { YamlViewModal } from '../components/YamlViewModal'
 import { CHANNEL_TYPES, CHANNEL_TYPE_ORDER, type ChannelType } from '../components/notifications/channelTypes'
 import { ConfirmModal } from '@better-kit/ui'
 import { DataTable, DataTh, useTableSort } from '@better-kit/ui'
@@ -28,6 +29,7 @@ export default function NotificationsPage() {
   const [createType, setCreateType]         = useState<ChannelType | undefined>(undefined)
   const [confirmDelete, setConfirmDelete]   = useState<NotificationChannel | null>(null)
   const [showSmtp, setShowSmtp]             = useState(false)
+  const [showYaml, setShowYaml]             = useState(false)
 
   const { data: channels = [], isLoading, isError, refetch } = useQuery<NotificationChannel[]>({
     queryKey: ['notification-channels'],
@@ -78,6 +80,10 @@ export default function NotificationsPage() {
           <button type="button" onClick={() => setShowSmtp(true)} className="btn btn-secondary">
             <span className="material-symbols-outlined" aria-hidden="true">forward_to_inbox</span>
             SMTP Settings
+          </button>
+          <button type="button" onClick={() => setShowYaml(true)} className="btn btn-secondary">
+            <span className="material-symbols-outlined" aria-hidden="true">data_object</span>
+            Export YAML
           </button>
           <Link to="/admin/import" state={{ from: 'notifications' }} className="btn btn-secondary">
             <span className="material-symbols-outlined" aria-hidden="true">upload_file</span>
@@ -205,6 +211,7 @@ export default function NotificationsPage() {
       )}
 
       {showSmtp && <SmtpModal onClose={() => setShowSmtp(false)} />}
+      {showYaml && <YamlViewModal title="All configuration" onClose={() => setShowYaml(false)} />}
     </PageContainer>
   )
 }
