@@ -10,11 +10,22 @@ export function createProductionFallback(statusDist: string) {
   }
 }
 
+/** Paths the status app does not own: they keep answering while the first-run setup is pending. */
+const NOT_STATUS_APP = /^\/(api|admin|uploads|health|ready)(\/|\?|$)/
+
 export async function registerProductionFrontends(
   app: FastifyInstance,
   adminDist: string,
   statusDist: string,
+  isSetupComplete: () => boolean,
 ): Promise<void> {
+  // Before the setup there is no database, so the status app has nothing to show: send the visitor to the setup wizard.
+  app.addHook('onRequest', async (request, reply) => {
+    if ((request.method === 'GET' || request.method === 'HEAD') && !NOT_STATUS_APP.test(request.url) && !isSetupComplete()) {
+      return reply.redirect('/admin/')
+    }
+  })
+
   await app.register(staticFiles, {
     root: adminDist,
     prefix: '/admin/',
