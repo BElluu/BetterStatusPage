@@ -94,7 +94,7 @@ If the test does not arrive, double-check the webhook URL. A deleted or disabled
 
 ## Message Content and template variables
 
-The **Message Content** field (the optional plain-text line above the embed) supports template variables:
+The **Message Content** field (the optional plain-text line above the embed) supports template variables. The text of `{{error_message}}` is shown as plain text: markdown such as links and emphasis is escaped, and `@` is broken so it cannot ping `@everyone`, `@here`, a user or a role. Mentions you type into the field itself work as before. In **Avatar URL** a variable is URL-encoded.
 
 | Variable | Example value |
 |----------|--------------|

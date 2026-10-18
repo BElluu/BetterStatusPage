@@ -107,7 +107,7 @@ The **Message Text** field is posted as a plain-text line above the Block Kit ca
 
 To find a user's Member ID: click their profile in Slack → **⋯** → **Copy member ID**.
 
-Template variables also work in this field:
+Template variables also work in this field. Their values are shown as plain text: `&`, `<` and `>` in a value (for example in `{{error_message}}`) are escaped, so a value cannot add a mention or a link. Mentions you type into the field itself, such as `<!here>`, work as before.
 
 | Variable | Example value |
 |----------|--------------|

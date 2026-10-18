@@ -26,7 +26,27 @@ function placeholderParts(placeholder: string): { name: string; part: string } {
 
 /** Whether a placeholder sits in the scheme, host or port of a URL, where it would choose the address the request goes to. */
 export function placeholderInAuthority(url: string): boolean {
-  return /^[a-z][a-z0-9+.-]*:\/\/[^/?#]*\{\{/i.test(url)
+  if (!url.includes('{{')) return false
+  // Asked of the URL parser itself, which skips extra slashes (`https:///{{x}}/`) and reads `\` as `/`: a placeholder is
+  // in the authority when two different values for it lead to two different hosts, or to no valid URL at all.
+  const hostFor = (value: string): string | null => {
+    try { return new URL(url.replace(/\{\{\w+\}\}/g, value)).host } catch { return null }
+  }
+  const first = hostFor('aaaa')
+  return first === null || first !== hostFor('bbbb')
+}
+
+/** Whether a placeholder sits in the user or password of a URL, which the request cannot carry (credentials go in a header). */
+export function placeholderInCredentials(url: string): boolean {
+  if (!url.includes('{{')) return false
+  const credentialsFor = (value: string): string | null => {
+    try {
+      const parsed = new URL(url.replace(/\{\{\w+\}\}/g, value))
+      return `${parsed.username}:${parsed.password}`
+    } catch { return null }
+  }
+  const first = credentialsFor('aaaa')
+  return first !== null && first !== credentialsFor('bbbb')
 }
 
 interface SecretRef { name: string; vaultId: number; secretId: number }
@@ -66,6 +86,7 @@ export function actionConfigError(config: Json): string | null {
   if (headers !== undefined && (!isObject(headers) || !Object.values(headers).every((v) => typeof v === 'string'))) {
     return 'headers must be an object of text values'
   }
+  if (placeholderInCredentials(config['url'])) return 'a placeholder cannot be in the user or password of the URL: send credentials in the Authorization header (for example {{secret_name_basic}})'
   const secrets = readSecrets(config['secrets'])
   if ('error' in secrets) return secrets.error
   if (secrets.refs.length > 0 && placeholderInAuthority(config['url'])) return 'a placeholder cannot be part of the host when the action uses a vault secret'

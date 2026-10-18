@@ -7,6 +7,7 @@ import multipart from '@fastify/multipart'
 import rateLimit from '@fastify/rate-limit'
 import staticFiles from '@fastify/static'
 import { errorHandler } from './errorHandler.js'
+import { redactUrl } from './redactUrl.js'
 import { resolveTrustProxy } from './proxy.js'
 import { createRuntimeShutdown } from './shutdown.js'
 
@@ -35,6 +36,8 @@ export function resolveJwtSecret(env: NodeJS.ProcessEnv = process.env): string {
 export interface BetterAppOptions {
   /** Request URLs are logged with the value of these query parameters replaced (capability tokens in links). */
   redactQueryParams?: readonly string[]
+  /** Request paths whose next segment is a capability token, for example `/links/` (the token is not logged). */
+  redactPathTokenPrefixes?: readonly string[]
   /** Checks run before anything is created (for example that the encryption key is usable); throw to refuse to start. */
   validate?: () => void
   /** Where uploaded files are kept and served from (`/uploads/`). */
@@ -69,8 +72,7 @@ export interface BetterAppOptions {
  * application's routes. `run` then takes the lock, listens, and wires the shutdown that closes everything in order.
  */
 export async function createBetterApp(options: BetterAppOptions) {
-  const redacted = options.redactQueryParams ?? []
-  const redactUrl = (url: string) => redacted.reduce((result, name) => result.replace(new RegExp(`([?&]${name}=)[^&]*`, 'gi'), '$1[redacted]'), url)
+  const redaction = { queryParams: options.redactQueryParams, pathTokenPrefixes: options.redactPathTokenPrefixes }
 
   const app = Fastify({
     logger: {
@@ -82,7 +84,7 @@ export async function createBetterApp(options: BetterAppOptions) {
       serializers: {
         req: (req) => ({
           method: req.method,
-          url: redactUrl(req.url),
+          url: redactUrl(req.url, redaction),
           host: req.host,
           remoteAddress: req.ip,
           ...(req.socket?.remotePort !== undefined ? { remotePort: req.socket.remotePort } : {}),

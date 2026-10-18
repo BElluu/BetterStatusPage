@@ -1,7 +1,7 @@
 import type { VaultRef } from '@better-kit/contracts'
 import { plainSegments, readableTimestamp, renderSegments, type Notice, type NoticeSeverity } from './notice.js'
 import type { SmtpMessage } from './engine.js'
-import { buildWebhookRequest, substituteVars } from './template.js'
+import { buildWebhookRequest, encodeUrlPart, substituteVars } from './template.js'
 
 export interface TransportOptions {
   /** Resolves a vault reference to its secret fields (channel credentials may be kept in a vault). */
@@ -23,7 +23,41 @@ const OUTBOUND_TIMEOUT_MS = 15_000
 
 const SEVERITY_EMOJI: Record<NoticeSeverity, string> = { critical: '🔴', warning: '🟡', ok: '🟢' }
 
+/** Telegram HTML and Slack mrkdwn both need exactly `&`, `<` and `>` escaped; Slack reads `<...>` as a link or a mention. */
 const escapeHtml = (value: string): string => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/** Neutralises markdown (links, emphasis, quotes) in text that a sender, not the channel's owner, controls. */
+const escapeMarkdown = (value: string): string => value.replace(/[\\*_~`|>[\]()<#]/g, '\\$&')
+
+/** Discord also pings for `@everyone`, `@here` and `<@id>` in a message body; an invisible space breaks each of them. */
+const ZERO_WIDTH_SPACE = String.fromCharCode(0x200b)
+const escapeDiscordText = (value: string): string => escapeMarkdown(value).replace(/@/g, `@${ZERO_WIDTH_SPACE}`)
+
+/**
+ * A MessageCard understands only a small part of markdown and may not honour a backslash, so instead of escaping, the
+ * two things that make a link or a tag are broken with an invisible space: `](` and `<`.
+ */
+const escapeTeamsText = (value: string): string => value.replace(/\]\(/g, `]${ZERO_WIDTH_SPACE}(`).replace(/</g, `<${ZERO_WIDTH_SPACE}`)
+
+/**
+ * `escapeMarkdown`, cut so the result is at most `max` characters: whole escaped characters only, so no backslash is left
+ * at the end without the character it escapes. A cut text ends in an ellipsis.
+ */
+function escapeWithin(value: string, max: number): string {
+  const whole = escapeMarkdown(value)
+  if (whole.length <= max) return whole
+  let out = ''
+  for (const char of value) {
+    const escaped = escapeMarkdown(char)
+    if (out.length + escaped.length > max - 1) break
+    out += escaped
+  }
+  return `${out}…`
+}
+
+/** The variables with the error text of the check, which a sender can write, run through `escape`. */
+const withEscapedError = (vars: Vars, escape: (value: string) => string): Vars =>
+  vars['error_message'] === undefined ? vars : { ...vars, error_message: escape(vars['error_message']) }
 
 /** Cuts `value` to `max` characters without splitting a surrogate pair. */
 function clip(value: string, max: number): string {
@@ -83,6 +117,8 @@ const PUSHOVER_MAX_MESSAGE = 1024
 /** Pushover priority 1 is high: it bypasses the recipient's quiet hours. Only a critical event gets it. */
 const PUSHOVER_PRIORITY: Record<NoticeSeverity, number> = { critical: 1, warning: 0, ok: 0 }
 
+/** Discord refuses an embed field value of more than 1024 characters. */
+const DISCORD_MAX_FIELD_VALUE = 1024
 const DISCORD_COLORS: Record<NoticeSeverity, number> = { critical: 0xe53935, warning: 0xfb8c00, ok: 0x43a047 }
 const TEAMS_COLORS: Record<NoticeSeverity, string> = { critical: 'E53935', warning: 'FB8C00', ok: '43A047' }
 const SLACK_COLORS: Record<NoticeSeverity, string> = { critical: '#E53935', warning: '#FB8C00', ok: '#43A047' }
@@ -130,7 +166,7 @@ export function createTransports(options: TransportOptions) {
       color: DISCORD_COLORS[notice.severity],
       fields: [
         ...notice.facts.map(({ label, value }) => ({ name: label, value, inline: true })),
-        ...(notice.detail ? [{ name: notice.detail.label, value: notice.detail.value, inline: false }] : []),
+        ...(notice.detail ? [{ name: notice.detail.label, value: escapeWithin(notice.detail.value, DISCORD_MAX_FIELD_VALUE), inline: false }] : []),
       ],
       footer: { text: `${notice.atLabel} ${notice.at}` },
       timestamp: new Date().toISOString(),
@@ -138,8 +174,8 @@ export function createTransports(options: TransportOptions) {
 
     const payload: Record<string, unknown> = { embeds: [embed] }
     if (config.username) payload['username'] = config.username
-    payload['avatar_url'] = config.avatarUrl ? substituteVars(config.avatarUrl, vars) : options.discordAvatarUrl
-    if (config.content) payload['content'] = substituteVars(config.content, vars)
+    payload['avatar_url'] = config.avatarUrl ? substituteVars(config.avatarUrl, vars, encodeUrlPart) : options.discordAvatarUrl
+    if (config.content) payload['content'] = substituteVars(config.content, withEscapedError(vars, escapeDiscordText))
 
     await postWebhookJson(config.webhookUrl, payload, 'Discord')
   }
@@ -151,7 +187,7 @@ export function createTransports(options: TransportOptions) {
 
     const facts: { name: string; value: string }[] = [
       ...notice.facts.map((fact) => ({ name: fact.fullLabel ?? fact.label, value: fact.value })),
-      ...(notice.detail ? [{ name: notice.detail.label, value: notice.detail.value }] : []),
+      ...(notice.detail ? [{ name: notice.detail.label, value: escapeTeamsText(notice.detail.value) }] : []),
       { name: notice.atLabel, value: notice.at },
     ]
 
@@ -177,7 +213,7 @@ export function createTransports(options: TransportOptions) {
 
     const fields = [
       ...notice.facts.map(({ label, value }) => ({ type: 'mrkdwn', text: `*${label}:*\n${value}` })),
-      ...(notice.detail ? [{ type: 'mrkdwn', text: `*${notice.detail.label}:*\n${notice.detail.value}` }] : []),
+      ...(notice.detail ? [{ type: 'mrkdwn', text: `*${notice.detail.label}:*\n${escapeHtml(notice.detail.value)}` }] : []),
     ]
 
     const blocks = [
@@ -190,7 +226,7 @@ export function createTransports(options: TransportOptions) {
       text: fallbackText,
       attachments: [{ color: SLACK_COLORS[notice.severity], blocks }],
     }
-    if (config.text) payload['text'] = substituteVars(config.text, vars) + '\n' + fallbackText
+    if (config.text) payload['text'] = substituteVars(config.text, vars, escapeHtml) + '\n' + fallbackText
 
     await postWebhookJson(config.webhookUrl, payload, 'Slack')
   }

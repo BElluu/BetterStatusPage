@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '../src/db/client.js'
 import Fastify from 'fastify'
 import {
-  maintenanceWindows, monitorNotificationChannels, monitors, notificationChannels, notificationDeliveries, notificationDeliveryAttempts,
+  maintenanceWindows, monitorNotificationChannels, monitorResults, monitors, notificationChannels, notificationDeliveries, notificationDeliveryAttempts,
 } from '../src/db/schema.js'
 import { webhookRoutes } from '../src/routes/webhook.js'
 import { isWithinQuietHours, normalizeAlertPolicy, quietHoursEndAt } from '../src/services/alertPolicy.js'
@@ -462,6 +462,69 @@ describe('alert thresholds in the scheduler', () => {
     const [delivery] = await db.select().from(notificationDeliveries)
     assert.equal(delivery!.targetStatus, 'down')
     assert.equal(delivery!.previousStatus, 'up')
+  })
+})
+
+describe('alerting on a failure reported by a heartbeat', () => {
+  const reload = async (id: number) => (await db.select().from(monitors).where(eq(monitors.id, id)))[0]!
+
+  it('holds the alert back until the failure threshold, then carries the message', async () => {
+    const token = '12'.repeat(24)
+    const monitor = await insertMonitor('Backup job', {
+      type: 'webhook', currentStatus: 'up', alertConfirmedStatus: 'up', failureThreshold: 2, webhookToken: token,
+    })
+    const channel = await insertWebhookChannel('Ops', '/ops', policy())
+    await db.insert(monitorNotificationChannels).values({ monitorId: monitor.id, channelId: channel.id })
+    const app = Fastify()
+    await app.register(webhookRoutes, { prefix: '/hook' })
+    try {
+      await app.inject({ method: 'GET', url: `/hook/${token}?status=down&msg=disk%20full` })
+      let state = await reload(monitor.id)
+      assert.equal(state.currentStatus, 'down', 'the public status reflects the report at once')
+      assert.equal(state.alertConfirmedStatus, 'up')
+      assert.equal(state.alertPendingCount, 1)
+      const [first] = await db.select().from(monitorResults).where(eq(monitorResults.monitorId, monitor.id))
+      assert.equal(first!.unconfirmed, 1)
+      assert.equal((await db.select().from(notificationDeliveries)).length, 0)
+
+      await app.inject({ method: 'GET', url: `/hook/${token}?status=down&msg=disk%20full` })
+      state = await reload(monitor.id)
+      assert.equal(state.alertConfirmedStatus, 'down')
+      await waitFor(async () => (await db.select().from(notificationDeliveries)).length === 1)
+      const [delivery] = await db.select().from(notificationDeliveries)
+      assert.equal(delivery!.targetStatus, 'down')
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('does not alert for a failure reported during maintenance, and does once it ends', async () => {
+    const token = '34'.repeat(24)
+    const monitor = await insertMonitor('Nightly import', {
+      type: 'webhook', currentStatus: 'up', alertConfirmedStatus: 'up', webhookToken: token,
+    })
+    const channel = await insertWebhookChannel('Ops', '/ops', policy())
+    await db.insert(monitorNotificationChannels).values({ monitorId: monitor.id, channelId: channel.id })
+    const now = Date.now()
+    await db.insert(maintenanceWindows).values({ name: 'Upgrade', startsAt: now - 1_000, endsAt: now + 60_000, createdAt: now, updatedAt: now })
+    const app = Fastify()
+    await app.register(webhookRoutes, { prefix: '/hook' })
+    try {
+      await app.inject({ method: 'GET', url: `/hook/${token}?status=down&msg=import%20failed` })
+      let state = await reload(monitor.id)
+      assert.equal(state.currentStatus, 'down')
+      assert.equal(state.alertConfirmedStatus, 'up', 'the alert state must not absorb the report')
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      assert.equal((await db.select().from(notificationDeliveries)).length, 0)
+
+      await db.delete(maintenanceWindows)
+      await app.inject({ method: 'GET', url: `/hook/${token}?status=down&msg=import%20failed` })
+      state = await reload(monitor.id)
+      assert.equal(state.alertConfirmedStatus, 'down')
+      await waitFor(async () => (await db.select().from(notificationDeliveries)).some((d) => d.status === 'delivered'))
+    } finally {
+      await app.close()
+    }
   })
 })
 

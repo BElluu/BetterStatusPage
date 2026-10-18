@@ -124,10 +124,8 @@ export async function executeAction(config: ActionHttpConfig, variables: Record<
   if ((config.secrets?.length ?? 0) > 0 && placeholderInAuthority(config.url)) {
     return { ok: false, snippet: '', error: 'A placeholder in the host of the URL is not allowed when the action uses a vault secret' }
   }
-  const { init } = buildWebhookRequest(config, { ...variables, ...secrets })
   // In the URL every value is one piece of a path or query, so it cannot add a segment, a dot segment or a host.
-  const encoded = Object.fromEntries(Object.entries({ ...variables, ...secrets }).map(([name, value]) => [name, encodeURIComponent(value)]))
-  const { url } = buildWebhookRequest({ url: config.url, method: config.method }, encoded)
+  const { url, init } = buildWebhookRequest(config, { ...variables, ...secrets })
 
   try {
     const response = await fetch(url, { ...init, redirect: 'manual', signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
