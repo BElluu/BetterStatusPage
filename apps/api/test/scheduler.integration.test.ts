@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
+import { createServer as createHttpsServer } from 'node:https'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import type { FastifyReply } from 'fastify'
 import { eq } from 'drizzle-orm'
@@ -236,5 +238,36 @@ describe('maintenance matching', () => {
     })
     assert.equal(await isInMaintenance(second!.id, now), true)
     assert.equal(await isInMaintenance(second!.id, now + 2_000), false)
+  })
+})
+
+describe('certificate expiry of an HTTPS monitor', () => {
+  const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url))
+
+  it('is read after a check, except for a monitor that ignores TLS errors', async () => {
+    const tlsServer = createHttpsServer({ key: fixture('self-signed-key.pem'), cert: fixture('self-signed-cert.pem') }, (_req, res) => { res.writeHead(200).end('ok') })
+    await new Promise<void>((resolve) => tlsServer.listen(0, '127.0.0.1', resolve))
+    const address = tlsServer.address()
+    if (!address || typeof address === 'string') throw new Error('Test server did not bind')
+    const url = `https://127.0.0.1:${address.port}/`
+    try {
+      const [verifying, ignoring] = await db.insert(monitors).values([
+        monitorValues('Verifying', { type: 'https', config: JSON.stringify({ url, method: 'GET', expectedStatus: 200 }) }),
+        monitorValues('Ignoring', { type: 'https', config: JSON.stringify({ url, method: 'GET', expectedStatus: 200, ignoreTls: true }) }),
+      ]).returning()
+
+      await runCheck(verifying!)
+      await runCheck(ignoring!)
+
+      const row = async (id: number) => (await db.select().from(monitors).where(eq(monitors.id, id)))[0]!
+      assert.equal((await row(verifying!.id)).currentStatus, 'down', 'the self-signed certificate is rejected')
+      assert.equal(typeof (await row(verifying!.id)).certExpiresAt, 'number', 'its expiry is still read')
+      assert.equal((await row(ignoring!.id)).currentStatus, 'up')
+      assert.equal((await row(ignoring!.id)).certCheckedAt, null)
+      assert.equal((await row(ignoring!.id)).certExpiresAt, null)
+    } finally {
+      tlsServer.closeAllConnections()
+      await new Promise<void>((resolve) => tlsServer.close(() => resolve()))
+    }
   })
 })

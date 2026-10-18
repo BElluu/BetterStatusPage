@@ -97,6 +97,17 @@ describe('importing into an empty installation', () => {
     assert.equal(rows('notification_channels').find((c) => c['key'] === 'ops-slack')!['notify_on_recovery'], 1)
   })
 
+  it('keeps ignoreTls of an HTTPS monitor through import and export, and refuses a value that is not true or false', async () => {
+    const insecure = site({ notifications: [], dependsOn: [], config: { url: 'https://unifi.lan', method: 'GET', expectedStatus: 200, ignoreTls: true } })
+    await applied([insecure])
+    assert.equal(stored('public-site').ignoreTls, true)
+    assert.equal((await exported()).find((d) => d['key'] === 'public-site')!['config']['ignoreTls'], true)
+    assert.deepEqual((await applied([insecure]))['summary'], { create: 0, update: 0, unchanged: 1 })
+
+    const response = await validate(site({ notifications: [], dependsOn: [], config: { url: 'https://unifi.lan', method: 'GET', expectedStatus: 200, ignoreTls: 'yes' } }))
+    assert.equal(response.statusCode, 400, response.body)
+  })
+
   it('lists the changes with channels first, then monitors', async () => {
     const result = await applied(baseline())
     assert.deepEqual(result['changes'].map((c: Doc) => `${c['kind']}:${c['key'] ?? ''}`), [

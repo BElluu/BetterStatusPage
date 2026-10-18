@@ -46,6 +46,8 @@ export interface HttpsConfig {
   headers?: Record<string, string>
   body?: string
   auth?: HttpsAuth
+  /** Accepts any server certificate (self-signed, expired, wrong host). Off by default; no certificate expiry warnings are sent while it is on. */
+  ignoreTls?: boolean
   /** Warns through the monitor's channels before the endpoint's TLS certificate expires. */
   certExpiry?: CertExpiryConfig
 }

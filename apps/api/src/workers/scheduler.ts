@@ -14,6 +14,7 @@ import { checkDocker } from './docker.js'
 import { sendNotifications } from './notifier.js'
 import { scheduleActionRuns } from './actionRunner.js'
 import { checkCertificateExpiry } from './certificate.js'
+import { skipsTlsVerification } from './httpAuth.js'
 import { evaluateAlertTransition, isFailureStatus } from '../services/alertThresholds.js'
 import { openIncidentForOutage, resolveIncidentForRecovery } from '../services/autoIncident.js'
 import { lt, gt, eq, and, lte, gte, inArray, sql } from 'drizzle-orm'
@@ -115,7 +116,7 @@ async function performCheck(monitor: MonitorRow): Promise<void> {
 
   await recordObservation(monitor, result)
 
-  if (monitor.type === 'https') {
+  if (monitor.type === 'https' && !skipsTlsVerification(config as HttpsConfig)) {
     await checkCertificateExpiry(monitor, config as HttpsConfig).catch((err) =>
       console.error('[certificate] expiry check failed:', err),
     )

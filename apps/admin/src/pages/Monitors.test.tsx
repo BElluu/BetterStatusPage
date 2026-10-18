@@ -235,4 +235,14 @@ describe('MonitorsPage', () => {
     expect(await screen.findByText('TLS certificate: 5 days left')).toBeInTheDocument()
     expect(screen.getByText('TLS certificate expired')).toBeInTheDocument()
   })
+
+  it('shows no certificate validity for a monitor that ignores TLS errors', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce([
+      { ...monitors[0], config: { url: 'https://a.test', ignoreTls: true }, certExpiresAt: Date.now() + 5 * 86_400_000 },
+    ])
+    renderPage()
+
+    await screen.findByText(monitors[0]!.name)
+    expect(screen.queryByText(/TLS certificate/)).not.toBeInTheDocument()
+  })
 })
