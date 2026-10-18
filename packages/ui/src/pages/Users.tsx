@@ -6,7 +6,7 @@ import { CopyButton } from '../components/CopyButton'
 import { ResetTwoFactorModal } from '../components/ResetTwoFactorModal'
 import { SingleSignOnModal } from '../components/SingleSignOnModal'
 import { useSsoConfirmation } from '../components/SsoConfirmation'
-import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
+import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast, DataTable, DataTh, useTableSort } from '../components/ui'
 import { formatDate } from '../lib/dateFormat'
 
 interface User {
@@ -62,6 +62,12 @@ export default function UsersPage({ roles: ROLES, roleRank: ROLE_RANK, defaultRo
   const { data: users = [], isLoading, isError, refetch } = useQuery<User[]>({
     queryKey: ['users'],
     queryFn: () => api.get('/admin/users'),
+  })
+  const { rows: sortedUsers, sort } = useTableSort(users, {
+    email: (u) => u.email,
+    role: (u) => ROLE_RANK[u.role] ?? 0,
+    status: (u) => u.pendingTemporaryPassword,
+    created: (u) => u.createdAt,
   })
 
   const createMutation = useMutation({
@@ -261,22 +267,24 @@ export default function UsersPage({ roles: ROLES, roleRank: ROLE_RANK, defaultRo
         <ErrorState message="Could not load users." onRetry={() => void refetch()} />
       ) : (
         <div className="rounded-2xl overflow-x-auto" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-          <table className="w-full min-w-[720px] text-sm">
+          <DataTable sort={sort} className="w-full min-w-[720px] text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
                 {['Email', 'Role', 'Status', 'Created', ''].map((h) => (
-                  <th
+                  <DataTh
                     key={h}
+                    resizable={h !== ''}
+                    {...(h !== '' && { sortKey: h.toLowerCase() })}
                     className={`px-4 py-3 font-mono text-xs uppercase tracking-wider ${h === '' ? 'text-right' : 'text-left'}`}
                     style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
                   >
                     {h === '' ? <span className="sr-only">Actions</span> : h}
-                  </th>
+                  </DataTh>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {users.map((user, i) => (
+              {sortedUsers.map((user, i) => (
                 <tr
                   key={user.id}
                   style={{ borderTop: i > 0 ? '1px solid var(--m3-outline-variant)' : 'none' }}
@@ -391,7 +399,7 @@ export default function UsersPage({ roles: ROLES, roleRank: ROLE_RANK, defaultRo
                 />
               )}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
       {resetTarget && (

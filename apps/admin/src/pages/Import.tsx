@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { api, ApiError } from '../api/client'
 import { Alert, PageContainer, PageHeader, useToast } from '@better-kit/ui'
+import { DataTable, DataTh } from '@better-kit/ui'
 
 type Action = 'create' | 'update' | 'unchanged'
 type Kind = 'Monitor' | 'NotificationChannel' | 'Action'
@@ -54,11 +55,11 @@ function rejection(error: unknown): Rejected | null {
 function ChangeTable({ changes }: { changes: Change[] }) {
   return (
     <div className="rounded-xl overflow-x-auto" style={{ border: '1px solid var(--m3-outline-variant)' }}>
-      <table className="w-full min-w-[560px] text-sm">
+      <DataTable className="w-full min-w-[560px] text-sm">
         <thead>
           <tr style={{ background: 'var(--m3-surface-container)' }}>
             {['Change', 'What', 'Key', 'Settings'].map((heading) => (
-              <th key={heading} className="px-4 py-2.5 font-mono text-xs uppercase tracking-wider text-left" style={{ color: 'var(--m3-secondary)' }}>{heading}</th>
+              <DataTh key={heading} className="px-4 py-2.5 font-mono text-xs uppercase tracking-wider text-left" style={{ color: 'var(--m3-secondary)' }}>{heading}</DataTh>
             ))}
           </tr>
         </thead>
@@ -74,7 +75,7 @@ function ChangeTable({ changes }: { changes: Change[] }) {
             </tr>
           ))}
         </tbody>
-      </table>
+      </DataTable>
     </div>
   )
 }

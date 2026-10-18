@@ -156,7 +156,7 @@ Sign in with a recovery code. Without one, an administrator resets your 2FA in *
 
 ## Audit log
 
-The **Audit Log** (administrators only) records who changed what and when. Each entry has a time, the user's email, an action, the entity and, for most entries, details.
+The **Audit Log** (administrators only) records who changed what and when. Each entry has a time, the user's email, an action, the entity and, for most entries, details. Drag the line on the right edge of a column title (or focus it and use the arrow keys) to change the column width; double-click restores the default. This works in every admin table, and the lists of users, monitors, channels, actions and tokens can also be sorted by clicking a column title (ascending, descending, off).
 
 ### What is recorded
 

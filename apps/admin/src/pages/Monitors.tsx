@@ -8,19 +8,9 @@ import { StatusBadge } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
 import { MONITOR_TYPES } from '../components/monitors/monitorTypes'
 import { ConfirmModal } from '@better-kit/ui'
+import { DataTable, DataTh, useTableSort } from '@better-kit/ui'
 import { EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, QuickStartPanel, useToast, type QuickStartOption } from '@better-kit/ui'
 import { formatClock, formatDateTime } from '@better-kit/ui'
-
-type SortCol = 'name' | 'type' | 'intervalSecs' | 'currentStatus' | 'lastCheckedAt'
-
-const COLS: Array<{ label: string; key: SortCol | null }> = [
-  { label: 'Name', key: 'name' },
-  { label: 'Type', key: 'type' },
-  { label: 'Interval', key: 'intervalSecs' },
-  { label: 'Status', key: 'currentStatus' },
-  { label: 'Last Check', key: 'lastCheckedAt' },
-  { label: '', key: null },
-]
 
 const MONITOR_QUICK_START: QuickStartOption<MonitorType>[] = MONITOR_TYPES.map((t) => ({
   key: t.value,
@@ -36,8 +26,6 @@ export default function MonitorsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [createType, setCreateType] = useState<MonitorType | undefined>(undefined)
   const [confirmDelete, setConfirmDelete] = useState<Monitor | null>(null)
-  const [sortCol, setSortCol] = useState<SortCol>('name')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [activeTags, setActiveTags] = useState<string[]>([])
 
   const { data: monitors = [], isPending, isError, refetch } = useQuery<Monitor[]>({
@@ -104,11 +92,6 @@ export default function MonitorsPage() {
     setShowCreate(true)
   }
 
-  function toggleSort(col: SortCol) {
-    if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-    else { setSortCol(col); setSortDir('asc') }
-  }
-
   const allTags = useMemo(() => {
     const map = new Map<string, string>()
     for (const m of monitors) {
@@ -119,22 +102,19 @@ export default function MonitorsPage() {
     return [...map.entries()].map(([label, color]) => ({ label, color }))
   }, [monitors])
 
-  const displayed = useMemo(() => {
-    let result = [...monitors]
-    if (activeTags.length > 0) {
-      result = result.filter((m) => activeTags.every((tag) => (m.tags ?? []).some((t) => t.label === tag)))
-    }
-    result.sort((a, b) => {
-      const av = a[sortCol] ?? ''
-      const bv = b[sortCol] ?? ''
-      const al = typeof av === 'string' ? av.toLowerCase() : av
-      const bl = typeof bv === 'string' ? bv.toLowerCase() : bv
-      if (al < bl) return sortDir === 'asc' ? -1 : 1
-      if (al > bl) return sortDir === 'asc' ? 1 : -1
-      return 0
-    })
-    return result
-  }, [monitors, sortCol, sortDir, activeTags])
+  const filtered = useMemo(
+    () => activeTags.length === 0
+      ? monitors
+      : monitors.filter((m) => activeTags.every((tag) => (m.tags ?? []).some((t) => t.label === tag))),
+    [monitors, activeTags],
+  )
+  const { rows: displayed, sort } = useTableSort(filtered, {
+    name: (m) => m.name,
+    type: (m) => m.type,
+    intervalSecs: (m) => m.intervalSecs,
+    currentStatus: (m) => m.currentStatus,
+    lastCheckedAt: (m) => m.lastCheckedAt,
+  }, { key: 'name' })
 
   return (
     <PageContainer>
@@ -191,43 +171,28 @@ export default function MonitorsPage() {
         />
       ) : (
         <div className="rounded-2xl overflow-x-auto" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-          <table className="w-full min-w-[720px] text-sm">
+          <DataTable sort={sort} className="w-full min-w-[720px] text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-                {COLS.map(({ label, key }) => {
-                  const sorted = key !== null && sortCol === key
-                  return (
-                    <th
-                      key={label}
-                      scope="col"
-                      aria-sort={sorted ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
-                      className={`px-4 py-3 font-mono text-xs uppercase tracking-wider ${label === '' ? 'text-right' : 'text-left'}`}
-                      style={{
-                        color: sorted ? 'var(--m3-primary)' : 'var(--m3-secondary)',
-                        background: 'var(--m3-surface-container)',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {key ? (
-                        <button
-                          type="button"
-                          onClick={() => toggleSort(key)}
-                          className="inline-flex items-center gap-1 uppercase tracking-wider rounded focus-ring"
-                          style={{ color: 'inherit', userSelect: 'none' }}
-                        >
-                          {label}
-                          {sorted && (
-                            <span aria-hidden="true" style={{ fontSize: '10px' }}>
-                              {sortDir === 'asc' ? '↑' : '↓'}
-                            </span>
-                          )}
-                        </button>
-                      ) : (
-                        <span className="sr-only">Actions</span>
-                      )}
-                    </th>
-                  )
-                })}
+                {([['Name', 'name'], ['Type', 'type'], ['Interval', 'intervalSecs'], ['Status', 'currentStatus'], ['Last Check', 'lastCheckedAt']] as const).map(([label, key]) => (
+                  <DataTh
+                    key={key}
+                    scope="col"
+                    sortKey={key}
+                    className="px-4 py-3 font-mono text-xs uppercase tracking-wider text-left"
+                    style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)', whiteSpace: 'nowrap' }}
+                  >
+                    {label}
+                  </DataTh>
+                ))}
+                <DataTh
+                  scope="col"
+                  resizable={false}
+                  className="px-4 py-3 font-mono text-xs uppercase tracking-wider text-right"
+                  style={{ background: 'var(--m3-surface-container)' }}
+                >
+                  <span className="sr-only">Actions</span>
+                </DataTh>
               </tr>
             </thead>
             <tbody>
@@ -303,7 +268,7 @@ export default function MonitorsPage() {
                 />
               )}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
 

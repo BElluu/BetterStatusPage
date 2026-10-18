@@ -5,6 +5,7 @@ import { SUBSCRIBER_EVENT_TYPES } from '@bsp/shared'
 import { api } from '../../api/client'
 import { SUBSCRIBER_EVENT_LABELS } from '../../pages/Subscribers'
 import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, Pagination, useToast } from '@better-kit/ui'
+import { DataTable, DataTh } from '@better-kit/ui'
 import { formatDateTime } from '@better-kit/ui'
 
 const STATUS_STYLE: Record<SubscriberDelivery['status'], { color: string; label: string }> = {
@@ -93,15 +94,15 @@ export function SubscriberDeliveryHistory({ subscriberId, onClearSubscriber }: P
     <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
       {isLoading ? <LoadingState label="Loading deliveries…" />
         : isError ? <ErrorState message="Could not load deliveries." onRetry={() => void refetch()} className="rounded-none" />
-          : <div className="overflow-x-auto"><table className="w-full text-sm min-w-[850px]">
-            <thead><tr style={{ background: 'var(--m3-surface-container)', borderBottom: '1px solid var(--m3-outline-variant)' }}>{['Time', 'Subscriber', 'Event', 'Attempts', 'Status', ''].map((label) => <th key={label} className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>{label === '' ? <span className="sr-only">Details</span> : label}</th>)}</tr></thead>
+          : <div className="overflow-x-auto"><DataTable className="w-full text-sm min-w-[850px]">
+            <thead><tr style={{ background: 'var(--m3-surface-container)', borderBottom: '1px solid var(--m3-outline-variant)' }}>{['Time', 'Subscriber', 'Event', 'Attempts', 'Status', ''].map((label) => <DataTh key={label} resizable={label !== ''} className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>{label === '' ? <span className="sr-only">Details</span> : label}</DataTh>)}</tr></thead>
             <tbody>
               {data?.deliveries.map((delivery) => <DeliveryRow key={delivery.id} delivery={delivery} expanded={expanded === delivery.id} onToggle={() => setExpanded(expanded === delivery.id ? null : delivery.id)} onRetry={() => retry.mutate(delivery.id)} retrying={retry.isPending && retry.variables === delivery.id} />)}
               {!data?.deliveries.length && (filtered
                 ? <EmptyTableRow colSpan={6} icon="outbox" title="No deliveries match these filters." description={<><EmptyStateLink onClick={clearFilters}>Clear the filters</EmptyStateLink> to see every delivery.</>} />
                 : <EmptyTableRow colSpan={6} icon="outbox" title="No deliveries yet" description="Notifications sent to subscribers will be listed here." />)}
             </tbody>
-          </table></div>}
+          </DataTable></div>}
     </div>
     {data && <Pagination page={page} pageCount={data.pages} onPageChange={(next) => { setPage(next); setExpanded(null) }} summary={`Page ${page} of ${data.pages} · ${data.total} deliveries`} />}
   </section>

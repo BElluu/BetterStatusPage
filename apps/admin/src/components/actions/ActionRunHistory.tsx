@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import type { Action, ActionRun, ActionRunStatus } from '@bsp/shared'
 import { EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, Pagination, useToast } from '@better-kit/ui'
+import { DataTable, DataTh } from '@better-kit/ui'
 import { formatDateTime } from '@better-kit/ui'
 
 interface RunListResponse {
@@ -81,10 +82,10 @@ export function ActionRunHistory() {
     <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
       {isLoading ? <LoadingState label="Loading runs…" />
         : isError ? <ErrorState message="Could not load action runs." onRetry={() => void refetch()} className="rounded-none" />
-          : <div className="overflow-x-auto"><table className="w-full text-sm min-w-[850px]">
+          : <div className="overflow-x-auto"><DataTable className="w-full text-sm min-w-[850px]">
             <thead><tr style={{ background: 'var(--m3-surface-container)', borderBottom: '1px solid var(--m3-outline-variant)' }}>
               {['Time', 'Monitor', 'Action', 'Attempts', 'Status', 'Details'].map((label) => (
-                <th key={label} className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>{label}</th>
+                <DataTh key={label} className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>{label}</DataTh>
               ))}
             </tr></thead>
             <tbody>
@@ -119,7 +120,7 @@ export function ActionRunHistory() {
                 ? <EmptyTableRow colSpan={6} icon="bolt" title="No runs match these filters." description={<><EmptyStateLink onClick={() => { setStatus(''); setActionId(''); setPage(1) }}>Clear the filters</EmptyStateLink> to see every run.</>} />
                 : <EmptyTableRow colSpan={6} icon="bolt" title="No runs yet" description="Actions run when a monitor stays down or comes back up, and are listed here." />)}
             </tbody>
-          </table></div>}
+          </DataTable></div>}
     </div>
     {data && <Pagination page={page} pageCount={data.pages} onPageChange={setPage} summary={`Page ${page} of ${data.pages} · ${data.total} runs`} />}
   </section>

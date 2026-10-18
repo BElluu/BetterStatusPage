@@ -6,7 +6,7 @@ import { uiConfig } from '../config'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { ModalFooter, ModalHeader, ModalShell } from '../components/ModalShell'
 import { CopyButton } from '../components/CopyButton'
-import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '../components/ui'
+import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast, DataTable, DataTh, useTableSort } from '../components/ui'
 import { formatDate } from '../lib/dateFormat'
 
 interface ApiToken {
@@ -66,6 +66,12 @@ export default function ApiTokensPage({ resources, presets }: { resources: reado
   const { data: tokens = [], isLoading, isError, refetch } = useQuery<ApiToken[]>({
     queryKey: ['api-tokens'],
     queryFn: () => api.get('/admin/api-tokens'),
+  })
+  const { rows: sortedTokens, sort } = useTableSort(tokens, {
+    name: (t) => t.name,
+    token: (t) => t.prefix,
+    expires: (t) => t.expiresAt ?? Number.MAX_SAFE_INTEGER,
+    'last used': (t) => t.lastUsedAt,
   })
 
   const createMutation = useMutation({
@@ -264,22 +270,24 @@ export default function ApiTokensPage({ resources, presets }: { resources: reado
         <ErrorState message="Could not load tokens." onRetry={() => void refetch()} />
       ) : (
         <div className="rounded-2xl overflow-x-auto" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-          <table className="w-full min-w-[760px] text-sm">
+          <DataTable sort={sort} className="w-full min-w-[760px] text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
                 {['Name', 'Token', 'Permissions', 'Expires', 'Last used', ''].map((h) => (
-                  <th
+                  <DataTh
                     key={h}
+                    resizable={h !== ''}
+                    {...(h !== '' && h !== 'Permissions' && { sortKey: h.toLowerCase() })}
                     className={`px-4 py-3 font-mono text-xs uppercase tracking-wider ${h === '' ? 'text-right' : 'text-left'}`}
                     style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
                   >
                     {h === '' ? <span className="sr-only">Actions</span> : h}
-                  </th>
+                  </DataTh>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {tokens.map((token, i) => (
+              {sortedTokens.map((token, i) => (
                 <tr key={token.id} style={{ borderTop: i > 0 ? '1px solid var(--m3-outline-variant)' : 'none' }}>
                   <td className="px-4 py-3 font-medium" style={{ color: 'var(--m3-on-surface)' }}>{token.name}</td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>{token.prefix}…</td>
@@ -323,7 +331,7 @@ export default function ApiTokensPage({ resources, presets }: { resources: reado
                 />
               )}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
 

@@ -5,6 +5,10 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+### Added
+
+- **Resizable and sortable table columns**: the lists of users, API tokens, monitors, notification channels, actions and the uptime report can be sorted by clicking a column title (click again to reverse, a third time to switch the sorting off; empty values stay last). Every admin table, including the audit log, has columns that can be resized: drag the line on the right edge of a column title, or focus it and use the left and right arrow keys; the column next to it takes or gives the space, so the other columns stay put. Double-click or Home restores the default layout. Sorting and widths are kept until the page is reloaded.
+
 ### Fixed
 
 - **Status page before the setup**: opening the address of a new instance without `/admin` logged `Error: DB not initialized` and showed a broken page. It now redirects to the setup wizard until the first administrator is created.

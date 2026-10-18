@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { Monitor, UptimeReport } from '@bsp/shared'
 import { Alert, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '@better-kit/ui'
+import { DataTable, DataTh, useTableSort } from '@better-kit/ui'
 
 const DAY_MS = 86_400_000
 const MAX_RANGE_DAYS = 366
@@ -46,6 +47,14 @@ export default function ReportsPage() {
     queryKey: ['uptime-report', query],
     queryFn: () => api.get(`/admin/reports/uptime?${query}`),
     enabled: !rangeError,
+  })
+  const { rows: sortedMonitors, sort } = useTableSort(report?.monitors ?? [], {
+    monitor: (m) => m.monitorName,
+    uptime: (m) => m.uptimePct,
+    checks: (m) => m.checksTotal,
+    successful: (m) => m.checksUp,
+    'avg response': (m) => m.avgResponseMs,
+    incidents: (m) => m.incidents,
   })
 
   function exportCsv(granularity: 'day' | 'total') {
@@ -110,35 +119,36 @@ export default function ReportsPage() {
         <ErrorState message="Failed to load the report." onRetry={() => void refetch()} />
       ) : (
         <div className="rounded-2xl overflow-x-auto" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-          <table className="w-full min-w-[640px] text-sm">
+          <DataTable sort={sort} className="w-full min-w-[640px] text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-                {['Monitor', 'Uptime', 'Checks', 'Successful', 'Avg response', 'Incidents'].map((label, index) => (
-                  <th
+                {['Monitor', 'Uptime', 'Checks', 'Successful', 'Avg response', 'Incidents'].map((label) => (
+                  <DataTh
                     key={label}
+                    sortKey={label.toLowerCase()}
                     scope="col"
-                    className={`px-4 py-3 font-mono text-xs uppercase tracking-wider ${index === 0 ? 'text-left' : 'text-right'}`}
+                    className={`px-4 py-3 font-mono text-xs uppercase tracking-wider text-left`}
                     style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)', whiteSpace: 'nowrap' }}
                   >
                     {label}
-                  </th>
+                  </DataTh>
                 ))}
               </tr>
             </thead>
             <tbody>
               {report.monitors.length === 0 && <EmptyTableRow colSpan={6} icon="assessment" title="No monitors" description="Create a monitor to see its uptime here." />}
-              {report.monitors.map((monitor) => (
+              {sortedMonitors.map((monitor) => (
                 <tr key={monitor.monitorId} style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
                   <td className="px-4 py-3 font-medium">{monitor.monitorName}</td>
-                  <td className="px-4 py-3 text-right font-mono">{formatPct(monitor.uptimePct)}</td>
-                  <td className="px-4 py-3 text-right font-mono">{monitor.checksTotal.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-right font-mono">{monitor.checksUp.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-right font-mono">{monitor.avgResponseMs === null ? '—' : `${Math.round(monitor.avgResponseMs)} ms`}</td>
-                  <td className="px-4 py-3 text-right font-mono">{monitor.incidents}</td>
+                  <td className="px-4 py-3 font-mono">{formatPct(monitor.uptimePct)}</td>
+                  <td className="px-4 py-3 font-mono">{monitor.checksTotal.toLocaleString()}</td>
+                  <td className="px-4 py-3 font-mono">{monitor.checksUp.toLocaleString()}</td>
+                  <td className="px-4 py-3 font-mono">{monitor.avgResponseMs === null ? '—' : `${Math.round(monitor.avgResponseMs)} ms`}</td>
+                  <td className="px-4 py-3 font-mono">{monitor.incidents}</td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
     </PageContainer>

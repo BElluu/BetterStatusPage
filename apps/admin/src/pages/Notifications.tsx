@@ -6,6 +6,7 @@ import type { NotificationDeliveryAttempt, SmtpSettings, VaultRef } from '@bette
 import ChannelFormModal from '../components/notifications/ChannelFormModal'
 import { CHANNEL_TYPES, CHANNEL_TYPE_ORDER, type ChannelType } from '../components/notifications/channelTypes'
 import { ConfirmModal } from '@better-kit/ui'
+import { DataTable, DataTh, useTableSort } from '@better-kit/ui'
 import { Link } from 'react-router-dom'
 import { deliveryHistoryUrl } from '../deliveryHistoryUrl'
 import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
@@ -31,6 +32,12 @@ export default function NotificationsPage() {
   const { data: channels = [], isLoading, isError, refetch } = useQuery<NotificationChannel[]>({
     queryKey: ['notification-channels'],
     queryFn: () => api.get('/admin/notifications/channels'),
+  })
+  const { rows: sortedChannels, sort } = useTableSort(channels, {
+    name: (c) => c.name,
+    type: (c) => c.type,
+    recovery: (c) => c.notifyOnRecovery,
+    status: (c) => c.enabled,
   })
 
   const deleteMutation = useMutation({
@@ -104,19 +111,19 @@ export default function NotificationsPage() {
         />
       ) : (
         <div className="rounded-2xl overflow-x-auto" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-          <table className="w-full min-w-[760px] text-sm">
+          <DataTable sort={sort} className="w-full min-w-[760px] text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
                 {['Name', 'Type', 'Recipient / URL', 'Recovery', 'Status', ''].map((h) => (
-                  <th key={h}
+                  <DataTh key={h} resizable={h !== ''} {...(h !== '' && h !== 'Recipient / URL' && { sortKey: h.toLowerCase() })}
                     className={`px-4 py-3 font-mono text-xs uppercase tracking-wider ${h === '' ? 'text-right' : 'text-left'}`}
                     style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
-                  >{h === '' ? <span className="sr-only">Actions</span> : h}</th>
+                  >{h === '' ? <span className="sr-only">Actions</span> : h}</DataTh>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {channels.map((ch, i) => {
+              {sortedChannels.map((ch, i) => {
                 const cfg = ch.config as unknown as Record<string, unknown>
                 const recipient = ch.type === 'email'
                   ? String(cfg['to'] ?? '')
@@ -171,7 +178,7 @@ export default function NotificationsPage() {
                 )
               })}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
 
@@ -276,15 +283,15 @@ export function DeliveryHistory({ channels }: { channels: NotificationChannel[] 
     <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
       {isLoading ? <LoadingState label="Loading deliveries…" />
         : isError ? <ErrorState message="Could not load deliveries." onRetry={() => void refetch()} className="rounded-none" />
-          : <div className="overflow-x-auto"><table className="w-full text-sm min-w-[850px]">
-            <thead><tr style={{ background: 'var(--m3-surface-container)', borderBottom: '1px solid var(--m3-outline-variant)' }}>{['Time', 'Monitor', 'Channel', 'Event', 'Attempts', 'Status', ''].map((label) => <th key={label} className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>{label === '' ? <span className="sr-only">Details</span> : label}</th>)}</tr></thead>
+          : <div className="overflow-x-auto"><DataTable className="w-full text-sm min-w-[850px]">
+            <thead><tr style={{ background: 'var(--m3-surface-container)', borderBottom: '1px solid var(--m3-outline-variant)' }}>{['Time', 'Monitor', 'Channel', 'Event', 'Attempts', 'Status', ''].map((label) => <DataTh key={label} resizable={label !== ''} className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>{label === '' ? <span className="sr-only">Details</span> : label}</DataTh>)}</tr></thead>
             <tbody>
               {data?.deliveries.map((delivery) => <DeliveryRow key={delivery.id} delivery={delivery} expanded={expanded === delivery.id} {...(expanded === delivery.id && detail.data ? { detail: detail.data } : {})} onToggle={() => setExpanded(expanded === delivery.id ? null : delivery.id)} onRetry={() => retry.mutate(delivery.id)} retrying={retry.isPending && retry.variables === delivery.id} />)}
               {!data?.deliveries.length && (filtered
                 ? <EmptyTableRow colSpan={7} icon="outbox" title="No deliveries match these filters." description={<><EmptyStateLink onClick={clearFilters}>Clear the filters</EmptyStateLink> to see every delivery.</>} />
                 : <EmptyTableRow colSpan={7} icon="outbox" title="No deliveries yet" description="Alerts, recoveries and test messages sent to your channels will be listed here." />)}
             </tbody>
-          </table></div>}
+          </DataTable></div>}
     </div>
     {data && <Pagination page={page} pageCount={data.pages} onPageChange={(next) => { setPage(next); setExpanded(null) }} summary={`Page ${page} of ${data.pages} · ${data.total} deliveries`} />}
   </section>
