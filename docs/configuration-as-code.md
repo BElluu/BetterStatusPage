@@ -129,7 +129,7 @@ Templates are not documents: create them in the admin console or through the API
 
 ### What is left out
 
-Runtime state does not belong in a configuration: the current status, the last check, the certificate expiry that was read, and the heartbeat token of a webhook monitor are not exported. The status page layout, incidents, maintenance windows, branding, languages, subscribers and subscription settings, SMTP settings, users, single sign-on, status page access, API tokens and vaults are not documents.
+Runtime state does not belong in a configuration: the current status, the last check, and the certificate expiry that was read are not exported. The status page layout, incidents, maintenance windows, branding, languages, subscribers and subscription settings, SMTP settings, users, single sign-on, status page access, API tokens and vaults are not documents.
 
 ---
 
@@ -144,6 +144,24 @@ A secret that is read from a [vault](vault.md) is not a secret of the document b
 ```yaml
 vault: { vault: Production, secret: db-login, fieldMapping: { user: u, password: p } }
 ```
+
+### Heartbeat token
+
+> [!WARNING]
+> **Not released yet.** The `heartbeatToken` field is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+The URL a sender calls on a `webhook` monitor contains its token. A monitor that is created again (deleted and imported, or a new installation from the same file) gets a new random token, and every cron job or CI step that called the old URL stops reporting. To keep the URL, put the token in the document:
+
+```yaml
+kind: Monitor
+key: nightly-job
+name: Nightly job
+type: webhook
+heartbeatToken: 3f9c1d7a2b6e4f08a5d1c9e7b2a64f303f9c1d7a2b6e4f08   # 48 lowercase hex characters
+config: {}
+```
+
+The token is 48 lowercase hexadecimal characters, the same form as a generated one; `openssl rand -hex 24` makes one. The current token of a monitor is the last part of its heartbeat URL, shown on the monitor's page in the admin console. The token is a secret, so the export writes `••••••••` and never the value. A document without `heartbeatToken`, or with the mask, keeps the stored token of an existing monitor and gives a new monitor a random one. A new value replaces the token, which changes the URL. The token must not belong to another monitor at the time of the import (to swap two tokens, free one first in a separate import), and only a `webhook` monitor can have one. Because the file then holds a working credential, keep it out of git or inject it before posting, like the other secrets.
 
 ### Names that cannot be exported
 
@@ -201,7 +219,7 @@ Both answer with what was, or would be, done, channels first, then monitors. Eve
 - **Nothing is deleted.** An import only creates and updates. What the documents do not mention stays as it is, and removing a monitor, channel or action is done in the panel or with the API's `DELETE`. This keeps a file that describes only a few objects, or an empty one, from touching the rest.
 - **A document is the whole truth for the object it describes.** A setting that is left out takes its default (a monitor without `intervalSecs` checks every 60 seconds), it does not keep its current value. The notification channels and dependencies of a monitor are replaced by the lists in the document, and so are the failure channels of an action (the actions of a monitor only when the document has an `actions` list). A document needs its `kind`; a monitor or channel also needs `key`, `name` and `type`, an action `key`, `name` and `config`.
 - **All or nothing.** All documents are checked before anything is written, and the changes are made in one transaction. Applying the same documents again changes nothing.
-- **Heartbeat tokens stay.** A webhook monitor keeps its token, so the URL it is called on does not change; a new one gets a token.
+- **Heartbeat tokens stay.** A webhook monitor keeps its token, so the URL it is called on does not change; a new one gets a token, unless the document sets one (see [Heartbeat token](#heartbeat-token)).
 - **Changes are audited.** Each change appears in the audit log under the object it changed, and an import that changes something also gets one entry (**Import**) with the counts. An entry lists the names of the settings that changed, not their old and new values, so a secret never ends up in the log.
 - **Not documents:** see [What is left out](#what-is-left-out). A document can refer to a vault by name, but the vault has to exist, and a token needs `vault:use` to add such a reference, or to change the configuration of a monitor or channel that has one. Without it a token can still change the name, schedule, tags and links of such a monitor.
 

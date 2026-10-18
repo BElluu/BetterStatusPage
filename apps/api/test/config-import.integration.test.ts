@@ -109,6 +109,37 @@ describe('importing into an empty installation', () => {
     assert.match(rows('monitors').find((m) => m['key'] === 'nightly-job')!['webhook_token'], /^[0-9a-f]{48}$/)
   })
 
+  it('takes the heartbeat token from the document, and keeps it when the document leaves it out or sends the mask', async () => {
+    const token = 'ab'.repeat(24)
+    const tokenOf = () => rows('monitors').find((m) => m['key'] === 'nightly-job')!['webhook_token']
+    await applied({ ...heartbeat(), heartbeatToken: token })
+    assert.equal(tokenOf(), token)
+    await applied(heartbeat())
+    assert.equal(tokenOf(), token, 'no token in the document keeps the stored one')
+    const masked = await applied({ ...heartbeat(), heartbeatToken: SECRET_MASK })
+    assert.equal(masked['summary'].unchanged, 1)
+    assert.equal(tokenOf(), token)
+    const replaced = await applied({ ...heartbeat(), heartbeatToken: 'cd'.repeat(24) })
+    assert.deepEqual(change(replaced, 'Monitor', 'nightly-job').fields, ['heartbeatToken'])
+    assert.equal(JSON.stringify(replaced).includes('cdcdcdcd'), false, 'the response never carries the token')
+  })
+
+  it('refuses a heartbeat token that is malformed, on a monitor that is not a webhook, or used by another monitor', async () => {
+    const token = 'ab'.repeat(24)
+    await applied({ ...heartbeat(), heartbeatToken: token })
+    for (const doc of [
+      { ...heartbeat(), heartbeatToken: 'short' },
+      { ...heartbeat(), heartbeatToken: 'ab'.repeat(16) },
+      { ...heartbeat(), heartbeatToken: 'AB'.repeat(24) },
+      { ...heartbeat(), heartbeatToken: 42 },
+      { ...database(), heartbeatToken: token },
+      { ...heartbeat(), key: 'other', name: 'Other', heartbeatToken: token },
+    ]) {
+      const response = await post('validate', JSON.stringify(doc))
+      assert.equal(response.statusCode, 400, JSON.stringify(doc))
+    }
+  })
+
   it('records the import and what it changed in the audit log', async () => {
     await applied(baseline())
     const entries = rows('audit_log')

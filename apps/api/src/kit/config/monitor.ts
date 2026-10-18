@@ -4,8 +4,8 @@ import type { AutoIncidentMode } from '@bsp/shared'
 import { tokenAllows } from '@better-kit/contracts'
 import { db } from '../../db/client.js'
 import { monitorActions, monitorDependencies, monitorNotificationChannels, monitors } from '../../db/schema.js'
-import { AUTO_INCIDENT_MINUTES_RANGE, certResetsFor, generateWebhookToken, parseNewMonitor, THRESHOLD_RANGE, type MonitorFields } from '../../services/monitorInput.js'
-import { maskSecrets, restoreSecrets } from '../../services/secretFields.js'
+import { AUTO_INCIDENT_MINUTES_RANGE, certResetsFor, generateWebhookToken, parseNewMonitor, THRESHOLD_RANGE, WEBHOOK_TOKEN_PATTERN, type MonitorFields } from '../../services/monitorInput.js'
+import { maskSecrets, restoreSecrets, SECRET_MASK } from '../../services/secretFields.js'
 import { vaultUseProblem } from '../vaultUse.js'
 import { cancelUnlinkedRuns } from '../../workers/actionRunner.js'
 import { parseActionLinks, type DesiredAction, type DesiredActionLink } from './action.js'
@@ -13,7 +13,7 @@ import { mayLinkChannels, type DesiredChannel } from './channel.js'
 import type { ExportState, State } from './state.js'
 import { entityKeys, exportByKey, linkOrder, MAX_CONFIG_DEPTH } from './shared.js'
 
-const MONITOR_FIELDS = ['kind', 'key', 'name', 'type', 'intervalSecs', 'timeoutMs', 'retries', 'failureThreshold', 'recoveryThreshold', 'config', 'tags', 'notifications', 'dependsOn', 'autoIncident', 'actions']
+const MONITOR_FIELDS = ['kind', 'key', 'name', 'type', 'intervalSecs', 'timeoutMs', 'retries', 'failureThreshold', 'recoveryThreshold', 'config', 'tags', 'notifications', 'dependsOn', 'autoIncident', 'actions', 'heartbeatToken']
 const AUTO_INCIDENT_FIELDS = ['enabled', 'afterMinutes', 'mode', 'template']
 
 export interface DesiredMonitor {
@@ -26,6 +26,8 @@ export interface DesiredMonitor {
   actions: DesiredActionLink[] | null
   /** Null when the block is missing or `enabled: false`: automatic incidents are off. `template` is a name; null = the default one. */
   autoIncident: { afterMinutes: number; mode: AutoIncidentMode; template: string | null } | null
+  /** Null when the document has no token or the mask: a webhook monitor keeps its stored token, a new one gets a random one. */
+  heartbeatToken: string | null
 }
 
 type MonitorRow = typeof monitors.$inferSelect
@@ -72,6 +74,13 @@ function resolveAutoIncident(monitor: DesiredMonitor, state: State, problems: Pr
   return { minutes: wanted.afterMinutes, mode: wanted.mode, templateId: found.isDefault ? null : found.id }
 }
 
+function parseHeartbeatToken(value: unknown, type: string | undefined, path: string, problems: Problems): string | null {
+  if (value === undefined || value === SECRET_MASK) return null
+  if (type !== undefined && type !== 'webhook') problems.add(`${path}.heartbeatToken`, 'only a webhook monitor has a heartbeat token')
+  else if (typeof value !== 'string' || !WEBHOOK_TOKEN_PATTERN.test(value)) problems.add(`${path}.heartbeatToken`, 'must be 48 lowercase hexadecimal characters')
+  return typeof value === 'string' ? value : null
+}
+
 function refusePublishing(path: string, problems: Problems) {
   problems.add(`${path}.autoIncident`, 'a token needs the "incidents:write" permission to publish automatic incidents or choose their template')
 }
@@ -98,7 +107,8 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
     const dependsOn = keysOf(entry['dependsOn'], `${path}.dependsOn`, problems)
     const autoIncident = parseAutoIncident(entry['autoIncident'], path, problems)
     const actionLinks = parseActionLinks(entry['actions'], path, problems)
-    return key && 'value' in parsed ? { path, key, fields: parsed.value, notifications, dependsOn, actions: actionLinks, autoIncident } : null
+    const heartbeatToken = parseHeartbeatToken(entry['heartbeatToken'], 'value' in parsed ? parsed.value.type : undefined, path, problems)
+    return key && 'value' in parsed ? { path, key, fields: parsed.value, notifications, dependsOn, actions: actionLinks, autoIncident, heartbeatToken } : null
   },
 
   plan(desired, ctx) {
@@ -128,6 +138,7 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
     const edges = new Map<string, string[]>()
     for (const row of state.monitorRows) edges.set(row.key, currentDependencies(row.id))
 
+    const tokenOwner = new Map(state.monitorRows.flatMap((row) => row.webhookToken ? [[row.webhookToken, row.key] as const] : []))
     for (const monitor of [...desired].sort(byKey)) {
       const existing = monitorByKey.get(monitor.key)
       const { fields: values } = monitor
@@ -145,6 +156,12 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
         else if (!finalMonitorKeys.has(key)) problems.add(`${monitor.path}.dependsOn`, `unknown monitor "${clip(key)}"`)
       }
       edges.set(monitor.key, monitor.dependsOn.filter((key) => finalMonitorKeys.has(key) && key !== monitor.key))
+
+      if (monitor.heartbeatToken) {
+        const owner = tokenOwner.get(monitor.heartbeatToken)
+        if (owner && owner !== monitor.key) problems.add(`${monitor.path}.heartbeatToken`, 'is already used by another monitor')
+        tokenOwner.set(monitor.heartbeatToken, monitor.key)
+      }
 
       // Missing block or `enabled: false` = off. No template named = the default one, stored as null.
       const auto = resolveAutoIncident(monitor, state, problems)
@@ -166,6 +183,7 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
         notifications: currentChannelKeys(existing.id), dependsOn: currentDependencies(existing.id),
         actions: currentActionLinks(existing.id),
         autoIncident: autoIncidentState(existing.autoIncidentMinutes, existing.autoIncidentMode, existing.autoIncidentTemplateId),
+        heartbeatToken: existing.webhookToken,
       }
       const wanted: Json = {
         name: values.name, type: values.type, intervalSecs: values.intervalSecs, timeoutMs: values.timeoutMs, retries: values.retries,
@@ -174,6 +192,7 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
         // A document without an `actions` field leaves the links alone; only an empty list removes them.
         ...(monitor.actions !== null ? { actions: [...monitor.actions].sort(linkOrder) } : {}),
         autoIncident: autoIncidentState(auto.minutes, auto.mode, auto.templateId),
+        ...(monitor.heartbeatToken ? { heartbeatToken: monitor.heartbeatToken } : {}),
       }
       const fields = Object.keys(wanted).filter((field) => canonical(current[field]) !== canonical(wanted[field]))
       if (fields.includes('notifications') && !mayLink) refuseLinks()
@@ -216,6 +235,7 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
         }
         // Only a webhook monitor has a heartbeat token; keep the one it has so its URL does not change.
         if (values.type !== 'webhook') updates.webhookToken = null
+        else if (monitor.heartbeatToken) updates.webhookToken = monitor.heartbeatToken
         else if (!existing.webhookToken) updates.webhookToken = generateWebhookToken()
         if (fields.some((field) => !['notifications', 'dependsOn', 'actions'].includes(field))) {
           await db.update(monitors).set(updates).where(eq(monitors.id, existing.id))
@@ -229,7 +249,7 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
           config: JSON.stringify(config), tags: JSON.stringify(values.tags),
           autoIncidentMinutes: auto.minutes, autoIncidentMode: auto.mode, autoIncidentTemplateId: auto.templateId,
           currentStatus: 'pending', alertConfirmedStatus: 'pending',
-          webhookToken: values.type === 'webhook' ? generateWebhookToken() : null,
+          webhookToken: values.type === 'webhook' ? monitor.heartbeatToken ?? generateWebhookToken() : null,
           createdAt: now, updatedAt: now,
         }).returning({ id: monitors.id })
         ids('Monitor').set(monitor.key, row!.id)
@@ -290,6 +310,7 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
       recoveryThreshold: row.recoveryThreshold,
       config: ctx.exportVaultRefs(maskSecrets('monitor', JSON.parse(row.config))) as Json,
       tags: JSON.parse(row.tags ?? '[]'),
+      ...(row.type === 'webhook' ? { heartbeatToken: SECRET_MASK } : {}),
       notifications: keysOfIds(state.linkRows.filter((link) => link.monitorId === row.id).map((link) => link.channelId), channelKey),
       dependsOn: keysOfIds(state.dependencyRows.filter((dependency) => dependency.dependentId === row.id).map((dependency) => dependency.dependsOnId), monitorKey),
       ...(includeActions ? {
