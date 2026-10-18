@@ -5,6 +5,10 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+### Added
+
+- **Heartbeat token in configuration files**: a `webhook` monitor document can carry `heartbeatToken`, so a monitor that is created again keeps the URL its senders call. The export writes the mask instead of the value, and an import without it keeps the stored token. See [Heartbeat token](configuration-as-code.md#heartbeat-token).
+
 ### Fixed
 
 - **Status page before the setup**: opening the address of a new instance without `/admin` logged `Error: DB not initialized` and showed a broken page. It now redirects to the setup wizard until the first administrator is created.

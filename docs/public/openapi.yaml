@@ -659,7 +659,7 @@ paths:
       description: |
         Every object is a document with a `kind` (`Monitor`, `NotificationChannel` or `Action`). Objects
         are identified by `key`, a monitor lists the keys of its channels, dependencies and actions. Known secret fields are written as `••••••••` and vault secrets by the
-        names of the vault and the secret. Runtime state (status, last check, heartbeat token) is not included. The
+        names of the vault and the secret. Runtime state (status, last check) is not included. A `webhook` monitor has `heartbeatToken: ••••••••`; an import accepts a real token (48 lowercase hex characters) to keep the heartbeat URL stable, and keeps the stored one when it is absent or masked. The
         output is the same for the same data, so it diffs well in version control.
 
         Without `kind` the response holds every document: a YAML stream separated by `---`. With
