@@ -519,7 +519,7 @@ function StatusPage({ account }: { account: { email: string; role: string | null
       {showProjectLink && (
         <div className="flex justify-end px-4 md:px-8 pb-4 pt-2">
           <a
-            href="https://github.com/BElluu/BetterStatusPage"
+            href="https://betterstatuspage.dev"
             target="_blank"
             rel="noopener noreferrer"
             className="bsp-project-link inline-flex items-center gap-1.5 text-[11px] rounded"
