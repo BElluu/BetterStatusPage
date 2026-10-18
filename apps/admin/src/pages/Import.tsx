@@ -4,11 +4,11 @@ import { api, ApiError } from '../api/client'
 import { Alert, PageContainer, PageHeader, useToast } from '@better-kit/ui'
 import { DataTable, DataTh } from '@better-kit/ui'
 
-type Action = 'create' | 'update' | 'unchanged'
+type Action = 'create' | 'update' | 'delete' | 'unchanged'
 type Kind = 'Monitor' | 'NotificationChannel' | 'Action'
 
 interface Change { kind: Kind; key?: string; action: Action; fields?: string[] }
-interface ImportResult { dryRun: boolean; summary: Record<Action, number>; changes: Change[] }
+interface ImportResult { dryRun: boolean; summary: { create: number; update: number; unchanged: number; delete?: number }; changes: Change[] }
 interface Problem { path: string; message: string }
 interface Rejected { error: string; problems: Problem[] }
 
@@ -18,10 +18,11 @@ const MAX_BYTES = 2 * 1024 * 1024
 const CHECK_DELAY_MS = 400
 
 const KIND_LABEL: Record<Kind, string> = { Monitor: 'Monitor', NotificationChannel: 'Notification channel', Action: 'Action' }
-const ACTION_LABEL: Record<Action, string> = { create: 'Create', update: 'Update', unchanged: 'No change' }
+const ACTION_LABEL: Record<Action, string> = { create: 'Create', update: 'Update', delete: 'Delete', unchanged: 'No change' }
 const ACTION_STYLE: Record<Action, { background: string; color: string }> = {
   create: { background: 'var(--m3-up-bg)', color: 'var(--m3-up)' },
   update: { background: 'var(--m3-degraded-bg)', color: 'var(--m3-degraded)' },
+  delete: { background: 'var(--m3-down-bg)', color: 'var(--m3-down)' },
   unchanged: { background: 'var(--m3-surface-container-high)', color: 'var(--m3-secondary)' },
 }
 
@@ -81,8 +82,8 @@ function ChangeTable({ changes }: { changes: Change[] }) {
 }
 
 function Summary({ result }: { result: ImportResult }) {
-  const { create, update, unchanged } = result.summary
-  const parts = [create && `${create} to create`, update && `${update} to update`, unchanged && `${unchanged} unchanged`].filter(Boolean)
+  const { create, update, unchanged, delete: removed } = result.summary
+  const parts = [create && `${create} to create`, update && `${update} to update`, removed && `${removed} to delete`, unchanged && `${unchanged} unchanged`].filter(Boolean)
   return <p className="text-sm" style={{ color: 'var(--m3-on-surface)' }}>{parts.length ? parts.join(' · ') : 'There is nothing in it.'}</p>
 }
 
@@ -97,6 +98,7 @@ export default function ImportPage() {
   const origin = from === 'notifications' ? ORIGINS.notifications : ORIGINS.monitors
   const toast = useToast()
   const [text, setText] = useState('')
+  const [prune, setPrune] = useState(false)
   const [checking, setChecking] = useState(false)
   const [preview, setPreview] = useState<ImportResult | null>(null)
   const [rejected, setRejected] = useState<Rejected | null>(null)
@@ -107,7 +109,7 @@ export default function ImportPage() {
   /** Only the answer to the latest question is shown; an earlier, slower one is dropped. */
   const latest = useRef(0)
 
-  const check = useCallback(async (body: string) => {
+  const check = useCallback(async (body: string, prune: boolean) => {
     const ticket = ++latest.current
     if (!body.trim()) {
       setChecking(false)
@@ -118,7 +120,7 @@ export default function ImportPage() {
     setChecking(true)
     setFailure('')
     try {
-      const result = await api.postText<ImportResult>('/admin/config/validate', body, 'application/yaml')
+      const result = await api.postText<ImportResult>(`/admin/config/validate${prune ? '?prune=true' : ''}`, body, 'application/yaml')
       if (ticket !== latest.current) return
       setPreview(result)
       setRejected(null)
@@ -135,9 +137,9 @@ export default function ImportPage() {
 
   // Checking is cheap and writes nothing, so it runs after every pause in typing.
   useEffect(() => {
-    const timer = setTimeout(() => void check(text), CHECK_DELAY_MS)
+    const timer = setTimeout(() => void check(text, prune), CHECK_DELAY_MS)
     return () => clearTimeout(timer)
-  }, [text, check])
+  }, [text, prune, check])
 
   function edit(next: string) {
     setApplied(null)
@@ -168,7 +170,7 @@ export default function ImportPage() {
   async function apply() {
     setApplying(true)
     try {
-      const result = await api.postText<ImportResult>('/admin/config/apply', text, 'application/yaml')
+      const result = await api.postText<ImportResult>(`/admin/config/apply${prune ? '?prune=true' : ''}`, text, 'application/yaml')
       latest.current += 1 // an answer to an earlier check must not bring the preview back
       setApplied(result)
       setPreview(null)
@@ -198,7 +200,7 @@ export default function ImportPage() {
         <p className="text-sm max-w-2xl" style={{ color: 'var(--m3-secondary)' }}>
           Paste one or more documents, separated by <code className="font-mono">---</code>, or choose a file. Each document starts with its
           {' '}<code className="font-mono">kind</code>: <code className="font-mono">Monitor</code>, <code className="font-mono">NotificationChannel</code> or <code className="font-mono">Action</code> (administrators only). An object whose <code className="font-mono">key</code> exists is updated, any other is created.
-          Nothing is deleted. Nothing is written until you apply, and what you apply takes effect completely or not at all.
+          Nothing is deleted unless you choose it below. Nothing is written until you apply, and what you apply takes effect completely or not at all.
           A secret written as <code className="font-mono">••••••••</code> keeps the stored one. To start from an existing object, open it and choose <strong>YAML</strong>.
         </p>
         <p className="text-sm max-w-2xl" style={{ color: 'var(--m3-secondary)' }}>
@@ -231,6 +233,22 @@ export default function ImportPage() {
           className="input-sig w-full font-mono text-xs"
           style={{ resize: 'vertical' }}
         />
+
+        <label className="flex items-start gap-3 max-w-2xl cursor-pointer select-none">
+          <input
+            type="checkbox"
+            className="w-4 h-4 mt-0.5 rounded"
+            checked={prune}
+            onChange={(e) => { latest.current += 1; setApplied(null); setPreview(null); setPrune(e.target.checked) }}
+          />
+          <span className="text-sm" style={{ color: 'var(--m3-on-surface)' }}>
+            Delete what the file does not mention
+            <span className="block text-xs" style={{ color: 'var(--m3-secondary)' }}>
+              Only for the kinds the file holds: with monitors in it, the other monitors are deleted; notification channels and actions are left alone.
+              The preview lists every deletion.
+            </span>
+          </span>
+        </label>
 
         {failure && <Alert tone="error" onDismiss={() => setFailure('')}>{failure}</Alert>}
 

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, or } from 'drizzle-orm'
 import { isValidEntityKey, byKey, canonical, clip, documentKey, findCycle, isObject, keyList, nestedDeeperThan, unknownFields, type AuditEntry, type ConfigChange, type ConfigKind, type Json, type Problems } from '@better-kit/config-as-code'
 import type { AutoIncidentMode } from '@bsp/shared'
 import { tokenAllows } from '@better-kit/contracts'
@@ -7,7 +7,7 @@ import { monitorActions, monitorDependencies, monitorNotificationChannels, monit
 import { AUTO_INCIDENT_MINUTES_RANGE, certResetsFor, generateWebhookToken, parseNewMonitor, THRESHOLD_RANGE, WEBHOOK_TOKEN_PATTERN, type MonitorFields } from '../../services/monitorInput.js'
 import { maskSecrets, restoreSecrets, SECRET_MASK } from '../../services/secretFields.js'
 import { vaultUseProblem } from '../vaultUse.js'
-import { cancelUnlinkedRuns } from '../../workers/actionRunner.js'
+import { cancelRunsOfMonitor, cancelUnlinkedRuns } from '../../workers/actionRunner.js'
 import { parseActionLinks, type DesiredAction, type DesiredActionLink } from './action.js'
 import { mayLinkChannels, type DesiredChannel } from './channel.js'
 import type { ExportState, State } from './state.js'
@@ -207,6 +207,21 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
   },
 
   existingIds: (state) => new Map(state.monitorRows.map((row) => [row.key, row.id])),
+
+  async remove(keys, { state, ids }) {
+    const audit: AuditEntry[] = []
+    for (const key of keys) {
+      const id = ids('Monitor').get(key)!
+      const row = state.monitorRows.find((each) => each.id === id)!
+      await cancelRunsOfMonitor(id)
+      await db.delete(monitorActions).where(eq(monitorActions.monitorId, id))
+      await db.delete(monitorNotificationChannels).where(eq(monitorNotificationChannels.monitorId, id))
+      await db.delete(monitorDependencies).where(or(eq(monitorDependencies.dependentId, id), eq(monitorDependencies.dependsOnId, id)))
+      await db.delete(monitors).where(eq(monitors.id, id))
+      audit.push({ action: 'delete', entity: 'monitor', id, name: row.name, diff: { key, type: row.type, source: 'configuration import' } })
+    }
+    return audit
+  },
 
   // Monitors first without their links: a link may point at a monitor created later in the same stream.
   async apply(planned, { now, ids }) {

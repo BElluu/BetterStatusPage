@@ -1,8 +1,9 @@
 import { eq } from 'drizzle-orm'
+import { cancelRunsOfAction } from '../../workers/actionRunner.js'
 import { ENTITY_KEY_ERROR, isValidEntityKey, byKey, canonical, clip, documentKey, isObject, keyList, nestedDeeperThan, unknownFields, type AuditEntry, type ConfigChange, type ConfigKind, type Json, type Problems } from '@better-kit/config-as-code'
 import { ACTION_TRIGGER_STATUSES, type ActionTriggerStatus } from '@bsp/shared'
 import { db } from '../../db/client.js'
-import { actionFailureChannels, actions } from '../../db/schema.js'
+import { actionFailureChannels, actions, monitorActions } from '../../db/schema.js'
 import { actionConfigError, actionSecretTypeProblem } from '../../services/actionInput.js'
 import { maskSecrets, restoreSecrets } from '../../services/secretFields.js'
 import { vaultUseProblem } from '../vaultUse.js'
@@ -130,6 +131,20 @@ export const actionKind: ConfigKind<State, ExportState, DesiredAction, PlannedAc
   },
 
   existingIds: (state) => new Map(state.actionRows.map((row) => [row.key, row.id])),
+
+  async remove(keys, { state, ids }) {
+    const audit: AuditEntry[] = []
+    for (const key of keys) {
+      const id = ids('Action').get(key)!
+      const row = state.actionRows.find((each) => each.id === id)!
+      await cancelRunsOfAction(id)
+      await db.delete(monitorActions).where(eq(monitorActions.actionId, id))
+      await db.delete(actionFailureChannels).where(eq(actionFailureChannels.actionId, id))
+      await db.delete(actions).where(eq(actions.id, id))
+      audit.push({ action: 'delete', entity: 'action', id, name: row.name, diff: { key, source: 'configuration import' } })
+    }
+    return audit
+  },
 
   async apply(planned, { now, ids }) {
     const audit: AuditEntry[] = []

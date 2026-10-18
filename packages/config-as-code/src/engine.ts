@@ -1,6 +1,6 @@
 import { clip, ConfigInvalidError, createVaultExporter, createVaultResolver, forbiddenNameAt, isObject, Problems, type Json, type VaultRows } from './document.js'
 
-export type ChangeAction = 'create' | 'update' | 'unchanged'
+export type ChangeAction = 'create' | 'update' | 'delete' | 'unchanged'
 
 export interface ConfigChange {
   kind: string
@@ -13,18 +13,21 @@ export interface ConfigChange {
 
 export interface ImportResult {
   dryRun: boolean
-  summary: Record<ChangeAction, number>
+  /** `delete` is present only for an import with `prune`. */
+  summary: Record<'create' | 'update' | 'unchanged', number> & { delete?: number }
   changes: ConfigChange[]
 }
 
 /** What one change did, for the audit log. */
-export interface AuditEntry { action: 'create' | 'update'; entity: string; id: number | string; name: string; diff: Json }
+export interface AuditEntry { action: 'create' | 'update' | 'delete'; entity: string; id: number | string; name: string; diff: Json }
 
 export interface ImportOptions<Actor> {
   dryRun: boolean
   actor: Actor
   /** Set when the request is made with an API token: what it may do is decided per kind. */
   token?: { scopes: readonly string[] } | undefined
+  /** Also delete the objects of the kinds the documents hold that the documents do not mention. Off by default. */
+  prune?: boolean
 }
 
 /** What a kind sees while it reads the documents of a file. */
@@ -59,6 +62,8 @@ export interface ConfigKind<State, ExportState, Desired = any, Planned = any> { 
   existingIds: (state: State) => Map<string, number>
   apply: (planned: Planned, ctx: ApplyContext<State>) => Promise<AuditEntry[]>
   link?: (planned: Planned, ctx: ApplyContext<State>) => Promise<void>
+  /** Deletes the objects with these keys, and whatever links to them. A kind without it is never pruned. */
+  remove?: (keys: string[], ctx: ApplyContext<State>) => Promise<AuditEntry[]>
   /** The documents of this kind, sorted by key. `only` limits them to one key (and nothing else is written out). */
   export: (state: ExportState, ctx: ExportContext) => Json[]
 }
@@ -85,7 +90,7 @@ export interface ConfigEngineOptions<State, ExportState, Actor> {
   exportVaultRows: (state: ExportState) => VaultRows
   /** Runs `work` so that everything it writes happens, or none of it does. */
   transaction: <T>(work: () => Promise<T>) => Promise<T>
-  audit: { write: (actor: Actor, action: 'create' | 'update', entity: string, id: number | string | null, name: string, diff?: Json) => Promise<void> }
+  audit: { write: (actor: Actor, action: 'create' | 'update' | 'delete', entity: string, id: number | string | null, name: string, diff?: Json) => Promise<void> }
   /** Runs once after a successful apply that changed something, before the audit entries are written. */
   afterApply?: () => Promise<void>
   /** Entity type of the summary entry written to the audit log. */
@@ -130,7 +135,20 @@ export function createConfigEngine<State, ExportState, Actor>(options: ConfigEng
     return desired
   }
 
-  function plan(state: State, desired: Map<string, unknown[]>, token: ImportOptions<Actor>['token']) {
+  /** The keys to delete, per kind. A kind with no document in the file is left alone, so an empty file prunes nothing. */
+  function stale(state: State, desired: Map<string, unknown[]>): Map<string, string[]> {
+    const found = new Map<string, string[]>()
+    for (const kind of order) {
+      const documents = desired.get(kind.kind) ?? []
+      if (!kind.remove || documents.length === 0) continue
+      const wanted = new Set(documents.map((document) => (document as { key: string }).key))
+      const keys = [...kind.existingIds(state).keys()].filter((key) => !wanted.has(key)).sort()
+      if (keys.length) found.set(kind.kind, keys)
+    }
+    return found
+  }
+
+  function plan(state: State, desired: Map<string, unknown[]>, token: ImportOptions<Actor>['token'], prune: boolean) {
     const problems = new Problems()
     const resolve = createVaultResolver(options.vaultRows(state))
     const ctx: PlanContext<State> = {
@@ -146,27 +164,35 @@ export function createConfigEngine<State, ExportState, Actor>(options: ConfigEng
       changes.push(...result.changes)
     }
     if (problems.any) throw new ConfigInvalidError(problems.list)
-    return { planned, changes }
+    const removals = prune ? stale(state, desired) : new Map<string, string[]>()
+    for (const kind of order) for (const key of removals.get(kind.kind) ?? []) changes.push({ kind: kind.kind, key, action: 'delete' })
+    return { planned, changes, removals }
   }
 
-  async function execute(state: State, planned: Map<string, unknown>): Promise<AuditEntry[]> {
+  async function execute(state: State, planned: Map<string, unknown>, removals: Map<string, string[]>): Promise<AuditEntry[]> {
     const ids = new Map(names.map((name) => [name, kinds.get(name)!.existingIds(state)]))
     const ctx: ApplyContext<State> = { state, now: Date.now(), ids: (kind) => ids.get(kind)! }
     const audit: AuditEntry[] = []
     for (const kind of order) audit.push(...await kind.apply(planned.get(kind.kind), ctx))
     for (const kind of order) await kind.link?.(planned.get(kind.kind), ctx)
+    // Last, and in the reverse order, so that what links to a kind is deleted before the kind.
+    for (const kind of [...order].reverse()) {
+      const keys = removals.get(kind.kind)
+      if (keys) audit.push(...await kind.remove!(keys, ctx))
+    }
     return audit
   }
 
-  function summarise(changes: ConfigChange[]): ImportResult['summary'] {
-    const summary = { create: 0, update: 0, unchanged: 0 }
+  function summarise(changes: ConfigChange[], prune: boolean): ImportResult['summary'] {
+    const summary: Record<ChangeAction, number> = { create: 0, update: 0, delete: 0, unchanged: 0 }
     for (const change of changes) summary[change.action] += 1
+    if (!prune) return { create: summary.create, update: summary.update, unchanged: summary.unchanged }
     return summary
   }
 
   /**
    * Makes the installation match the documents: an object whose key exists is updated, one whose key does not is created.
-   * Nothing is ever removed. Everything is checked before anything is written, and the writes are one transaction, so a
+   * Nothing is removed unless `prune` is set. Everything is checked before anything is written, and the writes are one transaction, so a
    * stream is applied completely or not at all. With `dryRun` nothing is written and the result says what would happen.
    */
   async function importDocuments(documents: unknown[], importOptions: ImportOptions<Actor>): Promise<ImportResult> {
@@ -174,14 +200,14 @@ export function createConfigEngine<State, ExportState, Actor>(options: ConfigEng
     const desired = parseDocuments(documents, problems)
     if (problems.any) throw new ConfigInvalidError(problems.list)
 
-    const result = (changes: ConfigChange[]): ImportResult => ({ dryRun: importOptions.dryRun, summary: summarise(changes), changes })
+    const result = (changes: ConfigChange[]): ImportResult => ({ dryRun: importOptions.dryRun, summary: summarise(changes, !!importOptions.prune), changes })
 
-    if (importOptions.dryRun) return result(plan(await options.loadState(), desired, importOptions.token).changes)
+    if (importOptions.dryRun) return result(plan(await options.loadState(), desired, importOptions.token, !!importOptions.prune).changes)
 
     const { changes, audit } = await options.transaction(async () => {
       const state = await options.loadState()
-      const { planned, changes } = plan(state, desired, importOptions.token)
-      const audit = changes.some((change) => change.action !== 'unchanged') ? await execute(state, planned) : []
+      const { planned, changes, removals } = plan(state, desired, importOptions.token, !!importOptions.prune)
+      const audit = changes.some((change) => change.action !== 'unchanged') ? await execute(state, planned, removals) : []
       return { changes, audit }
     })
 
@@ -191,9 +217,9 @@ export function createConfigEngine<State, ExportState, Actor>(options: ConfigEng
       try {
         await options.afterApply?.()
         for (const entry of audit) await options.audit.write(importOptions.actor, entry.action, entry.entity, entry.id, entry.name, entry.diff)
-        const summary = summarise(changes)
+        const summary = summarise(changes, !!importOptions.prune)
         await options.audit.write(importOptions.actor, 'update', options.auditEntity ?? 'config', null, 'Configuration import', {
-          created: summary.create, updated: summary.update, unchanged: summary.unchanged,
+          created: summary.create, updated: summary.update, ...(importOptions.prune ? { deleted: summary.delete ?? 0 } : {}), unchanged: summary.unchanged,
         })
       } catch (error) {
         console.error('[config] Imported, but could not finish the follow-up work:', error)
