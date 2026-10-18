@@ -244,7 +244,7 @@ describe('status App', () => {
 
     expect(await screen.findByRole('contentinfo')).toBeInTheDocument()
     const projectLink = screen.getByRole('link', { name: 'BetterStatusPage' })
-    expect(projectLink).toHaveAttribute('href', 'https://github.com/BElluu/BetterStatusPage')
+    expect(projectLink).toHaveAttribute('href', 'https://betterstatuspage.dev')
     expect(projectLink).toHaveAttribute('target', '_blank')
     expect(projectLink).toHaveAttribute('rel', 'noopener noreferrer')
   })
