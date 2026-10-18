@@ -213,7 +213,8 @@ jobs:
           docker restart bsp-smoke
           for i in {1..30}; do
             if curl --fail --silent http://127.0.0.1:3000/health && curl --fail --silent http://127.0.0.1:3000/api/v1/setup/status; then
-              docker exec bsp-smoke test -s /app/data/db.sqlite
+              # The database runs in WAL mode, so the main file can still be empty: check that it exists.
+              docker exec bsp-smoke test -e /app/data/db.sqlite
               exit 0
             fi
             sleep 1
