@@ -9,6 +9,7 @@ import type {
 } from '@bsp/shared'
 import { api } from '../api/client'
 import { ConfirmModal } from '@better-kit/ui'
+import { DataTable, DataTh } from '@better-kit/ui'
 import { CopyButton } from '@better-kit/ui'
 import { EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, Pagination, Switch, useToast } from '@better-kit/ui'
 import { useDebouncedValue } from '@better-kit/ui'
@@ -459,7 +460,7 @@ function SubscriberTable() {
         <ErrorState message="Could not load subscribers." onRetry={() => void refetch()} />
       ) : (
         <div className="rounded-2xl overflow-x-auto" style={cardStyle}>
-          <table className="w-full min-w-[860px] text-sm">
+          <DataTable className="w-full min-w-[860px] text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
                 <th className="w-11 pl-4 py-3 text-left" style={{ background: 'var(--m3-surface-container)' }}>
@@ -473,8 +474,8 @@ function SubscriberTable() {
                   />
                 </th>
                 {['Destination', 'Status', 'Receives', 'Scope', 'Last notified', ''].map((h) => (
-                  <th key={h} className={`px-4 py-3 font-mono text-xs uppercase tracking-wider ${h === '' ? 'text-right' : 'text-left'}`}
-                    style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}>{h === '' ? <span className="sr-only">Actions</span> : h}</th>
+                  <DataTh key={h} resizable={h !== ''} className={`px-4 py-3 font-mono text-xs uppercase tracking-wider ${h === '' ? 'text-right' : 'text-left'}`}
+                    style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}>{h === '' ? <span className="sr-only">Actions</span> : h}</DataTh>
                 ))}
               </tr>
             </thead>
@@ -556,7 +557,7 @@ function SubscriberTable() {
                   />
                 : <EmptyTableRow colSpan={7} icon="group_off" title="No subscribers yet" description="People who subscribe on the status page will appear here." />)}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
 

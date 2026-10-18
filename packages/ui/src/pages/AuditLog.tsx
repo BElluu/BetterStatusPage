@@ -2,7 +2,7 @@ import { useId, useMemo, useState } from 'react'
 import { formatDateTime } from '../lib/dateFormat'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
-import { EmptyState, EmptyStateLink, ErrorState, LoadingState, PageContainer, PageHeader, Pagination } from '../components/ui'
+import { EmptyState, EmptyStateLink, ErrorState, LoadingState, PageContainer, PageHeader, Pagination, ResizeHandle } from '../components/ui'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import type { AuditAction, AuditLogEntry } from '@better-kit/contracts'
 
@@ -90,7 +90,9 @@ function DiffView({ diff }: { diff: Record<string, unknown> }) {
   )
 }
 
-const GRID_COLUMNS = '168px 160px 90px 160px 1fr'
+const HEADERS = ['Timestamp', 'User', 'Action', 'Entity'] as const
+const DEFAULT_WIDTHS = [168, 220, 100, 200]
+const DETAILS_MIN = 160
 const FILTER_LABEL = 'font-mono text-[10px] uppercase tracking-widest'
 
 export default function AuditLogPage({ entities }: { entities: AuditEntities }) {
@@ -102,7 +104,14 @@ export default function AuditLogPage({ entities }: { entities: AuditEntities }) 
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate]   = useState('')
   const [expanded, setExpanded] = useState<number | null>(null)
+  const [widths, setWidths] = useState(DEFAULT_WIDTHS)
   const idPrefix = useId()
+  const gridColumns = `${widths.map((w) => `${w}px`).join(' ')} minmax(${DETAILS_MIN}px, 1fr)`
+  const tableMinWidth = widths.reduce((a, b) => a + b, 0) + DETAILS_MIN + 40
+
+  function resizeColumn(index: number, width: number) {
+    setWidths((prev) => prev.map((w, i) => (i === index ? width : w)))
+  }
 
   // Reset to page 1 when filters change
   const filters = useMemo(() => ({
@@ -232,21 +241,29 @@ export default function AuditLogPage({ entities }: { entities: AuditEntities }) 
           className="rounded-2xl overflow-x-auto"
           style={{ border: '1px solid var(--m3-outline-variant)', opacity: isFetching ? 0.7 : 1, transition: 'opacity 0.15s' }}
         >
-          <div className="min-w-[860px]">
+          <div style={{ minWidth: tableMinWidth }}>
             {/* Header */}
             <div
-              className="grid font-mono text-[10px] uppercase tracking-widest px-5 py-2.5"
+              className="grid font-mono text-xs uppercase tracking-wider px-5 py-2.5"
               style={{
-                gridTemplateColumns: GRID_COLUMNS,
+                gridTemplateColumns: gridColumns,
                 color: 'var(--m3-outline)',
                 borderBottom: '1px solid var(--m3-outline-variant)',
                 background: 'var(--m3-surface-container)',
               }}
             >
-              <span>Timestamp</span>
-              <span>User</span>
-              <span>Action</span>
-              <span>Entity</span>
+              {HEADERS.map((label, i) => (
+                <span key={label} className="relative -my-2.5 py-2.5 pr-3">
+                  {label}
+                  <ResizeHandle
+                    label={label}
+                    width={widths[i]}
+                    measure={() => widths[i] ?? 0}
+                    onResize={(w) => resizeColumn(i, w)}
+                    onReset={() => resizeColumn(i, DEFAULT_WIDTHS[i] ?? 0)}
+                  />
+                </span>
+              ))}
               <span>Details</span>
             </div>
 
@@ -267,7 +284,7 @@ export default function AuditLogPage({ entities }: { entities: AuditEntities }) 
                   {/* Main row */}
                   <div
                     className="grid items-center px-5 py-3"
-                    style={{ gridTemplateColumns: GRID_COLUMNS }}
+                    style={{ gridTemplateColumns: gridColumns }}
                   >
                     {/* Timestamp */}
                     <span className="font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>

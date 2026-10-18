@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom'
 import { deliveryHistoryUrl } from '../deliveryHistoryUrl'
 import ActionFormModal from '../components/actions/ActionFormModal'
 import { ConfirmModal } from '@better-kit/ui'
+import { DataTable, DataTh, useTableSort } from '@better-kit/ui'
 import { Alert, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '@better-kit/ui'
 
 export default function ActionsPage() {
@@ -18,6 +19,11 @@ export default function ActionsPage() {
   const { data: actions = [], isLoading, isError, refetch } = useQuery<Action[]>({
     queryKey: ['actions'],
     queryFn: () => api.get('/admin/actions'),
+  })
+  const { rows: sortedActions, sort } = useTableSort(actions, {
+    name: (a) => a.name,
+    request: (a) => `${a.config.method} ${a.config.url}`,
+    status: (a) => a.enabled,
   })
 
   const deleteMutation = useMutation({
@@ -70,20 +76,20 @@ export default function ActionsPage() {
         <ErrorState message="Could not load actions." onRetry={() => void refetch()} />
       ) : (
         <div className="rounded-2xl overflow-x-auto" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-          <table className="w-full min-w-[640px] text-sm">
+          <DataTable sort={sort} className="w-full min-w-[640px] text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
                 {['Name', 'Request', 'Status', ''].map((h) => (
-                  <th key={h}
+                  <DataTh key={h} resizable={h !== ''} {...(h !== '' && { sortKey: h.toLowerCase() })}
                     className={`px-4 py-3 font-mono text-xs uppercase tracking-wider ${h === '' ? 'text-right' : 'text-left'}`}
                     style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}
-                  >{h === '' ? <span className="sr-only">Actions</span> : h}</th>
+                  >{h === '' ? <span className="sr-only">Actions</span> : h}</DataTh>
                 ))}
               </tr>
             </thead>
             <tbody>
               {actions.length === 0 && <EmptyTableRow colSpan={4} icon="bolt" title="No actions yet" description="Add an action to send an HTTP request when a monitor goes down or recovers." />}
-              {actions.map((action, i) => (
+              {sortedActions.map((action, i) => (
                 <tr key={action.id} style={{ borderTop: i > 0 ? '1px solid var(--m3-outline-variant)' : 'none' }}>
                   <td className="px-4 py-3 font-medium" style={{ color: 'var(--m3-on-surface)' }}>{action.name}</td>
                   <td className="px-4 py-3 font-mono text-xs max-w-xs truncate" style={{ color: 'var(--m3-secondary)' }}>
@@ -108,7 +114,7 @@ export default function ActionsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
 

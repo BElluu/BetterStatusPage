@@ -160,6 +160,21 @@ describe('AuditLogPage', () => {
     expect(await screen.findByText('4 entries')).toBeInTheDocument()
   })
 
+  it('resizes a column from the keyboard and resets it', async () => {
+    renderPage()
+    await screen.findByText('4 entries')
+
+    const handle = screen.getAllByRole('separator')[1]!
+    expect(handle).toHaveAttribute('aria-valuenow', '220')
+    fireEvent.keyDown(handle, { key: 'ArrowRight' })
+    expect(handle).toHaveAttribute('aria-valuenow', '236')
+    fireEvent.keyDown(handle, { key: 'ArrowLeft', repeat: true })
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+    expect(handle).toHaveAttribute('aria-valuenow', '204')
+    fireEvent.doubleClick(handle)
+    expect(handle).toHaveAttribute('aria-valuenow', '220')
+  })
+
   it('shows an empty state', async () => {
     vi.mocked(api.get).mockResolvedValue({ entries: [], total: 0, page: 1, limit: 50, pages: 1 })
     renderPage()

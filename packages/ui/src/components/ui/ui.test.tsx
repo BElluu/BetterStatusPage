@@ -1,8 +1,8 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Alert, EmptyState, EmptyStateLink, EmptyTableRow, ErrorState, Field, LoadingState, PageContainer, PageHeader, Pagination, QuickStartPanel, Switch, ToastProvider, useToast } from '.'
+import { Alert, EmptyState, EmptyStateLink, EmptyTableRow, ErrorState, Field, LoadingState, PageContainer, PageHeader, Pagination, DataTable, DataTh, QuickStartPanel, Switch, ToastProvider, useTableSort, useToast } from '.'
 
 describe('PageHeader', () => {
   it('renders the title, subtitle, actions and extra content inside a padded container', () => {
@@ -233,5 +233,56 @@ describe('Toast', () => {
     render(<Trigger />)
     await user.click(screen.getByRole('button', { name: 'Save' }))
     expect(screen.queryByText('Monitor saved')).not.toBeInTheDocument()
+  })
+})
+
+function SortableTable({ names }: { names: string[] }) {
+  const { rows, sort } = useTableSort(names.map((name, i) => ({ name, n: i === 0 ? null : i })), {
+    name: (r) => r.name,
+    n: (r) => r.n,
+  })
+  return (
+    <DataTable sort={sort}>
+      <thead><tr><DataTh sortKey="name">Name</DataTh><DataTh sortKey="n">N</DataTh><DataTh resizable={false}>{''}</DataTh></tr></thead>
+      <tbody>{rows.map((r) => <tr key={r.name}><td>{r.name}</td><td>{r.n}</td><td /></tr>)}</tbody>
+    </DataTable>
+  )
+}
+
+describe('DataTable', () => {
+  it('fixes the columns on the first resize and moves the boundary to the next column', () => {
+    render(<SortableTable names={['b', 'a']} />)
+    const headers = screen.getAllByRole('columnheader')
+    for (const h of headers) Object.defineProperty(h, 'offsetWidth', { configurable: true, value: 100 })
+    const grips = screen.getAllByRole('separator')
+    expect(grips).toHaveLength(2)
+
+    fireEvent.keyDown(grips[0]!, { key: 'ArrowRight' })
+    const cols = document.querySelectorAll('col')
+    expect([...cols].map((c) => c.style.width)).toEqual(['116px', '84px', '100px'])
+    expect(screen.getByRole('table').style.tableLayout).toBe('fixed')
+
+    fireEvent.doubleClick(grips[0]!)
+    expect(document.querySelectorAll('col')).toHaveLength(0)
+  })
+
+  it('sorts by a header through ascending, descending and off, keeping empty values last', async () => {
+    const user = userEvent.setup()
+    render(<SortableTable names={['b', 'a', 'c']} />)
+    const names = () => screen.getAllByRole('row').slice(1).map((r) => r.firstChild?.textContent)
+
+    await user.click(screen.getByRole('button', { name: 'Name' }))
+    expect(names()).toEqual(['a', 'b', 'c'])
+    expect(screen.getByRole('columnheader', { name: /Name/ })).toHaveAttribute('aria-sort', 'ascending')
+    await user.click(screen.getByRole('button', { name: /Name/ }))
+    expect(names()).toEqual(['c', 'b', 'a'])
+    await user.click(screen.getByRole('button', { name: 'Name' }))
+    expect(names()).toEqual(['b', 'a', 'c'])
+    expect(screen.getByRole('columnheader', { name: 'Name' })).not.toHaveAttribute('aria-sort')
+
+    await user.click(screen.getByRole('button', { name: 'N' }))
+    expect(names()).toEqual(['a', 'c', 'b'])
+    await user.click(screen.getByRole('button', { name: 'N' }))
+    expect(names()).toEqual(['c', 'a', 'b'])
   })
 })

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { uiConfig } from '../config'
-import { Alert, ErrorState, LoadingState, PageContainer, PageHeader } from '../components/ui'
+import { Alert, ErrorState, LoadingState, PageContainer, PageHeader, DataTable, DataTh } from '../components/ui'
 import { formatDateTime } from '../lib/dateFormat'
 
 interface TestResult {
@@ -71,12 +71,12 @@ export default function SsoTestResultPage() {
                 </p>
                 {ordered.length > 0 && (
                   <div className="rounded-2xl overflow-x-auto" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
-                    <table className="w-full text-sm">
+                    <DataTable className="w-full text-sm">
                       <caption className="sr-only">ID token claims</caption>
                       <thead>
                         <tr style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
                           {['Claim', 'Value'].map((h) => (
-                            <th key={h} className="px-4 py-3 font-mono text-xs uppercase tracking-wider text-left" style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}>{h}</th>
+                            <DataTh key={h} className="px-4 py-3 font-mono text-xs uppercase tracking-wider text-left" style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}>{h}</DataTh>
                           ))}
                         </tr>
                       </thead>
@@ -88,7 +88,7 @@ export default function SsoTestResultPage() {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </DataTable>
                   </div>
                 )}
               </>
