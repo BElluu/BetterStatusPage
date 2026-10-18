@@ -207,14 +207,13 @@ jobs:
           test "$(docker exec bsp-smoke id -u)" != 0
           docker exec bsp-smoke sh -c 'touch /app/data/.write-check && rm /app/data/.write-check'
 
-      # A restart on the same volume has to open the database the first run created.
+      # A restart on the same volume has to come up healthy. The database file is not checked: it is opened on
+      # first use, so before the setup it does not exist yet.
       - name: Restart on the same volume
         run: |
           docker restart bsp-smoke
           for i in {1..30}; do
             if curl --fail --silent http://127.0.0.1:3000/health && curl --fail --silent http://127.0.0.1:3000/api/v1/setup/status; then
-              # The database runs in WAL mode, so the main file can still be empty: check that it exists.
-              docker exec bsp-smoke test -e /app/data/db.sqlite
               exit 0
             fi
             sleep 1
