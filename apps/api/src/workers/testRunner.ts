@@ -1,7 +1,7 @@
 import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig } from '@bsp/shared'
 import { evaluateAssertions, validateHttpAssertions } from './assertions.js'
 import { evaluateContainer, inspectContainer, validateDockerConfig } from './docker.js'
-import { CookieJar, discardBody, errMsg, insecureForOrigin, redactedCookies, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type HttpResponse, type ResolvedHttpAuth } from './httpAuth.js'
+import { discardBody, errMsg, followRedirects, insecureForOrigin, redactedCookies, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type ResolvedHttpAuth } from './httpAuth.js'
 import { firstValue, resolveConnectionString, resolveFieldCredentials, type DatabaseConnection, type DatabaseDriver, type DatabaseSession } from './database.js'
 import { sqlServerDriver } from './sqlserver.js'
 import { postgresDriver } from './postgres.js'
@@ -66,7 +66,10 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
       steps.push({ label: `${method} ${config.url}`, status: 'info' })
       const res = auth.cas
         ? await requestWithCas(config, { ...auth, cas: auth.cas }, opts)
-        : await followRedirects(config, auth.headers, controller.signal, steps, doFetch)
+        : await followRedirects(config, auth.headers, controller.signal, doFetch, ({ status, next, cookies }) => {
+          const cookieNote = cookies.length ? ` [Set-Cookie: ${cookies.join(', ')}]` : ''
+          steps.push({ label: `→ ${status} ${next}${cookieNote}`, status: 'info', cookies: redactedCookies(cookies) })
+        })
 
       const responseMs = Date.now() - t
 
@@ -144,52 +147,6 @@ export async function certificateStep(config: HttpsConfig, timeoutMs: number): P
 const globalFetch: HttpFetch = (url, init) => fetch(url, init)
 const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } })
 const insecureFetch: HttpFetch = (url, init) => undiciFetch(url, { ...init, dispatcher: insecureAgent })
-
-/**
- * Follows redirects by hand so every hop shows up as a step, while sending exactly what the
- * scheduled check sends: it relies on fetch, which keeps no cookie jar, turns 303 (and 301/302
- * after POST) into a body-less GET, and drops Authorization and Cookie once a redirect leaves the
- * original origin.
- */
-async function followRedirects(
-  config: HttpsConfig,
-  authHeaders: Record<string, string>,
-  signal: AbortSignal,
-  steps: TestStep[],
-  doFetch: HttpFetch,
-): Promise<HttpResponse> {
-  let method = (config.method ?? 'GET').toUpperCase()
-  let body: string | undefined = config.body
-  let sendCredentials = true
-  let currentUrl = config.url
-  let res!: HttpResponse
-  for (let hops = 0; hops < 10; hops++) {
-    // The previous hop was a redirect; only the final response keeps its body.
-    if (hops > 0) await discardBody(res)
-    res = await doFetch(currentUrl, {
-      method,
-      headers: sendCredentials ? { ...(config.headers ?? {}), ...authHeaders } : withoutCredentials(config.headers),
-      ...(body !== undefined && method !== 'GET' && method !== 'HEAD' ? { body } : {}),
-      signal,
-      redirect: 'manual',
-    })
-    const newCookies = new CookieJar().collect(res)
-    const cookieNote = newCookies.length ? ` [Set-Cookie: ${newCookies.join(', ')}]` : ''
-    if (res.status < 300 || res.status >= 400) break
-    const loc = res.headers.get('location')
-    if (!loc) break
-    const next = new URL(loc, currentUrl).toString()
-
-    steps.push({ label: `→ ${res.status} ${next}${cookieNote}`, status: 'info', cookies: redactedCookies(newCookies) })
-    if ((res.status === 303 && method !== 'GET' && method !== 'HEAD') || ((res.status === 301 || res.status === 302) && method === 'POST')) {
-      method = 'GET'
-      body = undefined
-    }
-    if (new URL(next).origin !== new URL(currentUrl).origin) sendCredentials = false
-    currentUrl = next
-  }
-  return res
-}
 
 // ── Databases (SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB) ───────────────────
 
@@ -378,12 +335,5 @@ export async function testDns(config: DnsConfig, timeoutMs: number): Promise<Tes
   } finally {
     clearTimeout(timer)
   }
-}
-
-/** The headers fetch strips when a redirect crosses origins. */
-const CROSS_ORIGIN_STRIPPED = new Set(['authorization', 'cookie', 'proxy-authorization'])
-
-function withoutCredentials(headers: Record<string, string> | undefined): Record<string, string> {
-  return Object.fromEntries(Object.entries(headers ?? {}).filter(([name]) => !CROSS_ORIGIN_STRIPPED.has(name.toLowerCase())))
 }
 

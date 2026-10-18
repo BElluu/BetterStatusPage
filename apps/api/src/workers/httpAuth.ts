@@ -420,3 +420,54 @@ export async function requestWithCas(
   }
   return res
 }
+
+/** The headers fetch strips when a redirect crosses origins. */
+const CROSS_ORIGIN_STRIPPED = new Set(['authorization', 'cookie', 'proxy-authorization'])
+
+function withoutCredentials(headers: Record<string, string> | undefined): Record<string, string> {
+  return Object.fromEntries(Object.entries(headers ?? {}).filter(([name]) => !CROSS_ORIGIN_STRIPPED.has(name.toLowerCase())))
+}
+
+/**
+ * Follows redirects by hand, so each hop goes through `doFetch` and can be told apart (an insecure fetch for the
+ * monitored origin only, see `insecureForOrigin`), while sending what fetch itself sends: no cookie jar, 303 (and
+ * 301/302 after POST) turned into a body-less GET, and Authorization and Cookie dropped once a redirect leaves the
+ * original origin. `onRedirect` sees every redirect that is followed.
+ */
+export async function followRedirects(
+  config: { url: string; method?: string | undefined; body?: string | undefined; headers?: Record<string, string> | undefined },
+  authHeaders: Record<string, string>,
+  signal: AbortSignal,
+  doFetch: HttpFetch,
+  onRedirect?: (hop: { status: number; next: string; cookies: string[] }) => void,
+): Promise<HttpResponse> {
+  let method = (config.method ?? 'GET').toUpperCase()
+  let body: string | undefined = config.body
+  let sendCredentials = true
+  let currentUrl = config.url
+  let res!: HttpResponse
+  for (let hops = 0; hops < 10; hops++) {
+    // The previous hop was a redirect; only the final response keeps its body.
+    if (hops > 0) await discardBody(res)
+    res = await doFetch(currentUrl, {
+      method,
+      headers: sendCredentials ? { ...(config.headers ?? {}), ...authHeaders } : withoutCredentials(config.headers),
+      ...(body !== undefined && method !== 'GET' && method !== 'HEAD' ? { body } : {}),
+      signal,
+      redirect: 'manual',
+    })
+    if (res.status < 300 || res.status >= 400) break
+    const loc = res.headers.get('location')
+    if (!loc) break
+    const next = new URL(loc, currentUrl).toString()
+
+    onRedirect?.({ status: res.status, next, cookies: new CookieJar().collect(res) })
+    if ((res.status === 303 && method !== 'GET' && method !== 'HEAD') || ((res.status === 301 || res.status === 302) && method === 'POST')) {
+      method = 'GET'
+      body = undefined
+    }
+    if (new URL(next).origin !== new URL(currentUrl).origin) sendCredentials = false
+    currentUrl = next
+  }
+  return res
+}

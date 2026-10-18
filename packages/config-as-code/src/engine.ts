@@ -39,6 +39,8 @@ export interface PlanContext<State> {
   resolveVaults: (value: unknown, path: string) => unknown
   /** The documents of a kind the file holds, as that kind parsed them. */
   desired: (kind: string) => unknown[]
+  /** The keys of a kind that an import with `prune` deletes: they do not exist afterwards, so nothing may link to them. */
+  removed: (kind: string) => ReadonlySet<string>
 }
 
 /** What a kind sees while it writes. */
@@ -151,10 +153,12 @@ export function createConfigEngine<State, ExportState, Actor>(options: ConfigEng
   function plan(state: State, desired: Map<string, unknown[]>, token: ImportOptions<Actor>['token'], prune: boolean) {
     const problems = new Problems()
     const resolve = createVaultResolver(options.vaultRows(state))
+    const removals = prune ? stale(state, desired) : new Map<string, string[]>()
     const ctx: PlanContext<State> = {
       state, token, problems,
       resolveVaults: (value, path) => resolve(value, path, problems),
       desired: (kind) => desired.get(kind) ?? [],
+      removed: (kind) => new Set(removals.get(kind) ?? []),
     }
     const planned = new Map<string, unknown>()
     const changes: ConfigChange[] = []
@@ -164,7 +168,6 @@ export function createConfigEngine<State, ExportState, Actor>(options: ConfigEng
       changes.push(...result.changes)
     }
     if (problems.any) throw new ConfigInvalidError(problems.list)
-    const removals = prune ? stale(state, desired) : new Map<string, string[]>()
     for (const kind of order) for (const key of removals.get(kind.kind) ?? []) changes.push({ kind: kind.kind, key, action: 'delete' })
     return { planned, changes, removals }
   }

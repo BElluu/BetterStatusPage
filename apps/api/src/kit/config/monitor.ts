@@ -11,7 +11,7 @@ import { cancelRunsOfMonitor, cancelUnlinkedRuns } from '../../workers/actionRun
 import { parseActionLinks, type DesiredAction, type DesiredActionLink } from './action.js'
 import { mayLinkChannels, type DesiredChannel } from './channel.js'
 import type { ExportState, State } from './state.js'
-import { entityKeys, exportByKey, linkOrder, MAX_CONFIG_DEPTH } from './shared.js'
+import { entityKeys, exportByKey, linkOrder, MAX_CONFIG_DEPTH, missingLink } from './shared.js'
 
 const MONITOR_FIELDS = ['kind', 'key', 'name', 'type', 'intervalSecs', 'timeoutMs', 'retries', 'failureThreshold', 'recoveryThreshold', 'config', 'tags', 'notifications', 'dependsOn', 'autoIncident', 'actions', 'heartbeatToken']
 const AUTO_INCIDENT_FIELDS = ['enabled', 'afterMinutes', 'mode', 'template']
@@ -118,10 +118,14 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
     const channelKeyById = new Map(state.channelRows.map((row) => [row.id, row.key]))
     const actionKeyById = new Map(state.actionRows.map((row) => [row.id, row.key]))
 
-    // What exists afterwards: everything that is there now, and everything the file adds.
-    const finalMonitorKeys = new Set([...state.monitorRows.map((row) => row.key), ...desired.map((monitor) => monitor.key)])
-    const finalChannelKeys = new Set([...state.channelRows.map((row) => row.key), ...(ctx.desired('NotificationChannel') as DesiredChannel[]).map((channel) => channel.key)])
-    const finalActionKeys = new Set([...state.actionRows.map((row) => row.key), ...(ctx.desired('Action') as DesiredAction[]).map((action) => action.key)])
+    // What exists afterwards: everything that is there now and the file adds, except what prune deletes.
+    const survivors = (kind: string, rows: { key: string }[], documents: { key: string }[]) => {
+      const removed = ctx.removed(kind)
+      return new Set([...rows.map((row) => row.key).filter((key) => !removed.has(key)), ...documents.map((document) => document.key)])
+    }
+    const finalMonitorKeys = survivors('Monitor', state.monitorRows, desired)
+    const finalChannelKeys = survivors('NotificationChannel', state.channelRows, ctx.desired('NotificationChannel') as DesiredChannel[])
+    const finalActionKeys = survivors('Action', state.actionRows, ctx.desired('Action') as DesiredAction[])
 
     const currentChannelKeys = (monitorId: number) =>
       state.linkRows.filter((link) => link.monitorId === monitorId).flatMap((link) => channelKeyById.get(link.channelId) ?? []).sort()
@@ -149,11 +153,11 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
       const vaultProblem = vaultUseProblem(token, config, stored)
       if (vaultProblem) problems.add(`${monitor.path}.config`, vaultProblem)
 
-      for (const key of monitor.notifications) if (!finalChannelKeys.has(key)) problems.add(`${monitor.path}.notifications`, `unknown channel "${clip(key)}"`)
-      for (const link of monitor.actions ?? []) if (!finalActionKeys.has(link.action)) problems.add(`${monitor.path}.actions`, `unknown action "${clip(link.action)}"`)
+      for (const key of monitor.notifications) if (!finalChannelKeys.has(key)) problems.add(`${monitor.path}.notifications`, missingLink('channel', key, ctx.removed('NotificationChannel')))
+      for (const link of monitor.actions ?? []) if (!finalActionKeys.has(link.action)) problems.add(`${monitor.path}.actions`, missingLink('action', link.action, ctx.removed('Action')))
       for (const key of monitor.dependsOn) {
         if (key === monitor.key) problems.add(`${monitor.path}.dependsOn`, 'a monitor cannot depend on itself')
-        else if (!finalMonitorKeys.has(key)) problems.add(`${monitor.path}.dependsOn`, `unknown monitor "${clip(key)}"`)
+        else if (!finalMonitorKeys.has(key)) problems.add(`${monitor.path}.dependsOn`, missingLink('monitor', key, ctx.removed('Monitor')))
       }
       edges.set(monitor.key, monitor.dependsOn.filter((key) => finalMonitorKeys.has(key) && key !== monitor.key))
 

@@ -1,4 +1,5 @@
 import { inArray } from 'drizzle-orm'
+import { placeholderInAuthority } from '@better-kit/notify'
 import { db } from '../db/client.js'
 import { vaultSecrets } from '../db/schema.js'
 
@@ -22,18 +23,6 @@ export function secretPlaceholders(config: Json): string[] {
 function placeholderParts(placeholder: string): { name: string; part: string } {
   const [name = '', ...rest] = placeholder.slice('secret_'.length).split('_')
   return { name, part: rest.join('_') }
-}
-
-/** Whether a placeholder sits in the scheme, host or port of a URL, where it would choose the address the request goes to. */
-export function placeholderInAuthority(url: string): boolean {
-  if (!url.includes('{{')) return false
-  // Asked of the URL parser itself, which skips extra slashes (`https:///{{x}}/`) and reads `\` as `/`: a placeholder is
-  // in the authority when two different values for it lead to two different hosts, or to no valid URL at all.
-  const hostFor = (value: string): string | null => {
-    try { return new URL(url.replace(/\{\{\w+\}\}/g, value)).host } catch { return null }
-  }
-  const first = hostFor('aaaa')
-  return first === null || first !== hostFor('bbbb')
 }
 
 /** Whether a placeholder sits in the user or password of a URL, which the request cannot carry (credentials go in a header). */
@@ -86,10 +75,10 @@ export function actionConfigError(config: Json): string | null {
   if (headers !== undefined && (!isObject(headers) || !Object.values(headers).every((v) => typeof v === 'string'))) {
     return 'headers must be an object of text values'
   }
+  if (placeholderInAuthority(config['url'])) return 'a placeholder cannot be part of the host of the URL: a value filled in when the action runs would choose where the request goes'
   if (placeholderInCredentials(config['url'])) return 'a placeholder cannot be in the user or password of the URL: send credentials in the Authorization header (for example {{secret_name_basic}})'
   const secrets = readSecrets(config['secrets'])
   if ('error' in secrets) return secrets.error
-  if (secrets.refs.length > 0 && placeholderInAuthority(config['url'])) return 'a placeholder cannot be part of the host when the action uses a vault secret'
 
   const placeholders = secretPlaceholders(config)
   for (const placeholder of placeholders) {

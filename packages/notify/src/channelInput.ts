@@ -1,4 +1,5 @@
 import type { NotificationChannelType } from '@better-kit/contracts'
+import { placeholderInAuthority } from './template.js'
 
 export const CHANNEL_TYPES: readonly NotificationChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack', 'telegram', 'ntfy', 'pushover']
 
@@ -67,5 +68,9 @@ export function channelConfigError(type: string, config: unknown): string | null
   if (type === 'telegram') return telegramConfigError(config)
   if (type === 'ntfy') return ntfyConfigError(config)
   if (type === 'pushover') return pushoverConfigError(config)
+  if (type === 'webhook') {
+    const url = asConfig(config)['url']
+    if (typeof url === 'string' && placeholderInAuthority(url)) return 'A placeholder cannot be part of the host of the URL'
+  }
   return null
 }

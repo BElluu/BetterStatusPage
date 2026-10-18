@@ -53,6 +53,11 @@ describe('channel input', () => {
     assert.match(channelConfigError('ntfy', { topic: 'bad topic' }) ?? '', /topic/)
     assert.equal(channelConfigError('slack', {}), null)
   })
+
+  it('refuses a webhook URL with a placeholder in the host', () => {
+    assert.match(channelConfigError('webhook', { url: 'https://{{error_message}}/x', method: 'POST' }) ?? '', /host of the URL/)
+    assert.equal(channelConfigError('webhook', { url: 'https://corp.test/{{error_message}}', method: 'POST' }), null)
+  })
 })
 
 describe('notice', () => {

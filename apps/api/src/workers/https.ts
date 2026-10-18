@@ -1,7 +1,7 @@
 import type { HttpsConfig } from '@bsp/shared'
 import type { MonitorStatus } from '@bsp/shared'
 import { evaluateAssertions, hasJsonAssertions } from './assertions.js'
-import { discardBody, insecureForOrigin, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type HttpResponse } from './httpAuth.js'
+import { discardBody, followRedirects, insecureForOrigin, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type HttpResponse } from './httpAuth.js'
 import { Agent, fetch as httpFetch } from 'undici'
 import { lookup as dnsLookup } from 'dns'
 import type { LookupFunction } from 'net'
@@ -69,6 +69,9 @@ export async function checkHttps(
     let res: HttpResponse
     if (auth.cas) {
       res = await requestWithCas(config, { ...auth, cas: auth.cas }, opts)
+    } else if (skipsTlsVerification(config)) {
+      // A redirect to another origin is checked with certificate verification, as in the test: fetch itself would keep the insecure dispatcher for every hop.
+      res = await followRedirects({ ...config, url: auth.url }, auth.headers, controller.signal, fetchWith)
     } else {
       res = await fetchWith(auth.url, {
         method,

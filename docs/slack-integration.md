@@ -109,6 +109,9 @@ To find a user's Member ID: click their profile in Slack → **⋯** → **Copy 
 
 Template variables also work in this field. Their values are shown as plain text: `&`, `<` and `>` in a value (for example in `{{error_message}}`) are escaped, so a value cannot add a mention or a link. Mentions you type into the field itself, such as `<!here>`, work as before.
 
+> [!WARNING]
+> **Not released yet.** Showing the values of template variables, and the error field of an alert, as plain text (so a value cannot add a mention or a link) is not in a published release. This is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
 | Variable | Example value |
 |----------|--------------|
 | `{{monitor_name}}` | `API Gateway` |
