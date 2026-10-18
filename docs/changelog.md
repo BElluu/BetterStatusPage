@@ -7,6 +7,7 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ### Fixed
 
+- **Status page before the setup**: opening the address of a new instance without `/admin` logged `Error: DB not initialized` and showed a broken page. It now redirects to the setup wizard until the first administrator is created.
 - **ICMP ping monitors in a container**: when the host did not allow unprivileged ICMP, or the `ping` command was missing, the monitor reported a bare system message that looked like a dead target. It now says that ICMP is not permitted (or that `ping` cannot be run) and how to fix it. `docker-compose.yml` has a commented `sysctls` example and the Ping / TCP and deployment docs explain the setting.
 - **`npm run db:migrate` and `npm run db:seed`**: did not work. `db:migrate` did nothing and `db:seed` failed with "DB not initialized". `db:migrate` now opens the database and applies the migrations; `db:seed` also applies them, creates the administrator and the default branding and layout, and marks the setup as done so the server skips the setup wizard. Both can be run again safely.
 - **Faster `npm run dev`**: the shared packages are rebuilt only when they changed, so a start with no changes no longer spends about 12 seconds building ten packages.

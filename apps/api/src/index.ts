@@ -23,7 +23,7 @@ const { run } = await createBetterApp({
   allowSameOriginFraming: ({ path: requestPath, query }) => requestPath === '/' && query.get('branding-preview') === '1',
   database: { isReady: isSetupComplete, open: initDb, migrate: runMigrations, close: closeDb },
   routes: registerApiRoutes,
-  frontends: (app) => registerProductionFrontends(app, path.join(__dirname, '../../admin/dist'), path.join(__dirname, '../../status/dist')),
+  frontends: (app) => registerProductionFrontends(app, path.join(__dirname, '../../admin/dist'), path.join(__dirname, '../../status/dist'), isSetupComplete),
   acquireLock: acquireAppLock,
   stopIntake: () => sseService.closeAll(),
   backgroundServices: { start: startBackgroundServices, stop: stopBackgroundServices },

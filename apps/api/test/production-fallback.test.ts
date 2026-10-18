@@ -43,7 +43,7 @@ describe('production SPA fallback', () => {
         writeFile(path.join(adminDist, 'index.html'), '<h1>Admin app</h1>'),
         writeFile(path.join(statusDist, 'index.html'), '<h1>Status app</h1>'),
       ])
-      await registerProductionFrontends(app, adminDist, statusDist)
+      await registerProductionFrontends(app, adminDist, statusDist, () => true)
 
       const withoutSlash = await app.inject({ method: 'GET', url: '/admin' })
       assert.equal(withoutSlash.statusCode, 302)
@@ -56,6 +56,38 @@ describe('production SPA fallback', () => {
       const spaRoute = await app.inject({ method: 'GET', url: '/admin/monitors/monitor-1' })
       assert.equal(spaRoute.statusCode, 200)
       assert.equal(spaRoute.body, '<h1>Admin app</h1>')
+    } finally {
+      await app.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('sends status app requests to the setup wizard until the setup is done', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'bsp-production-frontends-'))
+    const adminDist = path.join(root, 'admin')
+    const statusDist = path.join(root, 'status')
+    const app = Fastify({ logger: false })
+    let complete = false
+
+    try {
+      await Promise.all([mkdir(adminDist), mkdir(statusDist)])
+      await Promise.all([
+        writeFile(path.join(adminDist, 'index.html'), '<h1>Admin app</h1>'),
+        writeFile(path.join(statusDist, 'index.html'), '<h1>Status app</h1>'),
+      ])
+      app.get('/ready', async () => ({ status: 'not_ready' }))
+      await registerProductionFrontends(app, adminDist, statusDist, () => complete)
+
+      for (const url of ['/', '/history/incident-1']) {
+        const res = await app.inject({ method: 'GET', url })
+        assert.equal(res.statusCode, 302)
+        assert.equal(res.headers.location, '/admin/')
+      }
+      assert.equal((await app.inject({ method: 'GET', url: '/admin/' })).body, '<h1>Admin app</h1>')
+      assert.equal((await app.inject({ method: 'GET', url: '/ready' })).statusCode, 200)
+
+      complete = true
+      assert.equal((await app.inject({ method: 'GET', url: '/' })).body, '<h1>Status app</h1>')
     } finally {
       await app.close()
       await rm(root, { recursive: true, force: true })
