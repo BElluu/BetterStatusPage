@@ -20,6 +20,7 @@ on:
       - 'SECURITY.md'
       - 'LICENSE'
       - '!docs/changelog.md'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -29,9 +30,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
+  # Fast checks that need no browser: they fail first.
+  static:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
@@ -55,16 +57,63 @@ jobs:
       - name: Import cycles through kit/
         run: npm run check:cycles
 
-      # Both suites fail the job when coverage drops below the thresholds (API: package.json
-      # test:api:coverage, frontend: vitest.config.ts).
+      # The build compiles the sources only; this also checks the tests and the end-to-end scenarios.
+      - name: Type-check tests
+        run: npm run typecheck
+
+  # Both suites fail the job when coverage drops below the thresholds (API: package.json
+  # test:api:coverage, frontend: vitest.config.ts).
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: API tests with coverage
         run: npm run test:api:coverage
 
       - name: Frontend tests with coverage
         run: npm run test:coverage
 
-      - name: Build
-        run: npm run build
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: ignore
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The scenarios start the sources with tsx and Vite, which read the built shared packages.
+      - name: Build shared packages
+        run: npm run build:kit && npm run build -w @bsp/shared
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
@@ -75,18 +124,40 @@ jobs:
       - name: Template end-to-end tests
         run: npm run test:e2e:template
 
-      - name: Packages in isolation
-        run: node scripts/check-isolation.mjs
-
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: test-reports
+          name: e2e-reports
           path: |
-            coverage/
             playwright-report/
+            test-results/
+            apps/template/playwright-report/
+            apps/template/test-results/
           if-no-files-found: ignore
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Packages in isolation
+        run: npm run test:isolation
 
   docker-smoke:
     runs-on: ubuntu-latest
@@ -96,12 +167,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build image
-        run: docker build -t better-status-page:test .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: better-status-page:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Start container
         run: >-
           docker run -d --name bsp-smoke -p 3000:3000
+          -v bsp-smoke-data:/app/data
           -e JWT_SECRET=smoke-jwt-secret-with-sufficient-entropy
           -e VAULT_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           better-status-page:test
@@ -118,3 +199,37 @@ jobs:
           done
           docker logs bsp-smoke
           exit 1
+
+      - name: Verify the apps and the unprivileged user
+        run: |
+          curl --fail --silent --show-error --output /dev/null http://127.0.0.1:3000/
+          curl --fail --silent --show-error --output /dev/null http://127.0.0.1:3000/admin/
+          test "$(docker exec bsp-smoke id -u)" != 0
+          docker exec bsp-smoke sh -c 'touch /app/data/.write-check && rm /app/data/.write-check'
+
+      # A restart on the same volume has to come up healthy. The database file is not checked: it is opened on
+      # first use, so before the setup it does not exist yet.
+      - name: Restart on the same volume
+        run: |
+          docker restart bsp-smoke
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3000/health && curl --fail --silent http://127.0.0.1:3000/api/v1/setup/status; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs bsp-smoke
+          exit 1
+
+  # One check to require in the branch protection rules: it passes only when every job above did.
+  quality:
+    if: always()
+    needs: [static, unit, e2e, build, docker-smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+
+    steps:
+      - name: Check the results
+        run: |
+          echo '${{ toJSON(needs) }}'
+          test "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = false

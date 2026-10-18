@@ -113,7 +113,7 @@ describe('authentication security regressions', () => {
     assert.equal((await login('nobody@example.test')).statusCode, 401)
     assert.equal((await login('audited@example.test')).statusCode, 200)
 
-    const entries = (await signIns()).slice(before).map((entry) => ({ action: entry.action, email: entry.userEmail, ...JSON.parse(entry.diff ?? '{}') as Record<string, unknown> }))
+    const entries = (await signIns()).slice(before).map((entry): Record<string, unknown> => ({ action: entry.action, email: entry.userEmail, ...JSON.parse(entry.diff ?? '{}') as Record<string, unknown> }))
     assert.deepEqual(entries.map(({ action, email, method, code }) => ({ action, email, method, code })), [
       { action: 'deny', email: 'audited@example.test', method: 'password', code: 'wrong_password' },
       { action: 'deny', email: 'nobody@example.test', method: 'password', code: 'no_matching_account' },

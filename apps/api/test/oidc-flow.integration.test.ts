@@ -122,7 +122,7 @@ async function runFlow(claims: Record<string, unknown> | { error: string }, star
   const state = authorize.searchParams.get('state')!
   const query = new URLSearchParams({ state })
   if ('error' in claims) {
-    query.set('error', claims.error)
+    query.set('error', String(claims.error))
   } else {
     const code = randomUUID()
     pendingCodes.set(code, { ...claims, nonce: authorize.searchParams.get('nonce') })

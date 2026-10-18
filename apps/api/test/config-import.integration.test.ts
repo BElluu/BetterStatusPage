@@ -279,7 +279,7 @@ describe('validating without applying', () => {
     assert.equal(rows('audit_log').length, 0)
 
     const real = await applied(baseline())
-    assert.deepEqual({ ...preview.json(), dryRun: false }, real)
+    assert.deepEqual({ ...(preview.json() as object), dryRun: false }, real)
   })
 
   it('refuses an invalid file the same way', async () => {

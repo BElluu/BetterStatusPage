@@ -7,10 +7,14 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
+      - 'README*.md'
+      - 'scripts/check-doc-links.mjs'
       - '.github/workflows/docs.yml'
   pull_request:
     paths:
       - 'docs/**'
+      - 'README*.md'
+      - 'scripts/check-doc-links.mjs'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
@@ -45,6 +49,11 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # Links to the site in the READMEs, the guides and the interface must point at pages the build has.
+      - name: Check documentation links
+        working-directory: .
+        run: node scripts/check-doc-links.mjs docs/dist
 
       # Pull requests only check that the site builds.
       - name: Upload to the server

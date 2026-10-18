@@ -92,7 +92,7 @@ describe('A public status page', () => {
     const access = await app.inject({ url: '/api/v1/public/access' })
     assert.equal(access.statusCode, 200)
     assert.equal(access.headers['cache-control'], 'no-store')
-    assert.deepEqual({ ...access.json(), branding: undefined }, {
+    assert.deepEqual({ ...(access.json() as object), branding: undefined }, {
       private: false, signedIn: false, email: null, role: null, passwordChangeRequired: false, branding: undefined,
     })
     const status = await app.inject({ url: '/api/v1/public/status' })

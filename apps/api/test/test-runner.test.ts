@@ -157,7 +157,7 @@ dnsServer.on('message', (query, remote) => {
   header.writeUInt16BE(answer ? 0x8180 : 0x8183, 2)
   header.writeUInt16BE(1, 4)
   header.writeUInt16BE(answer ? 1 : 0, 6)
-  const parts = [header, query.subarray(12, questionEnd)]
+  const parts: Buffer[] = [header, query.subarray(12, questionEnd)]
   if (answer) {
     const record = Buffer.alloc(12)
     record.writeUInt16BE(0xc00c, 0)

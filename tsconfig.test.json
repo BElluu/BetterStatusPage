@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "exactOptionalPropertyTypes": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "include": [
+    "apps/api/test/**/*",
+    "apps/template/test/**/*",
+    "apps/template/e2e/**/*",
+    "packages/*/test/**/*",
+    "e2e/**/*"
+  ]
+}
