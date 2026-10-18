@@ -148,9 +148,6 @@ vault: { vault: Production, secret: db-login, fieldMapping: { user: u, password:
 
 ### Heartbeat token
 
-> [!WARNING]
-> **Not released yet.** The `heartbeatToken` field is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 The URL a sender calls on a `webhook` monitor contains its token. A monitor that is created again (deleted and imported, or a new installation from the same file) gets a new random token, and every cron job or CI step that called the old URL stops reporting. To keep the URL, put the token in the document:
 
 ```yaml
@@ -225,9 +222,6 @@ Both answer with what was, or would be, done, channels first, then monitors. Eve
 - **Not documents:** see [What is left out](#what-is-left-out). A document can refer to a vault by name, but the vault has to exist, and a token needs `vault:use` to add such a reference, or to change the configuration of a monitor or channel that has one. Without it a token can still change the name, schedule, tags and links of such a monitor.
 
 ### Removing what the file leaves out
-
-> [!WARNING]
-> **Not released yet.** Pruning is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 With `?prune=true` on `validate` and `apply` (the **Delete what the file does not mention** switch on the Import page, which asks for confirmation before it applies), an import also deletes the objects the documents do not mention, so a monitor, channel or action removed from the file is removed from the installation:
 

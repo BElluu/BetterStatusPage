@@ -5,6 +5,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-18
+
 ### Added
 
 - **Webhook monitor reports down and degraded**: a heartbeat URL accepts `?status=up|down|degraded` and `?msg=<reason>` (up to 500 characters), so a job that failed is detected at once and with a reason. Without parameters the call records `up` as before. The same alert thresholds and maintenance windows apply. See [Reporting a failure](monitors.md#reporting-a-failure).

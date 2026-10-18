@@ -412,9 +412,6 @@ Ping only when the job actually succeeded:
 
 ### Reporting a failure
 
-> [!WARNING]
-> **Not released yet.** Reporting `down` and `degraded` is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 A job that ran but failed can say so at once instead of staying silent. Add two optional query
 parameters:
 
@@ -450,9 +447,6 @@ to webhook monitors.
 ---
 
 ## Ignore TLS certificate errors
-
-> [!WARNING]
-> **Not released yet.** This feature is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 *Admin → Monitors → edit an HTTPS monitor → **Ignore TLS certificate errors***
 
