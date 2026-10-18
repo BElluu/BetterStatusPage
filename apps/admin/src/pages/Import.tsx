@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { api, ApiError } from '../api/client'
-import { Alert, PageContainer, PageHeader, useToast } from '@better-kit/ui'
+import { Alert, ConfirmModal, PageContainer, PageHeader, useToast } from '@better-kit/ui'
 import { DataTable, DataTh } from '@better-kit/ui'
+import { YamlEditor } from '../components/YamlEditor'
 
 type Action = 'create' | 'update' | 'delete' | 'unchanged'
 type Kind = 'Monitor' | 'NotificationChannel' | 'Action'
@@ -104,6 +105,7 @@ export default function ImportPage() {
   const [rejected, setRejected] = useState<Rejected | null>(null)
   const [failure, setFailure] = useState('')
   const [applying, setApplying] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const [applied, setApplied] = useState<ImportResult | null>(null)
   const input = useRef<HTMLInputElement>(null)
   /** Only the answer to the latest question is shown; an earlier, slower one is dropped. */
@@ -186,6 +188,7 @@ export default function ImportPage() {
 
   const changes = preview?.changes.filter((change) => change.action !== 'unchanged') ?? []
   const nothingToDo = !!preview && changes.length === 0
+  const deletions = changes.filter((change) => change.action === 'delete')
 
   return (
     <PageContainer>
@@ -223,16 +226,7 @@ export default function ImportPage() {
           <button type="button" onClick={() => edit('')} disabled={!text} className="btn btn-ghost">Clear</button>
         </div>
 
-        <textarea
-          aria-label="Configuration to import"
-          value={text}
-          onChange={(e) => edit(e.target.value)}
-          placeholder={EXAMPLE}
-          spellCheck={false}
-          rows={14}
-          className="input-sig w-full font-mono text-xs"
-          style={{ resize: 'vertical' }}
-        />
+        <YamlEditor label="Configuration to import" value={text} onChange={edit} placeholder={EXAMPLE} rows={18} />
 
         <label className="flex items-start gap-3 max-w-2xl cursor-pointer select-none">
           <input
@@ -270,10 +264,20 @@ export default function ImportPage() {
             {nothingToDo
               ? <Alert tone="info">The installation already matches this. There is nothing to apply.</Alert>
               : <ChangeTable changes={changes} />}
+            {deletions.length > 0 && (
+              <Alert tone="warning" title={`${deletions.length} to delete`}>
+                {deletions.length === 1 ? 'This object is' : 'These objects are'} in the installation but not in the file, and applying deletes {deletions.length === 1 ? 'it' : 'them'} for good.
+              </Alert>
+            )}
             {!nothingToDo && (
               <div>
-                <button type="button" className="btn btn-primary" disabled={applying} onClick={() => void apply()}>
-                  {applying ? 'Applying…' : 'Apply changes'}
+                <button
+                  type="button"
+                  className={`btn ${deletions.length ? 'btn-danger' : 'btn-primary'}`}
+                  disabled={applying}
+                  onClick={() => (deletions.length ? setConfirming(true) : void apply())}
+                >
+                  {applying ? 'Applying…' : deletions.length ? `Apply and delete ${deletions.length}` : 'Apply changes'}
                 </button>
               </div>
             )}
@@ -289,6 +293,18 @@ export default function ImportPage() {
           </div>
         )}
       </section>
+
+      {confirming && (
+        <ConfirmModal
+          title="Delete what the file does not mention?"
+          message={`This deletes ${deletions.length} object${deletions.length === 1 ? '' : 's'}: ${deletions.slice(0, 10).map((change) => `${KIND_LABEL[change.kind]} ${change.key}`).join(', ')}${deletions.length > 10 ? ` and ${deletions.length - 10} more` : ''}. It cannot be undone.`}
+          confirmLabel={`Delete ${deletions.length} and apply`}
+          pending={applying}
+          pendingLabel="Applying…"
+          onCancel={() => setConfirming(false)}
+          onConfirm={() => void apply().finally(() => setConfirming(false))}
+        />
+      )}
     </PageContainer>
   )
 }

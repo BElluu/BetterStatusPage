@@ -1,6 +1,7 @@
 import { useId } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
+import { highlightYaml } from './YamlEditor'
 import { CopyButton } from '@better-kit/ui'
 import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
 import { ErrorState, LoadingState } from '@better-kit/ui'
@@ -8,16 +9,17 @@ import { ErrorState, LoadingState } from '@better-kit/ui'
 type YamlKind = 'Monitor' | 'NotificationChannel' | 'Action'
 
 interface YamlViewModalProps {
-  kind: YamlKind
+  /** Without `kind` and `objectKey` the whole configuration is shown: every monitor, channel and action the user may read. */
+  kind?: YamlKind
   /** The key of the monitor, channel or action. */
-  objectKey: string
+  objectKey?: string
   /** What is shown, for the heading: "Public site". */
   title: string
   onClose: () => void
 }
 
 /** The file name offered for download: the key of the object. */
-const fileName = (objectKey: string) => `${objectKey}.yaml`
+const fileName = (objectKey: string | undefined) => `${objectKey ?? 'configuration'}.yaml`
 
 /**
  * One monitor or channel as the YAML the Import page and the API read. It is a view, not an editor:
@@ -25,10 +27,10 @@ const fileName = (objectKey: string) => `${objectKey}.yaml`
  */
 export function YamlViewModal({ kind, objectKey, title, onClose }: YamlViewModalProps) {
   const titleId = useId()
-  const query = new URLSearchParams({ kind, key: objectKey }).toString()
+  const query = kind && objectKey ? `?${new URLSearchParams({ kind, key: objectKey })}` : ''
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['config-yaml', kind, objectKey],
-    queryFn: () => api.getText(`/admin/config/export?${query}`),
+    queryFn: () => api.getText(`/admin/config/export${query}`),
     // The view must show what is stored now, not what was stored when it was last opened.
     gcTime: 0,
     retry: false,
@@ -58,7 +60,7 @@ export function YamlViewModal({ kind, objectKey, title, onClose }: YamlViewModal
 
         <p className="text-sm" style={{ color: 'var(--m3-secondary)' }}>
           Passwords, tokens and webhook URLs are written as <code className="font-mono">••••••••</code>. Paste this on the Import page of another
-          installation, or send it to the API, to create or update this {kind === 'Monitor' ? 'monitor' : 'notification channel'} there.
+          installation, or send it to the API, to create or update {kind === undefined ? 'these objects' : kind === 'Monitor' ? 'this monitor' : kind === 'Action' ? 'this action' : 'this notification channel'} there.
         </p>
 
         {isLoading ? (
@@ -72,7 +74,7 @@ export function YamlViewModal({ kind, objectKey, title, onClose }: YamlViewModal
             className="font-mono text-xs rounded-xl p-4 overflow-auto max-h-[50vh] whitespace-pre"
             style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-on-surface)' }}
           >
-            {data}
+            {highlightYaml(data ?? '')}
           </pre>
         )}
 

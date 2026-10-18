@@ -6,6 +6,7 @@ import { DEFAULT_CERT_WARN_DAYS } from '@bsp/shared'
 import type { HttpsConfig, Monitor, MonitorStatus, MonitorType } from '@bsp/shared'
 import { StatusBadge } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
+import { YamlViewModal } from '../components/YamlViewModal'
 import { MONITOR_TYPES } from '../components/monitors/monitorTypes'
 import { ConfirmModal } from '@better-kit/ui'
 import { DataTable, DataTh, useTableSort } from '@better-kit/ui'
@@ -24,6 +25,7 @@ export default function MonitorsPage() {
   const toast = useToast()
   const [editingMonitor, setEditingMonitor] = useState<Monitor | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [showYaml, setShowYaml] = useState(false)
   const [createType, setCreateType] = useState<MonitorType | undefined>(undefined)
   const [confirmDelete, setConfirmDelete] = useState<Monitor | null>(null)
   const [activeTags, setActiveTags] = useState<string[]>([])
@@ -122,6 +124,10 @@ export default function MonitorsPage() {
         title="Monitors"
         subtitle={isPending || isError ? undefined : `${monitors.length} monitor${monitors.length !== 1 ? 's' : ''} · Live`}
         actions={<>
+          <button type="button" onClick={() => setShowYaml(true)} className="btn btn-secondary">
+            <span className="material-symbols-outlined" aria-hidden="true">data_object</span>
+            Export YAML
+          </button>
           <Link to="/admin/import" state={{ from: 'monitors' }} className="btn btn-secondary">
             <span className="material-symbols-outlined" aria-hidden="true">upload_file</span>
             Import YAML
@@ -296,6 +302,7 @@ export default function MonitorsPage() {
           onCancel={() => setConfirmDelete(null)}
         />
       )}
+      {showYaml && <YamlViewModal title="All configuration" onClose={() => setShowYaml(false)} />}
     </PageContainer>
   )
 }

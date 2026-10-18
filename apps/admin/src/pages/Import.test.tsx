@@ -64,12 +64,16 @@ describe('ImportPage', () => {
     await waitFor(() => expect(postText()).toHaveBeenCalledWith('/admin/config/validate', YAML, 'application/yaml'))
 
     await user.click(screen.getByLabelText(/Delete what the file does not mention/))
-    await appears('Apply changes')
+    await appears('Apply and delete 1')
     expect(postText()).toHaveBeenLastCalledWith('/admin/config/validate?prune=true', YAML, 'application/yaml')
-    expect(screen.getByText('1 to delete')).toBeInTheDocument()
+    expect(screen.getAllByText('1 to delete')).toHaveLength(2) // the summary and the warning
     expect(within(screen.getByRole('table')).getAllByRole('row')[1]).toHaveTextContent('DeleteMonitorold')
 
-    await user.click(screen.getByRole('button', { name: 'Apply changes' }))
+    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Apply and delete 1' }))
+    expect(postText()).toHaveBeenCalledTimes(2) // nothing is sent before the confirmation
+    expect(screen.getByRole('dialog')).toHaveTextContent('Monitor old')
+    await user.click(screen.getByRole('button', { name: 'Delete 1 and apply' }))
     await waitFor(() => expect(postText()).toHaveBeenLastCalledWith('/admin/config/apply?prune=true', YAML, 'application/yaml'))
   })
 
