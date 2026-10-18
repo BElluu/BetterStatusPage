@@ -410,9 +410,33 @@ Ping only when the job actually succeeded:
 0 2 * * * /usr/local/bin/backup.sh && curl -fsS -m 10 https://status.example.com/api/v1/hook/<token> > /dev/null
 ```
 
+### Reporting a failure
+
+> [!WARNING]
+> **Not released yet.** Reporting `down` and `degraded` is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+A job that ran but failed can say so at once instead of staying silent. Add two optional query
+parameters:
+
+| Parameter | Values | Meaning |
+|---|---|---|
+| `status` | `up` (default), `down`, `degraded` | The status to record, in lower case. An empty value means `up`. Any other value, `UP` included, answers `400`. |
+| `msg` | text, at most 500 characters | The reason. Longer text is cut. Control, invisible and text-direction characters become spaces (this also splits an emoji joined with a zero-width joiner into separate emoji). It is stored as the check error and shown in the monitor details, history, alerts and the draft of an automatic incident. Ignored when `status` is `up`. |
+
+Both are read from the query string only, also on a `POST`. Giving either one twice answers `400`.
+
+```bash
+curl -fsS "https://status.example.com/api/v1/hook/<token>?status=down&msg=backup%20failed"
+```
+
+Without parameters the call records `up`, as before. A `down` or `degraded` call is one failed
+check: **Alert after (checks)**, **Recover after (checks)** and maintenance windows apply as they do
+to scheduled checks. If a dependency of the monitor is down, a failing heartbeat is recorded as
+**Affected**, as for a scheduled check. A heartbeat that reports `up` is always recorded as up.
+
 ### How silence is detected
 
-Each heartbeat records one successful check. If no heartbeat arrives for one full **Interval**,
+Each heartbeat without a failure status records one successful check. If no heartbeat arrives for one full **Interval**,
 the monitor records a failed check — *No webhook received within interval* — and goes **Down**.
 While the silence lasts, it records another failed check every interval.
 

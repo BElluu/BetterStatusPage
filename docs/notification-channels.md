@@ -154,7 +154,7 @@ which is sent as, for example:
 }
 ```
 
-> Variables are inserted as-is — they are **not** JSON-escaped. An error message containing a double quote or a line break, or a grouped digest (whose `{{error_message}}` has one line per monitor), can produce invalid JSON. If your endpoint is strict, leave `{{error_message}}` out of JSON bodies or make sure the receiver tolerates it.
+> In the **Body**, a variable is escaped so it stays valid inside a JSON string: a double quote or a line break in an error message, or the several lines of a grouped digest's `{{error_message}}`, do not break the JSON. Put variables inside string values (`"{{error_message}}"`). The receiver gets the escaped text and decodes it as it does any JSON string.
 
 ### Examples
 
@@ -185,7 +185,7 @@ Put the data in the URL instead of a body:
 https://hooks.example.com/notify?monitor={{monitor_name}}&status={{status}}
 ```
 
-Values are not URL-encoded, so this works best with monitor names that contain no spaces or special characters.
+Each value is URL-encoded, so a monitor name with spaces or `&` stays one query value. In a header value, line breaks are removed.
 
 ---
 

@@ -196,7 +196,7 @@
         "url": "/discord",
         "contentType": "application/json",
         "extra": {},
-        "body": "{\"embeds\":[{\"title\":\"TLS certificate of `Checkout <API>` expires in 5 days\",\"color\":16485376,\"fields\":[{\"name\":\"Status\",\"value\":\"cert-expiring\",\"inline\":true},{\"name\":\"Previous\",\"value\":\"up\",\"inline\":true},{\"name\":\"Type\",\"value\":\"https\",\"inline\":true},{\"name\":\"Details\",\"value\":\"TLS certificate for checkout.example.test expires in 5 days (2023-11-19T22:13:20.000Z)\",\"inline\":false}],\"footer\":{\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"},\"timestamp\":\"2023-11-14T22:13:20.000Z\"}],\"avatar_url\":\"https://docs.betterstatuspage.dev/discord-avatar.png\"}"
+        "body": "{\"embeds\":[{\"title\":\"TLS certificate of `Checkout <API>` expires in 5 days\",\"color\":16485376,\"fields\":[{\"name\":\"Status\",\"value\":\"cert-expiring\",\"inline\":true},{\"name\":\"Previous\",\"value\":\"up\",\"inline\":true},{\"name\":\"Type\",\"value\":\"https\",\"inline\":true},{\"name\":\"Details\",\"value\":\"TLS certificate for checkout.example.test expires in 5 days \\\\(2023-11-19T22:13:20.000Z\\\\)\",\"inline\":false}],\"footer\":{\"text\":\"Checked at 2023-11-14T22:13:20.000Z\"},\"timestamp\":\"2023-11-14T22:13:20.000Z\"}],\"avatar_url\":\"https://docs.betterstatuspage.dev/discord-avatar.png\"}"
       },
       {
         "channel": "certificate-expiring",

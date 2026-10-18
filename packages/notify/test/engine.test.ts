@@ -233,6 +233,96 @@ describe('transports', () => {
     await assert.rejects(() => through('slack', { webhookUrl: 'https://hook.test/s' }), /^Error: Slack webhook returned HTTP 500$/)
   })
 
+  it('keeps a variable to one piece of the URL and one line of a header', async () => {
+    const hostile = 'a b&admin=1/../x'
+    await transports().deliver(
+      { type: 'webhook', config: JSON.stringify({ url: 'https://hook.test/n?e={{error_message}}', method: 'POST', headers: { 'X-Note': 'v: {{error_message}}' } }) },
+      { error_message: hostile + '\r\nX-Injected: 1' },
+      notice,
+    )
+    assert.equal(requests[0]!.url, 'https://hook.test/n?e=a%20b%26admin%3D1%2F..%2Fx%0D%0AX-Injected%3A%201')
+    assert.equal((requests[0]!.init.headers as Record<string, string>)['X-Note'], 'v: ' + hostile + 'X-Injected: 1')
+  })
+
+  it('sends a lone surrogate in a variable as U+FFFD instead of failing the delivery', async () => {
+    const lone = 'a' + String.fromCharCode(0xd83d) + 'b'
+    await transports().deliver(
+      { type: 'webhook', config: JSON.stringify({ url: 'https://hook.test/n?e={{error_message}}', method: 'POST' }) },
+      { error_message: lone },
+      notice,
+    )
+    assert.equal(requests[0]!.url, 'https://hook.test/n?e=a%EF%BF%BDb')
+  })
+
+  it('cannot turn a variable into a dot segment of the URL', async () => {
+    await transports().deliver(
+      { type: 'webhook', config: JSON.stringify({ url: 'https://hook.test/job/{{error_message}}/build', method: 'POST' }) },
+      { error_message: '..' },
+      notice,
+    )
+    assert.equal(requests[0]!.url, 'https://hook.test/job/%252E%252E/build')
+    assert.equal(new URL(requests[0]!.url).pathname, '/job/%252E%252E/build')
+  })
+
+  describe('text a sender controls', () => {
+    const hostile = '<!channel> [Panel](https://evil.example) @everyone'
+    const withDetail: Notice = { ...notice, detail: { label: 'Error', value: hostile } }
+    const sent = async (type: string, config: object, vars: Record<string, string> = {}) => {
+      await transports().deliver({ type, config: JSON.stringify(config) }, vars, withDetail)
+      return String(requests[0]!.init.body)
+    }
+
+    it('cannot make Slack mention a channel or link away', async () => {
+      const body = await sent('slack', { webhookUrl: 'https://hook.test/s', text: 'Alert: {{error_message}}' }, { error_message: hostile })
+      assert.ok(!body.includes('<!channel>') && !body.includes('<https'))
+      assert.equal(JSON.parse(body).text.split('\n')[0], 'Alert: &lt;!channel&gt; [Panel](https://evil.example) @everyone')
+      assert.match(body, /&lt;!channel&gt;/)
+    })
+
+    it('cannot make Discord render a link or ping everyone', async () => {
+      const body = JSON.parse(await sent('discord', { webhookUrl: 'https://hook.test/d', content: '{{error_message}}' }, { error_message: hostile }))
+      const field = body.embeds[0].fields.find((f: { name: string }) => f.name === 'Error')
+      assert.equal(field.value, '\\<!channel\\> \\[Panel\\]\\(https://evil.example\\) @everyone')
+      assert.ok(!body.content.includes('@everyone'))
+      assert.ok(body.content.includes('@' + String.fromCharCode(0x200b) + 'everyone'))
+      assert.ok(body.content.includes('\\[Panel\\]\\(https://evil.example\\)'))
+    })
+
+    it('keeps the Discord error field within its limit without ending on a lone backslash', async () => {
+      const long: Notice = { ...notice, detail: { label: 'Error', value: '('.repeat(900) } }
+      await transports().deliver({ type: 'discord', config: JSON.stringify({ webhookUrl: 'https://hook.test/d' }) }, {}, long)
+      const value: string = JSON.parse(String(requests[0]!.init.body)).embeds[0].fields.find((f: { name: string }) => f.name === 'Error').value
+      assert.ok(value.length <= 1024)
+      assert.ok(value.endsWith('\\(…'))
+    })
+
+    it('never cuts the Discord error field in the middle of an emoji', async () => {
+      const emoji = String.fromCodePoint(0x1f600)
+      for (const extra of ['', 'x']) {
+        const long: Notice = { ...notice, detail: { label: 'Error', value: extra + emoji.repeat(600) } }
+        await transports().deliver({ type: 'discord', config: JSON.stringify({ webhookUrl: 'https://hook.test/d' }) }, {}, long)
+        const body = JSON.parse(String(requests.at(-1)!.init.body))
+        const value: string = body.embeds[0].fields.find((f: { name: string }) => f.name === 'Error').value
+        assert.ok(value.length <= 1024)
+        assert.ok(value.endsWith(emoji + String.fromCharCode(0x2026)))
+        assert.equal(Array.from(value).every((char) => char.length === 2 || char.codePointAt(0)! < 0xd800 || char.codePointAt(0)! > 0xdfff), true)
+      }
+    })
+
+    it('cannot make Teams render a link', async () => {
+      const body = JSON.parse(await sent('teams', { webhookUrl: 'https://hook.test/t' }))
+      const fact = body.sections[0].facts.find((f: { name: string }) => f.name === 'Error')
+      const zwsp = String.fromCharCode(0x200b)
+      assert.equal(fact.value, `<${zwsp}!channel> [Panel]${zwsp}(https://evil.example) @everyone`)
+    })
+
+    it('leaves the other variables of a Discord message and the card text alone', async () => {
+      const body = JSON.parse(await sent('discord', { webhookUrl: 'https://hook.test/d', content: '`{{monitor_name}}` {{error_message}}', avatarUrl: 'https://img.test/{{monitor_name}}.png' }, { monitor_name: 'my_api@eu', error_message: 'x_y' }))
+      assert.equal(body.content, '`my_api@eu` x\\_y')
+      assert.equal(body.avatar_url, 'https://img.test/my_api%40eu.png')
+    })
+  })
+
   it('never follows a redirect from a push service', async () => {
     await through('ntfy', { topic: 't' })
     assert.equal(requests[0]!.init.redirect, 'error')

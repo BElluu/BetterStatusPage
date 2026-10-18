@@ -4,7 +4,7 @@ import Fastify from 'fastify'
 import rateLimit from '@fastify/rate-limit'
 import { eq } from 'drizzle-orm'
 import { db } from '../src/db/client.js'
-import { layout, monitorResults, monitors } from '../src/db/schema.js'
+import { layout, monitorDependencies, monitorResults, monitors } from '../src/db/schema.js'
 import { publicRoutes } from '../src/routes/public.js'
 import { webhookRoutes } from '../src/routes/webhook.js'
 import { refreshPublishedMonitorIds } from '../src/services/publishedMonitors.js'
@@ -182,5 +182,76 @@ describe('public API integration', () => {
     const results = await db.select().from(monitorResults).where(eq(monitorResults.monitorId, monitorId))
     assert.equal(results.length, 3)
     assert.equal(results.at(-1)?.status, 'up')
+  })
+
+  it('records a reported failure with its message and rejects an unknown status', async () => {
+    const bad = await app.inject({ method: 'GET', url: `/api/v1/hook/${webhookToken}?status=broken` })
+    assert.equal(bad.statusCode, 400)
+
+    const down = await app.inject({ method: 'GET', url: `/api/v1/hook/${webhookToken}?status=down&msg=backup%20failed` })
+    assert.equal(down.statusCode, 200)
+    let last = (await db.select().from(monitorResults).where(eq(monitorResults.monitorId, monitorId))).at(-1)!
+    assert.equal(last.status, 'down')
+    assert.equal(last.errorMessage, 'backup failed')
+
+    await app.inject({ method: 'GET', url: `/api/v1/hook/${webhookToken}?status=degraded&msg=${'x'.repeat(600)}` })
+    last = (await db.select().from(monitorResults).where(eq(monitorResults.monitorId, monitorId))).at(-1)!
+    assert.equal(last.status, 'degraded')
+    assert.equal(last.errorMessage?.length, 500)
+
+    await app.inject({ method: 'GET', url: `/api/v1/hook/${webhookToken}?msg=ignored` })
+    last = (await db.select().from(monitorResults).where(eq(monitorResults.monitorId, monitorId))).at(-1)!
+    assert.equal(last.status, 'up')
+    assert.equal(last.errorMessage, null)
+  })
+
+  it('cleans the message and handles odd query forms', async () => {
+    const lastResult = async () => (await db.select().from(monitorResults).where(eq(monitorResults.monitorId, monitorId))).at(-1)!
+    const hook = (query: string) => app.inject({ method: 'GET', url: `/api/v1/hook/${webhookToken}${query}` })
+
+    assert.equal((await hook('?status=down&status=up')).statusCode, 400)
+    assert.equal((await hook('?status=UP')).statusCode, 400)
+    assert.equal((await hook('?status=down&msg=a&msg=b')).statusCode, 400)
+
+    // An empty status is a plain heartbeat.
+    assert.equal((await hook('?status=')).statusCode, 200)
+    assert.equal((await lastResult()).status, 'up')
+
+    // Control, bidi and zero-width characters are replaced, a blank message is dropped.
+    await hook(`?status=down&msg=${encodeURIComponent('a\r\nb\u202Ec\u200Bd\u0000e')}`)
+    assert.equal((await lastResult()).errorMessage, 'a  b c d e')
+    await hook(`?status=down&msg=${encodeURIComponent('  \n ')}`)
+    assert.equal((await lastResult()).errorMessage, null)
+
+    // Invisible tag characters and the Arabic letter mark are replaced too.
+    await hook(`?status=down&msg=${encodeURIComponent('ok' + String.fromCodePoint(0xe0041, 0x61c) + 'go')}`)
+    assert.equal((await lastResult()).errorMessage, 'ok  go')
+
+    // The cut never splits a surrogate pair.
+    await hook(`?status=down&msg=${encodeURIComponent('\u{1F600}'.repeat(600))}`)
+    assert.equal(Array.from((await lastResult()).errorMessage!).length, 500)
+    assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test((await lastResult()).errorMessage!))
+  })
+
+  it('marks a failing heartbeat affected when a dependency is down', async () => {
+    const now = Date.now()
+    const dependency = (await db.insert(monitors).values({
+      name: 'Dependency', type: 'https', intervalSecs: 60, timeoutMs: 1_000, retries: 1, config: '{}',
+      currentStatus: 'down', tags: '[]', createdAt: now, updatedAt: now,
+    }).returning())[0]!
+    await db.insert(monitorDependencies).values({ dependentId: monitorId, dependsOnId: dependency.id })
+
+    await app.inject({ method: 'GET', url: `/api/v1/hook/${webhookToken}?status=down&msg=failed` })
+    let last = (await db.select().from(monitorResults).where(eq(monitorResults.monitorId, monitorId))).at(-1)!
+    assert.equal(last.status, 'affected')
+
+    await app.inject({ method: 'GET', url: `/api/v1/hook/${webhookToken}?status=degraded` })
+    last = (await db.select().from(monitorResults).where(eq(monitorResults.monitorId, monitorId))).at(-1)!
+    assert.equal(last.status, 'affected')
+
+    // A healthy heartbeat stays up.
+    await app.inject({ method: 'GET', url: `/api/v1/hook/${webhookToken}` })
+    last = (await db.select().from(monitorResults).where(eq(monitorResults.monitorId, monitorId))).at(-1)!
+    assert.equal(last.status, 'up')
   })
 })

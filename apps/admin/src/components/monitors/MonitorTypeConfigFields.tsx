@@ -267,7 +267,7 @@ function WebhookSection({ token, canReset, resetting, onReset }: WebhookSectionP
   return (
     <div className="space-y-3">
       <Note tone="info">
-        The monitor goes <strong>up</strong> when an external service sends a request to the webhook URL, and goes <strong>down</strong> if no request is received within the configured interval.
+        The monitor goes <strong>up</strong> when an external service sends a request to the webhook URL, and goes <strong>down</strong> if no request is received within the configured interval. A job that failed can say so at once: add <code>?status=down&amp;msg=reason</code> (or <code>status=degraded</code>) to the URL.
       </Note>
 
       {token ? (

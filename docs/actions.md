@@ -82,7 +82,7 @@ The same action can be linked once per status, so one action can serve both `dow
 | `{{checked_at}}` | Time of the check, ISO 8601 |
 | `{{event_type}}` | `alert` (down), `recovery` (up) or `test` (Run now) |
 
-A variable that does not exist is left as written. How a value is put in depends on where it goes: in the **URL** it is URL-encoded, in the **body** it is escaped so it stays valid inside a JSON string, in a **header value** it is used as it is. The placeholders of [vault secrets](#secrets-from-the-vault) (`{{secret_<name>}}` and friends) work in the same three places.
+A variable that does not exist is left as written. How a value is put in depends on where it goes: in the **URL** it is URL-encoded (a value that is only dots, `.` or `..`, is sent as the text `%2E`, so it cannot climb a path level), in the **body** it is escaped so it stays valid inside a JSON string, in a **header value** line breaks are removed. The placeholders of [vault secrets](#secrets-from-the-vault) (`{{secret_<name>}}` and friends) work in the same three places.
 
 ---
 

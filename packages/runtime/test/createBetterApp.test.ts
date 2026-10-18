@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, it, mock } from 'node:test'
-import { createBetterApp, resolveJwtSecret, type BetterAppOptions } from '@better-kit/runtime'
+import { createBetterApp, redactUrl, resolveJwtSecret, type BetterAppOptions } from '@better-kit/runtime'
 
 let dir: string
 let calls: string[]
@@ -153,5 +153,44 @@ describe('createBetterApp', () => {
     assert.ok(!calls.includes('start'))
     await app.close()
     restore()
+  })
+})
+
+describe('redactUrl', () => {
+  const rules = { queryParams: ['token', 'msg'], pathTokenPrefixes: ['/api/v1/hook/'] }
+
+  it('hides secret query values whatever the case or encoding of the name', () => {
+    assert.equal(redactUrl('/p?a=1&msg=disk%20full&b=2', rules), '/p?a=1&msg=[redacted]&b=2')
+    assert.equal(redactUrl('/p?MSG=x&t%6Fken=y', rules), '/p?MSG=[redacted]&t%6Fken=[redacted]')
+    assert.equal(redactUrl('/p?flag&other=1', rules), '/p?flag&other=1')
+  })
+
+  it('hides the token segment of a path and keeps the rest', () => {
+    assert.equal(redactUrl('/api/v1/hook/abc123', rules), '/api/v1/hook/[redacted]')
+    assert.equal(redactUrl('/api/v1/hook/abc123?status=down&msg=x', rules), '/api/v1/hook/[redacted]?status=down&msg=[redacted]')
+    assert.equal(redactUrl('/api/v1/hook/abc123/more', rules), '/api/v1/hook/[redacted]')
+    assert.equal(redactUrl('/api/v1/hook/abc123/%0A{"level":50}', rules), '/api/v1/hook/[redacted]')
+    assert.equal(redactUrl('/api/v1/hook/', rules), '/api/v1/hook/')
+    assert.equal(redactUrl('/api/v1/status', rules), '/api/v1/status')
+  })
+
+  it('finds the prefix the way the router does, after percent-decoding', () => {
+    assert.equal(redactUrl('/api/v1/%68ook/abc123', rules), '/api/v1/hook/[redacted]')
+    assert.equal(redactUrl('/api/%761/hook/abc123?msg=x', rules), '/api/v1/hook/[redacted]?msg=[redacted]')
+    assert.equal(redactUrl('/api/v1/hook/ab%2Fcd', rules), '/api/v1/hook/[redacted]')
+    assert.equal(redactUrl('/api/v1/%zzhook/abc', rules), '/api/v1/%zzhook/abc')
+    assert.equal(redactUrl('/api/v1/%68ook/abc%zz', rules), '/api/v1/hook/[redacted]')
+  })
+
+  it('is what the request log of the app uses', async () => {
+    const { app } = await createBetterApp(options({ redactQueryParams: ['msg'], redactPathTokenPrefixes: ['/t/'] }))
+    try {
+      const serializers = (app.log as unknown as Record<symbol, Record<string, (req: object) => { url: string }>>)[
+        Object.getOwnPropertySymbols(app.log).find((symbol) => symbol.description === 'pino.serializers')!
+      ]!
+      assert.equal(serializers['req']!({ method: 'GET', url: '/t/secret?msg=hi&a=1', host: 'h', ip: '1.1.1.1' }).url, '/t/[redacted]?msg=[redacted]&a=1')
+    } finally {
+      await app.close()
+    }
   })
 })

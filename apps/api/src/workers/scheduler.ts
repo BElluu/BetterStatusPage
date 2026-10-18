@@ -102,25 +102,28 @@ async function performCheck(monitor: MonitorRow): Promise<void> {
     result = { status: 'down', responseMs: null, error: err instanceof Error ? err.message : String(err) }
   }
 
-  // If any declared dependency is down/degraded/affected, mark this monitor as 'affected'
-  // regardless of its own check result — the root-cause monitor fires the alert.
-  const deps = await db.select().from(monitorDependencies).where(eq(monitorDependencies.dependentId, monitor.id))
-  if (deps.length > 0) {
-    const depIds = deps.map((d) => d.dependsOnId)
-    const depMonitors = await db.select().from(monitors).where(inArray(monitors.id, depIds))
-    const hasDownDep = depMonitors.some((d) =>
-      d.currentStatus === 'down' || d.currentStatus === 'degraded' || d.currentStatus === 'affected',
-    )
-    if (hasDownDep) result = { ...result, status: 'affected' }
-  }
-
-  await recordObservation(monitor, result)
+  await recordObservation(monitor, await applyDependencies(monitor, result))
 
   if (monitor.type === 'https' && !skipsTlsVerification(config as HttpsConfig)) {
     await checkCertificateExpiry(monitor, config as HttpsConfig).catch((err) =>
       console.error('[certificate] expiry check failed:', err),
     )
   }
+}
+
+/**
+ * If any declared dependency is down/degraded/affected, marks the monitor as 'affected'
+ * regardless of its own result — the root-cause monitor fires the alert.
+ */
+export async function applyDependencies(monitor: MonitorRow, result: CheckResult): Promise<CheckResult> {
+  const deps = await db.select().from(monitorDependencies).where(eq(monitorDependencies.dependentId, monitor.id))
+  if (deps.length === 0) return result
+  const depIds = deps.map((d) => d.dependsOnId)
+  const depMonitors = await db.select().from(monitors).where(inArray(monitors.id, depIds))
+  const hasDownDep = depMonitors.some((d) =>
+    d.currentStatus === 'down' || d.currentStatus === 'degraded' || d.currentStatus === 'affected',
+  )
+  return hasDownDep ? { ...result, status: 'affected' } : result
 }
 
 /**

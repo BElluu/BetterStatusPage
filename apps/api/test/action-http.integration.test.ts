@@ -6,6 +6,7 @@ import { db } from '../src/db/client.js'
 import { encrypt } from '../src/kit/secretBox.js'
 import { actionRuns, actions, monitorActions, monitors, vaults, vaultSecrets } from '../src/db/schema.js'
 import { actionRoutes } from '../src/routes/actions.js'
+import { placeholderInAuthority, placeholderInCredentials } from '../src/services/actionInput.js'
 import { executeAction, redact } from '../src/workers/actionHttp.js'
 import { processDueActionRuns, scheduleActionRuns } from '../src/workers/actionRunner.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
@@ -160,6 +161,62 @@ describe('what a variable can do to a request that carries a secret', () => {
 
     const created = await app.inject({ method: 'POST', url: '/actions', payload: { name: 'A', config: { url: 'https://{{monitor_name}}.corp.test/', method: 'POST', headers: { A: '{{secret_jenkins}}' }, secrets: [{ name: 'jenkins', vault: ref }] } } })
     assert.equal(created.statusCode, 400)
+  })
+})
+
+describe('values in an action request', () => {
+  it('refuses a host chosen through extra slashes when a secret is sent', async () => {
+    const ref = await secret('value', { value: 'jenkins-api-token' })
+    const result = await executeAction(config({ url: 'http:///{{monitor_name}}/build', headers: { Authorization: 'Bearer {{secret_jenkins}}' }, secrets: [{ name: 'jenkins', vault: ref }] }), { monitor_name: '127.0.0.1' })
+
+    assert.equal(result.ok, false)
+    assert.match(result.error!, /host of the URL/)
+    assert.equal(received.length, 0)
+  })
+
+  it('sends a variable made of dots as text, not as a dot segment', async () => {
+    await executeAction(config({ url: `${baseUrl}/job/{{error_message}}/build` }), { error_message: '..' })
+
+    assert.equal(received[0]!.url, '/job/%252E%252E/build')
+  })
+
+  it('refuses a placeholder in the user or password of the URL when the action is saved', async () => {
+    const ref = await secret('value', { value: 'jenkins-api-token' })
+    for (const url of ['https://{{secret_jenkins}}@corp.test/', 'https://ci:{{secret_jenkins}}@corp.test/build']) {
+      const created = await app.inject({ method: 'POST', url: '/actions', payload: { name: 'A', config: { url, method: 'POST', secrets: [{ name: 'jenkins', vault: ref }] } } })
+      assert.equal(created.statusCode, 400, url)
+      assert.match(created.json().error, /user or password of the URL/)
+    }
+  })
+
+  it('sends a header value on one line', async () => {
+    await executeAction(config({ headers: { 'X-Note': 'x {{error_message}}' } }), { error_message: 'a\r\nX-Injected: 1' })
+
+    assert.equal(received[0]!.headers['x-note'], 'x aX-Injected: 1')
+    assert.equal(received[0]!.headers['x-injected'], undefined)
+  })
+})
+
+describe('placeholderInAuthority', () => {
+  it('finds a placeholder that chooses the host, however the URL is written', () => {
+    for (const url of ['http://{{x}}.corp.test/', 'https://corp.test{{x}}/', 'https://corp.test:{{x}}/', 'https:///{{x}}/h', 'https:////{{x}}/h', 'https:\\\\{{x}}/h', 'HTTPS://{{x}}/']) {
+      assert.equal(placeholderInAuthority(url), true, url)
+    }
+  })
+
+  it('finds a placeholder in the user or password of a URL only', () => {
+    for (const url of ['https://{{x}}@corp.test/', 'https://u:{{x}}@corp.test/', 'https://{{x}}:@corp.test/']) {
+      assert.equal(placeholderInCredentials(url), true, url)
+    }
+    for (const url of ['https://u:p@corp.test/{{x}}', 'https://corp.test/{{x}}?a={{y}}', 'https://:@corp.test/', 'https://corp.test\\{{x}}@e.test/', 'https://corp.test/', 'https://{{x}}.corp.test/']) {
+      assert.equal(placeholderInCredentials(url), false, url)
+    }
+  })
+
+  it('leaves a placeholder in the path, the query or the credentials alone', () => {
+    for (const url of ['https://corp.test/{{x}}', 'https://corp.test/job/{{x}}/build?n={{y}}', 'https://corp.test\\{{x}}', 'https://{{x}}@corp.test/', 'https://corp.test/']) {
+      assert.equal(placeholderInAuthority(url), false, url)
+    }
   })
 })
 
