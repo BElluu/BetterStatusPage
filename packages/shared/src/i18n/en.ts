@@ -29,6 +29,8 @@ export const EN_DEFAULTS: Record<TranslationKey, string> = {
   'page.defaultTitle':       'Status Page',
   'page.feedTitle':          'Incidents',
   'page.toggleDarkMode':     'Toggle dark mode',
+  'snapshot.currentAsOf':    'Saved copy of the status page, taken {time}. The live page may be unavailable.',
+  'snapshot.stale':          'Last saved state from {time}. It may be out of date.',
   'page.changeLanguage':     'Change language',
   'page.maintenanceUntil':   'until {date}',
   'page.maintenance':        'Maintenance',

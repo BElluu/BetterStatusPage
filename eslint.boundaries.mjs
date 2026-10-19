@@ -10,6 +10,7 @@ export const PACKAGE_GRAPH = {
   audit: ['db'],
   auth: ['db', 'audit'],
   vault: ['db'],
+  mirror: [],
   notify: ['db', 'vault', 'audit'],
   backup: ['db', 'audit'],
   'config-as-code': ['db', 'contracts'],

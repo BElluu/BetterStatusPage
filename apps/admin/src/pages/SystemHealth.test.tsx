@@ -32,6 +32,7 @@ const report = {
     latestBackupAt: 1_750_000_000_000,
     lastCompletedAt: 1_750_000_000_000,
   },
+  staticMirror: { status: 'disabled' as const, enabled: false, lastRunAt: null, lastSuccessAt: null, lastError: null },
 }
 
 describe('SystemHealthPage', () => {

@@ -9,7 +9,7 @@ Use it for internal status pages, or for a page you only want to share with sele
 1. Open **Users → Status page access** (administrators only).
 2. Switch on **Private status page** and click **Save**.
 
-The change applies at once. Visitors who had the page open stop receiving live updates immediately, and the sign-in screen appears as soon as the page reloads its data. The change is written to the audit log as **Status Page Access**.
+If [static fallback](static-fallback.md) is on, turn it off first: its saved copy is public, so the page cannot be made private while it is pushed. The change applies at once. Visitors who had the page open stop receiving live updates immediately, and the sign-in screen appears as soon as the page reloads its data. The change is written to the audit log as **Status Page Access**.
 
 ## Who can view a private page
 

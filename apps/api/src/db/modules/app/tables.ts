@@ -311,3 +311,40 @@ export const statusPageAccess = sqliteTable('status_page_access', {
   ssoViewerDomains: text('sso_viewer_domains').notNull().default('[]'),
   updatedAt: integer('updated_at').notNull(),
 })
+
+/** Where and how often the public page is mirrored to static hosting; one row. */
+export const staticMirrorSettings = sqliteTable('static_mirror_settings', {
+  id: integer('id').primaryKey(),
+  enabled: integer('enabled').notNull().default(0),
+  /** S3-compatible service base URL; empty for AWS S3. */
+  endpoint: text('endpoint').notNull().default(''),
+  region: text('region').notNull().default('auto'),
+  bucket: text('bucket').notNull().default(''),
+  accessKeyId: text('access_key_id').notNull().default(''),
+  /** Encrypted with the secret box. */
+  secretAccessKey: text('secret_access_key').notNull().default(''),
+  intervalSeconds: integer('interval_seconds').notNull().default(60),
+  updatedAt: integer('updated_at').notNull(),
+  /** 0 = visitors of the copy are not told it is a saved copy. */
+  showBanner: integer('show_banner').notNull().default(1),
+})
+
+/** The outcome of the latest mirror runs; one row, written by the worker. */
+export const staticMirrorStatus = sqliteTable('static_mirror_status', {
+  id: integer('id').primaryKey(),
+  lastRunAt: integer('last_run_at'),
+  lastSuccessAt: integer('last_success_at'),
+  lastError: text('last_error'),
+  lastUploadedFiles: integer('last_uploaded_files').notNull().default(0),
+  copyFiles: integer('copy_files'),
+  copyBytes: integer('copy_bytes'),
+})
+
+/** One row per push, newest last; the page shows the latest few. */
+export const staticMirrorRuns = sqliteTable('static_mirror_runs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  ranAt: integer('ran_at').notNull(),
+  ok: integer('ok').notNull(),
+  uploadedFiles: integer('uploaded_files').notNull().default(0),
+  error: text('error'),
+})

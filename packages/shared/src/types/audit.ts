@@ -15,5 +15,6 @@ export type AuditEntityType =
   | 'layout'
   | 'locale'
   | 'subscriber_delivery'
+  | 'static_mirror'
 
 export type AuditLogEntry = BaseAuditLogEntry<AuditEntityType>

@@ -4,6 +4,7 @@ import { locales } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
 import { auditActor, diffObjects, snapshot, writeAudit } from '../kit/audit.js'
 import { requestIdentity } from '../kit/authMiddleware.js'
+import { loadPublicLocale, loadPublicLocales } from '../services/publicStatusData.js'
 
 function parseLocale(row: typeof locales.$inferSelect) {
   return {
@@ -14,23 +15,13 @@ function parseLocale(row: typeof locales.$inferSelect) {
 
 export async function publicLocaleRoutes(app: FastifyInstance) {
   // List available locales
-  app.get('/', async () => {
-    const rows = await db
-      .select({ code: locales.code, name: locales.name, isDefault: locales.isDefault })
-      .from(locales)
-      .orderBy(locales.name)
-    return rows
-  })
+  app.get('/', async () => loadPublicLocales())
 
   // Get translations for a specific locale
   app.get<{ Params: { code: string } }>('/:code', async (req, reply) => {
-    const row = (await db.select().from(locales).where(eq(locales.code, req.params.code)))[0]
-    if (!row) return reply.code(404).send({ error: 'Locale not found' })
-    return {
-      code: row.code,
-      name: row.name,
-      translations: JSON.parse(row.translations || '{}'),
-    }
+    const locale = await loadPublicLocale(req.params.code)
+    if (!locale) return reply.code(404).send({ error: 'Locale not found' })
+    return locale
   })
 }
 

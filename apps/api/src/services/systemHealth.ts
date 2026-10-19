@@ -6,6 +6,7 @@ import { updates } from '../kit/runtime.js'
 import { resolveAppVersion } from '../version.js'
 import { listBackups, readBackupConfig, readBackupStatus } from '../kit/backupService.js'
 import { getSchedulerHealth } from '../workers/scheduler.js'
+import { getStaticMirrorSettings, getStaticMirrorStatus, mirrorHealth } from './staticMirror.js'
 
 type ComponentStatus = 'ok' | 'attention' | 'error' | 'disabled'
 
@@ -36,6 +37,13 @@ export interface SystemHealthReport extends RuntimeReport {
     storedBackups: number | null
     latestBackupAt: number | null
     lastCompletedAt: number | null
+  }
+  staticMirror: {
+    status: ComponentStatus
+    enabled: boolean
+    lastRunAt: number | null
+    lastSuccessAt: number | null
+    lastError: string | null
   }
 }
 
@@ -138,11 +146,35 @@ const backups: HealthContributor = {
   },
 }
 
+const staticMirror: HealthContributor = {
+  key: 'staticMirror',
+  critical: false,
+  async collect({ databaseOk }) {
+    let result: SystemHealthReport['staticMirror'] = { status: 'error', enabled: false, lastRunAt: null, lastSuccessAt: null, lastError: null }
+    if (databaseOk) {
+      try {
+        const [settings, status] = await Promise.all([getStaticMirrorSettings(), getStaticMirrorStatus()])
+        const state = mirrorHealth(settings, status)
+        result = {
+          status: state === 'ok' ? 'ok' : state === 'disabled' ? 'disabled' : state === 'stale' || state === 'pending' ? 'attention' : 'error',
+          enabled: settings.enabled,
+          lastRunAt: status.lastRunAt,
+          lastSuccessAt: status.lastSuccessAt,
+          lastError: status.lastError,
+        }
+      } catch {
+        // The protected report deliberately exposes state, not raw database errors.
+      }
+    }
+    return result
+  },
+}
+
 const systemHealth = createSystemHealth({
   db,
   version: () => resolveAppVersion(),
   update: () => updates.getAvailableUpdate(),
-  contributors: [monitoring, notifications, backups],
+  contributors: [monitoring, notifications, backups, staticMirror],
 })
 
 export async function getSystemHealthReport(now = Date.now()): Promise<SystemHealthReport> {

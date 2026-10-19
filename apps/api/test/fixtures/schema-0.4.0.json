@@ -308,6 +308,24 @@
     },
     {
       "type": "table",
+      "name": "static_mirror_runs",
+      "table": "static_mirror_runs",
+      "sql": "CREATE TABLE static_mirror_runs (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  ran_at INTEGER NOT NULL,\n  ok INTEGER NOT NULL,\n  uploaded_files INTEGER NOT NULL DEFAULT 0,\n  error TEXT\n)"
+    },
+    {
+      "type": "table",
+      "name": "static_mirror_settings",
+      "table": "static_mirror_settings",
+      "sql": "CREATE TABLE static_mirror_settings (\n  id INTEGER PRIMARY KEY,\n  enabled INTEGER NOT NULL DEFAULT 0,\n  endpoint TEXT NOT NULL DEFAULT '',\n  region TEXT NOT NULL DEFAULT 'auto',\n  bucket TEXT NOT NULL DEFAULT '',\n  access_key_id TEXT NOT NULL DEFAULT '',\n  secret_access_key TEXT NOT NULL DEFAULT '',\n  interval_seconds INTEGER NOT NULL DEFAULT 60,\n  updated_at INTEGER NOT NULL\n, show_banner INTEGER NOT NULL DEFAULT 1)"
+    },
+    {
+      "type": "table",
+      "name": "static_mirror_status",
+      "table": "static_mirror_status",
+      "sql": "CREATE TABLE static_mirror_status (\n  id INTEGER PRIMARY KEY,\n  last_run_at INTEGER,\n  last_success_at INTEGER,\n  last_error TEXT,\n  last_uploaded_files INTEGER NOT NULL DEFAULT 0\n, copy_files INTEGER, copy_bytes INTEGER)"
+    },
+    {
+      "type": "table",
       "name": "status_page_access",
       "table": "status_page_access",
       "sql": "CREATE TABLE status_page_access (\n  id INTEGER PRIMARY KEY,\n  private INTEGER NOT NULL DEFAULT 0,\n  sso_create_viewers INTEGER NOT NULL DEFAULT 0,\n  sso_viewer_domains TEXT NOT NULL DEFAULT '[]',\n  updated_at INTEGER NOT NULL\n)"

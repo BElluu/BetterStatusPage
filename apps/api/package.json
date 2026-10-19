@@ -22,6 +22,7 @@
     "@better-kit/config-as-code": "*",
     "@better-kit/vault": "*",
     "@better-kit/db": "*",
+    "@better-kit/mirror": "*",
     "@better-kit/notify": "*",
     "@better-kit/runtime": "*",
     "@bsp/shared": "*",

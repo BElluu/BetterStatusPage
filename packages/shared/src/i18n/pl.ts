@@ -32,6 +32,8 @@ export const PL_DEFAULTS: Record<TranslationKey, string> = {
   'page.defaultTitle':       'Strona statusu',
   'page.feedTitle':          'Incydenty',
   'page.toggleDarkMode':     'Przełącz tryb ciemny',
+  'snapshot.currentAsOf':    'Zapisana kopia strony statusu z {time}. Strona na żywo może być niedostępna.',
+  'snapshot.stale':          'Ostatni zapisany stan z {time}. Może być nieaktualny.',
   'page.changeLanguage':     'Zmień język',
   'page.maintenanceUntil':   'do {date}',
   'page.maintenance':        'Prace serwisowe',

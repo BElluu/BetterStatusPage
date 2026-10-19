@@ -55,6 +55,7 @@ Pełna dokumentacja (EN): **https://docs.betterstatuspage.dev**. Zanim wystawisz
 - [Przewodnik po higienie alertów](https://docs.betterstatuspage.dev/alert-hygiene/) *(EN)*
 - [Przewodnik po subskrypcjach strony statusu](https://docs.betterstatuspage.dev/subscriptions/) *(EN)*
 - [Przewodnik po prywatnej stronie statusu](https://docs.betterstatuspage.dev/private-status-page/) *(EN)*
+- [Przewodnik po statycznej kopii zapasowej strony](https://docs.betterstatuspage.dev/static-fallback/) *(EN)*
 - [Przewodnik po użytkownikach i rolach](https://docs.betterstatuspage.dev/users-and-roles/) *(EN)*
 - [Polityka bezpieczeństwa](https://github.com/BElluu/BetterStatusPage/security/policy) *(EN)*
 
@@ -191,6 +192,17 @@ Nie każda strona statusu jest dla całego internetu. Włącz **Users → Status
 - **Nic nie wycieka** — dane statusu, historia i strumień na żywo wymagają sesji; kanały RSS/Atom i JSON API statusu są wyłączone; odpowiedzi są oznaczone jako `private` i `noindex`
 
 > Zobacz **[docs.betterstatuspage.dev/private-status-page](https://docs.betterstatuspage.dev/private-status-page/)** — kto może oglądać prywatną stronę i co jest wtedy wyłączone *(EN)*.
+
+### 🛟 Statyczna kopia zapasowa strony
+
+Gdy serwer, na którym działa Twoja strona statusu, przestaje działać, razem z nim znika strona. Włącz **Static fallback**, a instancja będzie co minutę wysyłać zapisaną kopię publicznej strony, razem z plikiem `snapshot.json` z najnowszymi statusami i incydentami, na magazyn zgodny z S3 (AWS S3, Cloudflare R2, Backblaze B2, MinIO). Odwiedzający skierowani na kopię nadal widzą ostatni znany stan, z paskiem informującym, kiedy został zapisany.
+
+- **Ta sama strona, bez serwera** — kopia to sama strona statusu, która czyta dane ze snapshotu
+- **Tylko to, co publikujesz** — snapshot zawiera to, co serwuje publiczna strona, nic o monitorach wewnętrznych ani szkicach
+- **Nigdy prywatna strona** — prywatna strona statusu nie jest wysyłana
+- **Zdrowie** — **System Health** pokazuje, czy ostatni push się udał, a **Check access** sprawdza nowy cel bez wysyłania kopii
+
+> Zobacz **[docs.betterstatuspage.dev/static-fallback](https://docs.betterstatuspage.dev/static-fallback/)** — konfiguracja, czego kopia nie potrafi i jak skierować na nią odwiedzających *(EN)*.
 
 ### 📊 Raporty dostępności
 

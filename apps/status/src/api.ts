@@ -1,3 +1,5 @@
+import { SNAPSHOT_URL, answerFromSnapshot } from './dataSource'
+
 /**
  * A failed public API request: `status` is the HTTP status, or 0 when the request never got a response.
  * `code` is the server's machine-readable error code, such as STATUS_PAGE_PRIVATE, when it sent one.
@@ -47,6 +49,7 @@ async function parse<T>(res: Response): Promise<T> {
  * an {@link ApiError}, so callers never mistake an error payload for data.
  */
 export async function getJSON<T>(path: string, init?: RequestInit): Promise<T> {
+  if (SNAPSHOT_URL && path.startsWith('/api/v1/public/')) return answerFromSnapshot<T>(path, SNAPSHOT_URL)
   let res: Response
   try {
     res = await (init ? fetch(path, init) : fetch(path))

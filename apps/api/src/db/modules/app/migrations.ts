@@ -382,4 +382,36 @@ CREATE TABLE IF NOT EXISTS status_page_access (
   { kind: 'exec', sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_monitors_key ON monitors(key)` },
   { kind: 'exec', sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_channels_key ON notification_channels(key)` },
   { kind: 'exec', sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_actions_key ON actions(key)` },
+  { kind: 'exec', sql: `
+CREATE TABLE IF NOT EXISTS static_mirror_settings (
+  id INTEGER PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  endpoint TEXT NOT NULL DEFAULT '',
+  region TEXT NOT NULL DEFAULT 'auto',
+  bucket TEXT NOT NULL DEFAULT '',
+  access_key_id TEXT NOT NULL DEFAULT '',
+  secret_access_key TEXT NOT NULL DEFAULT '',
+  interval_seconds INTEGER NOT NULL DEFAULT 60,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS static_mirror_status (
+  id INTEGER PRIMARY KEY,
+  last_run_at INTEGER,
+  last_success_at INTEGER,
+  last_error TEXT,
+  last_uploaded_files INTEGER NOT NULL DEFAULT 0
+);
+` },
+  { kind: 'column', sql: `ALTER TABLE static_mirror_settings ADD COLUMN show_banner INTEGER NOT NULL DEFAULT 1`, desc: 'static_mirror_settings.show_banner' },
+  { kind: 'column', sql: `ALTER TABLE static_mirror_status ADD COLUMN copy_files INTEGER`, desc: 'static_mirror_status.copy_files' },
+  { kind: 'column', sql: `ALTER TABLE static_mirror_status ADD COLUMN copy_bytes INTEGER`, desc: 'static_mirror_status.copy_bytes' },
+  { kind: 'exec', sql: `
+CREATE TABLE IF NOT EXISTS static_mirror_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ran_at INTEGER NOT NULL,
+  ok INTEGER NOT NULL,
+  uploaded_files INTEGER NOT NULL DEFAULT 0,
+  error TEXT
+);
+` },
 ]
