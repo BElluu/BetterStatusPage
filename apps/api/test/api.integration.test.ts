@@ -168,6 +168,62 @@ describe('public API integration', () => {
     })).statusCode, 404)
   })
 
+  it('shows a day spent in maintenance as maintenance and notes maintenance on a mixed day', async () => {
+    const now = Date.now()
+    const [monitor] = await db.insert(monitors).values({
+      name: 'Nightly job', type: 'webhook', intervalSecs: 60, timeoutMs: 1_000, retries: 1, config: '{}', currentStatus: 'up',
+      webhookToken: 'ef'.repeat(24), tags: '[]', createdAt: now, updatedAt: now,
+    }).returning()
+    const id = monitor!.id
+    const midday = (daysAgo: number) => Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate() - daysAgo, 12)
+    await db.insert(monitorResults).values([
+      // Two days ago: every check failed inside a maintenance window.
+      { monitorId: id, status: 'down', responseMs: null, checkedAt: midday(2), errorMessage: 'boom', unconfirmed: 2 },
+      // Yesterday: one good check and one failure inside a window.
+      { monitorId: id, status: 'up', responseMs: 20, checkedAt: midday(1), errorMessage: null },
+      { monitorId: id, status: 'down', responseMs: null, checkedAt: midday(1) + 60_000, errorMessage: 'boom', unconfirmed: 2 },
+    ])
+    const current = (await db.select().from(layout))[0]!
+    const tree = JSON.parse(current.tree) as { children: unknown[] }
+    await db.update(layout).set({ tree: JSON.stringify({ ...tree, children: [...tree.children, { id: 'nightly', type: 'monitor', monitorId: id, showUptimeBar: true }] }) })
+    await refreshPublishedMonitorIds()
+
+    const days = (await app.inject({ method: 'GET', url: `/api/v1/public/monitor/${id}/uptime?days=3` })).json().days as Array<{
+      status: string; uptimePct: number; checksTotal: number; maintenanceChecks: number
+    }>
+    assert.equal(days[0]!.status, 'maintenance')
+    assert.equal(days[0]!.checksTotal, 0)
+    assert.equal(days[0]!.maintenanceChecks, 1)
+    assert.equal(days[1]!.status, 'up')
+    assert.equal(days[1]!.uptimePct, 100)
+    assert.equal(days[1]!.maintenanceChecks, 1)
+    assert.equal(days[2]!.status, 'no-data')
+  })
+
+  it('leaves failures inside maintenance out of the response time chart status', async () => {
+    const now = Date.now()
+    const [monitor] = await db.insert(monitors).values({
+      name: 'Chart job', type: 'webhook', intervalSecs: 60, timeoutMs: 1_000, retries: 1, config: '{}', currentStatus: 'up',
+      webhookToken: 'ab'.repeat(24), tags: '[]', createdAt: now, updatedAt: now,
+    }).returning()
+    const id = monitor!.id
+    await db.insert(monitorResults).values([
+      { monitorId: id, status: 'down', responseMs: null, checkedAt: now - 3 * 3_600_000, errorMessage: 'boom', unconfirmed: 2 },
+      { monitorId: id, status: 'down', responseMs: null, checkedAt: now - 2 * 3_600_000, errorMessage: 'boom', unconfirmed: 2 },
+      { monitorId: id, status: 'down', responseMs: null, checkedAt: now - 3_600_000 / 2, errorMessage: 'boom', unconfirmed: 0 },
+    ])
+    const current = (await db.select().from(layout))[0]!
+    const tree = JSON.parse(current.tree) as { children: unknown[] }
+    await db.update(layout).set({ tree: JSON.stringify({ ...tree, children: [...tree.children, { id: 'chart', type: 'monitor', monitorId: id, showUptimeBar: true }] }) })
+    await refreshPublishedMonitorIds()
+
+    const { buckets } = (await app.inject({ method: 'GET', url: `/api/v1/public/monitor/${id}/history?hours=4&buckets=10` })).json() as {
+      buckets: Array<{ count: number; status: string | null }>
+    }
+    const statuses = buckets.filter((b) => b.count > 0).map((b) => b.status)
+    assert.deepEqual(statuses, ['maintenance', 'maintenance', 'down'])
+  })
+
   it('accepts a valid heartbeat and rejects an invalid token', async () => {
     const missing = await app.inject({ method: 'POST', url: '/api/v1/hook/missing' })
     assert.equal(missing.statusCode, 404)

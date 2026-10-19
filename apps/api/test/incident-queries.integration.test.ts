@@ -220,7 +220,7 @@ describe('public uptime', () => {
     const body = first.json() as { monitorId: number; days: Array<Record<string, unknown>>; overallUptimePct: number }
     assert.equal(body.days.length, 2)
     const today = body.days[1]!
-    assert.deepEqual(Object.keys(today).sort(), ['checksTotal', 'checksUp', 'date', 'incidents', 'status', 'uptimePct'])
+    assert.deepEqual(Object.keys(today).sort(), ['checksTotal', 'checksUp', 'date', 'incidents', 'maintenanceChecks', 'status', 'uptimePct'])
     assert.equal(today['date'], new Date(now).toISOString().slice(0, 10))
     assert.equal(today['checksTotal'], 3)
     assert.equal(today['checksUp'], 2)

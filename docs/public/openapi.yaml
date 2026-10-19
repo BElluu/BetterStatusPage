@@ -507,6 +507,25 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /maintenance/{id}/end:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      tags: [Maintenance]
+      summary: End the running occurrence now
+      description: A one-off window gets its end set to now. A repeating window stops only the occurrence that is running; the later ones are unchanged. Checks of the covered monitors count towards uptime again from this moment.
+      x-scope: maintenance:write
+      responses:
+        '200':
+          description: The updated window.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MaintenanceWindow' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: The window is not running. }
+
   /notifications/channels:
     get:
       tags: [Notification channels]
@@ -1271,6 +1290,27 @@ components:
           items: { $ref: '#/components/schemas/MonitorTag' }
         currentStatus: { type: string, enum: [up, down, degraded, pending, affected] }
         lastCheckedAt: { type: [integer, 'null'] }
+        activity:
+          type: object
+          description: Only in the list and in the single-monitor response. What is going on around the monitor now.
+          properties:
+            maintenance: { type: boolean, description: A running maintenance window covers the monitor. }
+            windows:
+              type: array
+              description: Running and upcoming maintenance windows that cover the monitor, running ones first; each shows the running or next occurrence.
+              items:
+                type: object
+                properties:
+                  id: { type: integer }
+                  name: { type: string }
+                  description: { type: [string, 'null'] }
+                  startsAt: { type: integer }
+                  endsAt: { type: integer }
+                  recurrence: { $ref: '#/components/schemas/MaintenanceRecurrence' }
+                  recurrenceDays: { type: array, items: { type: integer } }
+                  timezone: { type: string }
+                  recurrenceUntil: { type: [integer, 'null'] }
+            incident: { type: [string, 'null'], enum: [minor, major, critical, null], description: Impact of the worst open, published incident that names the monitor. }
         webhookToken: { type: [string, 'null'], description: The heartbeat token of a `webhook` monitor. }
         createdAt: { type: integer }
         updatedAt: { type: integer }
@@ -1409,11 +1449,26 @@ components:
         startsAt: { type: integer }
         endsAt: { type: integer }
         description: { type: [string, 'null'] }
+        recurrence: { $ref: '#/components/schemas/MaintenanceRecurrence' }
+        recurrenceDays:
+          type: array
+          items: { type: integer, minimum: 0, maximum: 6 }
+        timezone: { type: string }
+        recurrenceUntil: { type: [integer, 'null'] }
+        occurrence:
+          type: object
+          description: The running occurrence, else the next, else the window's own span.
+          properties:
+            startsAt: { type: integer }
+            endsAt: { type: integer }
         monitorIds:
           type: array
           items: { type: integer }
         createdAt: { type: integer }
         updatedAt: { type: integer }
+    MaintenanceRecurrence:
+      type: string
+      enum: [none, daily, weekly]
     MaintenanceCreate:
       type: object
       required: [name, startsAt, endsAt]
@@ -1422,6 +1477,10 @@ components:
         startsAt: { type: integer, description: Milliseconds since the epoch. }
         endsAt: { type: integer, description: Milliseconds since the epoch; must be after `startsAt`. }
         description: { type: [string, 'null'] }
+        recurrence: { $ref: '#/components/schemas/MaintenanceRecurrence' }
+        recurrenceDays: { type: array, items: { type: integer, minimum: 0, maximum: 6 }, description: Required for `weekly`; 0 is Sunday. }
+        timezone: { type: string, default: UTC, description: IANA timezone the time of day of `startsAt` is read in. }
+        recurrenceUntil: { type: [integer, 'null'], description: Last instant an occurrence may start. }
         monitorIds:
           type: array
           items: { type: integer }
@@ -1433,6 +1492,10 @@ components:
         startsAt: { type: integer }
         endsAt: { type: integer }
         description: { type: [string, 'null'] }
+        recurrence: { $ref: '#/components/schemas/MaintenanceRecurrence' }
+        recurrenceDays: { type: array, items: { type: integer, minimum: 0, maximum: 6 } }
+        timezone: { type: string }
+        recurrenceUntil: { type: [integer, 'null'] }
         monitorIds:
           type: array
           items: { type: integer }

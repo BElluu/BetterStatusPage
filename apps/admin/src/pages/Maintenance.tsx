@@ -2,13 +2,15 @@ import { useState, useMemo, useEffect } from 'react'
 import { formatDateTime } from '@better-kit/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { MaintenanceWindow, Monitor } from '@bsp/shared'
+import type { MaintenanceRecurrence, MaintenanceWindow, Monitor } from '@bsp/shared'
 import { ConfirmModal } from '@better-kit/ui'
+import { describeRecurrence, WEEKDAY_LABELS, WEEKDAY_ORDER } from '../components/maintenance/recurrence'
 import { NotifySubscribersCheckbox } from '../components/subscribers/NotifySubscribersCheckbox'
 import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
 import { Alert, EmptyState, ErrorState, Field, LoadingState, PageContainer, PageHeader, useToast } from '@better-kit/ui'
 
 type Tab = 'active' | 'upcoming' | 'past'
+
 
 
 function formatDuration(startMs: number, endMs: number) {
@@ -71,7 +73,7 @@ export default function MaintenancePage() {
   })
 
   const endEarlyMutation = useMutation({
-    mutationFn: (win: MaintenanceWindow) => api.patch(`/admin/maintenance/${win.id}`, { endsAt: Date.now() }),
+    mutationFn: (win: MaintenanceWindow) => api.post(`/admin/maintenance/${win.id}/end`, {}),
     onSuccess: (_data, win) => {
       qc.invalidateQueries({ queryKey: ['maintenance'] })
       setConfirmEndEarly(null)
@@ -86,8 +88,8 @@ export default function MaintenancePage() {
     const upcoming: MaintenanceWindow[] = []
     const past: MaintenanceWindow[] = []
     for (const w of windows) {
-      if (w.endsAt < now) past.push(w)
-      else if (w.startsAt > now) upcoming.push(w)
+      if (w.occurrence.endsAt < now) past.push(w)
+      else if (w.occurrence.startsAt > now) upcoming.push(w)
       else active.push(w)
     }
     return { active, upcoming, past }
@@ -153,7 +155,8 @@ export default function MaintenancePage() {
       ) : (
       <div className="space-y-2">
         {displayed.map((win) => {
-          const isActive = win.startsAt <= now && win.endsAt >= now
+          const { occurrence } = win
+          const isActive = occurrence.startsAt <= now && occurrence.endsAt >= now
           const affectedNames = win.monitorIds.length === 0
             ? ['All monitors']
             : win.monitorIds.map(monitorName)
@@ -188,7 +191,7 @@ export default function MaintenancePage() {
                       className="text-xs px-2 py-0.5 rounded-full font-bold animate-pulse"
                       style={{ background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)' }}
                     >
-                      ACTIVE · {countdown(win.endsAt, now)}
+                      ACTIVE · {countdown(occurrence.endsAt, now)}
                     </span>
                   )}
                 </div>
@@ -200,9 +203,15 @@ export default function MaintenancePage() {
                 <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs" style={{ color: 'var(--m3-secondary)' }}>
                   <span className="flex items-center gap-1">
                     <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '14px' }}>schedule</span>
-                    {formatDateTime(win.startsAt)} → {formatDateTime(win.endsAt)}
+                    {formatDateTime(occurrence.startsAt)} → {formatDateTime(occurrence.endsAt)}
                     <span className="ml-1 opacity-70">({formatDuration(win.startsAt, win.endsAt)})</span>
                   </span>
+                  {win.recurrence !== 'none' && (
+                    <span className="flex items-center gap-1">
+                      <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '14px' }}>repeat</span>
+                      {describeRecurrence(win)}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-1.5 mt-2">
@@ -291,7 +300,7 @@ export default function MaintenancePage() {
       {confirmEndEarly && (
         <ConfirmModal
           title="End maintenance early"
-          message={`End "${confirmEndEarly.name}" now? The end time will be set to the current time.`}
+          message={`End "${confirmEndEarly.name}" now? ${confirmEndEarly.recurrence === 'none' ? 'The end time will be set to the current time.' : 'Only this occurrence ends; the next one runs as scheduled.'}`}
           confirmLabel="End now"
           danger={false}
           pending={endEarlyMutation.isPending}
@@ -321,10 +330,12 @@ export function DateTimeInput({
   label,
   value,
   onChange,
+  required = true,
 }: {
   label: string
   value: string
   onChange: (value: string) => void
+  required?: boolean
 }) {
   const [date = '', time = '00:00'] = value.split('T')
   const [hour = '00', minute = '00'] = time.split(':')
@@ -339,7 +350,7 @@ export function DateTimeInput({
         type="date"
         value={date}
         onChange={(event) => update(event.target.value, hour, minute)}
-        required
+        required={required}
         aria-label={`${label} — YYYY-MM-DD`}
         className="input-sig"
       />
@@ -390,6 +401,9 @@ function MaintenanceModal({
   const [endsAt, setEndsAt] = useState(initial ? toLocalDatetimeValue(initial.endsAt) : defaultEnd)
   const [selectedMonitors, setSelectedMonitors] = useState<number[]>(initial?.monitorIds ?? [])
   const [allMonitors, setAllMonitors] = useState(initial ? initial.monitorIds.length === 0 : false)
+  const [recurrence, setRecurrence] = useState<MaintenanceRecurrence>(initial?.recurrence ?? 'none')
+  const [recurrenceDays, setRecurrenceDays] = useState<number[]>(initial?.recurrenceDays ?? [])
+  const [recurrenceUntil, setRecurrenceUntil] = useState(initial?.recurrenceUntil ? toLocalDatetimeValue(initial.recurrenceUntil) : '')
   const [notifySubscribers, setNotifySubscribers] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -407,9 +421,18 @@ function MaintenanceModal({
       setError('Select at least one monitor or choose all monitors.')
       return
     }
+    if (recurrence === 'weekly' && recurrenceDays.length === 0) {
+      setError('Select at least one weekday.')
+      return
+    }
     setLoading(true)
     try {
       const payload = {
+        recurrence,
+        recurrenceDays: recurrence === 'weekly' ? recurrenceDays : [],
+        // The start time repeats at this wall-clock time, so a window keeps its timezone once saved.
+        timezone: initial?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+        recurrenceUntil: recurrence !== 'none' && recurrenceUntil ? fromLocalDatetimeValue(recurrenceUntil) : null,
         name,
         description: description.trim() || null,
         startsAt: startMs,
@@ -427,6 +450,10 @@ function MaintenanceModal({
     } finally {
       setLoading(false)
     }
+  }
+
+  function toggleWeekday(day: number) {
+    setRecurrenceDays((prev) => (prev.includes(day) ? prev.filter((x) => x !== day) : [...prev, day]))
   }
 
   function toggleMonitor(id: number) {
@@ -486,6 +513,33 @@ function MaintenanceModal({
               />
             </fieldset>
           </div>
+
+          {/* Repeat */}
+          <Field label="Repeat">
+            <select value={recurrence} onChange={(e) => setRecurrence(e.target.value as MaintenanceRecurrence)} className="input-sig">
+              <option value="none">Does not repeat</option>
+              <option value="daily">Every day</option>
+              <option value="weekly">On selected weekdays</option>
+            </select>
+          </Field>
+          {recurrence === 'weekly' && (
+            <fieldset aria-label="Weekdays" className="flex flex-wrap gap-3">
+              {WEEKDAY_ORDER.map((day) => (
+                <label key={day} className="flex items-center gap-1.5 text-sm cursor-pointer" style={{ color: 'var(--m3-on-surface)' }}>
+                  <input type="checkbox" checked={recurrenceDays.includes(day)} onChange={() => toggleWeekday(day)} />
+                  {WEEKDAY_LABELS[day]}
+                </label>
+              ))}
+            </fieldset>
+          )}
+          {recurrence !== 'none' && (
+            <fieldset>
+              <legend className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
+                Repeat until <span style={{ color: 'var(--m3-outline)' }}>(optional)</span>
+              </legend>
+              <DateTimeInput label="Repeat until" value={recurrenceUntil} onChange={setRecurrenceUntil} required={false} />
+            </fieldset>
+          )}
 
           {/* Affected monitors */}
           <fieldset aria-labelledby="maintenance-affected-monitors">

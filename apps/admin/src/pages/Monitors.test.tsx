@@ -44,9 +44,9 @@ class FakeEventSource {
 }
 
 const monitors = [
-  { id: 1, name: 'Checkout API', type: 'https', intervalSecs: 60, currentStatus: 'up', lastCheckedAt: Date.UTC(2026, 8, 1, 12), tags: [{ label: 'prod', color: '#ff0000' }] },
-  { id: 2, name: 'billing db', type: 'sqlserver', intervalSecs: 30, currentStatus: 'down', lastCheckedAt: null, tags: [{ label: 'prod', color: '#ff0000' }, { label: 'db', color: '#00ff00' }] },
-  { id: 3, name: 'Deploy hook', type: 'webhook', intervalSecs: 300, currentStatus: 'pending', lastCheckedAt: null, tags: [] },
+  { id: 1, name: 'Checkout API', type: 'https', intervalSecs: 60, currentStatus: 'up', activity: { maintenance: false, windows: [], incident: null }, lastCheckedAt: Date.UTC(2026, 8, 1, 12), tags: [{ label: 'prod', color: '#ff0000' }] },
+  { id: 2, name: 'billing db', type: 'sqlserver', intervalSecs: 30, currentStatus: 'down', activity: { maintenance: false, windows: [], incident: null }, lastCheckedAt: null, tags: [{ label: 'prod', color: '#ff0000' }, { label: 'db', color: '#00ff00' }] },
+  { id: 3, name: 'Deploy hook', type: 'webhook', intervalSecs: 300, currentStatus: 'pending', activity: { maintenance: false, windows: [], incident: null }, lastCheckedAt: null, tags: [] },
 ] as unknown as Monitor[]
 
 function renderPage() {
@@ -95,6 +95,24 @@ describe('MonitorsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Interval' }))
     expect(names()).toEqual(['billing db', 'Checkout API', 'Deploy hook'])
     expect(screen.getByRole('columnheader', { name: /^Name/ })).not.toHaveAttribute('aria-sort')
+  })
+
+  it('marks monitors in maintenance or with an open incident', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/admin/monitors') {
+        return [
+          { ...monitors[0], activity: { maintenance: true, windows: [], incident: null } },
+          { ...monitors[1], activity: { maintenance: false, windows: [], incident: 'critical' } },
+          monitors[2],
+        ]
+      }
+      if (path === '/auth/session') return {}
+      throw new Error(`Unexpected GET ${path}`)
+    })
+    renderPage()
+    expect(await screen.findByText('Maintenance')).toBeInTheDocument()
+    expect(screen.getByText('Incident · critical')).toBeInTheDocument()
+    expect(screen.getAllByText(/^Maintenance$|^Incident ·/)).toHaveLength(2)
   })
 
   it('filters by tag and clears the filter', async () => {

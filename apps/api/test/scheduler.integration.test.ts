@@ -13,6 +13,7 @@ import { sseService } from '../src/kit/sse.js'
 import {
   getDueMonitors, getSchedulerHealth, isCheckInFlight, isInMaintenance, purgeOldResults, recordObservation, runCheck, runSchedulerTick,
 } from '../src/workers/scheduler.js'
+import { loadMonitorStats } from '../src/services/monitorStats.js'
 import type { SchedulerConfig } from '../src/config/scheduler.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
@@ -238,6 +239,29 @@ describe('maintenance matching', () => {
     })
     assert.equal(await isInMaintenance(second!.id, now), true)
     assert.equal(await isInMaintenance(second!.id, now + 2_000), false)
+  })
+})
+
+describe('uptime during maintenance', () => {
+  it('leaves failures inside a window out of the uptime counts and keeps recording them', async () => {
+    const [monitor] = await db.insert(monitors).values(monitorValues('Nightly')).returning()
+    const now = Date.now()
+    await recordObservation(monitor!, { status: 'up', responseMs: 5, error: null })
+    const [win] = await db.insert(maintenanceWindows).values({
+      name: 'Nightly', startsAt: now - 60_000, endsAt: now + 3_600_000, createdAt: now, updatedAt: now,
+    }).returning()
+    await recordObservation(monitor!, { status: 'down', responseMs: null, error: 'boom' })
+    await recordObservation(monitor!, { status: 'down', responseMs: null, error: 'boom' })
+    await db.delete(maintenanceWindows).where(eq(maintenanceWindows.id, win!.id))
+    await recordObservation(monitor!, { status: 'up', responseMs: 5, error: null })
+
+    assert.equal((await db.select().from(monitorResults).where(eq(monitorResults.monitorId, monitor!.id))).length, 4)
+    const stats = await loadMonitorStats(monitor!.id, 1, 90)
+    assert.equal(stats.checksTotal, 2)
+    assert.equal(stats.checksUp, 2)
+    assert.equal(stats.uptimePct, 100)
+    assert.equal(stats.recentFailures.length, 2)
+    assert.ok(stats.recentFailures.every((failure) => failure.inMaintenance && !failure.unconfirmed))
   })
 })
 

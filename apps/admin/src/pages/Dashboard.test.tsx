@@ -17,10 +17,10 @@ vi.mock('@better-kit/ui', async (importOriginal) => ({
 }))
 
 const monitors = [
-  { id: 1, name: 'Checkout API', type: 'https', currentStatus: 'up', config: { url: 'https://shop.example.test' } },
-  { id: 2, name: 'Edge router', type: 'ping', currentStatus: 'down', config: { host: '10.0.0.1' } },
-  { id: 3, name: 'Resolver', type: 'dns', currentStatus: 'degraded', config: { hostname: 'example.test' } },
-  { id: 4, name: 'Billing DB', type: 'sqlserver', currentStatus: 'pending', config: {} },
+  { id: 1, name: 'Checkout API', type: 'https', currentStatus: 'up', activity: { maintenance: false, windows: [], incident: null }, config: { url: 'https://shop.example.test' } },
+  { id: 2, name: 'Edge router', type: 'ping', currentStatus: 'down', activity: { maintenance: false, windows: [], incident: null }, config: { host: '10.0.0.1' } },
+  { id: 3, name: 'Resolver', type: 'dns', currentStatus: 'degraded', activity: { maintenance: false, windows: [], incident: null }, config: { hostname: 'example.test' } },
+  { id: 4, name: 'Billing DB', type: 'sqlserver', currentStatus: 'pending', activity: { maintenance: false, windows: [], incident: null }, config: {} },
 ]
 
 const incidents = [

@@ -5,7 +5,7 @@ import { useSSE } from './hooks/useSSE'
 import { useDarkMode } from './hooks/useDarkMode'
 import { useLocale } from './i18n/LocaleContext'
 import { STATUS_PAGE_PRIVATE, incidentTitle } from '@bsp/shared'
-import type { Branding, Incident, PublicMonitor, MaintenanceWindow, LayoutTree, LayoutNode, GroupNode, MonitorNode, PublicStatusPageAccess } from '@bsp/shared'
+import type { Branding, Incident, PublicMonitor, PublicMaintenanceWindow, LayoutTree, LayoutNode, GroupNode, MonitorNode, PublicStatusPageAccess } from '@bsp/shared'
 import { PageRenderer } from './components/PageRenderer'
 import { IncidentCard } from './components/IncidentCard'
 import { LanguageSwitcher } from './components/LanguageSwitcher'
@@ -24,7 +24,7 @@ interface PublicStatus {
   branding: Branding | null
   monitors: PublicMonitor[]
   activeIncidents: Incident[]
-  activeMaintenanceWindows: MaintenanceWindow[]
+  activeMaintenanceWindows: PublicMaintenanceWindow[]
   monitorDependencies: MonitorDependency[]
 }
 
@@ -34,7 +34,7 @@ interface PublicLayout {
 }
 
 const EMPTY_MONITORS: PublicMonitor[] = []
-const EMPTY_MAINTENANCE_WINDOWS: MaintenanceWindow[] = []
+const EMPTY_MAINTENANCE_WINDOWS: PublicMaintenanceWindow[] = []
 const EMPTY_MONITOR_DEPENDENCIES: MonitorDependency[] = []
 
 function collectLayoutMonitorIds(nodes: LayoutNode[]): Set<number> {

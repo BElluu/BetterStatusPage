@@ -17,8 +17,9 @@ import { tokenAllows } from '@better-kit/contracts'
 import { keyForNew, type KeyOwner } from '@better-kit/config-as-code'
 import { vaultUseProblem } from '../kit/vaultUse.js'
 import { certResetsFor, generateWebhookToken, parseMonitorPatch, parseNewMonitor } from '../services/monitorInput.js'
+import { loadMonitorActivity } from '../services/monitorActivity.js'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
-import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig } from '@bsp/shared'
+import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig, MonitorActivity } from '@bsp/shared'
 
 const MIN_TEST_TIMEOUT_MS = 500
 const MAX_TEST_TIMEOUT_MS = 60_000
@@ -72,9 +73,19 @@ export async function monitorRoutes(app: FastifyInstance) {
     return { ...m, config: maskSecrets('monitor', JSON.parse(m.config)), tags: JSON.parse(m.tags ?? '[]') }
   }
 
-  app.get('/', async () => {
+  /** Activity of monitors for a reader; the maintenance windows are left out for a token without the maintenance permission. */
+  async function activityFor(req: FastifyRequest): Promise<(monitorId: number) => MonitorActivity> {
+    const activityOf = await loadMonitorActivity()
+    const token = requestIdentity(req).apiToken
+    return token && !tokenAllows(token.scopes, 'maintenance:read')
+      ? (monitorId) => ({ ...activityOf(monitorId), windows: [] })
+      : activityOf
+  }
+
+  app.get('/', async (req) => {
     const rows = await db.select().from(monitors)
-    return rows.map(parseMonitor)
+    const activityOf = await activityFor(req)
+    return rows.map((row) => ({ ...parseMonitor(row), activity: activityOf(row.id) }))
   })
 
   // Live status of every monitor, internal ones included; the public stream only carries published ones.
@@ -147,7 +158,7 @@ export async function monitorRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>('/:id', async (req, reply) => {
     const monitor = (await db.select().from(monitors).where(eq(monitors.id, Number(req.params.id))))[0]
     if (!monitor) return reply.code(404).send({ error: 'Not found' })
-    return parseMonitor(monitor)
+    return { ...parseMonitor(monitor), activity: (await activityFor(req))(monitor.id) }
   })
 
   app.patch<{ Params: { id: string }; Body: Partial<{

@@ -126,6 +126,12 @@ The colour of each day of the 30-day uptime bar comes from the share of successf
 | Degraded | ≥ 99 % |
 | Partial outage | ≥ 95 % |
 | Down | below the partial outage value |
+| Maintenance (blue) | the day has no counted checks because every failed check that day happened inside a [maintenance window](incidents-and-maintenance.md#what-happens-during-a-window) |
+
+> [!WARNING]
+> **Not released yet.** The *Maintenance* day on the uptime bar is not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+A day with no checks at all is grey (*No data*). A day that has some failed checks inside maintenance and some counted checks is coloured by the counted ones, and its tooltip says that maintenance is not counted.
 
 The values apply to every monitor, with or without custom branding. They must be between 0 and 100 and strictly descending, otherwise **Save branding** stays disabled. Failures that have not reached a monitor's failure threshold do not count; see [Alert hygiene](alert-hygiene.md#failure-and-recovery-thresholds).
 

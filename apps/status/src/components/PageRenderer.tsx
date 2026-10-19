@@ -786,6 +786,7 @@ function uptimeBarBackground(day: UptimeDay): string {
     : day.status === 'down' ? 'var(--bsp-down)'
     : day.status === 'degraded' ? 'var(--bsp-degraded)'
     : day.status === 'partial' ? 'var(--bsp-partial)'
+    : day.status === 'maintenance' ? 'var(--bsp-maintenance-text)'
     : 'var(--m3-outline-variant)'
 }
 
@@ -800,6 +801,7 @@ function UptimeTooltip({ day, anchorRect }: { day: UptimeDay; anchorRect: DOMRec
   const dateLabel = formatUptimeDay(day.date, locale)
   const hasIncidents = day.incidents && day.incidents.length > 0
   const noData = day.status === 'no-data'
+  const onlyMaintenance = day.status === 'maintenance'
 
   return createPortal(
     <div style={{
@@ -820,9 +822,19 @@ function UptimeTooltip({ day, anchorRect }: { day: UptimeDay; anchorRect: DOMRec
       </p>
 
       {/* Uptime */}
-      {!noData && (
+      {!noData && !onlyMaintenance && (
         <p style={{ fontSize: '11px', color: 'var(--m3-secondary)', margin: '0 0 6px' }}>
           {t('uptime.pct', { pct: day.uptimePct.toFixed(1) })}
+        </p>
+      )}
+      {onlyMaintenance && (
+        <p style={{ fontSize: '11px', color: 'var(--m3-secondary)', margin: '0 0 6px' }}>
+          {t('uptime.maintenance')}
+        </p>
+      )}
+      {!noData && !onlyMaintenance && (day.maintenanceChecks ?? 0) > 0 && (
+        <p style={{ fontSize: '10px', color: 'var(--m3-secondary)', margin: '0 0 6px' }}>
+          {t('uptime.partlyMaintenance')}
         </p>
       )}
       {noData && (
@@ -845,7 +857,7 @@ function UptimeTooltip({ day, anchorRect }: { day: UptimeDay; anchorRect: DOMRec
             </div>
           ))}
         </div>
-      ) : !noData && (
+      ) : !noData && !onlyMaintenance && (
         <p style={{ fontSize: '10px', color: 'var(--m3-secondary)', margin: 0, borderTop: '1px solid var(--m3-outline-variant)', paddingTop: '6px' }}>
           {t('uptime.noIncidents')}
         </p>
@@ -870,7 +882,7 @@ function UptimeBar({ day, active, radius, onShow, onHide }: {
   const noData = day.status === 'no-data'
   const label = t('uptime.barLabel', {
     date: formatUptimeDay(day.date, locale),
-    status: noData ? t('uptime.noData') : t('uptime.pct', { pct: day.uptimePct.toFixed(1) }),
+    status: noData ? t('uptime.noData') : day.status === 'maintenance' ? t('uptime.maintenance') : t('uptime.pct', { pct: day.uptimePct.toFixed(1) }),
   })
   return (
     <button

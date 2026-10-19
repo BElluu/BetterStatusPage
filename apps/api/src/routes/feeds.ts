@@ -1,3 +1,4 @@
+import { shownOccurrence } from '../services/maintenanceSchedule.js'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { desc, inArray } from 'drizzle-orm'
 import { db } from '../db/client.js'
@@ -171,7 +172,9 @@ async function loadSlackFeed(req: FastifyRequest) {
       return links.length === 0 || links.some((link) => componentNames.has(link.monitorId))
     }
     for (const win of windows.filter((w) => isPublic(w.id))) {
-      const when = `${new Date(win.startsAt).toISOString().replace('T', ' ').slice(0, 16)} → ${new Date(win.endsAt).toISOString().replace('T', ' ').slice(0, 16)} UTC`
+      const { startsAt, endsAt } = shownOccurrence(win, Date.now())
+      const repeats = win.recurrence === 'none' ? '' : ` (repeats ${win.recurrence})`
+      const when = `${new Date(startsAt).toISOString().replace('T', ' ').slice(0, 16)} → ${new Date(endsAt).toISOString().replace('T', ' ').slice(0, 16)} UTC${repeats}`
       items.push({
         guid: `maintenance-${win.id}`,
         title: `Scheduled maintenance: ${win.name}`,

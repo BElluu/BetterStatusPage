@@ -43,9 +43,18 @@ function windows() {
   ]
 }
 
-function mockGets(list: unknown[] = windows()) {
+/** A stored window as the API returns it: one-off unless the test says otherwise. */
+function stored(win: Record<string, unknown> & { startsAt: number; endsAt: number }) {
+  return {
+    recurrence: 'none', recurrenceDays: [], timezone: 'UTC', recurrenceUntil: null,
+    occurrence: { startsAt: win.startsAt, endsAt: win.endsAt },
+    ...win,
+  }
+}
+
+function mockGets(list: Array<Parameters<typeof stored>[0]> = windows()) {
   vi.mocked(api.get).mockImplementation(async (path: string) => {
-    if (path === '/admin/maintenance') return list
+    if (path === '/admin/maintenance') return list.map(stored)
     if (path === '/admin/monitors') return [{ id: 10, name: 'Checkout API', type: 'https' }, { id: 11, name: 'Search', type: 'https' }]
     if (path === '/admin/subscribers/settings') return { enabled: true }
     throw new Error(`Unexpected GET ${path}`)
@@ -125,6 +134,41 @@ describe('MaintenancePage', () => {
     }
   })
 
+  it('offers to end only the running occurrence of a recurring window', async () => {
+    const now = Date.now()
+    mockGets([{
+      id: 7, name: 'Nightly build', description: null, startsAt: now - 30 * 24 * HOUR, endsAt: now - 30 * 24 * HOUR + HOUR,
+      recurrence: 'weekly', recurrenceDays: [2, 4], timezone: 'Europe/Warsaw', recurrenceUntil: null,
+      occurrence: { startsAt: now - HOUR / 2, endsAt: now + HOUR / 2 }, monitorIds: [],
+    }])
+    renderPage()
+
+    expect(await screen.findByText('Nightly build')).toBeInTheDocument()
+    expect(screen.getByText('ACTIVE · 30m remaining')).toBeInTheDocument()
+    expect(screen.getByText('Every Tue, Thu · Europe/Warsaw')).toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'End now' }))
+    expect(screen.getByText(/Only this occurrence ends/)).toBeInTheDocument()
+  })
+
+  it('sends the recurrence of a weekly window', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getByRole('button', { name: /Schedule Maintenance/ }))
+    await user.type(screen.getByPlaceholderText('Scheduled database maintenance'), 'Backups')
+    await user.click(screen.getByRole('checkbox', { name: 'All monitors' }))
+    await user.selectOptions(screen.getByLabelText('Repeat'), 'weekly')
+    await user.click(screen.getByRole('button', { name: 'Schedule' }))
+    expect(screen.getByText('Select at least one weekday.')).toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: 'Tue' }))
+    await user.click(screen.getByRole('button', { name: 'Schedule' }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/maintenance', expect.objectContaining({
+      name: 'Backups', recurrence: 'weekly', recurrenceDays: [2], recurrenceUntil: null,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    })))
+  })
+
   it('schedules a window for selected monitors without notifying subscribers', async () => {
     const user = userEvent.setup()
     renderPage()
@@ -194,7 +238,7 @@ describe('MaintenancePage', () => {
     await user.click(await screen.findByRole('button', { name: 'End now' }))
     const endDialog = screen.getByRole('dialog', { name: 'End maintenance early' })
     await user.click(within(endDialog).getByRole('button', { name: 'End now' }))
-    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/maintenance/1', { endsAt: expect.any(Number) }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/maintenance/1/end', {}))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'End maintenance early' })).not.toBeInTheDocument())
     expect(screen.getByText('Ended "DB upgrade"')).toBeInTheDocument()
 
@@ -206,7 +250,7 @@ describe('MaintenancePage', () => {
 
   it('keeps the end-early dialog open and reports a failure', async () => {
     const user = userEvent.setup()
-    vi.mocked(api.patch).mockRejectedValueOnce(new Error('Window already ended'))
+    vi.mocked(api.post).mockRejectedValueOnce(new Error('Window already ended'))
     renderPage()
 
     await user.click(await screen.findByRole('button', { name: 'End now' }))

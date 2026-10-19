@@ -238,7 +238,7 @@
       "type": "table",
       "name": "maintenance_windows",
       "table": "maintenance_windows",
-      "sql": "CREATE TABLE maintenance_windows (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  starts_at INTEGER NOT NULL,\n  ends_at INTEGER NOT NULL,\n  description TEXT,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n)"
+      "sql": "CREATE TABLE maintenance_windows (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  starts_at INTEGER NOT NULL,\n  ends_at INTEGER NOT NULL,\n  description TEXT,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, recurrence TEXT NOT NULL DEFAULT 'none', recurrence_days TEXT, timezone TEXT NOT NULL DEFAULT 'UTC', recurrence_until INTEGER, ended_early_start INTEGER, ended_early_at INTEGER)"
     },
     {
       "type": "table",

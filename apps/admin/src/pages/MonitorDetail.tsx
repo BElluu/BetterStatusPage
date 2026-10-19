@@ -4,8 +4,9 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { DEFAULT_UPTIME_THRESHOLDS, classifyUptimeDay } from '@bsp/shared'
-import type { DnsConfig, DockerConfig, HttpsConfig, Monitor, MonitorStats, PingConfig, UptimeDayStatus } from '@bsp/shared'
-import { StatusBadge } from '../components/monitors/StatusBadge'
+import type { DnsConfig, DockerConfig, HttpsConfig, Monitor, MonitorStats, MonitorWithActivity, PingConfig, UptimeDayStatus } from '@bsp/shared'
+import { describeRecurrence } from '../components/maintenance/recurrence'
+import { ActivityBadges, StatusBadge } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
 import { YamlViewModal } from '../components/YamlViewModal'
 import { CopyButton } from '@better-kit/ui'
@@ -104,6 +105,7 @@ const BAR_BACKGROUND: Record<UptimeDayStatus, string> = {
   partial: 'var(--m3-partial-bar)',
   down: 'var(--m3-down)',
   'no-data': 'var(--m3-outline-variant)',
+  maintenance: 'var(--m3-primary)',
 }
 
 const STEP_TITLE: Record<number, string> = { 1: 'Hourly uptime', 6: 'Uptime per 6 hours', 24: 'Daily uptime' }
@@ -119,7 +121,7 @@ function UptimeBars({ stats }: { stats: MonitorStats }) {
   const { stepHours, bars } = stats.uptime
   const items = bars.map((bar) => {
     const uptimePct = bar.checksTotal > 0 ? (bar.checksUp / bar.checksTotal) * 100 : null
-    return { ...bar, uptimePct, status: classifyUptimeDay(uptimePct, DEFAULT_UPTIME_THRESHOLDS) }
+    return { ...bar, uptimePct, status: classifyUptimeDay(uptimePct, DEFAULT_UPTIME_THRESHOLDS, bar.maintenanceChecks > 0) }
   })
   const hoveredIndex = items.findIndex((item) => item.ts === active)
   const hovered = hoveredIndex >= 0 ? items[hoveredIndex]! : null
@@ -141,7 +143,9 @@ function UptimeBars({ stats }: { stats: MonitorStats }) {
         >
           <div className="font-bold" style={{ color: 'var(--m3-on-surface)' }}>{barRange(hovered.ts, stepHours)}</div>
           <div className="mt-1 font-semibold" style={{ color: 'var(--m3-secondary)' }}>
-            {hovered.uptimePct === null ? 'No data' : `${formatPct(hovered.uptimePct)} · ${hovered.checksUp}/${hovered.checksTotal} checks`}
+            {hovered.uptimePct === null
+              ? (hovered.status === 'maintenance' ? 'Maintenance' : 'No data')
+              : `${formatPct(hovered.uptimePct)} · ${hovered.checksUp}/${hovered.checksTotal} checks${hovered.maintenanceChecks > 0 ? ` · ${hovered.maintenanceChecks} in maintenance, not counted` : ''}`}
           </div>
         </div>
       )}
@@ -151,7 +155,7 @@ function UptimeBars({ stats }: { stats: MonitorStats }) {
             key={item.ts}
             type="button"
             role="listitem"
-            aria-label={`${barRange(item.ts, stepHours)}: ${item.uptimePct === null ? 'no data' : formatPct(item.uptimePct)}`}
+            aria-label={`${barRange(item.ts, stepHours)}: ${item.uptimePct === null ? (item.status === 'maintenance' ? 'maintenance' : 'no data') : formatPct(item.uptimePct)}`}
             onMouseEnter={() => setActive(item.ts)}
             onMouseLeave={() => setActive(null)}
             onFocus={() => setActive(item.ts)}
@@ -221,9 +225,10 @@ export default function MonitorDetailPage() {
   const [editing, setEditing] = useState(false)
   const [showYaml, setShowYaml] = useState(false)
 
-  const monitorQuery = useQuery<Monitor>({
+  const monitorQuery = useQuery<MonitorWithActivity>({
     queryKey: ['monitor', id],
     queryFn: () => api.get(`/admin/monitors/${id}`),
+    refetchInterval: 30_000,
   })
   const statsQuery = useQuery<MonitorStats>({
     queryKey: ['monitor-stats', id, hours],
@@ -275,7 +280,7 @@ export default function MonitorDetailPage() {
         Monitors
       </Link>
       <PageHeader
-        title={<span className="inline-flex flex-wrap items-center gap-3">{monitor.name} <StatusBadge status={monitor.currentStatus} /></span>}
+        title={<span className="inline-flex flex-wrap items-center gap-3">{monitor.name} <StatusBadge status={monitor.currentStatus} /> <ActivityBadges activity={monitor.activity} /></span>}
         subtitle={`${typeLabel} · every ${monitor.intervalSecs}s · last check ${monitor.lastCheckedAt ? dateTime(monitor.lastCheckedAt) : 'never'}`}
         actions={<>
           <SegmentedControl label="Time range" options={RANGES.map((r) => ({ label: r.label, value: r.hours }))} value={hours} onChange={setHours} />
@@ -351,6 +356,7 @@ export default function MonitorDetailPage() {
                           <td className="py-2 pr-4 align-top">
                             <StatusBadge status={failure.status} />
                             {failure.unconfirmed && <div className="mt-1 text-xs" style={{ color: 'var(--m3-secondary)' }}>unconfirmed</div>}
+                            {failure.inMaintenance && <div className="mt-1 text-xs" style={{ color: 'var(--m3-secondary)' }}>maintenance</div>}
                           </td>
                           <td className="py-2 align-top break-words" style={{ color: 'var(--m3-secondary)' }}>{failure.errorMessage ?? '—'}</td>
                         </tr>
@@ -394,6 +400,37 @@ export default function MonitorDetailPage() {
                 ...(dependencyNames.length > 0 ? [['Depends on', dependencyNames.join(', ')] as [string, ReactNode]] : []),
                 ...(certificate ? [['Certificate', certificate] as [string, ReactNode]] : []),
               ]} />
+            </Card>
+
+            <Card title="Maintenance" aside={<Link to="/admin/maintenance" className="text-xs focus-ring rounded" style={{ color: 'var(--m3-primary)' }}>All windows</Link>}>
+              {monitor.activity.windows.length === 0 ? (
+                <EmptyState icon="construction" title="No maintenance scheduled." />
+              ) : (
+                <ul>
+                  {monitor.activity.windows.map((win, i) => {
+                    const running = win.startsAt <= Date.now()
+                    return (
+                      <li key={win.id} className="py-2.5" style={i > 0 ? { borderTop: '1px solid var(--m3-outline-variant)' } : undefined}>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <b className="text-sm" style={{ color: 'var(--m3-on-surface)' }}>{win.name}</b>
+                          <span
+                            className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                            style={running ? { background: 'var(--m3-primary-fixed)', color: 'var(--m3-primary)' } : { background: 'var(--m3-surface-container)', color: 'var(--m3-secondary)' }}
+                          >
+                            {running ? 'Running' : 'Upcoming'}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs" style={{ color: 'var(--m3-secondary)' }}>
+                          {dateTime(win.startsAt)} → {dateTime(win.endsAt)}
+                        </div>
+                        {win.recurrence !== 'none' && (
+                          <div className="mt-0.5 text-xs" style={{ color: 'var(--m3-secondary)' }}>{describeRecurrence(win)}</div>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
             </Card>
 
             <Card title="Incidents">

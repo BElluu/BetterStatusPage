@@ -66,6 +66,7 @@
   --m3-partial-bar: #f97316;
 
   /* Maintenance colors */
+  --bsp-maintenance:        #3b82f6;
   --bsp-maintenance-bg:     rgba(59, 130, 246, 0.1);
   --bsp-maintenance-border: rgba(59, 130, 246, 0.25);
   --bsp-maintenance-text:   #1d4ed8;
@@ -137,6 +138,7 @@ html.dark {
   --m3-partial-bar: #fb923c;
 
   /* Maintenance colors — lighter for dark theme */
+  --bsp-maintenance:        #60a5fa;
   --bsp-maintenance-bg:     rgba(96, 165, 250, 0.12);
   --bsp-maintenance-border: rgba(96, 165, 250, 0.28);
   --bsp-maintenance-text:   #93c5fd;

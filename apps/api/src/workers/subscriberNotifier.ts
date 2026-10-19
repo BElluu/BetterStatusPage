@@ -1,3 +1,4 @@
+import { shownOccurrence } from '../services/maintenanceSchedule.js'
 import { and, desc, eq, lt, lte } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import {
@@ -139,10 +140,12 @@ export async function notifyMaintenanceSubscribers(windowId: number): Promise<nu
   if (!win) return 0
   const monitorIds = (await db.select().from(maintenanceWindowMonitors).where(eq(maintenanceWindowMonitors.windowId, windowId)))
     .map((link) => link.monitorId)
+  const occurredAt = Date.now()
+  const { startsAt, endsAt } = shownOccurrence(win, occurredAt)
   return notifySubscribers({
     type: 'maintenance.scheduled',
-    occurredAt: Date.now(),
-    maintenance: { id: win.id, name: win.name, description: win.description, startsAt: win.startsAt, endsAt: win.endsAt },
+    occurredAt,
+    maintenance: { id: win.id, name: win.name, description: win.description, startsAt, endsAt },
     components: await publicComponentsFor(monitorIds),
   }, monitorIds)
 }
