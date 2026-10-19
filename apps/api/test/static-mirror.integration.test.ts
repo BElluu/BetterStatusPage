@@ -309,22 +309,28 @@ describe('a mirror run', () => {
   })
 
   it('records an error instead of publishing once the page is private', async () => {
-    await db.insert(statusPageAccess).values({ id: 1, private: 1, updatedAt: Date.now() })
-    puts.length = 0
+    // Switched on while the page is public; saving starts a push, which is waited for before the page turns private.
+    await saveStaticMirrorSettings(valid())
     await runStaticMirror()
-    assert.equal(puts.length, 0)
-    const admin = await getAdminStaticMirror()
-    assert.match(admin.status.lastError ?? '', /private/)
-    assert.equal(admin.health, 'error')
-    assert.equal(admin.runs.at(-1)?.ok, false)
-    assert.match(admin.runs.at(-1)?.error ?? '', /private/)
-    await db.delete(statusPageAccess).where(eq(statusPageAccess.id, 1))
+    await db.insert(statusPageAccess).values({ id: 1, private: 1, updatedAt: Date.now() }).onConflictDoNothing()
+    try {
+      puts.length = 0
+      await runStaticMirror()
+      assert.equal(puts.length, 0)
+      const admin = await getAdminStaticMirror()
+      assert.match(admin.status.lastError ?? '', /private/)
+      assert.equal(admin.health, 'error')
+      assert.equal(admin.runs.at(-1)?.ok, false)
+      assert.match(admin.runs.at(-1)?.error ?? '', /private/)
+    } finally {
+      await db.delete(statusPageAccess).where(eq(statusPageAccess.id, 1))
+    }
   })
 })
 
 describe('the history of pushes', () => {
   it('keeps the newest 48', async () => {
-    await db.insert(statusPageAccess).values({ id: 1, private: 1, updatedAt: Date.now() })
+    await db.insert(statusPageAccess).values({ id: 1, private: 1, updatedAt: Date.now() }).onConflictDoNothing()
     try {
       for (let i = 0; i < 60; i++) await runStaticMirror()
     } finally {
