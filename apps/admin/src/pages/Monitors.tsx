@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { DEFAULT_CERT_WARN_DAYS } from '@bsp/shared'
-import type { HttpsConfig, Monitor, MonitorStatus, MonitorType } from '@bsp/shared'
-import { StatusBadge } from '../components/monitors/StatusBadge'
+import type { HttpsConfig, Monitor, MonitorStatus, MonitorType, MonitorWithActivity } from '@bsp/shared'
+import { ActivityBadges, StatusBadge } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
 import { YamlViewModal } from '../components/YamlViewModal'
 import { MONITOR_TYPES } from '../components/monitors/monitorTypes'
@@ -30,7 +30,7 @@ export default function MonitorsPage() {
   const [confirmDelete, setConfirmDelete] = useState<Monitor | null>(null)
   const [activeTags, setActiveTags] = useState<string[]>([])
 
-  const { data: monitors = [], isPending, isError, refetch } = useQuery<Monitor[]>({
+  const { data: monitors = [], isPending, isError, refetch } = useQuery<MonitorWithActivity[]>({
     queryKey: ['monitors'],
     queryFn: () => api.get('/admin/monitors'),
     refetchInterval: 30_000,
@@ -238,7 +238,10 @@ export default function MonitorsPage() {
                     {monitor.intervalSecs}s
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={monitor.currentStatus} />
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <StatusBadge status={monitor.currentStatus} />
+                      <ActivityBadges activity={monitor.activity} />
+                    </div>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
                     {monitor.lastCheckedAt ? formatClock(monitor.lastCheckedAt, true) : '—'}

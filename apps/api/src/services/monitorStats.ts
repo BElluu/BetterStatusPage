@@ -1,5 +1,7 @@
 import { and, desc, eq, gte, isNotNull, lt, ne, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db/client.js'
+import { RESULT_IN_MAINTENANCE, RESULT_UNCONFIRMED } from '../db/resultMarks.js'
+import { countedChecks, countedUp, maintenanceChecks } from './uptimeCounts.js'
 import { incidentMonitors, incidents, monitorResults } from '../db/schema.js'
 import type { MonitorStats, MonitorStatus } from '@bsp/shared'
 
@@ -36,8 +38,7 @@ export async function loadMonitorStats(monitorId: number, hours: number, retenti
   const lastBar = Math.floor(to / stepMs)
   const firstBar = lastBar - barCount + 1
   const inWindow = and(eq(monitorResults.monitorId, monitorId), gte(monitorResults.checkedAt, from), lt(monitorResults.checkedAt, to + 1))!
-  // Unconfirmed failures do not lower uptime, like on the status page bars.
-  const up = sql<number>`sum(case when ${monitorResults.status} = 'up' or ${monitorResults.unconfirmed} = 1 then 1 else 0 end)`
+  const up = countedUp
   const bucketIndex = sql<number>`cast((${monitorResults.checkedAt} - ${from}) / ${bucketMs} as integer)`
   const inBarsWindow = and(eq(monitorResults.monitorId, monitorId), gte(monitorResults.checkedAt, firstBar * stepMs), lt(monitorResults.checkedAt, to + 1))!
   const confirmed = (status: 'down' | 'degraded') => sql<number>`sum(case when ${monitorResults.status} = '${sql.raw(status)}' and ${monitorResults.unconfirmed} = 0 then 1 else 0 end)`
@@ -45,7 +46,7 @@ export async function loadMonitorStats(monitorId: number, hours: number, retenti
 
   const [totals, bucketRows, timedRows, barRows, failureRows, incidentRows] = await Promise.all([
     db.select({
-      checksTotal: sql<number>`count(*)`,
+      checksTotal: countedChecks,
       checksUp: up,
       timed: sql<number>`count(${monitorResults.responseMs})`,
       avg: sql<number | null>`avg(${monitorResults.responseMs})`,
@@ -55,7 +56,7 @@ export async function loadMonitorStats(monitorId: number, hours: number, retenti
     }).from(monitorResults).where(inWindow),
     db.select({
       index: bucketIndex,
-      checksTotal: sql<number>`count(*)`,
+      checksTotal: countedChecks,
       checksUp: up,
       avg: sql<number | null>`avg(${monitorResults.responseMs})`,
       min: sql<number | null>`min(${monitorResults.responseMs})`,
@@ -66,7 +67,7 @@ export async function loadMonitorStats(monitorId: number, hours: number, retenti
     db.select({ index: bucketIndex, ms: monitorResults.responseMs }).from(monitorResults)
       .where(and(inWindow, isNotNull(monitorResults.responseMs)))
       .orderBy(bucketIndex, monitorResults.responseMs),
-    db.select({ index: barIndex, checksTotal: sql<number>`count(*)`, checksUp: up })
+    db.select({ index: barIndex, checksTotal: countedChecks, checksUp: up, maintenanceChecks })
       .from(monitorResults).where(inBarsWindow).groupBy(barIndex),
     db.select({
       checkedAt: monitorResults.checkedAt, status: monitorResults.status, responseMs: monitorResults.responseMs,
@@ -137,7 +138,10 @@ export async function loadMonitorStats(monitorId: number, hours: number, retenti
       stepHours,
       bars: Array.from({ length: barCount }, (_, i) => {
         const row = barByIndex.get(firstBar + i)
-        return { ts: (firstBar + i) * stepMs, checksTotal: row ? Number(row.checksTotal) : 0, checksUp: row ? Number(row.checksUp ?? 0) : 0 }
+        return {
+          ts: (firstBar + i) * stepMs, checksTotal: row ? Number(row.checksTotal) : 0, checksUp: row ? Number(row.checksUp ?? 0) : 0,
+          maintenanceChecks: row ? Number(row.maintenanceChecks ?? 0) : 0,
+        }
       }),
     },
     incidents: {
@@ -147,7 +151,7 @@ export async function loadMonitorStats(monitorId: number, hours: number, retenti
     },
     recentFailures: failureRows.map((row) => ({
       checkedAt: row.checkedAt, status: row.status as MonitorStatus, responseMs: row.responseMs,
-      errorMessage: row.errorMessage, unconfirmed: row.unconfirmed === 1,
+      errorMessage: row.errorMessage, unconfirmed: row.unconfirmed === RESULT_UNCONFIRMED, inMaintenance: row.unconfirmed === RESULT_IN_MAINTENANCE,
     })),
   }
 }

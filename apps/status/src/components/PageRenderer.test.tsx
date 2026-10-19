@@ -150,6 +150,31 @@ describe('PageRenderer', () => {
       // The tooltip opens on focus, not only on hover.
       expect(await screen.findByText('uptime.noIncidents')).toBeInTheDocument()
     })
+
+    it('shows a day spent in maintenance as maintenance, and notes maintenance on a mixed day', async () => {
+      uptimeState.value = {
+        uptime: {
+          overallUptimePct: 100,
+          days: [
+            { date: '2026-09-01', status: 'maintenance', uptimePct: 100, maintenanceChecks: 4 },
+            { date: '2026-09-02', status: 'up', uptimePct: 100, maintenanceChecks: 2 },
+          ],
+        },
+        failed: false,
+      }
+      const { container } = render(<PageRenderer tree={tree} monitors={monitors} statusMap={{}} />)
+      const bars = container.querySelectorAll<HTMLButtonElement>('button.bsp-uptime-bar')
+
+      fireEvent.focus(bars[0]!)
+      expect(await screen.findByText('uptime.maintenance')).toBeInTheDocument()
+      expect(screen.queryByText('uptime.pct')).not.toBeInTheDocument()
+      expect(screen.queryByText('uptime.noData')).not.toBeInTheDocument()
+      fireEvent.blur(bars[0]!)
+
+      fireEvent.focus(bars[1]!)
+      expect(await screen.findByText('uptime.partlyMaintenance')).toBeInTheDocument()
+      expect(screen.getByText('uptime.pct')).toBeInTheDocument()
+    })
   })
 
   it('shows an incident-affected monitor as degraded instead of operational', () => {

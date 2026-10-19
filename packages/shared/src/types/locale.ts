@@ -38,6 +38,8 @@ export type TranslationKey =
   | 'uptime.daysAgo'
   | 'uptime.today'
   | 'uptime.noData'
+  | 'uptime.maintenance'
+  | 'uptime.partlyMaintenance'
   | 'uptime.pct'
   | 'uptime.resolvedIn'
   | 'uptime.ongoing'

@@ -2,12 +2,15 @@ import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
 import {
   monitors, incidents, incidentMonitors, monitorResults, layout, branding,
-  maintenanceWindows, maintenanceWindowMonitors, monitorDependencies,
+  maintenanceWindowMonitors, monitorDependencies,
 } from '../db/schema.js'
-import { eq, desc, gte, ne, inArray, and, lte, sql } from 'drizzle-orm'
+import { eq, desc, gte, ne, inArray, and, sql } from 'drizzle-orm'
 import { serveEventStream, sseService } from '../kit/sse.js'
+import { RESULT_IN_MAINTENANCE } from '../db/resultMarks.js'
+import { countedChecks, countedUp, maintenanceChecks } from '../services/uptimeCounts.js'
+import { activeWindows } from '../services/maintenanceSchedule.js'
 import { getPublishedMonitorIds, publishedMonitorIdsSnapshot } from '../services/publishedMonitors.js'
-import type { LayoutTree, LayoutNode, GroupNode, MonitorNode, UptimeThresholds } from '@bsp/shared'
+import type { LayoutTree, LayoutNode, GroupNode, MonitorNode, PublicMaintenanceWindow, UptimeThresholds } from '@bsp/shared'
 import { classifyUptimeDay, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 import { PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
 import { publishedIncident, withIncidentDetails } from '../services/incidentDetails.js'
@@ -70,9 +73,7 @@ export async function publicRoutes(app: FastifyInstance) {
     const brandingRow = (await db.select().from(branding))[0] ?? null
 
     const now = Date.now()
-    const activeWindowRows = await db.select().from(maintenanceWindows).where(
-      and(lte(maintenanceWindows.startsAt, now), gte(maintenanceWindows.endsAt, now)),
-    )
+    const activeWindowRows = await activeWindows(now)
     const windowLinks = activeWindowRows.length
       ? await db.select().from(maintenanceWindowMonitors)
         .where(inArray(maintenanceWindowMonitors.windowId, activeWindowRows.map((win) => win.id)))
@@ -82,7 +83,10 @@ export async function publicRoutes(app: FastifyInstance) {
     // out entirely rather than published with its (hidden) links stripped.
     const activeMaintenanceWindows = windowsWithLinks
       .filter(({ links }) => links.length === 0 || links.some((link) => published.has(link.monitorId)))
-      .map(({ win, links }) => ({ ...win, monitorIds: publicIds(links, published) }))
+      .map(({ win, links }): PublicMaintenanceWindow => ({
+        id: win.id, name: win.name, description: win.description, startsAt: win.startsAt, endsAt: win.endsAt,
+        monitorIds: publicIds(links, published),
+      }))
 
     const publishedDependencies = (await db.select().from(monitorDependencies))
       .filter((dep) => published.has(dep.dependentId) && published.has(dep.dependsOnId))
@@ -159,8 +163,9 @@ export async function publicRoutes(app: FastifyInstance) {
     const day = sql<string>`strftime('%Y-%m-%d', ${monitorResults.checkedAt} / 1000, 'unixepoch')`
     const dayRows = await db.select({
       date: day,
-      checksTotal: sql<number>`count(*)`,
-      checksUp: sql<number>`sum(case when ${monitorResults.status} = 'up' or ${monitorResults.unconfirmed} = 1 then 1 else 0 end)`,
+      checksTotal: countedChecks,
+      checksUp: countedUp,
+      maintenanceChecks,
     }).from(monitorResults)
       .where(and(eq(monitorResults.monitorId, monitorId), gte(monitorResults.checkedAt, since)))
       .groupBy(day)
@@ -188,7 +193,8 @@ export async function publicRoutes(app: FastifyInstance) {
       const checksTotal = Number(bucket?.checksTotal ?? 0)
       const checksUp = Number(bucket?.checksUp ?? 0)
       const uptimePct = checksTotal > 0 ? (checksUp / checksTotal) * 100 : 100
-      const status = classifyUptimeDay(checksTotal > 0 ? uptimePct : null, thresholds)
+      const maintenance = Number(bucket?.maintenanceChecks ?? 0)
+      const status = classifyUptimeDay(checksTotal > 0 ? uptimePct : null, thresholds, maintenance > 0)
 
       // Incidents active on this day (started before end of day, not resolved before start of day)
       const dayStart = new Date(date + 'T00:00:00.000Z').getTime()
@@ -201,7 +207,7 @@ export async function publicRoutes(app: FastifyInstance) {
           durationMs: inc.resolvedAt !== null ? inc.resolvedAt - inc.startedAt : null,
         }))
 
-      summaryDays.push({ date, status, uptimePct, checksTotal, checksUp, incidents: dayIncidents })
+      summaryDays.push({ date, status, uptimePct, checksTotal, checksUp, maintenanceChecks: maintenance, incidents: dayIncidents })
     }
 
     const totalChecks = summaryDays.reduce((a, d) => a + d.checksTotal, 0)
@@ -227,12 +233,12 @@ export async function publicRoutes(app: FastifyInstance) {
       const since = now - hours * 3_600_000
 
       const results = await db
-        .select({ status: monitorResults.status, responseMs: monitorResults.responseMs, checkedAt: monitorResults.checkedAt })
+        .select({ status: monitorResults.status, responseMs: monitorResults.responseMs, checkedAt: monitorResults.checkedAt, unconfirmed: monitorResults.unconfirmed })
         .from(monitorResults)
         .where(and(eq(monitorResults.monitorId, monitorId), gte(monitorResults.checkedAt, since)))
         .orderBy(monitorResults.checkedAt)
 
-      type ResultRow = { status: string; responseMs: number | null; checkedAt: number }
+      type ResultRow = { status: string; responseMs: number | null; checkedAt: number; unconfirmed: number }
       const bucketSize = (now - since) / nBuckets
       const STATUS_PRIORITY: Record<string, number> = { down: 0, degraded: 1, affected: 2, up: 3, pending: 4 }
 
@@ -260,9 +266,11 @@ export async function publicRoutes(app: FastifyInstance) {
         const max = times.length ? times[times.length - 1]! : null
         const p95 = times.length ? times[Math.min(Math.floor(times.length * 0.95), times.length - 1)]! : null
 
-        const dominantStatus = bucket.reduce((worst: string, r: ResultRow) => {
+        // A failure inside a maintenance window is not an outage; a bucket with nothing else is maintenance.
+        const counted = bucket.filter((r) => r.unconfirmed !== RESULT_IN_MAINTENANCE)
+        const dominantStatus = counted.length === 0 ? 'maintenance' : counted.reduce((worst: string, r: ResultRow) => {
           return (STATUS_PRIORITY[r.status] ?? 9) < (STATUS_PRIORITY[worst] ?? 9) ? r.status : worst
-        }, bucket[0]!.status)
+        }, counted[0]!.status)
 
         return { ts: Math.round(bucketEnd), avg, min, max, p95, count: bucket.length, status: dominantStatus }
       })

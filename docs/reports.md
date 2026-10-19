@@ -24,7 +24,7 @@ One row per monitor for the whole range:
 | **Avg response** | Mean response time of the checks that recorded one. |
 | **Incidents** | Incidents linked to the monitor that overlap the range. |
 
-Uptime is counted the same way as on the status page: a failure that the monitor's failure threshold has not confirmed yet does not lower it (see [Alert hygiene](alert-hygiene.md)). Maintenance windows are not subtracted.
+Uptime is counted the same way as on the status page: a failure that the monitor's failure threshold has not confirmed yet does not lower it (see [Alert hygiene](alert-hygiene.md)). A failed check inside a maintenance window is left out of the count, so a window does not lower uptime (checks that succeed inside it still count). See [Maintenance windows](incidents-and-maintenance.md#what-happens-during-a-window).
 
 ## Exporting CSV
 

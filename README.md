@@ -202,7 +202,7 @@ The status page shows 30 days; **Monitoring → Reports** in the admin console c
 
 Scheduled that 3 AM database migration? Let people know in advance instead of letting them think you're on fire.
 
-Maintenance windows suppress alert noise for the duration of planned downtime — no more on-call pages for work you're doing on purpose. Create a window with a name, description, start/end time, and optionally scope it to specific monitors (or flip the switch for "all monitors"). While a window is active:
+Maintenance windows suppress alert noise for the duration of planned downtime — no more on-call pages for work you're doing on purpose. Create a window with a name, description, start/end time (optionally repeating every day or on chosen weekdays), and optionally scope it to specific monitors (or flip the switch for "all monitors"). While a window is active:
 
 - Notification channels stay quiet for affected monitors — status changes are still tracked, just not shouted
 - The public status page shows a maintenance banner with the window name and end time

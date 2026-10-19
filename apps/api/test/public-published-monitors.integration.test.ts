@@ -81,6 +81,10 @@ describe('public API exposes only published monitors', () => {
 
     const windows = Object.fromEntries(status.activeMaintenanceWindows.map((w: { name: string; monitorIds: number[] }) => [w.name, w.monitorIds]))
     assert.deepEqual(windows, { 'Mixed window': [ids['Charted API']], Everything: [] })
+    // Nothing of the schedule or of an early end reaches visitors.
+    for (const win of status.activeMaintenanceWindows) {
+      assert.deepEqual(Object.keys(win).sort(), ['description', 'endsAt', 'id', 'monitorIds', 'name', 'startsAt'])
+    }
 
     assert.deepEqual(status.monitorDependencies.map((d: { dependsOnId: number }) => d.dependsOnId), [ids['Charted API']])
   })

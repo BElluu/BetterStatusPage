@@ -1,8 +1,9 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
-import { and, gte, inArray, ne } from 'drizzle-orm'
+import { and, inArray, ne } from 'drizzle-orm'
 import { db } from '../db/client.js'
+import { liveWindows } from '../services/maintenanceSchedule.js'
 import { publishedIncident } from '../services/incidentDetails.js'
-import { branding, incidentMonitors, incidents, layout, maintenanceWindowMonitors, maintenanceWindows, monitors } from '../db/schema.js'
+import { branding, incidentMonitors, incidents, layout, maintenanceWindowMonitors, monitors } from '../db/schema.js'
 import type {
   ApiActiveIncident, ApiActiveMaintenance, ApiComponent, ApiComponentRef, ApiComponentStatus, ApiComponents,
   ApiPageStatus, ApiSummary, LayoutNode, LayoutTree,
@@ -65,7 +66,7 @@ async function loadState(baseUrl: string) {
     ? await db.select().from(incidentMonitors).where(inArray(incidentMonitors.incidentId, activeIncidents.map((i) => i.id)))
     : []
 
-  const windows = await db.select().from(maintenanceWindows).where(gte(maintenanceWindows.endsAt, now))
+  const windows = await liveWindows(now)
   const windowLinks = windows.length
     ? await db.select().from(maintenanceWindowMonitors).where(inArray(maintenanceWindowMonitors.windowId, windows.map((w) => w.id)))
     : []

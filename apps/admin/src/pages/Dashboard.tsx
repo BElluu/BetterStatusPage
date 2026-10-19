@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api, getCurrentUser } from '../api/client'
-import type { Monitor, Incident } from '@bsp/shared'
-import { StatusBadge } from '../components/monitors/StatusBadge'
+import type { MonitorWithActivity, Incident } from '@bsp/shared'
+import { ActivityBadges, StatusBadge } from '../components/monitors/StatusBadge'
 import { useDarkMode } from '@better-kit/ui'
 import { EmptyState, ErrorState, LoadingState, PageContainer, PageHeader } from '@better-kit/ui'
 import { formatDayMonth } from '@better-kit/ui'
@@ -12,7 +12,7 @@ const TILE_STYLE = { background: 'var(--m3-surface-container-lowest)' } as const
 
 export default function DashboardPage() {
   const [isDark] = useDarkMode()
-  const monitorsQuery = useQuery<Monitor[]>({
+  const monitorsQuery = useQuery<MonitorWithActivity[]>({
     queryKey: ['monitors'],
     queryFn: () => api.get('/admin/monitors'),
     refetchInterval: 15_000,
@@ -253,7 +253,10 @@ export default function DashboardPage() {
                       </p>
                     </div>
                   </div>
-                  <StatusBadge status={monitor.currentStatus} />
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <StatusBadge status={monitor.currentStatus} />
+                    <ActivityBadges activity={monitor.activity} />
+                  </div>
                 </Link>
               )
             })}

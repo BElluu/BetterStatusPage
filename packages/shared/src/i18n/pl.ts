@@ -47,6 +47,8 @@ export const PL_DEFAULTS: Record<TranslationKey, string> = {
   'uptime.daysAgo':    '{n} dni temu',
   'uptime.today':      'Dziś',
   'uptime.noData':     'Brak danych',
+  'uptime.maintenance': 'Prace serwisowe',
+  'uptime.partlyMaintenance': 'Zawiera prace serwisowe (nie liczone)',
   'uptime.pct':        'Dostępność: {pct}%',
   'uptime.resolvedIn': 'Czas rozwiązania: {duration}',
   'uptime.ongoing':    'Trwa',

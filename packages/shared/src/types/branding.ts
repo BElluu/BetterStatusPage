@@ -27,11 +27,14 @@ export const DEFAULT_UPTIME_THRESHOLDS = {
 
 export type UptimeThresholds = { [K in keyof typeof DEFAULT_UPTIME_THRESHOLDS]: number }
 
-export type UptimeDayStatus = 'up' | 'degraded' | 'partial' | 'down' | 'no-data'
+export type UptimeDayStatus = 'up' | 'degraded' | 'partial' | 'down' | 'no-data' | 'maintenance'
 
-/** Colour class of one day of the uptime bar; `null` means the day has no checks. */
-export function classifyUptimeDay(uptimePct: number | null, thresholds: UptimeThresholds): UptimeDayStatus {
-  if (uptimePct === null) return 'no-data'
+/**
+ * Colour class of one day of the uptime bar; `null` means the day has no counted checks, which is `maintenance`
+ * when failed checks inside a maintenance window were left out of it (`onlyMaintenance`), else `no-data`.
+ */
+export function classifyUptimeDay(uptimePct: number | null, thresholds: UptimeThresholds, onlyMaintenance = false): UptimeDayStatus {
+  if (uptimePct === null) return onlyMaintenance ? 'maintenance' : 'no-data'
   if (uptimePct >= thresholds.uptimeThresholdUp) return 'up'
   if (uptimePct >= thresholds.uptimeThresholdDegraded) return 'degraded'
   if (uptimePct >= thresholds.uptimeThresholdPartial) return 'partial'

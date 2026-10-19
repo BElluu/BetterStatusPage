@@ -54,8 +54,8 @@ function ChartTooltip({ active, payload, hours }: { active?: boolean; payload?: 
     ? d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false })
     : d.toLocaleDateString(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
 
-  const tone = b.status === 'down' ? 'down' : b.status === 'degraded' ? 'degraded' : 'up'
-  const statusLabel = b.status === 'down' ? t('status.outage') : b.status === 'degraded' ? t('status.degraded') : b.status === 'up' ? t('status.operational') : b.status ?? '—'
+  const tone = b.status === 'down' ? 'down' : b.status === 'degraded' ? 'degraded' : b.status === 'maintenance' ? 'maintenance' : 'up'
+  const statusLabel = b.status === 'down' ? t('status.outage') : b.status === 'degraded' ? t('status.degraded') : b.status === 'up' ? t('status.operational') : b.status === 'maintenance' ? t('uptime.maintenance') : b.status ?? '—'
 
   return (
     <div className="bsp-chart-tooltip" style={{

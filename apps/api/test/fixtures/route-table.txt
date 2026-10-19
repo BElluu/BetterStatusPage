@@ -207,6 +207,7 @@ POST /api/v1/admin/incidents/:id/updates | auth=yes | token=yes | scope=incident
 POST /api/v1/admin/locales/ | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
 POST /api/v1/admin/locales/:code/set-default | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
 POST /api/v1/admin/maintenance/ | auth=yes | token=yes | scope=maintenance | roles=admin,operator
+POST /api/v1/admin/maintenance/:id/end | auth=yes | token=yes | scope=maintenance | roles=admin,operator
 POST /api/v1/admin/monitors/ | auth=yes | token=yes | scope=monitors | roles=admin,operator
 POST /api/v1/admin/monitors/:id/check-now | auth=yes | token=yes | scope=monitors | roles=admin,operator
 POST /api/v1/admin/monitors/:id/reset-token | auth=yes | token=yes | scope=monitors | roles=admin,operator

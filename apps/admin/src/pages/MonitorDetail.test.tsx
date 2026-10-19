@@ -28,7 +28,7 @@ class NoopResizeObserver {
 
 const monitor = {
   id: 7, key: 'checkout-api', name: 'Checkout API', type: 'https', intervalSecs: 60, timeoutMs: 10_000, failureThreshold: 2, recoveryThreshold: 1,
-  currentStatus: 'up', lastCheckedAt: 1_700_000_000_000, certExpiresAt: null, tags: [],
+  currentStatus: 'up', activity: { maintenance: false, windows: [], incident: null }, lastCheckedAt: 1_700_000_000_000, certExpiresAt: null, tags: [],
   config: { url: 'https://api.shop.example/health' },
 } as unknown as Monitor
 
@@ -43,10 +43,10 @@ const stats: MonitorStats = {
   ],
   uptime: {
     stepHours: 6,
-    bars: Array.from({ length: 28 }, (_, i) => ({ ts: now - (28 - i) * 6 * 3_600_000, checksTotal: i === 27 ? 1000 : 0, checksUp: i === 27 ? 999 : 0 })),
+    bars: Array.from({ length: 28 }, (_, i) => ({ ts: now - (28 - i) * 6 * 3_600_000, checksTotal: i === 27 ? 1000 : 0, checksUp: i === 27 ? 999 : 0, maintenanceChecks: 0 })),
   },
   incidents: { total: 1, mttrMs: 5_400_000, recent: [{ id: 1, title: 'Outage', status: 'resolved', impact: 'major', startedAt: now - 7_200_000, resolvedAt: now - 1_800_000 }] },
-  recentFailures: [{ checkedAt: now - 1000, status: 'down', responseMs: null, errorMessage: 'connect ECONNREFUSED', unconfirmed: false }],
+  recentFailures: [{ checkedAt: now - 1000, status: 'down', responseMs: null, errorMessage: 'connect ECONNREFUSED', unconfirmed: false, inMaintenance: false }],
 }
 
 function renderPage() {
@@ -89,6 +89,64 @@ describe('MonitorDetailPage', () => {
     expect(await screen.findByText('Payments gateway')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'Response time chart' })).toBeInTheDocument()
     expect(screen.getByRole('list', { name: 'Uptime per 6 hours' }).children).toHaveLength(28)
+  })
+
+  it('shows a running maintenance window and an open incident beside the status', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.includes('/stats')) return stats
+      if (path.includes('/dependencies')) return { dependsOnIds: [] }
+      if (path === '/admin/monitors') return [monitor]
+      return { ...monitor, activity: { maintenance: true, windows: [], incident: 'major' } }
+    })
+    renderPage()
+    // The chip beside the status and the title of the maintenance card.
+    expect(await screen.findAllByText('Maintenance')).toHaveLength(2)
+    expect(screen.getByText('Incident · major')).toBeInTheDocument()
+  })
+
+  it('lists the running and upcoming maintenance of the monitor', async () => {
+    const at = Date.now()
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.includes('/stats')) return stats
+      if (path.includes('/dependencies')) return { dependsOnIds: [] }
+      if (path === '/admin/monitors') return [monitor]
+      return {
+        ...monitor,
+        activity: {
+          maintenance: true, incident: null,
+          windows: [
+            { id: 1, name: 'DB upgrade', description: null, startsAt: at - 60_000, endsAt: at + 3_600_000, recurrence: 'none', recurrenceDays: [], timezone: 'UTC', recurrenceUntil: null },
+            { id: 2, name: 'Nightly backup', description: null, startsAt: at + 86_400_000, endsAt: at + 90_000_000, recurrence: 'weekly', recurrenceDays: [2, 4], timezone: 'Europe/Warsaw', recurrenceUntil: null },
+          ],
+        },
+      }
+    })
+    renderPage()
+    expect(await screen.findByText('DB upgrade')).toBeInTheDocument()
+    expect(screen.getByText('Running')).toBeInTheDocument()
+    expect(screen.getByText('Nightly backup')).toBeInTheDocument()
+    expect(screen.getByText('Upcoming')).toBeInTheDocument()
+    expect(screen.getByText('Every Tue, Thu · Europe/Warsaw')).toBeInTheDocument()
+  })
+
+  it('marks a bar that only holds maintenance instead of calling it no data', async () => {
+    const bars = stats.uptime.bars.map((bar, i) => (i === 27 ? { ...bar, checksTotal: 0, checksUp: 0, maintenanceChecks: 3 } : bar))
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.includes('/stats')) return { ...stats, uptime: { ...stats.uptime, bars } }
+      if (path.includes('/dependencies')) return { dependsOnIds: [] }
+      if (path === '/admin/monitors') return [monitor]
+      return monitor
+    })
+    renderPage()
+    const list = await screen.findByRole('list', { name: 'Uptime per 6 hours' })
+    const labels = Array.from(list.children).map((item) => item.getAttribute('aria-label') ?? '')
+    expect(labels[27]).toMatch(/: maintenance$/)
+    expect(labels[0]).toMatch(/: no data$/)
+  })
+
+  it('says when no maintenance is scheduled', async () => {
+    renderPage()
+    expect(await screen.findByText('No maintenance scheduled.')).toBeInTheDocument()
   })
 
   it('requests statistics for the chosen range', async () => {

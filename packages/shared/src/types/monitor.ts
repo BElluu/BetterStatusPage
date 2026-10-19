@@ -1,4 +1,6 @@
 import type { VaultRef } from '@better-kit/contracts'
+import type { IncidentImpact } from './incident.js'
+import type { MaintenanceRecurrence } from './maintenance.js'
 export type MonitorType = 'https' | 'ping' | 'dns' | 'sqlserver' | 'postgresql' | 'mysql' | 'mongodb' | 'docker' | 'webhook'
 export type MonitorStatus = 'up' | 'down' | 'degraded' | 'pending' | 'affected'
 export type HttpsAuthType = 'none' | 'basic' | 'oauth2' | 'cas'
@@ -165,6 +167,31 @@ export interface Monitor {
   updatedAt: number
 }
 
+/** A maintenance window that covers a monitor, as the occurrence that is running or comes next. */
+export interface MonitorMaintenanceWindow {
+  id: number
+  name: string
+  description: string | null
+  startsAt: number
+  endsAt: number
+  recurrence: MaintenanceRecurrence
+  recurrenceDays: number[]
+  timezone: string
+  recurrenceUntil: number | null
+}
+
+/** What is going on around a monitor right now; the admin list and details carry it next to the monitor. */
+export interface MonitorActivity {
+  /** A maintenance window covering the monitor is running. */
+  maintenance: boolean
+  /** Running and upcoming windows that cover the monitor, running ones first, then by start. */
+  windows: MonitorMaintenanceWindow[]
+  /** Impact of the worst open, published incident that names the monitor; null when there is none. */
+  incident: IncidentImpact | null
+}
+
+export type MonitorWithActivity = Monitor & { activity: MonitorActivity }
+
 export type PublicMonitor = Pick<Monitor, 'id' | 'name' | 'type' | 'currentStatus' | 'lastCheckedAt'>
 
 export interface MonitorResult {
@@ -222,12 +249,12 @@ export interface MonitorStats {
    * Uptime bars ending now: hourly for a window up to a day, 6-hourly up to a week, else one per UTC day.
    * `ts` is the start of each bar; a bar without checks has `checksTotal` 0.
    */
-  uptime: { stepHours: number; bars: Array<{ ts: number; checksTotal: number; checksUp: number }> }
+  uptime: { stepHours: number; bars: Array<{ ts: number; checksTotal: number; checksUp: number; maintenanceChecks: number }> }
   incidents: {
     total: number
     /** Mean time from start to resolution of the resolved incidents; null when none is resolved. */
     mttrMs: number | null
     recent: Array<{ id: number; title: string; status: string; impact: string; startedAt: number; resolvedAt: number | null }>
   }
-  recentFailures: Array<{ checkedAt: number; status: MonitorStatus; responseMs: number | null; errorMessage: string | null; unconfirmed: boolean }>
+  recentFailures: Array<{ checkedAt: number; status: MonitorStatus; responseMs: number | null; errorMessage: string | null; unconfirmed: boolean; inMaintenance: boolean }>
 }

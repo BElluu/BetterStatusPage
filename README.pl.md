@@ -202,7 +202,7 @@ Strona statusu pokazuje 30 dni; **Monitoring → Reports** w panelu admina obejm
 
 Masz zaplanowaną migrację bazy na 3 w nocy? Daj ludziom znać wcześniej, zamiast pozwolić im myśleć, że wszystko płonie.
 
-Okna serwisowe wyciszają szum alertów na czas planowanej niedostępności — koniec z budzeniem dyżurnych z powodu prac, które robisz celowo. Utwórz okno z nazwą, opisem, czasem rozpoczęcia i zakończenia, i opcjonalnie ogranicz je do wybranych monitorów (albo przełącz na „wszystkie monitory"). Gdy okno jest aktywne:
+Okna serwisowe wyciszają szum alertów na czas planowanej niedostępności — koniec z budzeniem dyżurnych z powodu prac, które robisz celowo. Utwórz okno z nazwą, opisem, czasem rozpoczęcia (opcjonalnie powtarzanym codziennie lub w wybrane dni tygodnia) i zakończenia, i opcjonalnie ogranicz je do wybranych monitorów (albo przełącz na „wszystkie monitory"). Gdy okno jest aktywne:
 
 - Kanały powiadomień milczą dla objętych monitorów — zmiany statusu są nadal śledzone, tylko nikt o nich nie krzyczy
 - Publiczna strona statusu wyświetla baner prac serwisowych z nazwą okna i czasem zakończenia

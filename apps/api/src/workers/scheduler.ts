@@ -1,7 +1,7 @@
 import cron from 'node-cron'
 import type { ScheduledTask } from 'node-cron'
 import { db } from '../db/client.js'
-import { monitors, monitorResults, maintenanceWindows, maintenanceWindowMonitors, monitorDependencies } from '../db/schema.js'
+import { monitors, monitorResults, maintenanceWindowMonitors, monitorDependencies } from '../db/schema.js'
 import { sseService } from '../kit/sse.js'
 import { checkHttps } from './https.js'
 import { checkPing } from './ping.js'
@@ -15,24 +15,23 @@ import { sendNotifications } from './notifier.js'
 import { scheduleActionRuns } from './actionRunner.js'
 import { checkCertificateExpiry } from './certificate.js'
 import { skipsTlsVerification } from './httpAuth.js'
+import { RESULT_IN_MAINTENANCE, RESULT_UNCONFIRMED } from '../db/resultMarks.js'
+import { activeWindows } from '../services/maintenanceSchedule.js'
 import { evaluateAlertTransition, isFailureStatus } from '../services/alertThresholds.js'
 import { openIncidentForOutage, resolveIncidentForRecovery } from '../services/autoIncident.js'
-import { lt, gt, eq, and, lte, gte, inArray, sql } from 'drizzle-orm'
+import { lt, gt, eq, and, inArray, sql } from 'drizzle-orm'
 import type { HttpsConfig, PingConfig, DnsConfig, DatabaseConfig, DockerConfig, MonitorStatus } from '@bsp/shared'
 import { getSchedulerConfig, type SchedulerConfig } from '../config/scheduler.js'
 
 export async function isInMaintenance(monitorId: number, now = Date.now()): Promise<boolean> {
-  const activeWindows = await db.select().from(maintenanceWindows).where(
-    and(lte(maintenanceWindows.startsAt, now), gte(maintenanceWindows.endsAt, now)),
-  )
-  if (activeWindows.length === 0) return false
-  for (const win of activeWindows) {
-    const links = await db.select().from(maintenanceWindowMonitors).where(eq(maintenanceWindowMonitors.windowId, win.id))
+  const running = await activeWindows(now)
+  if (running.length === 0) return false
+  const links = await db.select().from(maintenanceWindowMonitors).where(inArray(maintenanceWindowMonitors.windowId, running.map((win) => win.id)))
+  return running.some((win) => {
+    const own = links.filter((link) => link.windowId === win.id)
     // Empty link list means all monitors are in maintenance
-    if (links.length === 0) return true
-    if (links.some((l) => l.monitorId === monitorId)) return true
-  }
-  return false
+    return own.length === 0 || own.some((link) => link.monitorId === monitorId)
+  })
 }
 
 type MonitorRow = typeof monitors.$inferSelect
@@ -154,7 +153,7 @@ export async function recordObservation(
     responseMs: result.responseMs,
     checkedAt,
     errorMessage: result.error,
-    unconfirmed: unconfirmed ? 1 : 0,
+    unconfirmed: inMaintenance && result.status !== 'up' ? RESULT_IN_MAINTENANCE : unconfirmed ? RESULT_UNCONFIRMED : 0,
   }).returning({ id: monitorResults.id }))[0]!
 
   // Once the threshold confirms the failure, the outage started with the first failure of the
@@ -162,7 +161,7 @@ export async function recordObservation(
   if (transition?.fire && isFailureStatus(transition.fire.status)) {
     await db.update(monitorResults).set({ unconfirmed: 0 }).where(and(
       eq(monitorResults.monitorId, monitor.id),
-      eq(monitorResults.unconfirmed, 1),
+      eq(monitorResults.unconfirmed, RESULT_UNCONFIRMED),
       gt(monitorResults.id, sql`(select coalesce(max(id), 0) from monitor_results where monitor_id = ${monitor.id} and unconfirmed = 0 and id < ${inserted.id})`),
     ))
   }

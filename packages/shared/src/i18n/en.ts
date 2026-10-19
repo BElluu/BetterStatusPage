@@ -44,6 +44,8 @@ export const EN_DEFAULTS: Record<TranslationKey, string> = {
   'uptime.daysAgo':    '{n} days ago',
   'uptime.today':      'Today',
   'uptime.noData':     'No data',
+  'uptime.maintenance': 'Maintenance',
+  'uptime.partlyMaintenance': 'Includes maintenance (not counted)',
   'uptime.pct':        'Uptime: {pct}%',
   'uptime.resolvedIn': 'Resolved in {duration}',
   'uptime.ongoing':    'Ongoing',

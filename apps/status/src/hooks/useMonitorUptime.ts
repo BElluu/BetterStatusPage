@@ -6,6 +6,8 @@ export interface UptimeDay {
   date: string
   status: UptimeDayStatus
   uptimePct: number
+  /** Failed checks inside maintenance windows that day; they are not part of the uptime. */
+  maintenanceChecks?: number
   incidents?: Array<{ id: number; title: string; durationMs: number | null }>
 }
 

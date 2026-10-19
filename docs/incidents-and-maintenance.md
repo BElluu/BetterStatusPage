@@ -199,13 +199,30 @@ The **Start from template** list in *New Incident* takes the title and impact on
 |---|---|
 | **Name** | Required. Shown in the banner and in subscriber notifications. |
 | **Description** | Optional. Shown next to the name on the status page. |
-| **Starts At** / **Ends At** | Date, hour and minute. The end must be after the start. |
+| **Starts At** / **Ends At** | Date, hour and minute. The end must be after the start. For a repeating window this is the first occurrence, and its length is the length of every occurrence. With weekdays chosen, the first run is the first chosen weekday on or after **Starts At**. |
+| **Repeat** | **Does not repeat** (default), **Every day**, or **On selected weekdays** (tick the days). |
+| **Repeat until** | Optional, for a repeating window: no occurrence starts after this time. Empty = repeats without end. |
 | **Affected Monitors** | The monitors under maintenance, or **All monitors**. |
 | **Notify subscribers** | On by default; only offered when creating a window. |
 
 The form opens with a window starting in one hour and lasting two.
 
 **Times are entered in your browser's timezone** and stored as absolute points in time, so a colleague in another timezone sees the same window in their own local time. The status page shows the end time in the visitor's local time; subscriber notifications show both times in UTC.
+
+### Recurring windows
+
+> [!WARNING]
+> **Not released yet.** Recurring maintenance windows are not in a published release. To try them, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+A repeating window is one entry that runs again at the same time of day, for example every night from 01:00 to 02:00, or every Tuesday from 02:00 to 03:00. It starts with the **Starts At** you entered and never before it.
+
+- **The time of day is kept in the timezone of the browser that created the window**, shown next to the repeat rule on the Maintenance page. 01:00 stays 01:00 across a daylight-saving change.
+- The Maintenance page shows the running or next occurrence. A repeating window is under **Past** only after **Repeat until** has gone by.
+- **End now** on a repeating window ends only the occurrence that is running, for the time the work really takes. The next occurrence runs as scheduled, and from that moment the covered monitors are no longer silenced and their checks count towards uptime again.
+- Editing a window changes all later occurrences; there are no other per-occurrence exceptions. An early end that was already pressed stays for that occurrence.
+- **An occurrence may not overlap the next one**: at most 23 hours for **Every day**, and for weekdays at most an hour less than the shortest gap between two chosen days (a single weekday allows just under 7 days). The hour keeps it true on a day when the clocks go forward. The form refuses a longer window. **Repeat until** cannot be before **Starts At**.
+- **A change of clocks does not move the window**: a window at 00:30 runs every local night, including the night when the clocks change. If the chosen time does not exist that night, it runs at the nearest valid moment.
+- Subscribers are told once, when the window is created and has an occurrence running or still to come (also when its first date is in the past); later occurrences are not announced again. The status page banner, the status API and the Slack feed show the running occurrence.
 
 > **Leave no monitor unticked by accident.** A window with no monitors selected is stored the same way as **All monitors**: it covers every monitor, whatever the hint under the list says.
 
@@ -219,13 +236,21 @@ The Maintenance page sorts windows into three tabs, re-checked every 30 seconds:
 | **Upcoming** | Not started yet |
 | **Past** | Already over |
 
-Each window shows its time range, duration and affected monitors. Use the pencil to edit any field, **End now** to finish a running window early (its end time is set to now), or the bin to delete it.
+Each window shows its time range, duration and affected monitors. Use the pencil to edit any field, **End now** to finish a running window early (a one-off window's end time is set to now; a repeating window ends only the running occurrence), or the bin to delete it.
 
 ### What happens during a window
 
+> [!WARNING]
+> **Not released yet.** The *Maintenance* and *Incident* chips in the admin console are not in a published release. To try them, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+In the admin console a covered monitor shows a **Maintenance** chip, and a monitor named by an open, published incident shows **Incident · minor / major / critical** (the worst impact if several are open; drafts are not counted), beside its status on the **Monitors** list, the **Dashboard** and the monitor's page. The monitor's page also has a **Maintenance** card listing the running and upcoming windows that cover it (the running or next occurrence of a repeating window, with its rule), with a link to the Maintenance page. They update every 30 seconds.
+
+> [!WARNING]
+> **Not released yet.** Leaving failed checks out of uptime is not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
 While a window is running, for every monitor it covers:
 
-- **Checks keep running and are recorded.** The monitor's status on the status page and in the admin console follows the checks as usual, and failures inside the window count against uptime.
+- **Checks keep running and are recorded.** The monitor's status on the status page and in the admin console follows the checks as usual, and the admin console marks failures inside the window as *maintenance*. **Failed checks inside the window are left out of uptime** (status page bars, monitor statistics and the uptime report), so planned work does not lower it; checks that succeed inside the window still count. Only results recorded after this change are affected. A day on the uptime bar that has nothing but such failed checks is shown as **Maintenance** (blue) instead of *No data*, on the status page and in the monitor's page in the admin console.
 - **Notification channels stay silent.** Neither alerts nor recoveries are sent, and nothing is recorded in the delivery history for them. See [Notification channels](notification-channels.md).
 - **Alert state is frozen.** After the window, the next check is compared with the status confirmed before it started. An outage that began during the window and is still going alerts once the window ends; a monitor that was already down and recovered during the window sends its recovery then. Problems that came and went inside the window are never alerted.
 
@@ -277,8 +302,11 @@ Maintenance windows (`/api/v1/admin/maintenance`):
 | GET | `/` | — |
 | GET | `/active` | — (windows running now) |
 | GET | `/:id` | — |
-| POST | `/` | `{ name, startsAt, endsAt, description?, monitorIds?, notifySubscribers? }` |
-| PATCH | `/:id` | `{ name?, startsAt?, endsAt?, description?, monitorIds? }` |
+| POST | `/:id/end` | — (ends the running occurrence now; `409` when the window is not running) |
+| POST | `/` | `{ name, startsAt, endsAt, description?, recurrence?, recurrenceDays?, timezone?, recurrenceUntil?, monitorIds?, notifySubscribers? }` |
+| PATCH | `/:id` | `{ name?, startsAt?, endsAt?, description?, recurrence?, recurrenceDays?, timezone?, recurrenceUntil?, monitorIds? }` |
 | DELETE | `/:id` | — |
 
 An empty or missing `monitorIds` means all monitors. A window needs a `name` (up to 200 characters), a `startsAt` and an `endsAt` that are positive millisecond timestamps with the end after the start (a `PATCH` that moves only one end is checked against the stored other end), a `description` that is text or `null`, and a `monitorIds` list of at most 1000 existing monitors; anything else is refused with `400`.
+
+`recurrence` is `none` (default), `daily` or `weekly`. A `weekly` window needs `recurrenceDays`, a list of weekdays from `0` (Sunday) to `6`. `timezone` is an IANA name (default `UTC`) in which the time of day of `startsAt` is read. `recurrenceUntil` is a millisecond timestamp, not before `startsAt`, or `null`. An occurrence may not be longer than 23 hours for `daily`, nor longer than an hour less than the shortest gap between the chosen weekdays for `weekly` (`400` otherwise). Every response carries `occurrence` (`startsAt` and `endsAt` of the running, else the next, occurrence). `startsAt` and `endsAt` stay the first occurrence.

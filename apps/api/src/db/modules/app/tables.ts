@@ -49,7 +49,7 @@ export const monitorResults = sqliteTable('monitor_results', {
   checkedAt: integer('checked_at').notNull(),
   errorMessage: text('error_message'),
   // Additive columns (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
-  /** 1 for a failure not (yet) confirmed by the monitor's failure threshold; it does not lower uptime. */
+  /** 0 counted, 1 failure not (yet) confirmed by the failure threshold, 2 failure inside a maintenance window; see resultMarks.ts. */
   unconfirmed: integer('unconfirmed').notNull().default(0),
 })
 
@@ -180,6 +180,12 @@ export const maintenanceWindows = sqliteTable('maintenance_windows', {
   description: text('description'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  recurrence: text('recurrence').notNull().default('none'),
+  recurrenceDays: text('recurrence_days'),
+  timezone: text('timezone').notNull().default('UTC'),
+  recurrenceUntil: integer('recurrence_until'),
+  endedEarlyStart: integer('ended_early_start'),
+  endedEarlyAt: integer('ended_early_at'),
 })
 
 export const maintenanceWindowMonitors = sqliteTable('maintenance_window_monitors', {
