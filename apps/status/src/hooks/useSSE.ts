@@ -1,5 +1,6 @@
 import { useEffect, useReducer } from 'react'
 import type { MonitorStatus } from '@bsp/shared'
+import { SNAPSHOT_URL } from '../dataSource'
 
 interface StatusMap {
   [monitorId: number]: { status: MonitorStatus; responseMs: number | null; checkedAt: number }
@@ -27,6 +28,8 @@ export function useSSE(onIncidentChange?: () => void) {
   const [statusMap, dispatch] = useReducer(reducer, {})
 
   useEffect(() => {
+    // A saved copy has no live stream; it rereads its snapshot instead.
+    if (SNAPSHOT_URL) return
     let es: EventSource | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let closed = false

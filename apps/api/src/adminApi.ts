@@ -16,6 +16,7 @@ import { auditRoutes } from './kit/auditRoutes.js'
 import { adminLocaleRoutes } from './routes/locales.js'
 import { adminSubscriberRoutes } from './routes/subscriptions.js'
 import { adminStatusPageAccessRoutes } from './routes/statusPageAccess.js'
+import { adminStaticMirrorRoutes } from './routes/staticMirror.js'
 import { backupRoutes } from './kit/backupRoutes.js'
 import { apiTokenRoutes } from './kit/apiTokenRoutes.js'
 import { configRoutes } from './kit/configRoutes.js'
@@ -76,6 +77,7 @@ export async function adminApi(adminApp: FastifyInstance) {
           [userRoutes, { prefix: '/users' }],
           [oidcSettingsRoutes, { prefix: '/oidc' }],
           [adminStatusPageAccessRoutes, { prefix: '/status-page-access' }],
+          [adminStaticMirrorRoutes, { prefix: '/static-mirror' }],
           [vaultRoutes, { prefix: '/vaults' }],
           [backupRoutes, { prefix: '/backups' }],
           [apiTokenRoutes, { prefix: '/api-tokens' }],

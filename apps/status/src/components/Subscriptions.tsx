@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { SNAPSHOT_URL } from '../dataSource'
 import { MAX_WEBHOOK_HEADERS, WEBHOOK_METHODS } from '@bsp/shared'
 import type {
   PublicSubscriptionOptions, SubscriberEventType, SubscriberType, SubscriptionMethod, SubscriptionPreferences, TranslationKey,
@@ -24,6 +25,8 @@ export function useSubscriptionOptions() {
   return useQuery<PublicSubscriptionOptions>({
     queryKey: ['subscription-options'],
     queryFn: async () => {
+      // Signing up needs the live instance, which a saved copy is standing in for.
+      if (SNAPSHOT_URL) return { methods: [] } as unknown as PublicSubscriptionOptions
       const res = await fetch(`${API}/options`)
       if (!res.ok) throw new Error('Failed to load subscription options')
       return res.json()

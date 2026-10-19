@@ -31,6 +31,7 @@ interface SystemHealthReport {
     latestBackupAt: number | null
     lastCompletedAt: number | null
   }
+  staticMirror: { status: ComponentStatus; enabled: boolean; lastRunAt: number | null; lastSuccessAt: number | null; lastError: string | null }
 }
 
 function formatDate(value: number | null) {
@@ -167,6 +168,13 @@ export default function SystemHealthPage() {
             <Metric label="Stored backups" value={report.backups.storedBackups ?? 'Unavailable'} />
             <Metric label="Latest backup" value={formatDate(report.backups.latestBackupAt)} />
             <Metric label="Last completed operation" value={formatDate(report.backups.lastCompletedAt)} />
+          </HealthCard>
+
+          <HealthCard icon="cloud_upload" title="Static fallback" status={report.staticMirror.status}>
+            <Metric label="Push" value={report.staticMirror.enabled ? 'Enabled' : 'Disabled'} />
+            <Metric label="Last attempt" value={formatDate(report.staticMirror.lastRunAt)} />
+            <Metric label="Last success" value={formatDate(report.staticMirror.lastSuccessAt)} />
+            {report.staticMirror.lastError && <Metric label="Last error" value={report.staticMirror.lastError} />}
           </HealthCard>
         </div>
       </>}

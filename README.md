@@ -55,6 +55,7 @@ Full documentation: **https://docs.betterstatuspage.dev**. Before exposing a pro
 - [Alert hygiene guide](https://docs.betterstatuspage.dev/alert-hygiene/)
 - [Status page subscriptions guide](https://docs.betterstatuspage.dev/subscriptions/)
 - [Private status page guide](https://docs.betterstatuspage.dev/private-status-page/)
+- [Static fallback guide](https://docs.betterstatuspage.dev/static-fallback/)
 - [Users and roles guide](https://docs.betterstatuspage.dev/users-and-roles/)
 - [Security policy](https://github.com/BElluu/BetterStatusPage/security/policy)
 
@@ -191,6 +192,17 @@ Not every status page is for the whole internet. Switch on **Users → Status pa
 - **Nothing leaks** — status data, history and the live stream need a session; feeds and the JSON status API switch off; responses are marked `private` and `noindex`
 
 > See **[docs.betterstatuspage.dev/private-status-page](https://docs.betterstatuspage.dev/private-status-page/)** for who can view a private page and what it switches off.
+
+### 🛟 Static fallback
+
+When the server that runs your status page is down, so is the page. Switch on **Static fallback** and the instance pushes a saved copy of the public page, with a `snapshot.json` of the latest statuses and incidents, to S3-compatible storage (AWS S3, Cloudflare R2, Backblaze B2, MinIO) every minute. Visitors sent to the copy still see the last known state, with a banner saying when it was taken.
+
+- **Same page, no server** — the copy is the status page itself, reading its data from the snapshot
+- **Only what you publish** — the snapshot holds what the public page serves, nothing about internal monitors or drafts
+- **Never a private page** — a private status page is not pushed
+- **Health** — **System Health** shows whether the last push worked, and **Check access** tries a new target without pushing
+
+> See **[docs.betterstatuspage.dev/static-fallback](https://docs.betterstatuspage.dev/static-fallback/)** for setup, what the copy cannot do and how to send visitors to it.
 
 ### 📊 Uptime reports
 

@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import type { StatusPageAccessSettings } from '@bsp/shared'
 import { db } from '../db/client.js'
-import { statusPageAccess } from '../db/schema.js'
+import { staticMirrorSettings, statusPageAccess } from '../db/schema.js'
 import { sseService } from '../kit/sse.js'
 
 const DOMAIN_PATTERN = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$/
@@ -54,6 +54,10 @@ export async function saveStatusPageAccess(input: Partial<Record<keyof StatusPag
   // Without a domain list any account at a multi-tenant provider (Google, Microsoft personal accounts) would get in.
   if (next.ssoCreateViewers && next.ssoViewerDomains.length === 0) {
     throw new StatusPageAccessError('Add at least one email domain to create viewer accounts on SSO sign-in')
+  }
+  // The saved copy is public and outlives the page: it must be switched off, and its files removed, first.
+  if (next.private && (await db.select().from(staticMirrorSettings).where(eq(staticMirrorSettings.id, 1)))[0]?.enabled) {
+    throw new StatusPageAccessError('Turn off Static fallback before making the status page private, and remove its files from the bucket')
   }
   const row = {
     private: next.private ? 1 : 0,

@@ -67,6 +67,8 @@ The restore procedure:
 6. runs migrations,
 7. rolls back if migration fails.
 
+If [static fallback](static-fallback.md#backup-and-restore) was on in the backup, it is on after the restore and its first push uploads the restored data.
+
 ## Restore on bare metal or PM2
 
 ```bash

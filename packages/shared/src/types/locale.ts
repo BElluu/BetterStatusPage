@@ -26,6 +26,8 @@ export type TranslationKey =
   | 'page.defaultTitle'
   | 'page.feedTitle'
   | 'page.toggleDarkMode'
+  | 'snapshot.currentAsOf'
+  | 'snapshot.stale'
   | 'page.changeLanguage'
   | 'page.maintenanceUntil'
   | 'page.maintenance'

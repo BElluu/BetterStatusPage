@@ -13,6 +13,7 @@ COPY packages/auth/package*.json ./packages/auth/
 COPY packages/vault/package*.json ./packages/vault/
 COPY packages/notify/package*.json ./packages/notify/
 COPY packages/backup/package*.json ./packages/backup/
+COPY packages/mirror/package*.json ./packages/mirror/
 COPY packages/config-as-code/package*.json ./packages/config-as-code/
 COPY packages/runtime/package*.json ./packages/runtime/
 COPY packages/ui/package*.json ./packages/ui/
@@ -57,6 +58,7 @@ COPY packages/auth/package*.json ./packages/auth/
 COPY packages/vault/package*.json ./packages/vault/
 COPY packages/notify/package*.json ./packages/notify/
 COPY packages/backup/package*.json ./packages/backup/
+COPY packages/mirror/package*.json ./packages/mirror/
 COPY packages/config-as-code/package*.json ./packages/config-as-code/
 COPY packages/runtime/package*.json ./packages/runtime/
 COPY packages/ui/package*.json ./packages/ui/
@@ -78,6 +80,7 @@ COPY --from=builder /app/packages/auth/dist ./packages/auth/dist
 COPY --from=builder /app/packages/vault/dist ./packages/vault/dist
 COPY --from=builder /app/packages/notify/dist ./packages/notify/dist
 COPY --from=builder /app/packages/backup/dist ./packages/backup/dist
+COPY --from=builder /app/packages/mirror/dist ./packages/mirror/dist
 COPY --from=builder /app/packages/config-as-code/dist ./packages/config-as-code/dist
 COPY --from=builder /app/packages/runtime/dist ./packages/runtime/dist
 COPY --from=builder /app/apps/api/dist    ./apps/api/dist

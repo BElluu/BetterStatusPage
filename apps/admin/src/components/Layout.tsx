@@ -32,6 +32,7 @@ export const ALL_SECTIONS: NavSection[] = [
       { to: '/admin/branding',     label: 'Branding',     icon: 'palette',             minRole: 'branding' },
       { to: '/admin/localization', label: 'Localization', icon: 'translate',           minRole: 'branding' },
       { to: '/admin/subscribers',  label: 'Subscribers',  icon: 'campaign',            minRole: 'operator' },
+      { to: '/admin/static-fallback', label: 'Static fallback', icon: 'cloud_upload',   minRole: 'admin' },
     ],
   },
   {

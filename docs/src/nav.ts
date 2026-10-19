@@ -31,6 +31,7 @@ const SECTIONS: { label: string; items: { slug: string; label?: string }[] }[] =
       { slug: 'customizing-the-status-page', label: 'Customizing the page' },
       { slug: 'subscriptions', label: 'Subscriptions' },
       { slug: 'private-status-page' },
+      { slug: 'static-fallback', label: 'Static fallback' },
     ],
   },
   {

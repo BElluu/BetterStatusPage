@@ -473,6 +473,7 @@ Before exposing an instance publicly:
 - `TRUST_PROXY=1` is enabled only when Nginx is the only path to the app.
 - Backups are configured, one backup was created, and verification passes.
 - A restore drill was completed on a non-production copy.
+- Optional: [static fallback](static-fallback.md) is set up, so the status page still answers when this server does not.
 - `/health` returns 200 and `/ready` returns 200 after setup.
 - If SSO is enabled, `PUBLIC_URL` is set, the same callback URL is registered at the identity provider, and you know the `OIDC_FORCE_PASSWORD_LOGIN` break-glass switch.
 - GitHub CI or equivalent release checks passed: lint, tests, build, Docker build, and E2E on Linux.

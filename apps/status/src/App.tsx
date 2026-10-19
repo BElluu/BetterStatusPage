@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ApiError, getJSON } from './api'
+import { SNAPSHOT_URL } from './dataSource'
+import { SnapshotBanner } from './components/SnapshotBanner'
 import { useSSE } from './hooks/useSSE'
 import { useDarkMode } from './hooks/useDarkMode'
 import { useLocale } from './i18n/LocaleContext'
@@ -141,7 +143,7 @@ function StatusPage({ account }: { account: { email: string; role: string | null
     // Revalidate instead of reusing the browser's short-lived copy, so an SSE-triggered refetch
     // really picks up the change it was notified about.
     queryFn: () => getJSON<PublicStatus>('/api/v1/public/status', { cache: 'no-cache' }),
-    refetchInterval: 5 * 60_000,
+    refetchInterval: SNAPSHOT_URL ? 60_000 : 5 * 60_000,
   })
   const status = statusQuery.data
 
@@ -149,7 +151,7 @@ function StatusPage({ account }: { account: { email: string; role: string | null
     queryKey: ['public-layout'],
     queryFn: () => getJSON<PublicLayout>('/api/v1/public/layout'),
     // Keep retrying while the hero says "retrying…" after a failed load.
-    refetchInterval: (query) => (query.state.status === 'error' ? 30_000 : false),
+    refetchInterval: (query) => (query.state.status === 'error' ? 30_000 : SNAPSHOT_URL ? 60_000 : false),
   })
   const layoutData = layoutQuery.data
 
@@ -157,6 +159,7 @@ function StatusPage({ account }: { account: { email: string; role: string | null
     queryKey: ['public-incidents'],
     // 20 = max of the Incidents block's "Incident limit" in the builder.
     queryFn: () => getJSON<Incident[]>('/api/v1/public/incidents?limit=20'),
+    refetchInterval: SNAPSHOT_URL ? 60_000 : false,
   })
 
   const signInRequired = isSignInRequired(statusQuery.error) || isSignInRequired(layoutQuery.error)
@@ -283,6 +286,7 @@ function StatusPage({ account }: { account: { email: string; role: string | null
   return (
     <div className="bsp-page flex flex-col" style={{ ...cssVars, background: 'var(--bsp-bg)', minHeight: '100vh' }}>
       {customCss && <style>{customCss}</style>}
+      {SNAPSHOT_URL && <SnapshotBanner />}
 
       {/* ── Top Navigation ── */}
       <header className="bsp-header" style={{ background: 'var(--bsp-bg)', position: 'sticky', top: 0, zIndex: 50 }}>

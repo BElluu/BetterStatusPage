@@ -21,6 +21,7 @@ const SubscribersPage = lazy(() => import('./pages/Subscribers'))
 const MaintenancePage = lazy(() => import('./pages/Maintenance'))
 const ApiTokensPage = lazy(() => import('./pages/ApiTokens'))
 const ImportPage = lazy(() => import('./pages/Import'))
+const StaticFallbackPage = lazy(() => import('./pages/StaticFallback'))
 const AuditLogPage = lazy(() => import('./pages/AuditLog'))
 const SystemHealthPage = lazy(() => import('./pages/SystemHealth'))
 const ReportsPage = lazy(() => import('./pages/Reports'))
@@ -91,6 +92,7 @@ export default function App() {
           <Route path="vault"      element={<RequireRole minRole="admin"><VaultPage /></RequireRole>} />
           <Route path="import" element={<RequireRole minRole="operator"><ImportPage /></RequireRole>} />
           <Route path="api-tokens" element={<RequireRole minRole="admin"><ApiTokensPage /></RequireRole>} />
+          <Route path="static-fallback" element={<RequireRole minRole="admin"><StaticFallbackPage /></RequireRole>} />
           <Route path="audit-log" element={<RequireRole minRole="admin"><AuditLogPage /></RequireRole>} />
           <Route path="backups" element={<RequireRole minRole="admin"><BackupsPage /></RequireRole>} />
           <Route path="system-health" element={<RequireRole minRole="admin"><SystemHealthPage /></RequireRole>} />

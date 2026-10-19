@@ -16,6 +16,8 @@ describe('background service lifecycle', () => {
       stopNotificationRetryWorker: mock.fn(),
       startUpdateCheck: mock.fn(),
       stopUpdateCheck: mock.fn(),
+      startStaticMirror: mock.fn(),
+      stopStaticMirror: mock.fn(),
     }
 
     startBackgroundServices(services)
