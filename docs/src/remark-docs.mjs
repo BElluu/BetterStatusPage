@@ -2,7 +2,8 @@
  * Lets the guides in docs/ stay plain GitHub-readable Markdown:
  * - drops the leading `# Title` (the layout renders the title itself),
  * - turns links to sibling guides (`deployment.md#nginx`) into site routes (`/deployment/#nginx`),
- * - points links that leave docs/ (`../README.md`) at the file on GitHub.
+ * - points links that leave docs/ (`../README.md`) at the file on GitHub,
+ * - colours the `✓` `•` `✕` marks of a comparison table (see convertMarks).
  */
 const REPO_BLOB = 'https://github.com/BElluu/BetterStatusPage/blob/main/'
 
@@ -32,8 +33,53 @@ function convertWarning(node) {
   node.data = { hName: 'aside', hProperties: { className: ['callout', 'callout-warning'] } }
 }
 
+/**
+ * A table cell that starts with `✓` (yes), `•` (partly) or `✕` (no), and the legend line under such a
+ * table, get the mark wrapped in a span so the site can colour it. In the Markdown the marks stay plain
+ * characters, readable on GitHub as they are.
+ */
+const MARKS = { '✓': 'yes', '•': 'mid', '✕': 'no' }
+const MARK_LABELS = { yes: 'Yes', mid: 'Partly', no: 'No' }
+const MARK_CHARS = /([✓•✕])/
+
+function markNode(char) {
+  const kind = MARKS[char]
+  return {
+    type: 'text',
+    value: char,
+    data: {
+      hName: 'span',
+      hProperties: { className: ['mark', `mark-${kind}`], role: 'img', ariaLabel: MARK_LABELS[kind] },
+      hChildren: [{ type: 'text', value: char }],
+    },
+  }
+}
+
+function splitMarks(textNode, all) {
+  const out = []
+  let marked = false
+  for (const part of textNode.value.split(MARK_CHARS).filter((p) => p !== '')) {
+    if (MARKS[part] && (all || !marked)) {
+      out.push(markNode(part))
+      marked = true
+    } else out.push({ type: 'text', value: part })
+  }
+  return out
+}
+
+function convertMarks(node) {
+  const first = node.children?.[0]
+  if (first?.type !== 'text') return
+  if (node.type === 'tableCell' && MARKS[first.value.trim()[0]]) {
+    node.children.splice(0, 1, ...splitMarks(first, false))
+  } else if (node.type === 'paragraph' && first.value.startsWith('✓ yes')) {
+    node.children.splice(0, 1, ...splitMarks(first, true))
+  }
+}
+
 function visit(node) {
   if (node.type === 'blockquote') convertWarning(node)
+  if (node.type === 'tableCell' || node.type === 'paragraph') convertMarks(node)
   if ((node.type === 'link' || node.type === 'definition') && typeof node.url === 'string') {
     node.url = rewrite(node.url)
   }
