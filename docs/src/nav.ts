@@ -12,7 +12,10 @@ export const SITE_URL = 'https://betterstatuspage.dev'
 const SECTIONS: { label: string; items: { slug: string; label?: string }[] }[] = [
   {
     label: 'Get started',
-    items: [{ slug: 'deployment', label: 'Deployment' }],
+    items: [
+      { slug: 'deployment', label: 'Deployment' },
+      { slug: 'comparison', label: 'Comparison' },
+    ],
   },
   {
     label: 'Monitoring',
