@@ -159,9 +159,20 @@ jobs:
       - name: Packages in isolation
         run: npm run test:isolation
 
+  # The image is published for amd64 and arm64, so the smoke test runs natively on both.
   docker-smoke:
-    runs-on: ubuntu-latest
+    name: docker-smoke (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
 
     steps:
       - name: Checkout
@@ -176,8 +187,8 @@ jobs:
           context: .
           load: true
           tags: better-status-page:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
 
       - name: Start container
         run: >-

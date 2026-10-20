@@ -177,28 +177,6 @@ try {
   $versionImage = "${image}:$Version"
   $latestImage = "${image}:latest"
 
-  Write-Step "Building $versionImage and $latestImage"
-  Invoke-External -File 'docker.exe' -Arguments @(
-    'build',
-    '--pull',
-    '--platform', 'linux/amd64',
-    '--build-arg', "IMAGE_VERSION=$Version",
-    '--build-arg', "IMAGE_REVISION=$revision",
-    '--tag', $versionImage,
-    '--tag', $latestImage,
-    '.'
-  )
-
-  $versionImageId = Invoke-ExternalOutput -File 'docker.exe' -Arguments @(
-    'image', 'inspect', $versionImage, '--format', '{{.Id}}'
-  )
-  $latestImageId = Invoke-ExternalOutput -File 'docker.exe' -Arguments @(
-    'image', 'inspect', $latestImage, '--format', '{{.Id}}'
-  )
-  if ($versionImageId -ne $latestImageId) {
-    throw "Local image tags do not reference the same image: $versionImageId != $latestImageId"
-  }
-
   Write-Step 'Logging in to GitHub Container Registry'
   if (-not $GitHubPat) {
     $GitHubPat = Read-Host 'GitHub PAT classic with write:packages' -AsSecureString
@@ -216,11 +194,23 @@ try {
   }
   $loggedIn = $true
 
-  Write-Step "Publishing immutable image tag $Version"
-  Invoke-External -File 'docker.exe' -Arguments @('push', $versionImage)
+  # A multi-platform image cannot be loaded into the local daemon, so it is built and pushed in one step.
+  Write-Step "Building and publishing immutable multi-platform image tag $Version (linux/amd64, linux/arm64)"
+  Invoke-External -File 'docker.exe' -Arguments @(
+    'buildx', 'build',
+    '--pull',
+    '--platform', 'linux/amd64,linux/arm64',
+    '--build-arg', "IMAGE_VERSION=$Version",
+    '--build-arg', "IMAGE_REVISION=$revision",
+    '--tag', $versionImage,
+    '--push',
+    '.'
+  )
 
   Write-Step 'Publishing latest only after the versioned image succeeded'
-  Invoke-External -File 'docker.exe' -Arguments @('push', $latestImage)
+  Invoke-External -File 'docker.exe' -Arguments @(
+    'buildx', 'imagetools', 'create', '--tag', $latestImage, $versionImage
+  )
 
   Write-Step 'Publishing the release commit and Git tag'
   Invoke-External -File 'git' -Arguments @('tag', '-a', $gitTag, '-m', "BetterStatusPage $Version")
