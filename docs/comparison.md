@@ -5,9 +5,6 @@ How BetterStatusPage compares with Gatus, Uptime Kuma, Statuspage, Instatus, Bet
 > [!NOTE]
 > Compared on 20 October 2026, from each product's public documentation, repository and pricing page, in good faith. Prices, plan limits and provider counts change often, so this page leaves them out on purpose: check the vendor's own site for those. [Open an issue](https://github.com/BElluu/BetterStatusPage/issues) if something here is wrong.
 
-> [!WARNING]
-> **Not released yet.** Recurring maintenance windows and the static fallback are not in a published release. To try them, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 ---
 
 ## Which one fits

@@ -1,8 +1,5 @@
 # Static fallback
 
-> [!WARNING]
-> **Not released yet.** The static fallback is not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 When the server that runs BetterStatusPage is down, the status page is down with it, which is when visitors want it most. The static fallback keeps a **saved copy** of the public page on static hosting that does not depend on your server, so that visitors still see the last known state, with a banner saying when it was taken (you can turn the banner off).
 
 The copy needs no server of its own: it is the same status page, answering its requests from a `snapshot.json` file instead of the API.

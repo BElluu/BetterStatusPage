@@ -211,9 +211,6 @@ The form opens with a window starting in one hour and lasting two.
 
 ### Recurring windows
 
-> [!WARNING]
-> **Not released yet.** Recurring maintenance windows are not in a published release. To try them, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 A repeating window is one entry that runs again at the same time of day, for example every night from 01:00 to 02:00, or every Tuesday from 02:00 to 03:00. It starts with the **Starts At** you entered and never before it.
 
 - **The time of day is kept in the timezone of the browser that created the window**, shown next to the repeat rule on the Maintenance page. 01:00 stays 01:00 across a daylight-saving change.
@@ -240,13 +237,7 @@ Each window shows its time range, duration and affected monitors. Use the pencil
 
 ### What happens during a window
 
-> [!WARNING]
-> **Not released yet.** The *Maintenance* and *Incident* chips in the admin console are not in a published release. To try them, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 In the admin console a covered monitor shows a **Maintenance** chip, and a monitor named by an open, published incident shows **Incident · minor / major / critical** (the worst impact if several are open; drafts are not counted), beside its status on the **Monitors** list, the **Dashboard** and the monitor's page. The monitor's page also has a **Maintenance** card listing the running and upcoming windows that cover it (the running or next occurrence of a repeating window, with its rule), with a link to the Maintenance page. They update every 30 seconds.
-
-> [!WARNING]
-> **Not released yet.** Leaving failed checks out of uptime is not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 While a window is running, for every monitor it covers:
 

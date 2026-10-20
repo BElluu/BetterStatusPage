@@ -5,6 +5,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-20
+
 ### Added
 
 - **Static fallback**: the instance pushes a saved copy of the public status page (the page, its files and a `snapshot.json` with statuses, layout, incidents, 90 days of uptime and translations) to S3-compatible storage (AWS S3, Cloudflare R2, Backblaze B2, MinIO) every minute or at an interval you choose, so visitors still see the last known state, with a banner saying when it was taken (optional), when the server is down. Set it up in **Static fallback** (administrators only): pick a provider for hints on where to find the endpoint and key, **Check access** tries the key without pushing, and **Save and turn on** starts the first push. The page shows the state in words, what the copy holds and one bar per recent push; **Push now** pushes once on demand while the mirror is on, and **System Health** has a **Static fallback** card. The secret key is stored encrypted, the snapshot holds only what the public page serves, and a private page is never pushed. The admin API serves it at `/admin/static-mirror`. See [Static fallback](static-fallback.md).
