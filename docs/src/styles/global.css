@@ -559,19 +559,33 @@ html.dark .astro-code, html.dark .astro-code span { color: var(--shiki-dark); }
 .prose td code { white-space: nowrap; overflow-wrap: normal; }
 
 /* ✓ • ✕ marks of the comparison tables, coloured like the comparison on the landing page */
-.prose .mark { display: inline-block; width: 1.3em; font-weight: 700; }
+.prose .mark { font-weight: 700; }
 .prose .mark-yes { color: var(--m3-up); }
 .prose .mark-mid { color: var(--m3-degraded-bar); }
 .prose .mark-no { color: var(--m3-outline); }
-.prose td:has(> .mark:first-child) { padding-left: calc(10px + 1.3em); }
-.prose td > .mark:first-child { margin-left: -1.3em; }
-.prose p > .mark { width: auto; margin-right: 0.25em; }
-/* A table of marks is wide: tighter cells, and the first column stays put while the rest scrolls. */
+.prose p > .mark { margin-right: 0.25em; }
+/*
+ * A table of marks is wide, so it is laid out like a grid: the first column is the label, every other
+ * column is centred with the mark on top and its note (if any) under it. The first column stays put
+ * while the rest scrolls on a narrow screen.
+ */
 .prose table:has(.mark) { font-size: 13px; }
-.prose table:has(.mark) th, .prose table:has(.mark) td { padding: 9px 7px; }
-.prose table:has(.mark) td:has(> .mark:first-child) { padding-left: calc(7px + 1.3em); }
+.prose table:has(.mark) th, .prose table:has(.mark) td {
+  padding: 9px 7px;
+  text-align: center;
+  vertical-align: middle;
+}
+.prose table:has(.mark) td > .mark { display: block; margin-bottom: 1px; font-size: 16px; line-height: 1.2; }
+/* The column of this product, picked out like on the landing page (see remark-docs.mjs). */
+.prose table.product-column th:nth-child(2) { background: var(--m3-primary-fixed); }
+.prose table.product-column td:nth-child(2) {
+  background: color-mix(in srgb, var(--m3-primary-fixed) 45%, transparent);
+  font-weight: 600;
+}
+/* the bullet glyph is much smaller than the check and the cross */
+.prose table:has(.mark) td > .mark-mid { font-size: 22px; line-height: 0.9; }
 .prose table:has(.mark) th:first-child, .prose table:has(.mark) td:first-child {
-  position: sticky; left: 0; background: var(--m3-surface-container-low);
+  position: sticky; left: 0; text-align: left; background: var(--m3-surface-container-low);
 }
 
 .prose img { max-width: 100%; height: auto; border-radius: 12px; }

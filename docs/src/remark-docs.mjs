@@ -34,6 +34,20 @@ function convertWarning(node) {
 }
 
 /**
+ * `> [!NOTE]` is GitHub's blue block. On the site the marker is dropped and the text stays a plain,
+ * quoted note.
+ */
+const NOTE = /^\[!NOTE\][ \t]*\r?\n?/
+
+function convertNote(node) {
+  const paragraph = node.children?.[0]
+  const text = paragraph?.type === 'paragraph' ? paragraph.children?.[0] : null
+  if (text?.type !== 'text' || !NOTE.test(text.value)) return
+  text.value = text.value.replace(NOTE, '')
+  if (!text.value) paragraph.children.shift()
+}
+
+/**
  * A table cell that starts with `✓` (yes), `•` (partly) or `✕` (no), and the legend line under such a
  * table, get the mark wrapped in a span so the site can colour it. In the Markdown the marks stay plain
  * characters, readable on GitHub as they are.
@@ -77,8 +91,26 @@ function convertMarks(node) {
   }
 }
 
+/**
+ * In a comparison table the column of this product (the second one, after the row labels) is picked out,
+ * like on the landing page. The table is found by that header, so the Markdown needs no extra syntax.
+ */
+const PRODUCT = 'BetterStatusPage'
+
+const plainText = (node) => node.value ?? node.children?.map(plainText).join('') ?? ''
+
+function markProductColumn(table) {
+  const header = table.children?.[0]?.children ?? []
+  if (plainText(header[1] ?? {}) !== PRODUCT) return
+  table.data = { ...table.data, hProperties: { className: ['product-column'] } }
+}
+
 function visit(node) {
-  if (node.type === 'blockquote') convertWarning(node)
+  if (node.type === 'blockquote') {
+    convertWarning(node)
+    convertNote(node)
+  }
+  if (node.type === 'table') markProductColumn(node)
   if (node.type === 'tableCell' || node.type === 'paragraph') convertMarks(node)
   if ((node.type === 'link' || node.type === 'definition') && typeof node.url === 'string') {
     node.url = rewrite(node.url)
