@@ -1,6 +1,7 @@
 import cron from 'node-cron'
 import type { ScheduledTask } from 'node-cron'
-import { db } from '../db/client.js'
+import { db, sqlite } from '../db/client.js'
+import { deleteEmptyDailyResults } from '../db/dailyResults.js'
 import { monitors, monitorResults, maintenanceWindowMonitors, monitorDependencies } from '../db/schema.js'
 import { sseService } from '../kit/sse.js'
 import { checkHttps } from './https.js'
@@ -296,6 +297,7 @@ export async function runSchedulerTick(
 export async function purgeOldResults(now = Date.now(), config: SchedulerConfig = getSchedulerConfig()) {
   const cutoff = now - config.resultRetentionDays * 24 * 60 * 60 * 1000
   await db.delete(monitorResults).where(lt(monitorResults.checkedAt, cutoff))
+  deleteEmptyDailyResults(sqlite)
   console.log('[scheduler] Purged old monitor results')
 }
 

@@ -8,7 +8,7 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 ### Changed
 
 - **Faster checks with slow monitors**: scheduled checks share one limit of `MONITOR_CHECK_CONCURRENCY` slots, counted across all ticks and served in the order monitors became due, instead of chunks that each waited for their slowest check (and a limit that applied to each tick separately), so a few hanging monitors no longer delay the rest (a tick of 100 monitors with 10% hanging: 15 s before, 3.3 s now).
-- **Faster daily uptime on the status page and in reports**: the daily counts are made by day number instead of a formatted date, about twice as fast (35 ms instead of 65 ms per monitor over 90 days at 13 M results).
+- **Daily uptime totals**: the database keeps the checks of each monitor counted per UTC day, so the 90-day uptime on the status page, the uptime report, the static fallback and the daily bars of the monitor statistics are read from a few rows instead of counted from every result. At 100 monitors and 13 M results, the uptime of one monitor takes 0.3 ms instead of 65 ms and a cold view of the status page 38 ms instead of 6.4 s. Triggers on the results table keep the totals right, including retention, deleted monitors and failures confirmed later, and the benchmark checks them against the results. Recording a check takes about 0.1 to 0.2 ms longer. The first start after the upgrade counts the existing results once (about 5 s per 13 M results). See [Performance](performance.md#daily-totals).
 
 ### Fixed
 

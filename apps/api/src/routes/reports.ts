@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import { and, asc, eq, gte, lt, sql } from 'drizzle-orm'
 import { db } from '../db/client.js'
-import { countedChecks, countedUp } from '../services/uptimeCounts.js'
-import { incidentMonitors, incidents, monitorResults, monitors } from '../db/schema.js'
+import { nonEmptyDay } from '../services/uptimeCounts.js'
+import { incidentMonitors, incidents, monitorDailyResults, monitors } from '../db/schema.js'
 import type { UptimeReport, UptimeReportMonitor } from '@bsp/shared'
 import { getSchedulerConfig } from '../config/scheduler.js'
 import { csvDocument } from '../lib/csv.js'
@@ -40,27 +40,26 @@ function percentage(up: number, total: number): number | null {
 
 async function loadReport(range: Range, monitorId: number | null): Promise<DailyMonitor[]> {
   const endMs = range.toMs + DAY_MS
-  // UTC day number (integer division), turned into a date below: cheaper than formatting a date string per row.
-  const day = sql<number>`${monitorResults.checkedAt} / ${sql.raw(String(DAY_MS))}`
   const monitorFilter = monitorId === null ? undefined : eq(monitors.id, monitorId)
 
   const [monitorRows, dayRows, incidentRows] = await Promise.all([
     db.select({ id: monitors.id, name: monitors.name }).from(monitors).where(monitorFilter).orderBy(asc(monitors.name), asc(monitors.id)),
-    // Counted per monitor and UTC day in SQL, like the status page bars; unconfirmed failures do not lower uptime and failures inside a maintenance window are left out.
+    // The daily totals the database keeps (see db/dailyResults.ts), like the status page bars: unconfirmed failures do not
+    // lower uptime and failures inside a maintenance window are left out. The range is whole UTC days.
     db.select({
-      monitorId: monitorResults.monitorId,
-      date: day,
-      checksTotal: countedChecks,
-      checksUp: countedUp,
-      responseSum: sql<number | null>`sum(${monitorResults.responseMs})`,
-      responseCount: sql<number>`count(${monitorResults.responseMs})`,
-    }).from(monitorResults)
+      monitorId: monitorDailyResults.monitorId,
+      date: monitorDailyResults.day,
+      checksTotal: monitorDailyResults.checksTotal,
+      checksUp: monitorDailyResults.checksUp,
+      responseSum: monitorDailyResults.responseSum,
+      responseCount: monitorDailyResults.responseCount,
+    }).from(monitorDailyResults)
       .where(and(
-        gte(monitorResults.checkedAt, range.fromMs),
-        lt(monitorResults.checkedAt, endMs),
-        monitorId === null ? undefined : eq(monitorResults.monitorId, monitorId),
-      ))
-      .groupBy(monitorResults.monitorId, day),
+        gte(monitorDailyResults.day, range.fromMs / DAY_MS),
+        lt(monitorDailyResults.day, endMs / DAY_MS),
+        nonEmptyDay,
+        monitorId === null ? undefined : eq(monitorDailyResults.monitorId, monitorId),
+      )),
     db.select({ monitorId: incidentMonitors.monitorId, incidentId: incidents.id })
       .from(incidentMonitors)
       .innerJoin(incidents, eq(incidents.id, incidentMonitors.incidentId))

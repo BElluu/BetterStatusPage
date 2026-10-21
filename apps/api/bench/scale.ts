@@ -33,6 +33,7 @@ const { runMigrations } = await import('../src/db/migrate.js')
 const { monitors } = await import('../src/db/schema.js')
 const scheduler = await import('../src/workers/scheduler.js')
 const { checkHttps } = await import('../src/workers/https.js')
+const { findDailyResultsMismatches, rebuildDailyResults } = await import('../src/db/dailyResults.js')
 const publicData = await import('../src/services/publicStatusData.js')
 const { loadMonitorStats } = await import('../src/services/monitorStats.js')
 const { publicRoutes } = await import('../src/routes/public.js')
@@ -151,6 +152,17 @@ async function main() {
   const seedMs = performance.now() - seedStart
   const dbMb = mb(statSync(dbPath).size)
   console.log(`${seeded.toLocaleString('en')} result rows in ${ms(seedMs / 1000)} s (${Math.round(seeded / (seedMs / 1000)).toLocaleString('en')} rows/s), database ${dbMb} MB`)
+
+  section('Daily totals')
+  // What the first start after an upgrade does on a database of this size: count every result once, in one transaction.
+  sqlite.exec('BEGIN IMMEDIATE')
+  const rebuildStart = performance.now()
+  rebuildDailyResults(sqlite)
+  sqlite.exec('COMMIT')
+  console.log(`built from ${seeded.toLocaleString('en')} results in ${ms((performance.now() - rebuildStart) / 1000)} s (the migration of an existing database)`)
+  const checkStart = performance.now()
+  verify('daily totals match the results after the build', findDailyResultsMismatches(sqlite).length === 0)
+  console.log(`consistency check (one pass over all results): ${ms((performance.now() - checkStart) / 1000)} s`)
 
   section('Scheduler tick: all monitors due, real HTTP checks against a local 20 ms endpoint')
   const healthyFrom = Date.now()
@@ -297,6 +309,7 @@ async function main() {
   console.log(`deleted ${(before - after).toLocaleString('en')} rows in ${ms(performance.now() - purgeStart)} ms`)
 
   section('Integrity')
+  verify('daily totals match the results after checks, observations and retention', findDailyResultsMismatches(sqlite).length === 0)
   verify('integrity_check', (sqlite.prepare('PRAGMA integrity_check').get() as { integrity_check: string }).integrity_check === 'ok')
   verify('foreign_key_check', sqlite.prepare('PRAGMA foreign_key_check').all().length === 0)
   verify('every monitor shows the status of its latest result', (sqlite.prepare(

@@ -1,8 +1,8 @@
-import { and, desc, eq, gte, isNotNull, lt, ne, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, gte, isNotNull, lt, lte, ne, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { RESULT_IN_MAINTENANCE, RESULT_UNCONFIRMED } from '../db/resultMarks.js'
-import { countedChecks, countedUp, maintenanceChecks } from './uptimeCounts.js'
-import { incidentMonitors, incidents, monitorResults } from '../db/schema.js'
+import { countedChecks, countedUp, maintenanceChecks, nonEmptyDay } from './uptimeCounts.js'
+import { incidentMonitors, incidents, monitorDailyResults, monitorResults } from '../db/schema.js'
 import type { MonitorStats, MonitorStatus } from '@bsp/shared'
 
 const HOUR_MS = 3_600_000
@@ -67,8 +67,16 @@ export async function loadMonitorStats(monitorId: number, hours: number, retenti
     db.select({ index: bucketIndex, ms: monitorResults.responseMs }).from(monitorResults)
       .where(and(inWindow, isNotNull(monitorResults.responseMs)))
       .orderBy(bucketIndex, monitorResults.responseMs),
-    db.select({ index: barIndex, checksTotal: countedChecks, checksUp: up, maintenanceChecks })
-      .from(monitorResults).where(inBarsWindow).groupBy(barIndex),
+    // Daily bars are UTC days, which the database keeps totals for (see db/dailyResults.ts); shorter bars are counted from the results.
+    stepHours === 24
+      ? db.select({
+        index: monitorDailyResults.day, checksTotal: monitorDailyResults.checksTotal, checksUp: monitorDailyResults.checksUp,
+        maintenanceChecks: monitorDailyResults.maintenanceChecks,
+      }).from(monitorDailyResults).where(and(
+        eq(monitorDailyResults.monitorId, monitorId), gte(monitorDailyResults.day, firstBar), lte(monitorDailyResults.day, lastBar), nonEmptyDay,
+      ))
+      : db.select({ index: barIndex, checksTotal: countedChecks, checksUp: up, maintenanceChecks })
+        .from(monitorResults).where(inBarsWindow).groupBy(barIndex),
     db.select({
       checkedAt: monitorResults.checkedAt, status: monitorResults.status, responseMs: monitorResults.responseMs,
       errorMessage: monitorResults.errorMessage, unconfirmed: monitorResults.unconfirmed,
