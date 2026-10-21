@@ -59,7 +59,9 @@ A few details:
 - The **Incident** side tab opens an incident when the monitor stays down
   for the minutes you set. See [Automatic incidents](incidents-and-maintenance.md#automatic-incidents).
 - The scheduler wakes every 10 seconds (`SCHEDULER_TICK_SECONDS`), so a check runs at most that
-  long after its interval has passed.
+  long after its interval has passed. At most `MONITOR_CHECK_CONCURRENCY` scheduled checks (default 20)
+  run at the same time; when more are due, the rest wait their turn, so a few hanging monitors do not
+  hold up the others for long, but enough of them can delay checks. See [Performance](performance.md#checks).
 
 The side tabs of the form hold the rest:
 

@@ -25,6 +25,7 @@ const SECTIONS: { label: string; items: { slug: string; label?: string }[] }[] =
       { slug: 'alert-hygiene' },
       { slug: 'actions', label: 'Actions' },
       { slug: 'reports', label: 'Uptime reports' },
+      { slug: 'performance', label: 'Performance' },
     ],
   },
   {

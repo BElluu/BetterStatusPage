@@ -5,6 +5,22 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+### Changed
+
+- **Faster checks with slow monitors**: scheduled checks share one limit of `MONITOR_CHECK_CONCURRENCY` slots, counted across all ticks and served in the order monitors became due, instead of chunks that each waited for their slowest check (and a limit that applied to each tick separately), so a few hanging monitors no longer delay the rest (a tick of 100 monitors with 10% hanging: 15 s before, 3.3 s now).
+- **Faster daily uptime on the status page and in reports**: the daily counts are made by day number instead of a formatted date, about twice as fast (35 ms instead of 65 ms per monitor over 90 days at 13 M results).
+
+### Fixed
+
+- **Checks and heartbeats no longer overwrite each other**: a check's result is now judged against the monitor's state at the moment it is recorded, not against the row read before the check started, so a heartbeat that arrives while a check is queued or running keeps its failure count. A monitor that was deleted or already observed while it waited for its turn is skipped, and the result and the monitor's state are saved in one transaction (about 30% faster per check).
+- **No duplicate check after "Check now"**: the end of a scheduler tick no longer releases a monitor that "Check now" has just started, which could let the next tick check it a second time and repeat an alert.
+
+- **Transactions no longer collide**: database transactions that start at the same time now take turns instead of failing with "cannot start a transaction within a transaction". With the single connection, several checks finishing together (for instance heartbeat monitors that all missed their interval) could lose all but one of their results, and a heartbeat arriving at that moment could get an error.
+
+### Added
+
+- **Performance benchmark**: `npm run bench` measures the scheduler, the write path and the public API against a temporary database with any number of monitors and days of history. Results for 10, 25, 100 and 250 monitors are in [Performance](performance.md).
+
 ## [0.6.0] - 2026-10-20
 
 ### Added

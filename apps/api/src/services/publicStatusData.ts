@@ -104,7 +104,8 @@ export async function loadUptime(monitorId: number, days: number) {
   const brandingRow = (await db.select().from(branding))[0]
   const thresholds: UptimeThresholds = brandingRow ?? DEFAULT_UPTIME_THRESHOLDS
   // Counted per UTC day in SQL: the page only needs totals, not up to 90 days of raw rows.
-  const day = sql<string>`strftime('%Y-%m-%d', ${monitorResults.checkedAt} / 1000, 'unixepoch')`
+  // UTC day number (integer division): grouping by it is about twice as fast as formatting a date string per row.
+  const day = sql<number>`${monitorResults.checkedAt} / 86400000`
   const dayRows = await db.select({
     date: day,
     checksTotal: countedChecks,
@@ -113,7 +114,7 @@ export async function loadUptime(monitorId: number, days: number) {
   }).from(monitorResults)
     .where(and(eq(monitorResults.monitorId, monitorId), gte(monitorResults.checkedAt, since)))
     .groupBy(day)
-  const dayBuckets = new Map(dayRows.map((row) => [row.date, row]))
+  const dayBuckets = new Map(dayRows.map((row) => [Number(row.date), row]))
 
   // Fetch incidents affecting this specific monitor
   const incidentLinks = await db
@@ -133,7 +134,7 @@ export async function loadUptime(monitorId: number, days: number) {
   const summaryDays = []
   for (let i = days - 1; i >= 0; i--) {
     const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-    const bucket = dayBuckets.get(date)
+    const bucket = dayBuckets.get(new Date(date + 'T00:00:00.000Z').getTime() / 86_400_000)
     const checksTotal = Number(bucket?.checksTotal ?? 0)
     const checksUp = Number(bucket?.checksUp ?? 0)
     const uptimePct = checksTotal > 0 ? (checksUp / checksTotal) * 100 : 100

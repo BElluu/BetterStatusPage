@@ -40,7 +40,8 @@ function percentage(up: number, total: number): number | null {
 
 async function loadReport(range: Range, monitorId: number | null): Promise<DailyMonitor[]> {
   const endMs = range.toMs + DAY_MS
-  const day = sql<string>`strftime('%Y-%m-%d', ${monitorResults.checkedAt} / 1000, 'unixepoch')`
+  // UTC day number (integer division), turned into a date below: cheaper than formatting a date string per row.
+  const day = sql<number>`${monitorResults.checkedAt} / ${sql.raw(String(DAY_MS))}`
   const monitorFilter = monitorId === null ? undefined : eq(monitors.id, monitorId)
 
   const [monitorRows, dayRows, incidentRows] = await Promise.all([
@@ -80,7 +81,7 @@ async function loadReport(range: Range, monitorId: number | null): Promise<Daily
     if (!monitor) continue // results of a deleted monitor
     const checksTotal = Number(row.checksTotal)
     const checksUp = Number(row.checksUp)
-    monitor.days.set(row.date, { checksTotal, checksUp })
+    monitor.days.set(new Date(Number(row.date) * DAY_MS).toISOString().slice(0, 10), { checksTotal, checksUp })
     monitor.checksTotal += checksTotal
     monitor.checksUp += checksUp
     const response = responses.get(row.monitorId) ?? { sum: 0, count: 0 }
