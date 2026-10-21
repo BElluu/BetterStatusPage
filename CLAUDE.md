@@ -46,6 +46,7 @@ The code that is not specific to a status page lives in `packages/*` as `@better
 | `audit`, `auth`, `vault` | audit log; accounts, sessions, SSO, 2FA, API tokens, setup routes, `registerAdminApi`; vaults and secrets |
 | `notify` | channels, transports, delivery engine, alert hygiene, routes, delivery worker |
 | `backup`, `config-as-code` | backup/restore/CLI/scheduler/routes; YAML engine with a kind registry, entity keys |
+| `mcp` | MCP endpoint (Streamable HTTP): Bearer-only access, scoped tools, bounded and sanitised output |
 | `runtime` | `createBetterApp`, health, SSE, update check, app lock, shutdown, data paths |
 | `ui` | React shell, shared pages, API client, styles and Tailwind preset |
 

@@ -342,6 +342,22 @@ describe('using vault secrets', () => {
   })
 })
 
+describe('the heartbeat token of a monitor', () => {
+  it('is shown to a token that may write monitors and to a session, and hidden from a read-only token', async () => {
+    const created = await app.inject({ method: 'POST', url: '/admin/monitors', headers: sessions['admin']!, payload: { name: 'Nightly job', type: 'webhook', config: {} } })
+    const { id, webhookToken } = created.json() as { id: number; webhookToken: string }
+    assert.ok(webhookToken)
+    const readers = [await tokenWith('monitors:read'), await tokenWith('monitors:read', 'incidents:write')]
+    const writer = await tokenWith('monitors:write')
+    for (const url of ['/admin/monitors', `/admin/monitors/${id}`]) {
+      const pick = (body: unknown) => (Array.isArray(body) ? body.find((m: { id: number }) => m.id === id) : body) as Record<string, unknown>
+      for (const bearer of readers) assert.equal('webhookToken' in pick((await get(url, bearer)).json()), false, url)
+      assert.equal(pick((await get(url, writer)).json())['webhookToken'], webhookToken, url)
+      assert.equal(pick((await app.inject({ url, headers: sessions['operator']! })).json())['webhookToken'], webhookToken, url)
+    }
+  })
+})
+
 describe('rate limiting', () => {
   it('allows 300 requests a minute per token, then answers 429', async () => {
     const { body } = await createToken()

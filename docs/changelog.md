@@ -5,6 +5,14 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+### Added
+
+- **MCP server for AI agents**: with `MCP_ENABLED=true` the application serves a read-only [Model Context Protocol](https://modelcontextprotocol.io) endpoint at `/mcp`, so an agent such as Claude Code can look into monitors, check results, incidents, maintenance, notification deliveries, uptime reports, the audit log and system health. It accepts only an API token (`Authorization: Bearer`), shows the agent just the tools that token's permissions allow, reads through the admin API with that same token, removes control and invisible characters from the text it returns, and refuses requests that carry an `Origin` header or, with `PUBLIC_URL` set, another `Host`. It is off by default, and while off `/mcp` answers `404`. See [MCP server for AI agents](mcp.md).
+
+### Fixed
+
+- **Heartbeat token and read-only API tokens**: `GET /monitors` and `GET /monitors/:id` returned `webhookToken` to a token that could only read monitors, and that token is enough to report a heartbeat monitor up or down. It is now returned to sessions of administrators and operators and to tokens with `monitors:write`, and left out for read-only tokens. See [Webhook](monitors.md#webhook-passive-heartbeat).
+
 ## [0.6.0] - 2026-10-20
 
 ### Added

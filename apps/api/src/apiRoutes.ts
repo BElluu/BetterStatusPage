@@ -10,6 +10,8 @@ import { feedRoutes } from './routes/feeds.js'
 import { statusApiRoutes } from './routes/statusApi.js'
 import { publicStatusPageAccessRoutes } from './routes/statusPageAccess.js'
 import { healthRoutes } from './kit/healthRoutes.js'
+import { getMcpConfig } from './config/mcp.js'
+import { registerMcp } from './mcp/register.js'
 
 /**
  * Every HTTP route of the API. Registered by index.ts; kept in its own module so a test can build the real route
@@ -28,4 +30,7 @@ export async function registerApiRoutes(app: FastifyInstance) {
   await app.register(publicSubscriptionRoutes, { prefix: '/api/v1/public/subscriptions' })
 
   await app.register(adminApi, { prefix: '/api/v1/admin' })
+
+  // Off unless MCP_ENABLED=true: then there is no route, and the production fallback answers 404.
+  if (getMcpConfig().enabled) registerMcp(app)
 }

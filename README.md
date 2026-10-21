@@ -275,6 +275,15 @@ Configure it per monitor in the admin panel → monitor edit → **Depends on** 
 
 Status changes propagate to both the admin dashboard and the public page instantly via **Server-Sent Events**. The moment a monitor flips from 🟢 to 🔴, everyone sees it. No polling, no page refresh, no "wait, is this stale?"
 
+### 🤖 MCP server for AI agents
+
+> [!WARNING]
+> **Not released yet.** This feature is on `main` but not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](https://docs.betterstatuspage.dev/deployment/)).
+
+Set `MCP_ENABLED=true` and an agent such as **Claude Code** can look into your instance at `/mcp`: *"what is down right now?"*, *"why did the payments monitor flap last night?"*, *"were the alerts for that outage delivered?"*. It is **read-only**, and it signs in with an API token only, so the agent sees just the tools — monitors, results, incidents, maintenance, deliveries, reports, audit log, system health — that the token's permissions allow. Off by default; text from monitored systems reaches the agent stripped of control characters and marked as data.
+
+> See **[docs.betterstatuspage.dev/mcp](https://docs.betterstatuspage.dev/mcp/)** for setup, the tool list and the safety notes.
+
 ---
 
 ## Architecture 🏗️
@@ -615,7 +624,7 @@ BetterStatusPage/
 └── packages/
     ├── shared/        # Status-page types (@bsp/shared)
     └── …              # Shared modules (@better-kit/*): contracts, db, audit, auth, vault,
-                       # notify, backup, config-as-code, runtime, ui
+                       # notify, backup, config-as-code, mcp, runtime, ui
 ```
 
 The shared modules hold everything that is not specific to a status page, so another product can be built on the

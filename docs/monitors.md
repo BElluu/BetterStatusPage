@@ -394,6 +394,8 @@ The token is 48 hexadecimal characters. Anyone who knows the URL can mark the mo
 it like a password. **Reset token** (when editing) generates a new one; the old URL stops working at
 once.
 
+The URL is shown to signed-in administrators and operators, and to an [API token](api.md#api-tokens) with `monitors:write`. A token that only reads monitors gets them without the `webhookToken` field, because the token in the URL is all it takes to report a monitor up or down.
+
 ### Sending a heartbeat
 
 Send a `GET` or a `POST`. The request body and headers are ignored. A valid token answers `200` with

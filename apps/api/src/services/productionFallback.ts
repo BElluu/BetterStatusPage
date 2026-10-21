@@ -3,7 +3,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 
 export function createProductionFallback(statusDist: string) {
   return (request: FastifyRequest, reply: FastifyReply) => {
-    if (request.url === '/api' || request.url.startsWith('/api/')) {
+    // /mcp is an endpoint when MCP_ENABLED is on; when it is off, it must not turn into the status page.
+    if (/^\/(api|mcp)(\/|\?|$)/.test(request.url)) {
       return reply.code(404).send({ error: 'Not found' })
     }
     return reply.sendFile('index.html', statusDist)
@@ -11,7 +12,7 @@ export function createProductionFallback(statusDist: string) {
 }
 
 /** Paths the status app does not own: they keep answering while the first-run setup is pending. */
-const NOT_STATUS_APP = /^\/(api|admin|uploads|health|ready)(\/|\?|$)/
+const NOT_STATUS_APP = /^\/(api|mcp|admin|uploads|health|ready)(\/|\?|$)/
 
 export async function registerProductionFrontends(
   app: FastifyInstance,

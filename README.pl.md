@@ -275,6 +275,15 @@ Konfiguracja per monitor w panelu admina → edycja monitora → zakładka **Dep
 
 Zmiany statusu docierają zarówno do panelu admina, jak i do strony publicznej natychmiast, przez **Server-Sent Events**. W chwili, gdy monitor zmieni się z 🟢 na 🔴, wszyscy to widzą. Bez odpytywania, bez odświeżania strony, bez „czekaj, czy to aktualne?".
 
+### 🤖 Serwer MCP dla agentów AI
+
+> [!WARNING]
+> **Jeszcze nie wydane.** Ta funkcja jest na `main`, ale nie ma jej w opublikowanym wydaniu. Aby ją wypróbować, zbuduj obraz samodzielnie z gałęzi `main` (zobacz [Wdrożenie](https://docs.betterstatuspage.dev/deployment/)).
+
+Ustaw `MCP_ENABLED=true`, a agent taki jak **Claude Code** zajrzy do Twojej instancji pod `/mcp`: *„co teraz nie działa?”*, *„dlaczego monitor płatności migotał w nocy?”*, *„czy alerty o tej awarii dotarły?”*. Dostęp jest **tylko do odczytu** i wyłącznie z tokenem API, więc agent widzi tylko te narzędzia — monitory, wyniki, incydenty, okna serwisowe, dostarczenia, raporty, dziennik audytu, stan systemu — na które pozwalają uprawnienia tokenu. Domyślnie wyłączone; tekst z monitorowanych systemów trafia do agenta oczyszczony ze znaków sterujących i oznaczony jako dane.
+
+> Zobacz **[docs.betterstatuspage.dev/mcp](https://docs.betterstatuspage.dev/mcp/)**: konfiguracja, lista narzędzi i uwagi o bezpieczeństwie.
+
 ---
 
 ## Architektura 🏗️
@@ -615,7 +624,7 @@ BetterStatusPage/
 └── packages/
     ├── shared/        # Typy strony statusu (@bsp/shared)
     └── …              # Współdzielone moduły (@better-kit/*): contracts, db, audit, auth, sejf,
-                       # notify, backup, config-as-code, runtime, ui
+                       # notify, backup, config-as-code, mcp, runtime, ui
 ```
 
 Współdzielone moduły zawierają wszystko, co nie jest specyficzne dla strony statusu, żeby inny produkt mógł powstać

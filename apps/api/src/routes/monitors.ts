@@ -73,6 +73,14 @@ export async function monitorRoutes(app: FastifyInstance) {
     return { ...m, config: maskSecrets('monitor', JSON.parse(m.config)), tags: JSON.parse(m.tags ?? '[]') }
   }
 
+  /** The heartbeat token is the only credential of the heartbeat URL, so a read-only token must not see it. */
+  function readableBy<T extends { webhookToken: string | null }>(req: FastifyRequest, monitor: T): Omit<T, 'webhookToken'> | T {
+    const token = requestIdentity(req).apiToken
+    if (!token || tokenAllows(token.scopes, 'monitors:write')) return monitor
+    const { webhookToken: _hidden, ...rest } = monitor
+    return rest
+  }
+
   /** Activity of monitors for a reader; the maintenance windows are left out for a token without the maintenance permission. */
   async function activityFor(req: FastifyRequest): Promise<(monitorId: number) => MonitorActivity> {
     const activityOf = await loadMonitorActivity()
@@ -85,7 +93,7 @@ export async function monitorRoutes(app: FastifyInstance) {
   app.get('/', async (req) => {
     const rows = await db.select().from(monitors)
     const activityOf = await activityFor(req)
-    return rows.map((row) => ({ ...parseMonitor(row), activity: activityOf(row.id) }))
+    return rows.map((row) => ({ ...readableBy(req, parseMonitor(row)), activity: activityOf(row.id) }))
   })
 
   // Live status of every monitor, internal ones included; the public stream only carries published ones.
@@ -158,7 +166,7 @@ export async function monitorRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>('/:id', async (req, reply) => {
     const monitor = (await db.select().from(monitors).where(eq(monitors.id, Number(req.params.id))))[0]
     if (!monitor) return reply.code(404).send({ error: 'Not found' })
-    return { ...parseMonitor(monitor), activity: (await activityFor(req))(monitor.id) }
+    return { ...readableBy(req, parseMonitor(monitor)), activity: (await activityFor(req))(monitor.id) }
   })
 
   app.patch<{ Params: { id: string }; Body: Partial<{
