@@ -96,13 +96,15 @@ describe('public API exposes only published monitors', () => {
     assert.deepEqual(detail.monitorIds, [ids['Website']])
   })
 
-  it('serves history only for published monitors, charts included', async () => {
+  it('serves history only for the charts of published monitors', async () => {
     for (const name of ['Website', 'Charted API']) {
       assert.equal((await app.inject({ url: `/public/monitor/${ids[name]}/uptime?days=7` })).statusCode, 200, name)
-      assert.equal((await app.inject({ url: `/public/monitor/${ids[name]}/history` })).statusCode, 200, name)
     }
+    assert.equal((await app.inject({ url: `/public/monitor/${ids['Charted API']}/history?hours=24&buckets=30` })).statusCode, 200)
+    assert.equal((await app.inject({ url: `/public/monitor/${ids['Charted API']}/history?hours=48&buckets=30` })).statusCode, 404, 'a range no chart asks for')
+    assert.equal((await app.inject({ url: `/public/monitor/${ids['Website']}/history` })).statusCode, 404, 'a status card has no chart')
     assert.equal((await app.inject({ url: `/public/monitor/${ids['Internal DB']}/uptime` })).statusCode, 404)
-    assert.equal((await app.inject({ url: `/public/monitor/${ids['Internal DB']}/history` })).statusCode, 404)
+    assert.equal((await app.inject({ url: `/public/monitor/${ids['Internal DB']}/history?hours=24&buckets=30` })).statusCode, 404)
   })
 
   it('streams status changes of published monitors only and strips internal incident links', async () => {

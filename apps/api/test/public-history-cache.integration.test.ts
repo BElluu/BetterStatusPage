@@ -20,7 +20,7 @@ before(async () => {
   const base = { type: 'https', config: '{}', createdAt: now, updatedAt: now }
   published = (await db.insert(monitors).values({ ...base, name: 'Shown' }).returning())[0]!.id
   hidden = (await db.insert(monitors).values({ ...base, name: 'Internal' }).returning())[0]!.id
-  await db.insert(layout).values({ id: 1, tree: JSON.stringify({ id: 'root', type: 'page', children: [{ id: 'n1', type: 'monitor', monitorId: published }] }), updatedAt: now })
+  await db.insert(layout).values({ id: 1, tree: JSON.stringify({ id: 'root', type: 'page', children: [24, 12, 6].flatMap((hours) => [30, 40].map((buckets) => ({ id: `c${hours}-${buckets}`, type: 'chart', monitorId: published, hours, buckets, aggregation: 'avg' }))) }), updatedAt: now })
   await app.register(rateLimit, { global: false })
   await app.register(publicRoutes, { prefix: '/public' })
   await app.ready()
@@ -59,7 +59,7 @@ describe('public history cache', () => {
 
   it('still refuses a monitor that is not on the page, and a bad request', async () => {
     await addResult(hidden)
-    assert.equal((await app.inject({ url: `/public/monitor/${hidden}/history` })).statusCode, 404)
+    assert.equal((await app.inject({ url: `/public/monitor/${hidden}/history?hours=24&buckets=30` })).statusCode, 404)
     assert.equal((await app.inject({ url: `/public/monitor/${published}/history?hours=0` })).statusCode, 400)
   })
 })

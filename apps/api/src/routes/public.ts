@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { serveEventStream, sseService } from '../kit/sse.js'
-import { getPublishedMonitorIds, publishedMonitorIdsSnapshot } from '../services/publishedMonitors.js'
+import { chartRangeKey, getPublishedChartRanges, getPublishedMonitorIds, publishedMonitorIdsSnapshot } from '../services/publishedMonitors.js'
 import { createTtlCache } from '../lib/ttlCache.js'
 import { PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
 import {
@@ -98,7 +98,8 @@ export async function publicRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: 'Invalid monitor id, hours, or buckets' })
       }
 
-      if (!(await getPublishedMonitorIds()).has(monitorId)) return reply.code(404).send({ error: 'Not found' })
+      // Only the ranges the charts of the page ask for: any other one is a fresh scan of up to 90 days.
+      if (!(await getPublishedChartRanges()).has(chartRangeKey(monitorId, hours, nBuckets))) return reply.code(404).send({ error: 'Not found' })
 
       return historyCache.get(`${monitorId}:${hours}:${nBuckets}`, () => loadHistory(monitorId, hours, nBuckets))
     },
