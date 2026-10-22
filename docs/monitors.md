@@ -134,7 +134,7 @@ The **Checks** tab on the right of the form adds what the response must contain 
 
 | Field | Default | What it does |
 | --- | --- | --- |
-| **Keyword (optional)** | — | Text the response body must contain. Case-sensitive. Missing → **Degraded**. |
+| **Keyword (optional)** | — | Text the response body must contain. Case-sensitive. Only the first 1 MB of the body is searched. Missing → **Degraded**. |
 | **Degraded when slower than** | — | A response time over this many milliseconds makes the check **Degraded**. |
 | **Response checks** | — | Headers and JSON fields, see [Response checks](#response-checks). |
 

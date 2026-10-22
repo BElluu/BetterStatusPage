@@ -1,4 +1,4 @@
-import type { HttpsConfig } from '@bsp/shared'
+import { MAX_JSON_ASSERTION_BODY_BYTES, type HttpsConfig } from '@bsp/shared'
 import { resolveVaultSecret } from '../kit/resolveSecret.js'
 import { unwrapRefusal } from '../services/ssrfGuard.js'
 
@@ -27,9 +27,13 @@ export interface HttpResponse {
   status: number
   ok: boolean
   headers: { get(name: string): string | null; getSetCookie?(): string[] }
-  body?: { cancel(): Promise<void> } | null
-  text(): Promise<string>
-  json(): Promise<unknown>
+  body?: {
+    cancel(): Promise<void>
+    getReader(): {
+      read(): Promise<{ done: boolean; value?: Uint8Array | undefined }>
+      cancel(): Promise<void>
+    }
+  } | null
 }
 
 export type HttpFetch = (url: string, init: HttpRequest) => Promise<HttpResponse>
@@ -111,6 +115,29 @@ export async function discardBody(res: HttpResponse): Promise<void> {
   try { await res.body?.cancel() } catch { /* already consumed or errored */ }
 }
 
+/**
+ * Reads the body as text, stopping after `limit` + 1 bytes and cancelling the stream, so a target that
+ * streams without end (chunked, no Content-Length) cannot exhaust memory. A result longer than `limit`
+ * bytes means the body was larger than the limit.
+ */
+export async function readBodyText(res: HttpResponse, limit = MAX_JSON_ASSERTION_BODY_BYTES): Promise<string> {
+  if (!res.body) return ''
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  try {
+    while (total <= limit) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value) { chunks.push(value); total += value.length }
+    }
+  } finally {
+    // The reader holds the stream's lock, so the stream itself can no longer be cancelled.
+    await reader.cancel().catch(() => {})
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks).subarray(0, limit + 1))
+}
+
 export function errMsg(err: unknown): string {
   const reason = unwrapRefusal(err)
   return reason instanceof Error ? reason.message : String(reason)
@@ -157,7 +184,9 @@ export async function requestServiceTicket(fetch: HttpFetch, tgtUrl: string, ser
     await discardBody(res)
     throw new Error(`CAS: service ticket request failed with HTTP ${res.status}`)
   }
-  return (await res.text()).trim()
+  const ticket = await readBodyText(res)
+  if (Buffer.byteLength(ticket, 'utf8') > MAX_JSON_ASSERTION_BODY_BYTES) throw new Error('CAS: service ticket response is too large')
+  return ticket.trim()
 }
 
 /**
@@ -233,7 +262,14 @@ export async function resolveHttpAuth(
         await discardBody(tokenRes)
         throw new Error(`OAuth2 token request failed with HTTP ${tokenRes.status}`)
       }
-      const tokenData = await tokenRes.json() as { access_token?: string; expires_in?: number; token_type?: string }
+      const tokenText = await readBodyText(tokenRes)
+      if (Buffer.byteLength(tokenText, 'utf8') > MAX_JSON_ASSERTION_BODY_BYTES) throw new Error('OAuth2: token response is too large')
+      let tokenData: { access_token?: string; expires_in?: number; token_type?: string }
+      try {
+        tokenData = JSON.parse(tokenText)
+      } catch {
+        throw new Error('OAuth2: token response is not valid JSON')
+      }
       if (!tokenData.access_token) throw new Error('OAuth2: token response is missing access_token')
       const meta = [
         tokenData.token_type ?? 'Bearer',

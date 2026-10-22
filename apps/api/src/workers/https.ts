@@ -1,7 +1,7 @@
 import type { HttpsConfig } from '@bsp/shared'
 import type { MonitorStatus } from '@bsp/shared'
 import { evaluateAssertions, hasJsonAssertions } from './assertions.js'
-import { discardBody, followRedirects, insecureForOrigin, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type HttpResponse } from './httpAuth.js'
+import { discardBody, followRedirects, insecureForOrigin, readBodyText, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type HttpResponse } from './httpAuth.js'
 import { Agent, fetch as httpFetch } from 'undici'
 import { lookup as dnsLookup } from 'dns'
 import type { LookupFunction } from 'net'
@@ -97,7 +97,7 @@ export async function checkHttps(
 
     // The body is read once, and only when the keyword or a JSON assertion needs it.
     let bodyText: Promise<string> | undefined
-    const readBody = (): Promise<string> => (bodyText ??= res.text())
+    const readBody = (): Promise<string> => (bodyText ??= readBodyText(res))
     if (!config.keyword && !hasJsonAssertions(config.assertions)) await discardBody(res)
 
     // Every failed check is reported; the worst status wins, and a "down" assertion beats a "degraded" one.
@@ -108,6 +108,8 @@ export async function checkHttps(
     for (const o of await evaluateAssertions(config.assertions ?? [], res.headers, readBody)) {
       if (!o.ok) failures.push({ status: o.onFail, error: o.detail ?? o.label })
     }
+    // A body no check read (a declared size over the limit skips the read) must not keep its connection open.
+    if (!bodyText) await discardBody(res)
     if (config.degradedAboveMs !== undefined && responseMs > config.degradedAboveMs) {
       failures.push({ status: 'degraded', error: `Response took ${responseMs} ms, over the ${config.degradedAboveMs} ms limit` })
     }

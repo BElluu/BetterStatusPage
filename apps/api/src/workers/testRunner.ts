@@ -1,7 +1,7 @@
-import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig } from '@bsp/shared'
+import { MAX_JSON_ASSERTION_BODY_BYTES, type HttpsConfig, type DatabaseConfig, type PingConfig, type DnsConfig, type DockerConfig } from '@bsp/shared'
 import { evaluateAssertions, validateHttpAssertions } from './assertions.js'
 import { evaluateContainer, inspectContainer, validateDockerConfig } from './docker.js'
-import { discardBody, errMsg, followRedirects, insecureForOrigin, redactedCookies, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type ResolvedHttpAuth } from './httpAuth.js'
+import { discardBody, errMsg, followRedirects, insecureForOrigin, readBodyText, redactedCookies, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type ResolvedHttpAuth } from './httpAuth.js'
 import { firstValue, resolveConnectionString, resolveFieldCredentials, type DatabaseConnection, type DatabaseDriver, type DatabaseSession } from './database.js'
 import { sqlServerDriver } from './sqlserver.js'
 import { postgresDriver } from './postgres.js'
@@ -84,8 +84,10 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number, { showAc
       steps.push({ label: `Response: HTTP ${res.status}`, status: 'ok', durationMs: responseMs })
 
       // Keep the body in memory for validation, but never expose it in diagnostics.
-      const responseBody = await res.text()
-      steps.push({ label: 'Response body', status: 'info', detail: `${Buffer.byteLength(responseBody, 'utf8')} bytes (content omitted)` })
+      const responseBody = await readBodyText(res)
+      const bodyBytes = Buffer.byteLength(responseBody, 'utf8')
+      const bodySize = bodyBytes > MAX_JSON_ASSERTION_BODY_BYTES ? 'more than 1 MB' : `${bodyBytes} bytes`
+      steps.push({ label: 'Response body', status: 'info', detail: `${bodySize} (content omitted)` })
 
       // ── Keyword check ───────────────────────────────────────────────────
       if (config.keyword) {

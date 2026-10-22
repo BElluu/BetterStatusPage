@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { after, before, describe, it } from 'node:test'
-import type { HttpAssertion, HttpsConfig } from '@bsp/shared'
+import { MAX_JSON_ASSERTION_BODY_BYTES, type HttpAssertion, type HttpsConfig } from '@bsp/shared'
+import { readBodyText, type HttpResponse } from '../src/workers/httpAuth.js'
 import { parseJsonPath, validateHttpAssertions } from '../src/workers/assertions.js'
 import { checkHttps } from '../src/workers/https.js'
 import { testHttps } from '../src/workers/testRunner.js'
@@ -219,5 +220,26 @@ describe('validateHttpAssertions', () => {
     for (const [input, expected] of problems) {
       assert.match(validateHttpAssertions(input as Partial<HttpsConfig>) ?? '', expected, JSON.stringify(input).slice(0, 80))
     }
+  })
+})
+
+describe('reading a response body', () => {
+  it('stops and cancels an endless chunked stream instead of buffering it', async () => {
+    let cancelled = false
+    let pulled = 0
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) { pulled++; controller.enqueue(new Uint8Array(64 * 1024).fill(97)) },
+      cancel() { cancelled = true },
+    })
+    const res = { status: 200, ok: true, headers: { get: () => null }, body } as HttpResponse
+    const text = await readBodyText(res)
+    assert.equal(Buffer.byteLength(text, 'utf8'), MAX_JSON_ASSERTION_BODY_BYTES + 1)
+    assert.ok(cancelled)
+    assert.ok(pulled < 40)
+  })
+
+  it('reads a small body whole', async () => {
+    const res = new Response('hello') as unknown as HttpResponse
+    assert.equal(await readBodyText(res), 'hello')
   })
 })
