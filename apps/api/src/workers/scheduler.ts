@@ -188,14 +188,14 @@ export async function recordObservation(
     // A failure still short of the failure threshold does not count against uptime (yet).
     const unconfirmed = transition !== null && isFailureStatus(result.status) && transition.alertConfirmedStatus !== result.status
 
-    const inserted = (await db.insert(monitorResults).values({
+    await db.insert(monitorResults).values({
       monitorId: current.id,
       status: result.status,
       responseMs: result.responseMs,
       checkedAt,
       errorMessage: result.error,
       unconfirmed: inMaintenance && result.status !== 'up' ? RESULT_IN_MAINTENANCE : unconfirmed ? RESULT_UNCONFIRMED : 0,
-    }).returning({ id: monitorResults.id }))[0]!
+    })
 
     // Once the threshold confirms the failure, the outage started with the first failure of the
     // streak: the observations that were waiting for confirmation now count against uptime too.
@@ -203,7 +203,8 @@ export async function recordObservation(
       await db.update(monitorResults).set({ unconfirmed: 0 }).where(and(
         eq(monitorResults.monitorId, current.id),
         eq(monitorResults.unconfirmed, RESULT_UNCONFIRMED),
-        gt(monitorResults.id, sql`(select coalesce(max(id), 0) from monitor_results where monitor_id = ${current.id} and unconfirmed = 0 and id < ${inserted.id})`),
+        // Anchored on checked_at so the (monitor_id, checked_at) index bounds the scan to the streak.
+        gt(monitorResults.checkedAt, sql`coalesce((select checked_at from monitor_results where monitor_id = ${current.id} and unconfirmed = 0 and checked_at < ${checkedAt} order by checked_at desc limit 1), 0)`),
       ))
     }
     // The outage clock starts when a failure is confirmed and stops on a confirmed recovery; a move to 'degraded' keeps it.
