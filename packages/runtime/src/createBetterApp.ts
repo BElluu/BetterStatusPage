@@ -5,6 +5,7 @@ import cookie from '@fastify/cookie'
 import jwt from '@fastify/jwt'
 import multipart from '@fastify/multipart'
 import rateLimit from '@fastify/rate-limit'
+import { rateLimitKey } from './rateLimitKey.js'
 import staticFiles from '@fastify/static'
 import { errorHandler } from './errorHandler.js'
 import { redactUrl } from './redactUrl.js'
@@ -129,8 +130,8 @@ export async function createBetterApp(options: BetterAppOptions) {
     sign: { expiresIn: JWT_EXPIRES_IN },
   })
 
-  // Rate limiting (applied per-route where needed)
-  await app.register(rateLimit, { global: false })
+  // Rate limiting (applied per-route where needed); IPv6 clients are counted per /64
+  await app.register(rateLimit, { global: false, keyGenerator: (req) => rateLimitKey(req.ip) })
 
   // Multipart (file uploads)
   await app.register(multipart, {

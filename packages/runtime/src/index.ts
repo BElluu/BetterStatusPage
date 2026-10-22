@@ -1,5 +1,6 @@
 export { backupDir, dataDir, databasePath, isSetupComplete, setupConfigPath, writeSetupComplete } from './dataPaths.js'
 export { resolveTrustProxy, type TrustProxy } from './proxy.js'
+export { rateLimitKey } from './rateLimitKey.js'
 export { createPublicUrlResolver } from './publicUrl.js'
 export { errorHandler } from './errorHandler.js'
 export { createAppLock } from './appLock.js'

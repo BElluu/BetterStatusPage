@@ -18,8 +18,10 @@ import { loadEmailBrand, renderEmail, toneColor } from './emailTemplate.js'
 import { isStatusPagePrivate } from './statusPageAccess.js'
 
 const CONFIRM_TOKEN_TTL_MS = 48 * 60 * 60 * 1000
-/** A destination gets at most one confirmation (or reminder) email per cooldown, however often it is submitted. */
+/** An email address gets at most one confirmation (or reminder) email per cooldown, however often or for whatever destination it is submitted. */
 const CONFIRMATION_COOLDOWN_MS = 10 * 60 * 1000
+/** Unconfirmed, unexpired subscriptions one address can have at a time. */
+const MAX_PENDING_PER_EMAIL = 5
 const MAX_EMAIL_LENGTH = 254
 const EMAIL_PATTERN = /^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+\.[^\s@<>()[\]\\,;:"]+$/
 
@@ -404,15 +406,18 @@ export async function requestSubscription(input: SubscriptionRequest, now = Date
   const scope = await resolveScope(input, settings)
   const publicUrl = resolvePublicUrl()
   const targetKey = type === 'email' ? `email:${email}` : `webhook:${webhookUrl}`
-  const existing = (await db.select().from(subscribers).where(eq(subscribers.targetKey, targetKey)))[0]
-  // The cooldown stops a stranger from flooding an inbox, but a confirmation that was followed by
-  // an unsubscribe has been used up: signing up again afterwards must get a fresh link straight
-  // away. The new send resets confirmationSentAt, so repeated signups are still rate-limited.
-  const spentByUnsubscribe = existing?.status === 'unsubscribed'
-    && (existing.unsubscribedAt ?? 0) > (existing.confirmationSentAt ?? 0)
-  const cooledDown = spentByUnsubscribe
-    || !existing?.confirmationSentAt
-    || now - existing.confirmationSentAt >= CONFIRMATION_COOLDOWN_MS
+  // The mailbox is what gets flooded, so the cooldown and the pending cap count every subscription
+  // that mails this address — a webhook with a different URL is not a different inbox.
+  const sameAddress = await db.select().from(subscribers).where(eq(subscribers.email, email))
+  const existing = sameAddress.find((row) => row.targetKey === targetKey)
+  // A confirmation that was followed by an unsubscribe has been used up: signing up again
+  // afterwards must get a fresh link straight away. The new send resets confirmationSentAt, so
+  // repeated signups are still rate-limited.
+  const cooledDown = !sameAddress.some((row) => {
+    const spentByUnsubscribe = row.status === 'unsubscribed' && (row.unsubscribedAt ?? 0) > (row.confirmationSentAt ?? 0)
+    return !spentByUnsubscribe && !!row.confirmationSentAt && now - row.confirmationSentAt < CONFIRMATION_COOLDOWN_MS
+  })
+  const pendingCount = sameAddress.filter((row) => row.status === 'pending' && (row.confirmExpiresAt ?? 0) > now).length
 
   if (existing && (existing.status === 'active' || existing.status === 'disabled')) {
     // Never let a stranger change someone's subscription — point the owner at their manage link.
@@ -421,7 +426,8 @@ export async function requestSubscription(input: SubscriptionRequest, now = Date
     deliverInBackground(() => sendAlreadySubscribedEmail(existing, publicUrl))
     return
   }
-  if (existing && !cooledDown) return
+  if (!cooledDown) return
+  if (!existing && pendingCount >= MAX_PENDING_PER_EMAIL) return
 
   const confirmToken = newToken()
   const values = {

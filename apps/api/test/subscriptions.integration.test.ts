@@ -14,7 +14,7 @@ import { adminSubscriberRoutes, publicSubscriptionRoutes } from '../src/routes/s
 import { feedRoutes } from '../src/routes/feeds.js'
 import { incidentRoutes } from '../src/routes/incidents.js'
 import { maintenanceRoutes } from '../src/routes/maintenance.js'
-import { saveSubscriptionSettings, getSubscriptionSettings, normalizeSubscriptionSettings } from '../src/services/subscriptions.js'
+import { saveSubscriptionSettings, getSubscriptionSettings, normalizeSubscriptionSettings, requestSubscription } from '../src/services/subscriptions.js'
 import { isPublicAddress, validateWebhookUrl } from '../src/services/publicWebhook.js'
 import { processDueSubscriberDeliveries } from '../src/workers/subscriberNotifier.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
@@ -288,6 +288,24 @@ describe('status page subscriptions', () => {
     assert.equal(confirm.statusCode, 200)
     assert.equal((await db.select().from(subscribers))[0]!.status, 'active')
     await waitFor(() => emails.length === 2)
+  })
+
+  it('counts the mailbox, not the destination, for the cooldown and the pending cap', async () => {
+    await enable({ allowWebhook: true })
+    process.env['SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE'] = 'true'
+    const start = Date.now()
+    const submit = (n: number, at: number) =>
+      requestSubscription({ type: 'webhook', email: 'victim@example.test', webhookUrl: `${hookUrl}?n=${n}` }, at)
+
+    await submit(0, start)
+    // A different URL for the same address inside the cooldown sends nothing and stores nothing.
+    await submit(1, start + 1000)
+    assert.equal((await db.select().from(subscribers)).length, 1)
+
+    // Past each cooldown more pending rows are accepted, but only up to the cap.
+    for (let n = 1; n <= 8; n++) await submit(n, start + n * 11 * 60 * 1000)
+    assert.equal((await db.select().from(subscribers)).length, 5)
+    await waitFor(() => emails.length === 5)
   })
 
   it('delivers incident events only to subscribers whose events and components match', async () => {
