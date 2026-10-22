@@ -98,6 +98,20 @@ describe('scheduler checks', () => {
     assert.match(messages[0] ?? '', /"status":"up"/)
   })
 
+  it('records a broken config as a down result instead of leaving the old status', async () => {
+    const [monitor] = await db.insert(monitors).values(monitorValues('Broken config', {
+      type: 'https', config: '{not json', currentStatus: 'up',
+    })).returning()
+
+    await runCheck(monitor!)
+
+    const stored = (await db.select().from(monitors).where(eq(monitors.id, monitor!.id)))[0]!
+    assert.equal(stored.currentStatus, 'down')
+    const result = (await db.select().from(monitorResults))[0]!
+    assert.equal(result.status, 'down')
+    assert.ok(result.errorMessage)
+  })
+
   it('marks a monitor affected when its dependency is unavailable', async () => {
     requestCount = 1
     const [dependency, dependent] = await db.insert(monitors).values([

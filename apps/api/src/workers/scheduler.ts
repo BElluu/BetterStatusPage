@@ -104,7 +104,7 @@ export async function runCheck(monitor: MonitorRow): Promise<boolean> {
 }
 
 async function performCheck(monitor: MonitorRow): Promise<void> {
-  const config = JSON.parse(monitor.config) as HttpsConfig | PingConfig | DnsConfig | DatabaseConfig | DockerConfig
+  let config: HttpsConfig | PingConfig | DnsConfig | DatabaseConfig | DockerConfig | undefined
   let result: CheckResult = {
     status: 'down',
     responseMs: null,
@@ -113,6 +113,7 @@ async function performCheck(monitor: MonitorRow): Promise<void> {
 
   const maxAttempts = (monitor.retries ?? 1)
   try {
+    config = JSON.parse(monitor.config) as HttpsConfig | PingConfig | DnsConfig | DatabaseConfig | DockerConfig
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       switch (monitor.type) {
         case 'https': result = await checkHttps(config as HttpsConfig, monitor.timeoutMs); break
@@ -129,12 +130,13 @@ async function performCheck(monitor: MonitorRow): Promise<void> {
       if (result.status !== 'down' || attempt === maxAttempts) break
     }
   } catch (err) {
+    console.error(`[scheduler] check of monitor ${monitor.id} failed:`, err)
     result = { status: 'down', responseMs: null, error: err instanceof Error ? err.message : String(err) }
   }
 
   await recordObservation(monitor, await applyDependencies(monitor, result))
 
-  if (monitor.type === 'https' && !skipsTlsVerification(config as HttpsConfig)) {
+  if (config && monitor.type === 'https' && !skipsTlsVerification(config as HttpsConfig)) {
     await checkCertificateExpiry(monitor, config as HttpsConfig).catch((err) =>
       console.error('[certificate] expiry check failed:', err),
     )
@@ -273,7 +275,8 @@ export async function runSchedulerTick(
         // skip a monitor that was deleted or observed meanwhile (a heartbeat counts as a check).
         const monitor = (await db.select().from(monitors).where(eq(monitors.id, queued.id)))[0]
         if (monitor && getDueMonitors([monitor]).length > 0) await run(monitor)
-      } catch {
+      } catch (err) {
+        console.error(`[scheduler] recording the check of monitor ${queued.id} failed:`, err)
         failedChecks++
       } finally {
         releaseSlot()
