@@ -55,3 +55,27 @@ describe('event stream limits', () => {
     }
   })
 })
+
+describe('event stream limits and sessions', () => {
+  it('does not count signed-in streams, so they cannot be locked out by visitors', async () => {
+    const { sseService, serveEventStream } = createSse({ maxClientsPerIp: 1, maxClients: 1 })
+    const app = Fastify({ logger: false })
+    app.get('/events', (req, reply) => serveEventStream(req, reply))
+    app.get('/admin-events', (req, reply) => serveEventStream(req, reply, { session: { sessionId: 's', userId: 1 } }))
+    await app.listen({ port: 0, host: '127.0.0.1' })
+    const { port } = app.server.address() as { port: number }
+    const open = [openStalled(port)]
+    try {
+      await until(() => sseService.clientCount() === 1)
+      assert.equal((await fetch(`http://127.0.0.1:${port}/events`)).status, 429)
+
+      const admin = new AbortController()
+      const response = await fetch(`http://127.0.0.1:${port}/admin-events`, { signal: admin.signal })
+      assert.equal(response.status, 200)
+      admin.abort()
+    } finally {
+      open.forEach((s) => s.destroy())
+      await app.close()
+    }
+  })
+})

@@ -414,7 +414,9 @@ export async function requestSubscription(input: SubscriptionRequest, now = Date
   // The mailbox is what gets flooded, so the cooldown and the pending cap count every subscription
   // that mails this address — a webhook with a different URL is not a different inbox.
   const sameAddress = await db.select().from(subscribers).where(eq(subscribers.email, email))
-  const existing = sameAddress.find((row) => row.targetKey === targetKey)
+  // The destination is unique across all addresses (`target_key`), so it is looked up on its own: a
+  // webhook URL already registered under another address must never reach the INSERT.
+  const existing = (await db.select().from(subscribers).where(eq(subscribers.targetKey, targetKey)))[0]
   // A confirmation that was followed by an unsubscribe has been used up: signing up again
   // afterwards must get a fresh link straight away. The new send resets confirmationSentAt, so
   // repeated signups are still rate-limited.
@@ -424,6 +426,8 @@ export async function requestSubscription(input: SubscriptionRequest, now = Date
   })
   const pendingCount = sameAddress.filter((row) => row.status === 'pending' && (row.confirmExpiresAt ?? 0) > now).length
 
+  // Someone else's webhook: answer like every other outcome, without touching it or mailing anyone.
+  if (existing && existing.email !== email) return
   if (existing && (existing.status === 'active' || existing.status === 'disabled')) {
     // Never let a stranger change someone's subscription — point the owner at their manage link.
     if (!cooledDown) return

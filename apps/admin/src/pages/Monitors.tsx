@@ -41,9 +41,11 @@ export default function MonitorsPage() {
     let es: EventSource | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let closed = false
+    let retryMs = 2000
     function connect() {
       if (closed) return
       es = new EventSource('/api/v1/admin/monitors/events')
+      es.onopen = () => { retryMs = 2000 }
       es.addEventListener('monitor.status', (e) => {
         const data = JSON.parse(e.data) as { monitorId: number; status: MonitorStatus; responseMs: number | null; checkedAt: number }
         qc.setQueryData<Monitor[]>(['monitors'], (old) =>
@@ -61,7 +63,8 @@ export default function MonitorsPage() {
         if (closed) return
         retryTimer = setTimeout(() => {
           api.get('/auth/session').then(connect, () => { /* redirected to login */ })
-        }, 2000)
+        }, retryMs)
+        retryMs = Math.min(retryMs * 2, 60_000)
       }
     }
     connect()

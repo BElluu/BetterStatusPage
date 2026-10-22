@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
+import { rateLimitKey } from './rateLimitKey.js'
 
 type SseClient = FastifyReply
 
@@ -16,9 +17,9 @@ export interface ClientInfo {
 }
 
 export interface SseLimits {
-  /** Open streams in total; further ones are refused with 429. */
+  /** Open anonymous streams in total; further ones are refused with 429. Signed-in streams are not counted. */
   maxClients: number
-  /** Open streams from one address; further ones are refused with 429. */
+  /** Open anonymous streams from one address (an IPv6 /64 counts as one); further ones are refused with 429. */
   maxClientsPerIp: number
   /** A client with more unsent bytes than this is not reading and gets disconnected. */
   maxBufferedBytes: number
@@ -108,10 +109,20 @@ export function createSse(limitOptions: Partial<SseLimits> = {}) {
 
   /** Holds the request open as an event stream until the client disconnects or loses access. */
   async function serveEventStream(req: FastifyRequest, reply: FastifyReply, options: EventStreamOptions = {}): Promise<void> {
-    let fromIp = 0
-    for (const client of clients.values()) if (client.ip === req.ip) fromIp++
-    if (clients.size >= limits.maxClients || fromIp >= limits.maxClientsPerIp) {
-      return reply.code(429).send({ error: 'Too many open event streams' })
+    // Only anonymous streams are limited: a signed-in one is accountable, and counting it would let
+    // visitors fill the budget the admin stream needs.
+    const ip = rateLimitKey(req.ip)
+    if (!options.session) {
+      let total = 0
+      let fromIp = 0
+      for (const client of clients.values()) {
+        if (client.session) continue
+        total++
+        if (client.ip === ip) fromIp++
+      }
+      if (total >= limits.maxClients || fromIp >= limits.maxClientsPerIp) {
+        return reply.code(429).send({ error: 'Too many open event streams' })
+      }
     }
 
     reply.raw.setHeader('Content-Type', 'text/event-stream')
@@ -120,7 +131,7 @@ export function createSse(limitOptions: Partial<SseLimits> = {}) {
     reply.raw.setHeader('X-Accel-Buffering', 'no')
     reply.raw.flushHeaders()
 
-    sseService.add(reply, { filter: options.filter, session: options.session, ip: req.ip })
+    sseService.add(reply, { filter: options.filter, session: options.session, ip })
     reply.raw.write('event: ping\ndata: {}\n\n')
 
     const pingInterval = setInterval(() => {

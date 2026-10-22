@@ -92,4 +92,18 @@ describe('useSSE', () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
   })
+
+  it('forgets statuses received over a stream that dropped, so the refetched data wins', () => {
+    vi.useFakeTimers()
+    const { result, unmount } = renderHook(() => useSSE())
+    const source = FakeEventSource.instances[0]!
+    act(() => source.emit('monitor.status', { monitorId: 5, status: 'down', responseMs: 120, checkedAt: 10 }))
+    expect(result.current[5]).toBeDefined()
+
+    act(() => source.onerror?.())
+    expect(result.current[5]).toBeUndefined()
+
+    unmount()
+    vi.useRealTimers()
+  })
 })

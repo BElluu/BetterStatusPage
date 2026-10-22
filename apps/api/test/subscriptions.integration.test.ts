@@ -311,6 +311,20 @@ describe('status page subscriptions', () => {
     await waitFor(() => emails.length === 5)
   })
 
+  it('ignores a webhook URL that is already registered under another address', async () => {
+    await enable({ allowWebhook: true })
+    process.env['SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE'] = 'true'
+    const start = Date.now()
+    await requestSubscription({ type: 'webhook', email: 'owner@example.test', webhookUrl: hookUrl }, start)
+    // The destination is unique: a second address must get the same silent answer, not a database error.
+    await requestSubscription({ type: 'webhook', email: 'stranger@example.test', webhookUrl: hookUrl }, start + 1000)
+
+    const rows = await db.select().from(subscribers)
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0]!.email, 'owner@example.test')
+    await waitFor(() => emails.length === 1)
+  })
+
   it('delivers incident events only to subscribers whose events and components match', async () => {
     await enable()
     await subscribeAndConfirm({ type: 'email', email: 'everything@example.test' })

@@ -9,6 +9,7 @@ interface StatusMap {
 type SseAction =
   | { type: 'monitor.status'; monitorId: number; status: MonitorStatus; responseMs: number | null; checkedAt: number }
   | { type: 'incident.created' | 'incident.updated'; payload: unknown }
+  | { type: 'reset' }
 
 function reducer(state: StatusMap, action: SseAction): StatusMap {
   if (action.type === 'monitor.status') {
@@ -21,6 +22,8 @@ function reducer(state: StatusMap, action: SseAction): StatusMap {
       },
     }
   }
+  // Statuses received over a stream that has since dropped may be stale; the refetched data wins.
+  if (action.type === 'reset') return Object.keys(state).length ? {} : state
   return state
 }
 
@@ -65,6 +68,7 @@ export function useSSE(onIncidentChange?: () => void) {
         es?.close()
         es = null
         if (closed) return
+        dispatch({ type: 'reset' })
         fallbackTimer ??= setInterval(() => { onIncidentChange?.() }, FALLBACK_REFRESH_MS)
         retryTimer = setTimeout(connect, retryMs * (0.5 + Math.random()))
         retryMs = Math.min(retryMs * 2, RETRY_MAX_MS)
