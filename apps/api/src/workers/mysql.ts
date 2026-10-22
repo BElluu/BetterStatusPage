@@ -1,5 +1,9 @@
 import type { DatabaseConfig } from '@bsp/shared'
-import { checkDatabase, type DatabaseCheckResult, type DatabaseDriver } from './database.js'
+import { checkDatabase, type DatabaseCheckResult, type DatabaseDriver, type FieldsConnection } from './database.js'
+
+/** The `ssl` option of mysql2 for an encrypted attempt; mysql2 checks the host name only with `verifyIdentity`. */
+export const mysqlSsl = (c: FieldsConnection) =>
+  c.tls === 'verify' ? { rejectUnauthorized: true, verifyIdentity: true, ...(c.ca ? { ca: c.ca } : {}) } : { rejectUnauthorized: false }
 
 /** Serves MySQL and MariaDB: mysql2 speaks the protocol of both. */
 export const mysqlDriver: DatabaseDriver = {
@@ -18,18 +22,18 @@ export const mysqlDriver: DatabaseDriver = {
             user: connection.user,
             password: connection.password,
             connectTimeout: timeoutMs,
-            ...(ssl ? { ssl: { rejectUnauthorized: false } } : {}),
+            ...(ssl ? { ssl: mysqlSsl(connection) } : {}),
           },
     )
 
-    // Discrete fields prefer an encrypted connection (certificate unchecked) and fall back to plain
-    // when the server has no TLS. A connection string carries its own ssl settings.
+    // Only 'prefer' falls back to plain when the server has no TLS; a plain retry would hand the password to
+    // whoever answered "no TLS". A connection string carries its own ssl settings.
     let conn: Awaited<ReturnType<typeof open>>
     try {
       conn = await open(true)
     } catch (err) {
       const noTls = (err as { code?: string }).code === 'HANDSHAKE_NO_SSL_SUPPORT'
-      if (!noTls || 'connectionString' in connection) throw err
+      if (!noTls || 'connectionString' in connection || connection.tls !== 'prefer') throw err
       conn = await open(false)
     }
     // A server dropping an idle connection emits 'error'; unhandled, it would crash the process.

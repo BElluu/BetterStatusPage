@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { CERT_REMINDER_DAYS, DEFAULT_CERT_WARN_DAYS, MAX_CERT_WARN_DAYS } from '@bsp/shared'
-import type { CertExpiryConfig, MonitorType } from '@bsp/shared'
+import type { CertExpiryConfig, DatabaseTlsMode, MonitorType } from '@bsp/shared'
 import { ConfirmModal } from '@better-kit/ui'
 import { CopyButton } from '@better-kit/ui'
 import { Alert } from '@better-kit/ui'
@@ -8,6 +8,12 @@ import { Field, Note } from '@better-kit/ui'
 import { DATABASE_ENGINES, DATABASE_DEFAULT_PORTS, DATABASE_DEFAULT_QUERIES } from './monitorTypes'
 
 type Config = Record<string, unknown>
+
+const DATABASE_TLS_OPTIONS: { value: DatabaseTlsMode; label: string }[] = [
+  { value: 'verify', label: 'Encrypted, verify certificate' },
+  { value: 'require', label: 'Encrypted, certificate not checked' },
+  { value: 'prefer', label: 'Encrypted if available, certificate not checked' },
+]
 
 interface Props {
   type: MonitorType
@@ -167,6 +173,7 @@ function DnsFields({ config, updateConfig }: ConfigProps) {
 
 function DatabaseFields({ type, config, updateConfig, onEngineChange }: ConfigProps & { type: MonitorType; onEngineChange: (engine: MonitorType) => void }) {
   const sqlMode = (config['mode'] as string) ?? 'fields'
+  const tls = (config['tls'] as DatabaseTlsMode | undefined) ?? 'prefer'
   return (
     <>
       <div role="group" aria-labelledby="database-engine-label">
@@ -218,6 +225,26 @@ function DatabaseFields({ type, config, updateConfig, onEngineChange }: ConfigPr
           <Field label="Database">
             <input value={(config['database'] as string) ?? ''} onChange={(e) => updateConfig('database', e.target.value)} required className="input-sig" />
           </Field>
+          <Field label="Connection security">
+            <select value={tls} onChange={(e) => updateConfig('tls', e.target.value)} className="input-sig">
+              {DATABASE_TLS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </Field>
+          {tls === 'prefer' && (
+            <Note tone="warning">
+              The certificate is not checked{type === 'mongodb' ? ' and MongoDB is not encrypted at all' : type === 'sqlserver' ? '' : ', and the connection falls back to plain text when the server has no TLS'}.
+              Anyone on the network path can {type === 'sqlserver' ? 'impersonate the server and read the password' : 'read the password'}. Choose <strong>Encrypted, verify certificate</strong>.
+            </Note>
+          )}
+          {tls === 'require' && (
+            <Note tone="warning">The certificate is not checked, so a party on the network path can still impersonate the server. Choose <strong>Encrypted, verify certificate</strong> if you can.</Note>
+          )}
+          {tls === 'verify' && (
+            <Field label="CA certificate (optional)">
+              <textarea value={(config['tlsCa'] as string) ?? ''} onChange={(e) => updateConfig('tlsCa', e.target.value)} className="input-sig text-xs font-mono" rows={4} style={{ resize: 'vertical' }}
+                placeholder={'-----BEGIN CERTIFICATE-----\n…\n-----END CERTIFICATE-----\n\nEmpty = the CAs trusted by the server running BetterStatusPage'} />
+            </Field>
+          )}
         </>
       )}
 

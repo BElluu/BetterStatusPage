@@ -94,6 +94,17 @@ export interface DnsConfig {
   resolver?: string
 }
 
+export const DATABASE_MONITOR_TYPES: readonly MonitorType[] = ['sqlserver', 'postgresql', 'mysql', 'mongodb']
+export const isDatabaseType = (type: MonitorType): boolean => DATABASE_MONITOR_TYPES.includes(type)
+
+/**
+ * How a database monitor in fields mode secures its connection. `prefer` is what monitors did before the
+ * setting existed (encrypted, certificate unchecked, plain when the server has no TLS; MongoDB: no TLS).
+ * `require` encrypts without a plain fallback, `verify` also checks the certificate and host name.
+ */
+export const DATABASE_TLS_MODES = ['prefer', 'require', 'verify'] as const
+export type DatabaseTlsMode = (typeof DATABASE_TLS_MODES)[number]
+
 /**
  * Shared by every database monitor type; only the default port differs. `query` is a SQL statement,
  * or for MongoDB a JSON command.
@@ -108,6 +119,10 @@ export interface DatabaseConfig {
   expectedResult?: string
   /** 'fields' (default) = individual host/port/database/credentials; 'connectionString' = full connection string from vault */
   mode?: 'fields' | 'connectionString'
+  /** fields mode only: a connection string carries its own TLS settings. Absent = `prefer`; the form starts new monitors at `verify`. */
+  tls?: DatabaseTlsMode
+  /** fields mode, `verify`: PEM certificate(s) of the authority that signed the server certificate; empty = the system's trusted CAs. */
+  tlsCa?: string
   /** fields mode: overrides user/password from vault. connectionString mode: provides the full connection string */
   vault?: VaultRef
 }

@@ -5,6 +5,10 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+### Added
+
+- **Performance benchmark**: `npm run bench` measures the scheduler, the write path and the public API against a temporary database with any number of monitors and days of history. Results for 10, 25, 100 and 250 monitors are in [Performance](performance.md).
+
 ### Changed
 
 - **Faster checks with slow monitors**: scheduled checks share one limit of `MONITOR_CHECK_CONCURRENCY` slots, counted across all ticks and served in the order monitors became due, instead of chunks that each waited for their slowest check (and a limit that applied to each tick separately), so a few hanging monitors no longer delay the rest (a tick of 100 monitors with 10% hanging: 15 s before, 3.3 s now).
@@ -14,6 +18,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 - **Response time charts of the status page are kept for 10 seconds**: visitors who ask for the same chart within 10 seconds share one query instead of running one each, which matters for long ranges (a 7-day chart takes 11 ms to count at 100 monitors and 13 M results, a 90-day one 183 ms) and when an incident brings many visitors at once.
 
 ### Fixed
+
+- **TLS mode for database monitors**: SQL Server, PostgreSQL, MySQL / MariaDB and MongoDB monitors in individual-fields mode have a **Connection security** setting (`tls`: `verify`, `require` or `prefer`) and an optional CA certificate (`tlsCa`). `verify` checks the certificate and host name, `require` encrypts without a plain-text fallback, and `prefer` keeps the earlier behaviour (PostgreSQL and MySQL fell back to plain text when the server answered that it had no TLS, which let a party on the network path read the password; MongoDB was not encrypted). The form starts new monitors at `verify`; existing ones, and monitors from the API or configuration files without `tls`, stay at `prefer` until changed, and the form warns about it. The documentation recommends read-only accounts, since a monitor runs the query as written. See [Connection security](monitors.md#connection-security).
 
 - **Response bodies are read up to 1 MB**: the keyword check, JSON assertions, the test runner and the token and ticket requests of authentication read a response through one limited stream and cancel it after 1 MB, so a target that streams without end (chunked, no `Content-Length`) can no longer exhaust the memory of the server, including through the test button. The keyword is searched in the first 1 MB, a larger body fails JSON assertions as before, and the test reports its size as `more than 1 MB`.
 - **Monitors cannot read cloud metadata services**: HTTPS monitors, the test runner, the certificate reading and HTTP actions and Docker monitors on a TCP endpoint refuse to connect to link-local and cloud metadata addresses (`169.254.0.0/16`, `fe80::/10`, `fd00:ec2::254`, `fd20:ce::254`, `100.100.100.200`, `metadata.google.internal`), checked on the address actually connected to, so redirects and DNS rebinding do not get around it. Private networks stay reachable; `MONITOR_ALLOW_METADATA=true` lifts the block. A failed response check quotes the answered value only for administrators in the test runner; scheduled checks (stored and sent in notifications) and operators see `the value is not shown`. Results already stored are unchanged. See [Where a monitor may connect](monitors.md#where-a-monitor-may-connect).
@@ -30,10 +36,6 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 - **Checks and heartbeats no longer overwrite each other**: a check's result is now judged against the monitor's state at the moment it is recorded, not against the row read before the check started, so a heartbeat that arrives while a check is queued or running keeps its failure count. A monitor that was deleted or already observed while it waited for its turn is skipped, and the result and the monitor's state are saved in one transaction (about 30% faster per check).
 - **No duplicate check after "Check now"**: the end of a scheduler tick no longer releases a monitor that "Check now" has just started, which could let the next tick check it a second time and repeat an alert.
 - **Transactions no longer collide**: database transactions that start at the same time now take turns instead of failing with "cannot start a transaction within a transaction". With the single connection, several checks finishing together (for instance heartbeat monitors that all missed their interval) could lose all but one of their results, and a heartbeat arriving at that moment could get an error.
-
-### Added
-
-- **Performance benchmark**: `npm run bench` measures the scheduler, the write path and the public API against a temporary database with any number of monitors and days of history. Results for 10, 25, 100 and 250 monitors are in [Performance](performance.md).
 
 ## [0.6.0] - 2026-10-20
 

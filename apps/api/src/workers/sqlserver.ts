@@ -1,5 +1,12 @@
 import type { DatabaseConfig } from '@bsp/shared'
-import { checkDatabase, type DatabaseCheckResult, type DatabaseDriver } from './database.js'
+import { checkDatabase, type DatabaseCheckResult, type DatabaseDriver, type FieldsConnection } from './database.js'
+
+/** SQL Server always encrypts, so `prefer` and `require` differ only from `verify` in trusting the certificate. */
+export const sqlServerOptions = (c: FieldsConnection) => ({
+  encrypt: true,
+  trustServerCertificate: c.tls !== 'verify',
+  ...(c.ca ? { cryptoCredentialsDetails: { ca: c.ca } } : {}),
+})
 
 export const sqlServerDriver: DatabaseDriver = {
   label: 'SQL Server',
@@ -18,7 +25,7 @@ export const sqlServerDriver: DatabaseDriver = {
           password: connection.password,
           connectionTimeout: timeoutMs,
           requestTimeout: timeoutMs,
-          options: { encrypt: true, trustServerCertificate: true },
+          options: sqlServerOptions(connection),
         }
     // A dedicated pool per check: mssql's `sql.connect()` hands back one process-wide pool whatever
     // config it is given, so every SQL Server monitor would silently query whichever server

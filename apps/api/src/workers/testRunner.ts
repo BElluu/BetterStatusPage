@@ -2,7 +2,7 @@ import { MAX_JSON_ASSERTION_BODY_BYTES, type HttpsConfig, type DatabaseConfig, t
 import { evaluateAssertions, validateHttpAssertions } from './assertions.js'
 import { evaluateContainer, inspectContainer, validateDockerConfig } from './docker.js'
 import { discardBody, errMsg, followRedirects, insecureForOrigin, readBodyText, redactedCookies, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type ResolvedHttpAuth } from './httpAuth.js'
-import { firstValue, resolveConnectionString, resolveFieldCredentials, type DatabaseConnection, type DatabaseDriver, type DatabaseSession } from './database.js'
+import { fieldsConnection, firstValue, resolveConnectionString, resolveFieldCredentials, type DatabaseConnection, type DatabaseDriver, type DatabaseSession } from './database.js'
 import { sqlServerDriver } from './sqlserver.js'
 import { postgresDriver } from './postgres.js'
 import { mysqlDriver } from './mysql.js'
@@ -192,7 +192,12 @@ async function testDatabase(driver: DatabaseDriver, config: DatabaseConfig, time
       steps.push(config.vault
         ? { label: 'Credentials resolved from Vault', status: 'ok', detail: `User: ${user}`, durationMs: Date.now() - t }
         : { label: 'Using direct credentials', status: 'info', detail: `User: ${user}` })
-      connection = { host: config.host, port: config.port, database: config.database, user, password }
+      try {
+        connection = fieldsConnection(config, { user, password })
+      } catch (err) {
+        steps.push({ label: 'Invalid connection security', status: 'error', detail: errMsg(err) })
+        return fail()
+      }
       connectedLabel = `Connected to ${config.host}:${config.port} / ${config.database}`
       failedLabel = `Connection to ${config.host}:${config.port} failed`
     }

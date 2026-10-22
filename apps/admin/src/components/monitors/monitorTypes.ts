@@ -37,6 +37,4 @@ export const DATABASE_DEFAULT_PORTS: Partial<Record<MonitorType, number>> =
 export const DATABASE_DEFAULT_QUERIES: Partial<Record<MonitorType, string>> =
   Object.fromEntries(DATABASE_ENGINES.map((e) => [e.value, e.defaultQuery]))
 
-export function isDatabaseType(type: MonitorType): boolean {
-  return type in DATABASE_DEFAULT_PORTS
-}
+export { isDatabaseType } from '@bsp/shared'

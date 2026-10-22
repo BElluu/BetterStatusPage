@@ -1261,6 +1261,8 @@ components:
         query: { type: string, description: A SQL statement, or a JSON command for MongoDB. }
         expectedResult: { type: string }
         mode: { type: string, enum: [fields, connectionString], default: fields }
+        tls: { type: string, enum: [prefer, require, verify], default: prefer, description: 'Fields mode only. verify checks the certificate and host name, require encrypts without a plain fallback, prefer is the earlier behaviour. The admin form starts new monitors at verify.' }
+        tlsCa: { type: string, description: 'Fields mode, tls verify: PEM of the authority that signed the server certificate. Empty = the public CAs bundled with Node.js plus NODE_EXTRA_CA_CERTS.' }
         vault: { $ref: '#/components/schemas/VaultRef' }
     DockerConfig:
       type: object

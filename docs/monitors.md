@@ -353,16 +353,31 @@ Choose how to connect. The sign-in itself (user and password, or the Vault secre
 
 
 - **Individual fields** — **Host**, **Port** (default per type, see above), **Database**, and
-  **User** / **Password** typed in or taken from the vault. The connection is encrypted and the
-  server certificate is not verified. PostgreSQL and MySQL / MariaDB fall back to an unencrypted
-  connection when the server has no TLS; SQL Server always encrypts. MongoDB connects without TLS
-  and signs in against the given database (`admin` when empty); use a connection string for TLS or
+  **User** / **Password** typed in or taken from the vault, and **Connection security** (see below).
+  MongoDB signs in against the given database (`admin` when empty); use a connection string for
   another `authSource`.
 - **Connection string** — a full connection string, which must come from the vault: a **value**
   secret, or a **json** secret with the key that holds the string. A **userpass** secret cannot be
   used here. TLS and certificate checks are then governed by the string itself (for MongoDB `tls=true` and `authSource`; for PostgreSQL
   `sslmode`, where `require` verifies the certificate and `no-verify` does not; for MySQL / MariaDB a
   `mysql://` URI, encrypted only with an `ssl` parameter). Use it when you need a verified certificate.
+
+### Connection security
+
+> [!WARNING]
+> **Not released yet.** The **Connection security** setting is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+In individual-fields mode the **Connection security** setting (`tls` in the monitor's `config`) decides how the password is protected:
+
+| Setting | `tls` | Behaviour |
+| --- | --- | --- |
+| **Encrypted, verify certificate** | `verify` | Encrypted, and the server certificate and host name must be valid. Paste the certificate of your own authority into **CA certificate** (`tlsCa`) when the server uses one; empty means the public CAs bundled with Node.js (plus `NODE_EXTRA_CA_CERTS`); a pasted CA replaces them. The form starts new monitors here. |
+| **Encrypted, certificate not checked** | `require` | Encrypted, no plain-text fallback, but anyone on the network path can pose as the server. |
+| **Encrypted if available, certificate not checked** | `prefer` | The behaviour of monitors created before the setting existed: PostgreSQL and MySQL / MariaDB fall back to plain text when the server answers that it has no TLS, so a party on the network path can read the password. SQL Server encrypts without checking the certificate. MongoDB is not encrypted at all. Monitors without `tls` use it. |
+
+Monitors created through the API or a configuration file without `tls` use `prefer`. `verify` matches the host name against the certificate, so connect by DNS name: MySQL / MariaDB and SQL Server cannot verify a server addressed by IP. Change existing monitors to `verify` (or at least `require`). A connection string keeps its own TLS settings, as described above.
+
+The monitor runs the query or command as written, so give it an account that can only read.
 
 **Test Query** (default `SELECT 1`) runs on every check. A connection error, query error or timeout
 makes the check **Down**.
