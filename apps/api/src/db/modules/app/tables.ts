@@ -53,6 +53,20 @@ export const monitorResults = sqliteTable('monitor_results', {
   unconfirmed: integer('unconfirmed').notNull().default(0),
 })
 
+/** Checks per monitor and UTC day, kept by triggers on monitor_results; see db/dailyResults.ts. */
+export const monitorDailyResults = sqliteTable('monitor_daily_results', {
+  monitorId: integer('monitor_id').notNull(),
+  /** UTC day number: checked_at / 86400000. */
+  day: integer('day').notNull(),
+  checksTotal: integer('checks_total').notNull().default(0),
+  checksUp: integer('checks_up').notNull().default(0),
+  maintenanceChecks: integer('maintenance_checks').notNull().default(0),
+  responseSum: integer('response_sum').notNull().default(0),
+  responseCount: integer('response_count').notNull().default(0),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.monitorId, t.day] }),
+}))
+
 export const incidents = sqliteTable('incidents', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   title: text('title').notNull(),

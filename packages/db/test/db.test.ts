@@ -90,6 +90,34 @@ describe('withImmediateTransaction', () => {
     await assert.rejects(withImmediateTransaction(sqlite, async () => { sqlite.exec(`INSERT INTO t VALUES ('lost')`); throw new Error('nope') }), /nope/)
     assert.deepEqual(rows(sqlite.prepare('SELECT v FROM t').all()), [{ v: 'kept' }])
   })
+
+  it('lets transactions started at the same time take turns, whatever happens to the earlier ones', async () => {
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec('CREATE TABLE t (v TEXT)')
+    const insert = (value: string, fail = false) => withImmediateTransaction(sqlite, async () => {
+      sqlite.exec(`INSERT INTO t VALUES ('${value}')`)
+      await Promise.resolve()
+      if (fail) throw new Error(`${value} failed`)
+    })
+
+    const results = await Promise.allSettled([insert('a'), insert('b', true), insert('c'), insert('d')])
+
+    assert.deepEqual(results.map((result) => result.status), ['fulfilled', 'rejected', 'fulfilled', 'fulfilled'])
+    assert.deepEqual(rows(sqlite.prepare('SELECT v FROM t ORDER BY rowid').all()), [{ v: 'a' }, { v: 'c' }, { v: 'd' }])
+  })
+
+  it('refuses a transaction started inside another instead of waiting for it forever', async () => {
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec('CREATE TABLE t (v TEXT)')
+    await assert.rejects(withImmediateTransaction(sqlite, async () => {
+      sqlite.exec(`INSERT INTO t VALUES ('outer')`)
+      await withImmediateTransaction(sqlite, async () => { sqlite.exec(`INSERT INTO t VALUES ('inner')`) })
+    }), /Nested transaction/)
+    assert.deepEqual(rows(sqlite.prepare('SELECT v FROM t').all()), [])
+    // The connection is usable afterwards.
+    await withImmediateTransaction(sqlite, async () => { sqlite.exec(`INSERT INTO t VALUES ('later')`) })
+    assert.deepEqual(rows(sqlite.prepare('SELECT v FROM t').all()), [{ v: 'later' }])
+  })
 })
 
 describe('openDatabase', () => {

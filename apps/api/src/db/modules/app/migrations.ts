@@ -1,6 +1,7 @@
 import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 import { backfillKeys } from '@better-kit/config-as-code'
 import type { MigrationStep } from '@better-kit/db'
+import { rebuildDailyResults } from '../../dailyResults.js'
 
 /** Everything the application adds to the shared tables. Steps run in this order. */
 export const appMigrations: readonly MigrationStep[] = [
@@ -414,4 +415,11 @@ CREATE TABLE IF NOT EXISTS static_mirror_runs (
   error TEXT
 );
 ` },
+  // Counted from every result that exists, in one transaction with the triggers that keep it current, so no result is
+  // written between the count and the triggers. On a large database the first start after the upgrade takes a few seconds.
+  // Anything that rebuilds monitor_results later must call rebuildDailyResults again (see db/dailyResults.ts).
+  { kind: 'data', name: 'monitor-daily-results-v1', run(sqlite) {
+    console.log('… Building daily uptime totals')
+    rebuildDailyResults(sqlite)
+  } },
 ]

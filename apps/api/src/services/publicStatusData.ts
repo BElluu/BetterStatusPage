@@ -1,10 +1,10 @@
 import { db } from '../db/client.js'
 import {
-  monitors, incidents, incidentMonitors, monitorResults, layout, branding, locales,
+  monitors, incidents, incidentMonitors, monitorResults, monitorDailyResults, layout, branding, locales,
   maintenanceWindowMonitors, monitorDependencies,
 } from '../db/schema.js'
-import { eq, desc, gte, ne, inArray, and, sql } from 'drizzle-orm'
-import { countedChecks, countedUp, maintenanceChecks } from './uptimeCounts.js'
+import { eq, desc, gte, ne, inArray, and } from 'drizzle-orm'
+import { nonEmptyDay } from './uptimeCounts.js'
 import { activeWindows } from './maintenanceSchedule.js'
 import { getPublishedMonitorIds } from './publishedMonitors.js'
 import type { LayoutTree, LayoutNode, GroupNode, MonitorNode, PublicMaintenanceWindow, UptimeThresholds } from '@bsp/shared'
@@ -100,19 +100,18 @@ export async function loadPublicLocale(code: string) {
 }
 
 export async function loadUptime(monitorId: number, days: number) {
-  const since = Date.now() - days * 24 * 60 * 60 * 1000
+  const now = Date.now()
   const brandingRow = (await db.select().from(branding))[0]
   const thresholds: UptimeThresholds = brandingRow ?? DEFAULT_UPTIME_THRESHOLDS
-  // Counted per UTC day in SQL: the page only needs totals, not up to 90 days of raw rows.
-  const day = sql<string>`strftime('%Y-%m-%d', ${monitorResults.checkedAt} / 1000, 'unixepoch')`
+  // Read from the daily totals the database keeps (see db/dailyResults.ts), from the first day that is shown.
+  const firstDay = Math.floor((now - (days - 1) * 86_400_000) / 86_400_000)
   const dayRows = await db.select({
-    date: day,
-    checksTotal: countedChecks,
-    checksUp: countedUp,
-    maintenanceChecks,
-  }).from(monitorResults)
-    .where(and(eq(monitorResults.monitorId, monitorId), gte(monitorResults.checkedAt, since)))
-    .groupBy(day)
+    date: monitorDailyResults.day,
+    checksTotal: monitorDailyResults.checksTotal,
+    checksUp: monitorDailyResults.checksUp,
+    maintenanceChecks: monitorDailyResults.maintenanceChecks,
+  }).from(monitorDailyResults)
+    .where(and(eq(monitorDailyResults.monitorId, monitorId), gte(monitorDailyResults.day, firstDay), nonEmptyDay))
   const dayBuckets = new Map(dayRows.map((row) => [row.date, row]))
 
   // Fetch incidents affecting this specific monitor
@@ -132,8 +131,8 @@ export async function loadUptime(monitorId: number, days: number) {
 
   const summaryDays = []
   for (let i = days - 1; i >= 0; i--) {
-    const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-    const bucket = dayBuckets.get(date)
+    const date = new Date(now - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const bucket = dayBuckets.get(new Date(date + 'T00:00:00.000Z').getTime() / 86_400_000)
     const checksTotal = Number(bucket?.checksTotal ?? 0)
     const checksUp = Number(bucket?.checksUp ?? 0)
     const uptimePct = checksTotal > 0 ? (checksUp / checksTotal) * 100 : 100

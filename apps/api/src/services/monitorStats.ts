@@ -1,8 +1,8 @@
-import { and, desc, eq, gte, isNotNull, lt, ne, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, gte, isNotNull, lt, lte, ne, sql } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { RESULT_IN_MAINTENANCE, RESULT_UNCONFIRMED } from '../db/resultMarks.js'
-import { countedChecks, countedUp, maintenanceChecks } from './uptimeCounts.js'
-import { incidentMonitors, incidents, monitorResults } from '../db/schema.js'
+import { countedChecks, countedUp, maintenanceChecks, nonEmptyDay } from './uptimeCounts.js'
+import { incidentMonitors, incidents, monitorDailyResults, monitorResults } from '../db/schema.js'
 import type { MonitorStats, MonitorStatus } from '@bsp/shared'
 
 const HOUR_MS = 3_600_000
@@ -12,18 +12,9 @@ const RECENT_FAILURES_LIMIT = 10
 
 const pct = (up: number, total: number) => (up / total) * 100
 
-/** 95th percentile of an ascending list; null when empty. */
-function p95Of(sorted: number[] | undefined): number | null {
-  return sorted && sorted.length > 0 ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))]! : null
-}
-
-/** Value at the given percentile of the non-null response times, fetched by offset instead of loading every row. */
-async function percentileMs(where: SQL, timed: number, fraction: number): Promise<number> {
-  const offset = Math.min(timed - 1, Math.floor(timed * fraction))
-  const row = (await db.select({ ms: monitorResults.responseMs }).from(monitorResults)
-    .where(and(where, isNotNull(monitorResults.responseMs)))
-    .orderBy(monitorResults.responseMs).limit(1).offset(offset))[0]
-  return row?.ms ?? 0
+/** Value at the given percentile of an ascending list; null when empty. */
+function percentileOf(sorted: number[] | undefined, fraction: number): number | null {
+  return sorted && sorted.length > 0 ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * fraction))]! : null
 }
 
 export async function loadMonitorStats(monitorId: number, hours: number, retentionDays: number): Promise<MonitorStats> {
@@ -67,8 +58,16 @@ export async function loadMonitorStats(monitorId: number, hours: number, retenti
     db.select({ index: bucketIndex, ms: monitorResults.responseMs }).from(monitorResults)
       .where(and(inWindow, isNotNull(monitorResults.responseMs)))
       .orderBy(bucketIndex, monitorResults.responseMs),
-    db.select({ index: barIndex, checksTotal: countedChecks, checksUp: up, maintenanceChecks })
-      .from(monitorResults).where(inBarsWindow).groupBy(barIndex),
+    // Daily bars are UTC days, which the database keeps totals for (see db/dailyResults.ts); shorter bars are counted from the results.
+    stepHours === 24
+      ? db.select({
+        index: monitorDailyResults.day, checksTotal: monitorDailyResults.checksTotal, checksUp: monitorDailyResults.checksUp,
+        maintenanceChecks: monitorDailyResults.maintenanceChecks,
+      }).from(monitorDailyResults).where(and(
+        eq(monitorDailyResults.monitorId, monitorId), gte(monitorDailyResults.day, firstBar), lte(monitorDailyResults.day, lastBar), nonEmptyDay,
+      ))
+      : db.select({ index: barIndex, checksTotal: countedChecks, checksUp: up, maintenanceChecks })
+        .from(monitorResults).where(inBarsWindow).groupBy(barIndex),
     db.select({
       checkedAt: monitorResults.checkedAt, status: monitorResults.status, responseMs: monitorResults.responseMs,
       errorMessage: monitorResults.errorMessage, unconfirmed: monitorResults.unconfirmed,
@@ -92,12 +91,15 @@ export async function loadMonitorStats(monitorId: number, hours: number, retenti
   const checksUp = Number(t.checksUp ?? 0)
   const timed = Number(t.timed)
 
-  const response = timed > 0
+  const overall = timed > 0 ? timedRows.map((row) => row.ms!).sort((a, b) => a - b) : []
+  // The totals and the rows are separate queries: a result written between them is in one and not the other.
+  const response = timed > 0 && overall.length > 0
     ? {
         avg: Number(t.avg), min: Number(t.min), max: Number(t.max),
-        p50: await percentileMs(inWindow, timed, 0.5),
-        p95: await percentileMs(inWindow, timed, 0.95),
-        p99: await percentileMs(inWindow, timed, 0.99),
+        // From the response times already loaded for the buckets: one sort instead of three more queries over the window.
+        p50: percentileOf(overall, 0.5)!,
+        p95: percentileOf(overall, 0.95)!,
+        p99: percentileOf(overall, 0.99)!,
       }
     : null
 
@@ -119,7 +121,7 @@ export async function loadMonitorStats(monitorId: number, hours: number, retenti
       avgMs: row?.avg == null ? null : Number(row.avg),
       minMs: row?.min == null ? null : Number(row.min),
       maxMs: row?.max == null ? null : Number(row.max),
-      p95Ms: p95Of(timedByBucket.get(i)),
+      p95Ms: percentileOf(timedByBucket.get(i), 0.95),
       down: row ? Number(row.down ?? 0) : 0,
       degraded: row ? Number(row.degraded ?? 0) : 0,
     }
