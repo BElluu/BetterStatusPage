@@ -99,7 +99,7 @@ The wizard has three steps:
 2. **Admin Account** — email and password (8 to 128 characters). This account gets the `admin` role.
 3. **Done** — the database is created, default branding (site name *My Status Page*) and an empty page layout are added, monitoring starts, and you are signed in.
 
-Setup runs only once. When it finishes, `setup.json` is written to the data directory and the wizard closes. Until then `/ready` returns 503. Further administrators and the other roles are added later under **Users**, see [users and roles](users-and-roles.md).
+Setup runs only once. When it finishes, `setup.json` is written to the data directory and the wizard closes. If `setup.json` is lost while the database remains, setup stays refused as long as the database has any user; restore the file from a backup or recreate it as `{"setupComplete": true, "dbType": "sqlite"}`. Until then `/ready` returns 503. Further administrators and the other roles are added later under **Users**, see [users and roles](users-and-roles.md).
 
 The status page is at `http://your-server:3000`.
 

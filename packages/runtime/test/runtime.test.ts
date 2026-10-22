@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
@@ -24,6 +24,13 @@ describe('data paths', () => {
     const env = { DATA_DIR: join(dir, 'setup') }
     assert.equal(isSetupComplete(env), false)
     writeSetupComplete('sqlite', env)
+    assert.equal(isSetupComplete(env), true)
+  })
+
+  it('treat a marker that cannot be parsed as completed setup', () => {
+    const env = { DATA_DIR: join(dir, 'broken') }
+    mkdirSync(env.DATA_DIR)
+    writeFileSync(join(env.DATA_DIR, 'setup.json'), '{"setupComp')
     assert.equal(isSetupComplete(env), true)
   })
 })
