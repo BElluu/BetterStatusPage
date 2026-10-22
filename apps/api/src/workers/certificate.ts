@@ -6,6 +6,7 @@ import type { CertExpiryConfig, HttpsConfig } from '@bsp/shared'
 import { db } from '../db/client.js'
 import { monitors } from '../db/schema.js'
 import { sendCertificateNotifications } from './notifier.js'
+import { guardedLookup, refusalReason } from '../services/ssrfGuard.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 /** Certificates change rarely — one extra handshake every few hours per monitor is plenty. */
@@ -46,10 +47,14 @@ function commonName(value: string | string[] | undefined): string {
 export const readCertificate: CertificateReader = (url, timeoutMs) => {
   const target = certificateTarget(url)
   if (!target) return Promise.reject(new Error(`Not an HTTPS URL: ${url}`))
+  // An address literal is never resolved, so the lookup guard does not see it.
+  const refused = refusalReason(target.host)
+  if (refused) return Promise.reject(new Error(`Refusing to connect to ${target.host}: ${refused}`))
   return new Promise((resolve, reject) => {
     const socket = connect({
       host: target.host,
       port: target.port,
+      lookup: guardedLookup(),
       // SNI must name a host, never an IP address.
       ...(isIP(target.host) ? {} : { servername: target.host }),
       // Only the dates are read here. Whether the certificate is trusted is the scheduled check's

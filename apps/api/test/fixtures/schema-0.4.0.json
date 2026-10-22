@@ -140,6 +140,12 @@
     },
     {
       "type": "index",
+      "name": "idx_subscribers_manage_token_hash",
+      "table": "subscribers",
+      "sql": "CREATE UNIQUE INDEX idx_subscribers_manage_token_hash ON subscribers(manage_token_hash)"
+    },
+    {
+      "type": "index",
       "name": "idx_subscribers_status",
       "table": "subscribers",
       "sql": "CREATE INDEX idx_subscribers_status ON subscribers(status)"
@@ -346,7 +352,7 @@
       "type": "table",
       "name": "subscribers",
       "table": "subscribers",
-      "sql": "CREATE TABLE subscribers (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  type TEXT NOT NULL,\n  target_key TEXT NOT NULL UNIQUE,\n  email TEXT NOT NULL,\n  webhook_url TEXT,\n  status TEXT NOT NULL DEFAULT 'pending',\n  events TEXT NOT NULL DEFAULT '[]',\n  monitor_ids TEXT NOT NULL DEFAULT '[]',\n  tags TEXT NOT NULL DEFAULT '[]',\n  confirm_token_hash TEXT,\n  confirm_expires_at INTEGER,\n  confirmation_sent_at INTEGER,\n  manage_token TEXT NOT NULL UNIQUE,\n  created_at INTEGER NOT NULL,\n  confirmed_at INTEGER,\n  unsubscribed_at INTEGER,\n  last_notified_at INTEGER,\n  last_error TEXT,\n  updated_at INTEGER NOT NULL\n, webhook_method TEXT NOT NULL DEFAULT 'POST', webhook_headers TEXT, notify_on_failure INTEGER NOT NULL DEFAULT 0, consecutive_failures INTEGER NOT NULL DEFAULT 0, failure_notified_at INTEGER, disabled_at INTEGER)"
+      "sql": "CREATE TABLE subscribers (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  type TEXT NOT NULL,\n  target_key TEXT NOT NULL UNIQUE,\n  email TEXT NOT NULL,\n  webhook_url TEXT,\n  status TEXT NOT NULL DEFAULT 'pending',\n  events TEXT NOT NULL DEFAULT '[]',\n  monitor_ids TEXT NOT NULL DEFAULT '[]',\n  tags TEXT NOT NULL DEFAULT '[]',\n  confirm_token_hash TEXT,\n  confirm_expires_at INTEGER,\n  confirmation_sent_at INTEGER,\n  manage_token TEXT NOT NULL UNIQUE,\n  created_at INTEGER NOT NULL,\n  confirmed_at INTEGER,\n  unsubscribed_at INTEGER,\n  last_notified_at INTEGER,\n  last_error TEXT,\n  updated_at INTEGER NOT NULL\n, webhook_method TEXT NOT NULL DEFAULT 'POST', webhook_headers TEXT, notify_on_failure INTEGER NOT NULL DEFAULT 0, consecutive_failures INTEGER NOT NULL DEFAULT 0, failure_notified_at INTEGER, disabled_at INTEGER, manage_token_hash TEXT)"
     },
     {
       "type": "table",
@@ -399,6 +405,7 @@
     "entity-keys-backfill-v1",
     "monitor-daily-results-v1",
     "monitors-seed-alert-confirmed-status-v1",
-    "sso-users-temporary-password-revoked-v1"
+    "sso-users-temporary-password-revoked-v1",
+    "subscriber-manage-token-hash-v1"
   ]
 }

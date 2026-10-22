@@ -35,7 +35,8 @@ export function isSetupComplete(env: Env = process.env): boolean {
     const cfg = JSON.parse(fs.readFileSync(file, 'utf-8')) as SetupConfig
     return cfg.setupComplete === true
   } catch {
-    return false
+    // A marker that exists but cannot be read is not a fresh install: refuse setup rather than reopen it.
+    return true
   }
 }
 

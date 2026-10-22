@@ -9,6 +9,7 @@ interface StatusMap {
 type SseAction =
   | { type: 'monitor.status'; monitorId: number; status: MonitorStatus; responseMs: number | null; checkedAt: number }
   | { type: 'incident.created' | 'incident.updated'; payload: unknown }
+  | { type: 'reset' }
 
 function reducer(state: StatusMap, action: SseAction): StatusMap {
   if (action.type === 'monitor.status') {
@@ -21,8 +22,15 @@ function reducer(state: StatusMap, action: SseAction): StatusMap {
       },
     }
   }
+  // Statuses received over a stream that has since dropped may be stale; the refetched data wins.
+  if (action.type === 'reset') return Object.keys(state).length ? {} : state
   return state
 }
+
+const RETRY_MIN_MS = 2_000
+const RETRY_MAX_MS = 60_000
+/** While the stream is down the page refetches its data on this interval instead. */
+const FALLBACK_REFRESH_MS = 30_000
 
 export function useSSE(onIncidentChange?: () => void) {
   const [statusMap, dispatch] = useReducer(reducer, {})
@@ -32,6 +40,8 @@ export function useSSE(onIncidentChange?: () => void) {
     if (SNAPSHOT_URL) return
     let es: EventSource | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let fallbackTimer: ReturnType<typeof setInterval> | null = null
+    let retryMs = RETRY_MIN_MS
     let closed = false
 
     function connect() {
@@ -46,12 +56,22 @@ export function useSSE(onIncidentChange?: () => void) {
       es.addEventListener('incident.created', () => { onIncidentChange?.() })
       es.addEventListener('incident.updated', () => { onIncidentChange?.() })
 
+      es.onopen = () => {
+        retryMs = RETRY_MIN_MS
+        if (fallbackTimer) clearInterval(fallbackTimer)
+        fallbackTimer = null
+      }
+
+      // A refused stream (the server is at its limit) is retried with a growing, jittered delay,
+      // and the page keeps itself current by polling in the meantime.
       es.onerror = () => {
         es?.close()
         es = null
-        if (!closed) {
-          retryTimer = setTimeout(connect, 2000)
-        }
+        if (closed) return
+        dispatch({ type: 'reset' })
+        fallbackTimer ??= setInterval(() => { onIncidentChange?.() }, FALLBACK_REFRESH_MS)
+        retryTimer = setTimeout(connect, retryMs * (0.5 + Math.random()))
+        retryMs = Math.min(retryMs * 2, RETRY_MAX_MS)
       }
     }
 
@@ -60,6 +80,7 @@ export function useSSE(onIncidentChange?: () => void) {
     return () => {
       closed = true
       if (retryTimer) clearTimeout(retryTimer)
+      if (fallbackTimer) clearInterval(fallbackTimer)
       es?.close()
     }
   }, [onIncidentChange])

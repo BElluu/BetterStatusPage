@@ -1,6 +1,8 @@
 import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 import { backfillKeys } from '@better-kit/config-as-code'
 import type { MigrationStep } from '@better-kit/db'
+import { createSecretBox } from '@better-kit/vault'
+import { createHash } from 'node:crypto'
 import { rebuildDailyResults } from '../../dailyResults.js'
 
 /** Everything the application adds to the shared tables. Steps run in this order. */
@@ -422,4 +424,17 @@ CREATE TABLE IF NOT EXISTS static_mirror_runs (
     console.log('… Building daily uptime totals')
     rebuildDailyResults(sqlite)
   } },
+  // A copy of the database alone must not carry working manage links: the token is stored encrypted and looked up by its hash.
+  { kind: 'column', sql: `ALTER TABLE subscribers ADD COLUMN manage_token_hash TEXT`, desc: 'subscribers.manage_token_hash' },
+  { kind: 'data', name: 'subscriber-manage-token-hash-v1', run(sqlite) {
+    const rows = sqlite.prepare('SELECT id, manage_token FROM subscribers WHERE manage_token_hash IS NULL').all() as { id: number; manage_token: string }[]
+    // Without the key the box falls back to a public one, and tokens encrypted with it could never be read again with the real key.
+    if (rows.length && !process.env['VAULT_ENCRYPTION_KEY'] && !['test', 'development'].includes(process.env['NODE_ENV'] ?? '')) {
+      throw new Error('VAULT_ENCRYPTION_KEY must be set to upgrade the stored subscriber links; set it to the key of this installation and start again')
+    }
+    const { encrypt } = createSecretBox()
+    const update = sqlite.prepare('UPDATE subscribers SET manage_token = ?, manage_token_hash = ? WHERE id = ?')
+    for (const row of rows) update.run(encrypt(row.manage_token), createHash('sha256').update(row.manage_token).digest('hex'), row.id)
+  } },
+  { kind: 'exec', sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_subscribers_manage_token_hash ON subscribers(manage_token_hash)` },
 ]

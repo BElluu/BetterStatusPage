@@ -1,11 +1,22 @@
-import type { MonitorStatus, DatabaseConfig } from '@bsp/shared'
+import { DATABASE_TLS_MODES } from '@bsp/shared'
+import type { MonitorStatus, DatabaseConfig, DatabaseTlsMode } from '@bsp/shared'
 import type { VaultRef } from '@better-kit/contracts'
 import { resolveVaultSecret } from '../kit/resolveSecret.js'
 
 /** Where to connect: a full connection string, or discrete settings. */
 export type DatabaseConnection =
   | { connectionString: string }
-  | { host: string; port: number; database: string; user: string; password: string }
+  | { host: string; port: number; database: string; user: string; password: string; tls: DatabaseTlsMode; ca?: string }
+
+export type FieldsConnection = Exclude<DatabaseConnection, { connectionString: string }>
+
+export function fieldsConnection(config: DatabaseConfig, { user, password }: { user: string; password: string }): DatabaseConnection {
+  const tls = config.tls ?? 'prefer'
+  // An unknown value must not quietly weaken the connection.
+  if (!DATABASE_TLS_MODES.includes(tls)) throw new Error(`Unknown TLS mode "${String(tls)}"`)
+  const ca = config.tlsCa?.trim()
+  return { host: config.host, port: config.port, database: config.database, user, password, tls, ...(tls === 'verify' && ca ? { ca } : {}) }
+}
 
 /** One open connection (or pool) owned by a single check. */
 export interface DatabaseSession {
@@ -57,8 +68,7 @@ export async function checkDatabase(driver: DatabaseDriver, config: DatabaseConf
       if (!config.vault) throw new Error(`${driver.label} connection string mode requires a vault secret`)
       connection = { connectionString: await resolveConnectionString(driver, config.vault) }
     } else {
-      const { user, password } = await resolveFieldCredentials(config)
-      connection = { host: config.host, port: config.port, database: config.database, user, password }
+      connection = fieldsConnection(config, await resolveFieldCredentials(config))
     }
 
     session = await driver.connect(connection, timeoutMs)

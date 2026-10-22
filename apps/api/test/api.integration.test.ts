@@ -46,6 +46,8 @@ before(async () => {
       type: 'page',
       children: [
         { id: 'valid', type: 'monitor', monitorId, showUptimeBar: true },
+        { id: 'chart-1h', type: 'chart', monitorId, hours: 1, buckets: 10, aggregation: 'avg' },
+        { id: 'chart-90d', type: 'chart', monitorId, hours: 2160, buckets: 30, aggregation: 'avg' },
         { id: 'orphan', type: 'monitor', monitorId: 999_999, showUptimeBar: true },
       ],
     }),
@@ -88,7 +90,7 @@ describe('public API integration', () => {
     assert.equal(response.statusCode, 200)
 
     const payload = response.json()
-    assert.deepEqual(payload.tree.children.map((node: { id: string }) => node.id), ['valid'])
+    assert.deepEqual(payload.tree.children.map((node: { id: string }) => node.id), ['valid', 'chart-1h', 'chart-90d'])
   })
 
   it('aggregates monitor uptime and response history', async () => {
@@ -113,6 +115,10 @@ describe('public API integration', () => {
       method: 'GET', url: `/api/v1/public/monitor/${monitorId}/history?hours=999&buckets=1`,
     })
     assert.equal(invalidBounds.statusCode, 400)
+    // A valid range that no chart of the page asks for is not computed.
+    assert.equal((await app.inject({
+      method: 'GET', url: `/api/v1/public/monitor/${monitorId}/history?hours=1&buckets=11`,
+    })).statusCode, 404)
     assert.equal((await app.inject({
       method: 'GET', url: `/api/v1/public/monitor/${monitorId}/history?hours=2160&buckets=30`,
     })).statusCode, 200)
@@ -214,7 +220,7 @@ describe('public API integration', () => {
     ])
     const current = (await db.select().from(layout))[0]!
     const tree = JSON.parse(current.tree) as { children: unknown[] }
-    await db.update(layout).set({ tree: JSON.stringify({ ...tree, children: [...tree.children, { id: 'chart', type: 'monitor', monitorId: id, showUptimeBar: true }] }) })
+    await db.update(layout).set({ tree: JSON.stringify({ ...tree, children: [...tree.children, { id: 'chart', type: 'chart', monitorId: id, hours: 4, buckets: 10, aggregation: 'avg' }] }) })
     await refreshPublishedMonitorIds()
 
     const { buckets } = (await app.inject({ method: 'GET', url: `/api/v1/public/monitor/${id}/history?hours=4&buckets=10` })).json() as {

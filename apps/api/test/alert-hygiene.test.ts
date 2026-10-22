@@ -148,10 +148,16 @@ describe('alert thresholds', () => {
     assert.deepEqual(replay({ ...base, failureThreshold: 5 }, ['affected']), ['affected'])
   })
 
-  it('resets the streak when the candidate status changes', () => {
+  it('counts down and degraded as one streak when leaving a healthy state', () => {
+    const state = { ...base, failureThreshold: 2 }
+    assert.deepEqual(replay(state, ['down', 'degraded']), ['degraded'])
+    assert.deepEqual(replay(state, ['degraded', 'down']), ['down'])
+    assert.deepEqual(replay({ ...base, failureThreshold: 3 }, ['down', 'degraded', 'down', 'degraded']), ['down', 'degraded'])
+  })
+
+  it('resets the streak when a check is not a failure', () => {
     const state = { ...base, failureThreshold: 3 }
-    // Two downs, then a degraded, then two more downs: neither candidate ever reaches three.
-    assert.deepEqual(replay(state, ['down', 'down', 'degraded', 'down', 'down']), [])
+    assert.deepEqual(replay(state, ['down', 'down', 'up', 'down', 'down']), [])
   })
 })
 

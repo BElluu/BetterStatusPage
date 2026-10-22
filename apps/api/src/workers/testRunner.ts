@@ -1,8 +1,8 @@
-import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig } from '@bsp/shared'
+import { MAX_JSON_ASSERTION_BODY_BYTES, type HttpsConfig, type DatabaseConfig, type PingConfig, type DnsConfig, type DockerConfig } from '@bsp/shared'
 import { evaluateAssertions, validateHttpAssertions } from './assertions.js'
 import { evaluateContainer, inspectContainer, validateDockerConfig } from './docker.js'
-import { discardBody, errMsg, followRedirects, insecureForOrigin, redactedCookies, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type ResolvedHttpAuth } from './httpAuth.js'
-import { firstValue, resolveConnectionString, resolveFieldCredentials, type DatabaseConnection, type DatabaseDriver, type DatabaseSession } from './database.js'
+import { discardBody, errMsg, followRedirects, insecureForOrigin, readBodyText, redactedCookies, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type ResolvedHttpAuth } from './httpAuth.js'
+import { fieldsConnection, firstValue, resolveConnectionString, resolveFieldCredentials, type DatabaseConnection, type DatabaseDriver, type DatabaseSession } from './database.js'
 import { sqlServerDriver } from './sqlserver.js'
 import { postgresDriver } from './postgres.js'
 import { mysqlDriver } from './mysql.js'
@@ -12,6 +12,7 @@ import { expiresInPhrase } from './notifier.js'
 import { checkPing } from './ping.js'
 import { Resolver } from 'dns/promises'
 import { Agent, fetch as undiciFetch } from 'undici'
+import { guardedConnector, guardedFetch } from '../services/ssrfGuard.js'
 
 export interface TestStep {
   label: string
@@ -31,7 +32,8 @@ export interface TestResult {
 
 // ── HTTPS ─────────────────────────────────────────────────────────────────────
 
-export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise<TestResult> {
+/** `showActual`: the failure messages may quote what the endpoint answered (administrators only). */
+export async function testHttps(config: HttpsConfig, timeoutMs: number, { showActual = false }: { showActual?: boolean } = {}): Promise<TestResult> {
   const steps: TestStep[] = []
   const totalStart = Date.now()
   const fail = (): TestResult => ({ overall: 'error', steps, totalMs: Date.now() - totalStart })
@@ -82,8 +84,10 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
       steps.push({ label: `Response: HTTP ${res.status}`, status: 'ok', durationMs: responseMs })
 
       // Keep the body in memory for validation, but never expose it in diagnostics.
-      const responseBody = await res.text()
-      steps.push({ label: 'Response body', status: 'info', detail: `${Buffer.byteLength(responseBody, 'utf8')} bytes (content omitted)` })
+      const responseBody = await readBodyText(res)
+      const bodyBytes = Buffer.byteLength(responseBody, 'utf8')
+      const bodySize = bodyBytes > MAX_JSON_ASSERTION_BODY_BYTES ? 'more than 1 MB' : `${bodyBytes} bytes`
+      steps.push({ label: 'Response body', status: 'info', detail: `${bodySize} (content omitted)` })
 
       // ── Keyword check ───────────────────────────────────────────────────
       if (config.keyword) {
@@ -97,7 +101,7 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
 
       // ── Assertions and response time ──────────────────────────────────────
       // A failure here fails the test whatever its severity; the step says what the scheduled check would report.
-      const outcomes = await evaluateAssertions(config.assertions ?? [], res.headers, async () => responseBody)
+      const outcomes = await evaluateAssertions(config.assertions ?? [], res.headers, async () => responseBody, { showActual })
       for (const o of outcomes) {
         steps.push(o.ok
           ? { label: o.label, status: 'ok' }
@@ -144,8 +148,8 @@ export async function certificateStep(config: HttpsConfig, timeoutMs: number): P
   }
 }
 
-const globalFetch: HttpFetch = (url, init) => fetch(url, init)
-const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } })
+const globalFetch: HttpFetch = (url, init) => guardedFetch(url, init)
+const insecureAgent = new Agent({ connect: guardedConnector({ rejectUnauthorized: false }) })
 const insecureFetch: HttpFetch = (url, init) => undiciFetch(url, { ...init, dispatcher: insecureAgent })
 
 // ── Databases (SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB) ───────────────────
@@ -188,7 +192,12 @@ async function testDatabase(driver: DatabaseDriver, config: DatabaseConfig, time
       steps.push(config.vault
         ? { label: 'Credentials resolved from Vault', status: 'ok', detail: `User: ${user}`, durationMs: Date.now() - t }
         : { label: 'Using direct credentials', status: 'info', detail: `User: ${user}` })
-      connection = { host: config.host, port: config.port, database: config.database, user, password }
+      try {
+        connection = fieldsConnection(config, { user, password })
+      } catch (err) {
+        steps.push({ label: 'Invalid connection security', status: 'error', detail: errMsg(err) })
+        return fail()
+      }
       connectedLabel = `Connected to ${config.host}:${config.port} / ${config.database}`
       failedLabel = `Connection to ${config.host}:${config.port} failed`
     }

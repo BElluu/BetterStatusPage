@@ -302,8 +302,8 @@ describe('monitor test runner: HTTPS', () => {
       }, 2_000)
       assert.equal(result.overall, 'ok', labels(result).join(' | '))
       assert.equal(lastAuthorization, `Basic ${Buffer.from('user:password').toString('base64')}`)
-      // Neither the configured Cookie header nor the cookie the first hop set may reach the other origin.
-      assert.deepEqual(seen, [{ authorization: undefined, cookie: undefined, probe: 'kept' }])
+      // Neither the configured Cookie header nor the cookie the first hop set may reach the other origin, and neither may a custom header.
+      assert.deepEqual(seen, [{ authorization: undefined, cookie: undefined, probe: undefined }])
     } finally {
       other.closeAllConnections()
       await new Promise<void>((resolve) => other.close(() => resolve()))

@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
-import type { AutoIncidentMode, MonitorTag, MonitorType } from '@bsp/shared'
+import { DATABASE_TLS_MODES, isDatabaseType } from '@bsp/shared'
+import type { AutoIncidentMode, DatabaseTlsMode, MonitorTag, MonitorType } from '@bsp/shared'
 import { validateHttpAssertions } from '../workers/assertions.js'
 import { validateDockerConfig } from '../workers/docker.js'
 
@@ -116,10 +117,23 @@ function parseName(value: unknown): Parsed<string> {
   return { value }
 }
 
+const MAX_TLS_CA_LENGTH = 64 * 1024
+
+function validateDatabaseTls(config: Record<string, unknown>): string | null {
+  const { tls, tlsCa } = config
+  if (tls !== undefined && !DATABASE_TLS_MODES.includes(tls as DatabaseTlsMode)) return `tls must be one of: ${DATABASE_TLS_MODES.join(', ')}`
+  if (tlsCa !== undefined && (typeof tlsCa !== 'string' || tlsCa.length > MAX_TLS_CA_LENGTH)) return `tlsCa must be PEM text of at most ${MAX_TLS_CA_LENGTH} characters`
+  return null
+}
+
 function parseConfig(type: MonitorType, value: unknown): Parsed<Record<string, unknown>> {
   if (!isRecord(value)) return { error: 'config must be an object' }
   if (type === 'docker') {
     const invalid = validateDockerConfig(value)
+    if (invalid) return { error: invalid }
+  }
+  if (isDatabaseType(type)) {
+    const invalid = validateDatabaseTls(value)
     if (invalid) return { error: invalid }
   }
   if (type === 'https') {

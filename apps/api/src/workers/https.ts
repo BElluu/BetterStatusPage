@@ -1,10 +1,11 @@
 import type { HttpsConfig } from '@bsp/shared'
 import type { MonitorStatus } from '@bsp/shared'
 import { evaluateAssertions, hasJsonAssertions } from './assertions.js'
-import { discardBody, followRedirects, insecureForOrigin, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type HttpResponse } from './httpAuth.js'
+import { discardBody, followRedirects, insecureForOrigin, readBodyText, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type HttpResponse } from './httpAuth.js'
 import { Agent, fetch as httpFetch } from 'undici'
 import { lookup as dnsLookup } from 'dns'
 import type { LookupFunction } from 'net'
+import { guardedConnector, unwrapRefusal } from '../services/ssrfGuard.js'
 
 // Application-level DNS cache — avoids repeated resolver round-trips between checks.
 const dnsCache = new Map<string, { address: string; family: number; expires: number }>()
@@ -36,14 +37,14 @@ const cachedLookup: LookupFunction = (hostname, options, callback): void => {
 // Persistent connection pool — reuses TCP/TLS connections and caches DNS lookups
 // between checks, keeping measured response times accurate.
 const httpAgent = new Agent({
-  connect: { lookup: cachedLookup },
+  connect: guardedConnector({ lookup: cachedLookup }),
   keepAliveTimeout: 5 * 60_000,
   keepAliveMaxTimeout: 30 * 60_000,
 })
 
 // Same pool for monitors that opted out of certificate verification (`ignoreTls`).
 const insecureHttpAgent = new Agent({
-  connect: { lookup: cachedLookup, rejectUnauthorized: false },
+  connect: guardedConnector({ lookup: cachedLookup, rejectUnauthorized: false }),
   keepAliveTimeout: 5 * 60_000,
   keepAliveMaxTimeout: 30 * 60_000,
 })
@@ -65,21 +66,13 @@ export async function checkHttps(
   try {
     const auth = await resolveHttpAuth(config.auth, config.url, opts)
 
-    const method = config.method ?? 'GET'
     let res: HttpResponse
     if (auth.cas) {
       res = await requestWithCas(config, { ...auth, cas: auth.cas }, opts)
-    } else if (skipsTlsVerification(config)) {
-      // A redirect to another origin is checked with certificate verification, as in the test: fetch itself would keep the insecure dispatcher for every hop.
-      res = await followRedirects({ ...config, url: auth.url }, auth.headers, controller.signal, fetchWith)
     } else {
-      res = await fetchWith(auth.url, {
-        method,
-        headers: { ...(config.headers ?? {}), ...auth.headers },
-        ...(config.body !== undefined && method !== 'GET' && method !== 'HEAD' ? { body: config.body } : {}),
-        signal: controller.signal,
-        redirect: 'follow',
-      })
+      // Redirects are followed by hand: a redirect to another origin is checked with certificate verification and
+      // carries no credential headers, which fetch itself would not guarantee.
+      res = await followRedirects({ ...config, url: auth.url }, auth.headers, controller.signal, fetchWith)
     }
 
     const responseMs = Date.now() - start
@@ -96,7 +89,7 @@ export async function checkHttps(
 
     // The body is read once, and only when the keyword or a JSON assertion needs it.
     let bodyText: Promise<string> | undefined
-    const readBody = (): Promise<string> => (bodyText ??= res.text())
+    const readBody = (): Promise<string> => (bodyText ??= readBodyText(res))
     if (!config.keyword && !hasJsonAssertions(config.assertions)) await discardBody(res)
 
     // Every failed check is reported; the worst status wins, and a "down" assertion beats a "degraded" one.
@@ -107,6 +100,8 @@ export async function checkHttps(
     for (const o of await evaluateAssertions(config.assertions ?? [], res.headers, readBody)) {
       if (!o.ok) failures.push({ status: o.onFail, error: o.detail ?? o.label })
     }
+    // A body no check read (a declared size over the limit skips the read) must not keep its connection open.
+    if (!bodyText) await discardBody(res)
     if (config.degradedAboveMs !== undefined && responseMs > config.degradedAboveMs) {
       failures.push({ status: 'degraded', error: `Response took ${responseMs} ms, over the ${config.degradedAboveMs} ms limit` })
     }
@@ -121,7 +116,8 @@ export async function checkHttps(
     return { status: 'up', responseMs, error: null }
   } catch (err) {
     const responseMs = Date.now() - start
-    const msg = err instanceof Error ? err.message : String(err)
+    const reason = unwrapRefusal(err)
+    const msg = reason instanceof Error ? reason.message : String(reason)
     return { status: 'down', responseMs, error: msg }
   } finally {
     clearTimeout(timer)

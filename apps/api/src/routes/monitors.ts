@@ -247,7 +247,10 @@ export async function monitorRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'timeoutMs must be a number' })
     }
     const timeoutMs = Math.min(MAX_TEST_TIMEOUT_MS, Math.max(MIN_TEST_TIMEOUT_MS, requestedTimeout ?? 10000))
-    if (type === 'https') return testHttps(config as HttpsConfig, timeoutMs)
+    if (type === 'https') {
+      const identity = requestIdentity(req)
+      return testHttps(config as HttpsConfig, timeoutMs, { showActual: identity.role === 'admin' && !identity.apiToken })
+    }
     if (type === 'sqlserver') return testSqlServer(config as DatabaseConfig, timeoutMs)
     if (type === 'postgresql') return testPostgres(config as DatabaseConfig, timeoutMs)
     if (type === 'mysql') return testMysql(config as DatabaseConfig, timeoutMs)

@@ -134,13 +134,31 @@ The **Checks** tab on the right of the form adds what the response must contain 
 
 | Field | Default | What it does |
 | --- | --- | --- |
-| **Keyword (optional)** | — | Text the response body must contain. Case-sensitive. Missing → **Degraded**. |
+| **Keyword (optional)** | — | Text the response body must contain. Case-sensitive. Only the first 1 MB of the body is searched. Missing → **Degraded**. |
 | **Degraded when slower than** | — | A response time over this many milliseconds makes the check **Degraded**. |
 | **Response checks** | — | Headers and JSON fields, see [Response checks](#response-checks). |
 
-Redirects are followed, and the expected status is compared with the last response. The
+Redirects are followed, and the expected status is compared with the last response. A redirect to another origin carries only `Accept`, `Accept-Language`, `Accept-Encoding`, `User-Agent` and `Cache-Control` from your headers, and no request body (a `307`/`308` is sent there as a plain `GET`); the upgrade of an `http://` URL to `https://` on the same host and default port is not leaving the monitor, so it keeps them. CAS session cookies go only to the host that set them (and the subdomains of its `Domain`), and `Secure` ones only over HTTPS. The OAuth2 token request is never redirected: set the token URL to its final address. The
 response time is measured until the response headers arrive, before the body is read. It is
 recorded and charted; it only changes the status when **Degraded when slower than** is set.
+
+### Where a monitor may connect
+
+> [!WARNING]
+> **Not released yet.** This change is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+A monitor requests the address you give it, and a failed response check or a test shows something
+of the answer, so a URL must not be able to read the credentials of the host the server runs on.
+HTTPS monitors, the test runner, the certificate reading, HTTP actions and Docker monitors on a TCP endpoint therefore refuse to
+connect to cloud metadata services: the link-local range `169.254.0.0/16` (AWS, GCP, Azure and others),
+`fe80::/10`, `fd00:ec2::254`, `fd20:ce::254`, `100.100.100.200` and `metadata.google.internal`. The address that is
+actually connected to is checked, so a redirect, a host name that resolves to such an address or a
+DNS answer that changes between checks does not get around it.
+
+Private networks (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) and `localhost` stay reachable, since
+watching internal services is what a self-hosted status page is for. If the server runs on a host
+where a monitor has to read a metadata service, set `MONITOR_ALLOW_METADATA=true`. Ping / TCP, DNS and the
+database monitors are not affected: they connect to the host you name and show nothing of what it answers.
 
 ### Response checks
 
@@ -335,16 +353,31 @@ Choose how to connect. The sign-in itself (user and password, or the Vault secre
 
 
 - **Individual fields** — **Host**, **Port** (default per type, see above), **Database**, and
-  **User** / **Password** typed in or taken from the vault. The connection is encrypted and the
-  server certificate is not verified. PostgreSQL and MySQL / MariaDB fall back to an unencrypted
-  connection when the server has no TLS; SQL Server always encrypts. MongoDB connects without TLS
-  and signs in against the given database (`admin` when empty); use a connection string for TLS or
+  **User** / **Password** typed in or taken from the vault, and **Connection security** (see below).
+  MongoDB signs in against the given database (`admin` when empty); use a connection string for
   another `authSource`.
 - **Connection string** — a full connection string, which must come from the vault: a **value**
   secret, or a **json** secret with the key that holds the string. A **userpass** secret cannot be
   used here. TLS and certificate checks are then governed by the string itself (for MongoDB `tls=true` and `authSource`; for PostgreSQL
   `sslmode`, where `require` verifies the certificate and `no-verify` does not; for MySQL / MariaDB a
   `mysql://` URI, encrypted only with an `ssl` parameter). Use it when you need a verified certificate.
+
+### Connection security
+
+> [!WARNING]
+> **Not released yet.** The **Connection security** setting is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+In individual-fields mode the **Connection security** setting (`tls` in the monitor's `config`) decides how the password is protected:
+
+| Setting | `tls` | Behaviour |
+| --- | --- | --- |
+| **Encrypted, verify certificate** | `verify` | Encrypted, and the server certificate and host name must be valid. Paste the certificate of your own authority into **CA certificate** (`tlsCa`) when the server uses one; empty means the public CAs bundled with Node.js (plus `NODE_EXTRA_CA_CERTS`); a pasted CA replaces them. The form starts new monitors here. |
+| **Encrypted, certificate not checked** | `require` | Encrypted, no plain-text fallback, but anyone on the network path can pose as the server. |
+| **Encrypted if available, certificate not checked** | `prefer` | The behaviour of monitors created before the setting existed: PostgreSQL and MySQL / MariaDB fall back to plain text when the server answers that it has no TLS, so a party on the network path can read the password. SQL Server encrypts without checking the certificate. MongoDB is not encrypted at all. Monitors without `tls` use it. |
+
+Monitors created through the API or a configuration file without `tls` use `prefer`. `verify` matches the host name against the certificate, so connect by DNS name: MySQL / MariaDB and SQL Server cannot verify a server addressed by IP. Change existing monitors to `verify` (or at least `require`). A connection string keeps its own TLS settings, as described above.
+
+The monitor runs the query or command as written, so give it an account that can only read.
 
 **Test Query** (default `SELECT 1`) runs on every check. A connection error, query error or timeout
 makes the check **Down**.
@@ -557,7 +590,7 @@ A header counts as a credential when its name contains `auth`, `token`, `secret`
 A secret reads back as `••••••••`. Leave the field untouched to keep the stored value, or type a new one to replace it.
 A secret read from a [vault](vault.md) is a reference, not a secret, and is shown as such.
 
-A stored secret is only kept while it is sent to the same place. If you change the **URL**, the OAuth2 token URL, the CAS server, or a database **host** or **port** while a secret still shows as `••••••••`, saving is refused with a message asking you to enter the secrets again, so a saved password cannot be redirected to a new address. A **Test** run with such a change is refused the same way. Do not write credentials into a URL or request body: only the authentication fields and headers are masked.
+A stored secret is only kept while it is sent to the same place. If you change the **URL**, the OAuth2 token URL, the CAS server, a database **host** or **port**, or switch on **Ignore TLS certificate errors** while a secret still shows as `••••••••`, saving is refused with a message asking you to enter the secrets again, so a saved password cannot be redirected to a new address. A **Test** run with such a change is refused the same way. Do not write credentials into a URL or request body: only the authentication fields and headers are masked.
 
 ---
 
@@ -574,7 +607,9 @@ full log as a text file, including the informational steps hidden in the panel, 
 probe hop.
 
 Secrets stay out of the result: the response body is reported by size only, and cookie values are
-replaced with `[redacted]`.
+replaced with `[redacted]`. A failed response check names the value the endpoint answered
+(`it is "2"`) only to administrators signed in with a session; for operators, API tokens and in the
+messages of scheduled checks, which are stored and sent in notifications, it says `the value is not shown`.
 
 When you edit a saved monitor, a password, client secret or credential header that you did not change
 is tested as stored, even though the form only shows it as `••••••••`.

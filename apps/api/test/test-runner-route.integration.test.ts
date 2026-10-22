@@ -24,7 +24,7 @@ const httpServer = createHttpServer((req, res) => {
   lastAuthorization = req.headers.authorization ?? ''
   const expected = `Basic ${Buffer.from('vault-user:vault-pass').toString('base64')}`
   if (req.url === '/protected') res.writeHead(lastAuthorization === expected ? 200 : 401).end('protected')
-  else res.writeHead(200).end('ok')
+  else res.writeHead(200, { 'X-Replicas': '2' }).end('ok')
 })
 const tcpServer = createTcpServer((socket) => socket.destroy())
 
@@ -190,6 +190,16 @@ describe('POST /admin/monitors/test', () => {
     const response = await runTest({ type: 'webhook', config: {} })
     assert.equal(response.statusCode, 400)
     assert.match(response.json().error, /not supported for monitor type: webhook/)
+  })
+
+  it('quotes what the endpoint answered only to an administrator', async () => {
+    const payload = { type: 'https', config: { url: `${baseUrl}/`, method: 'GET', expectedStatus: 200, assertions: [{ type: 'header', name: 'X-Replicas', op: 'equals', value: '3' }] } }
+    const details = async (headers: Record<string, string>) =>
+      (await runTest(payload, headers)).json<{ steps: { detail?: string }[] }>().steps.map((s) => s.detail ?? '').join(' ')
+    assert.match(await details(authorizations['admin']!), /it is "2"/)
+    const operator = await details(authorizations['operator']!)
+    assert.match(operator, /the value is not shown/)
+    assert.doesNotMatch(operator, /"2"/)
   })
 
   it('rejects a request without a body or config with 400', async () => {

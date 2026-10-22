@@ -80,4 +80,12 @@ describe('secret fields', () => {
     assert.ok('error' in result && /url changed/.test(result.error))
     assert.equal(fields.changedDestination('job', { url: '' }, {}), null)
   })
+
+  it('counts a loosening switch only when it is turned on', () => {
+    const loose = createSecretFields({ job: { fields: FIELDS, destinations: [['url']], loosening: [['insecure']] } })
+    assert.equal(loose.changedDestination('job', { insecure: true }, {}), 'insecure')
+    assert.equal(loose.changedDestination('job', { insecure: true }, { insecure: true }), null)
+    assert.equal(loose.changedDestination('job', {}, { insecure: true }), null)
+    assert.equal(loose.changedDestination('job', { insecure: false }, { insecure: true }), null)
+  })
 })

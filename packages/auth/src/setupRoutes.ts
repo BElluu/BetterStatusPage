@@ -43,8 +43,8 @@ export function createSetupRoutes<Identity extends { sessionId?: string }>(optio
         return reply.code(409).send({ error: 'Setup already completed' })
       }
 
-      const { email, password } = req.body
-      if (!email || !password) {
+      const { email, password } = req.body ?? {}
+      if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
         return reply.code(400).send({ error: 'Email and password are required' })
       }
       if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -66,10 +66,11 @@ export function createSetupRoutes<Identity extends { sessionId?: string }>(optio
         const hash = await bcrypt.hash(password, 10)
         let setupMarkerWritten = false
         const user = await options.withTransaction(async () => {
-          // Setup is not complete, so a row with this email can only be left over from an
-          // interrupted attempt — take it over instead of blocking the retry.
+          // The marker can be missing while the data is not (a lost volume, a restore). Accounts that already
+          // exist mean setup was done: never create or overwrite an administrator over them.
+          if ((await db.select({ id: users.id }).from(users).limit(1)).length > 0) return null
+
           await db.insert(users).values({ email, passwordHash: hash, role: 'admin', createdAt: Date.now() })
-            .onConflictDoUpdate({ target: users.email, set: { passwordHash: hash, role: 'admin', mustChangePassword: 0 } })
 
           await options.onSetup?.()
 
@@ -83,6 +84,7 @@ export function createSetupRoutes<Identity extends { sessionId?: string }>(optio
           if (setupMarkerWritten) options.removeSetupMarker()
           throw error
         })
+        if (!user) return reply.code(409).send({ error: 'Setup already completed' })
         const startServices = overrides.startBackgroundServices ?? options.startBackgroundServices
         startServices?.()
         const identity = await options.createSession(app, reply, user)

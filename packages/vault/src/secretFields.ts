@@ -24,7 +24,7 @@ export type SecretField =
   | { mapAt: readonly string[] }
 
 /** Credential-looking header names. Wide on purpose: masking `X-Idempotency-Key` costs nothing, leaking `X-Auth` does. */
-const SENSITIVE_HEADER = /auth|token|secret|key|pass|pwd|credential|cookie|session|signature/i
+export const SENSITIVE_HEADER = /auth|token|secret|key|pass|pwd|credential|cookie|session|signature/i
 
 export const uniqueSecretFields = (fields: readonly SecretField[]): SecretField[] => {
   const seen = new Set<string>()
@@ -57,7 +57,12 @@ function mask(value: string, tail: boolean): string {
 
 export type RestoreResult = { config: unknown } | { error: string }
 
-export function createSecretFields<Kind extends string>(kinds: Readonly<Record<Kind, { fields: readonly SecretField[]; destinations: readonly (readonly string[])[] }>>) {
+export function createSecretFields<Kind extends string>(kinds: Readonly<Record<Kind, {
+  fields: readonly SecretField[]
+  destinations: readonly (readonly string[])[]
+  /** Switches that make a destination less safe (certificate checks off): turning one on counts as a changed destination, turning it off does not. */
+  loosening?: readonly (readonly string[])[]
+}>>) {
   function slotsIn(config: unknown, kind: Kind): Slot[] {
     const slots: Slot[] = []
     for (const field of kinds[kind].fields) {
@@ -125,6 +130,9 @@ export function createSecretFields<Kind extends string>(kinds: Readonly<Record<K
       // An empty value means the same as an absent one.
       const normalised = (config: unknown) => valueAt(config, path) || null
       if (JSON.stringify(normalised(incoming)) !== JSON.stringify(normalised(stored))) return path.join('.')
+    }
+    for (const path of kinds[kind].loosening ?? []) {
+      if (valueAt(incoming, path) === true && valueAt(stored, path) !== true) return path.join('.')
     }
     return null
   }

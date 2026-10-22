@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify'
 import { serveEventStream, sseService } from '../kit/sse.js'
-import { getPublishedMonitorIds, publishedMonitorIdsSnapshot } from '../services/publishedMonitors.js'
+import { chartRangeKey, getPublishedChartRanges, getPublishedMonitorIds, publishedMonitorIdsSnapshot } from '../services/publishedMonitors.js'
 import { createTtlCache } from '../lib/ttlCache.js'
-import { PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
+import { PUBLIC_EVENTS_RATE_LIMIT, PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
 import {
-  loadPublicStatus, loadPublicLayout, loadPublicIncidents, loadPublicIncident, loadUptime, loadHistory,
+  loadPublicStatus, loadPublicLayout, loadPublicIncidents, loadPublicIncident, loadUptime, loadHistory, publishIncident,
 } from '../services/publicStatusData.js'
 import { parseStrictPagination } from '../lib/pagination.js'
 import { authenticateRequest, type AuthIdentity } from '../kit/authSession.js'
@@ -98,7 +98,8 @@ export async function publicRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: 'Invalid monitor id, hours, or buckets' })
       }
 
-      if (!(await getPublishedMonitorIds()).has(monitorId)) return reply.code(404).send({ error: 'Not found' })
+      // Only the ranges the charts of the page ask for: any other one is a fresh scan of up to 90 days.
+      if (!(await getPublishedChartRanges()).has(chartRangeKey(monitorId, hours, nBuckets))) return reply.code(404).send({ error: 'Not found' })
 
       return historyCache.get(`${monitorId}:${hours}:${nBuckets}`, () => loadHistory(monitorId, hours, nBuckets))
     },
@@ -106,7 +107,7 @@ export async function publicRoutes(app: FastifyInstance) {
 
   // Visitors only hear about published monitors; the admin panel has its own authenticated stream.
   // On a private page the stream belongs to a session: signing out ends it, and the keep-alive re-checks access.
-  app.get('/events', async (req, reply) => {
+  app.get('/events', { config: { rateLimit: PUBLIC_EVENTS_RATE_LIMIT } }, async (req, reply) => {
     await getPublishedMonitorIds()
     const identity = req.user as AuthIdentity | undefined
     const session = identity?.sessionId ? { sessionId: identity.sessionId, userId: identity.userId } : undefined
@@ -120,7 +121,7 @@ export async function publicRoutes(app: FastifyInstance) {
 
 /**
  * Status changes of internal monitors are not sent at all, and incident events lose their links to
- * internal monitors. The status page only uses incident events as a cue to refetch.
+ * internal monitors (including the one that opened them). The status page only uses incident events as a cue to refetch.
  */
 function publicEventFilter(event: string, data: unknown): { data: unknown } | null {
   const published = publishedMonitorIdsSnapshot()
@@ -129,9 +130,6 @@ function publicEventFilter(event: string, data: unknown): { data: unknown } | nu
   }
   // Drafts exist for operators only.
   if (event.startsWith('incident.') && (data as { draft?: unknown } | null)?.draft === true) return null
-  if (event.startsWith('incident.') && data && typeof data === 'object' && Array.isArray((data as { monitorIds?: unknown }).monitorIds)) {
-    const incident = data as { monitorIds: number[] }
-    return { data: { ...incident, monitorIds: incident.monitorIds.filter((id) => published.has(id)) } }
-  }
+  if (event.startsWith('incident.') && data && typeof data === 'object') return { data: publishIncident(data as { monitorIds?: number[]; autoMonitorId?: number | null }, published) }
   return { data }
 }

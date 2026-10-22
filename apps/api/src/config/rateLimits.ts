@@ -55,6 +55,13 @@ export const PUBLIC_FEED_RATE_LIMIT = {
   timeWindow: '1 minute',
 }
 
+/** Opening a live stream holds a connection; a reconnecting browser needs far fewer attempts than this. */
+export const PUBLIC_EVENTS_RATE_LIMIT = {
+  groupId: 'public-events',
+  max: 30,
+  timeWindow: '1 minute',
+}
+
 /** The JSON status API is meant to be polled by scripts and dashboards; responses are cached for 30 s. */
 export const PUBLIC_API_RATE_LIMIT = {
   groupId: 'public-status-api',

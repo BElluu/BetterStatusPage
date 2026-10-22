@@ -381,6 +381,40 @@ describe('MonitorFormModal', () => {
     })
   })
 
+  it('starts a new database monitor on verified TLS and shows the CA field only there', async () => {
+    const user = userEvent.setup()
+    renderModal()
+
+    await user.type(field('Name'), 'Secure DB')
+    await pickType(user, 'Database')
+    expect(field<HTMLSelectElement>('Connection security').value).toBe('verify')
+    await user.type(field('CA certificate (optional)'), 'PEM')
+    await user.type(field('Host'), 'db.internal')
+    await user.type(field('Database'), 'orders')
+    await user.type(field('User'), 'monitor')
+    await user.type(field('Password'), 'pw')
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+
+    await waitFor(() => expect(createdBody()).toBeDefined())
+    expect(createdBody()).toMatchObject({ config: { tls: 'verify', tlsCa: 'PEM' } })
+  })
+
+  it('warns when the certificate is not checked and hides the CA field', async () => {
+    const user = userEvent.setup()
+    renderModal()
+
+    await pickType(user, 'Database')
+    await user.selectOptions(field('Connection security'), 'require')
+    expect(screen.getByText(/The certificate is not checked, so a party/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('CA certificate (optional)')).not.toBeInTheDocument()
+    await user.selectOptions(field('Connection security'), 'prefer')
+    expect(screen.queryByText(/falls back to plain text/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'PostgreSQL' }))
+    expect(screen.getByText(/falls back to plain text/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'MongoDB' }))
+    expect(screen.getByText(/MongoDB is not encrypted at all/)).toBeInTheDocument()
+  })
+
   it('submits the expected result of a database query', async () => {
     const user = userEvent.setup()
     renderModal()

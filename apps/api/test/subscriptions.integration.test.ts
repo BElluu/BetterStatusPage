@@ -14,7 +14,7 @@ import { adminSubscriberRoutes, publicSubscriptionRoutes } from '../src/routes/s
 import { feedRoutes } from '../src/routes/feeds.js'
 import { incidentRoutes } from '../src/routes/incidents.js'
 import { maintenanceRoutes } from '../src/routes/maintenance.js'
-import { saveSubscriptionSettings, getSubscriptionSettings, normalizeSubscriptionSettings } from '../src/services/subscriptions.js'
+import { saveSubscriptionSettings, getSubscriptionSettings, hashToken, normalizeSubscriptionSettings, readManageToken, requestSubscription } from '../src/services/subscriptions.js'
 import { isPublicAddress, validateWebhookUrl } from '../src/services/publicWebhook.js'
 import { processDueSubscriberDeliveries } from '../src/workers/subscriberNotifier.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
@@ -236,7 +236,7 @@ describe('status page subscriptions', () => {
     assert.match(emails[0]!, /Subject: Confirm your subscription/)
 
     // A pending subscriber cannot use the manage link yet, and a bad token confirms nothing.
-    const early = await inject({ method: 'POST', url: '/api/v1/public/subscriptions/preferences', payload: { token: row!.manageToken } })
+    const early = await inject({ method: 'POST', url: '/api/v1/public/subscriptions/preferences', payload: { token: readManageToken(row!) } })
     assert.equal(early.statusCode, 404)
     const wrong = await inject({ method: 'POST', url: '/api/v1/public/subscriptions/confirm', payload: { token: 'nope' } })
     assert.equal(wrong.statusCode, 404)
@@ -251,7 +251,10 @@ describe('status page subscriptions', () => {
     // Confirming sends one email that carries the single manage-or-unsubscribe link.
     await waitFor(() => emails.length === 2)
     assert.match(emails[1]!, /Subject: You are subscribed/)
-    assert.equal(tokenFrom(emails[1]!, 'manage'), row!.manageToken)
+    assert.equal(tokenFrom(emails[1]!, 'manage'), readManageToken(row!))
+    // The database holds the token encrypted and finds it by hash, never in the clear.
+    assert.notEqual(row!.manageToken, tokenFrom(emails[1]!, 'manage'))
+    assert.equal(row!.manageTokenHash, hashToken(tokenFrom(emails[1]!, 'manage')))
     assert.doesNotMatch(emails[1]!, /subscription=unsubscribe/)
     const reused = await inject({ method: 'POST', url: '/api/v1/public/subscriptions/confirm', payload: { token: tokenFrom(emails[0]!, 'confirm') } })
     assert.equal(reused.statusCode, 404)
@@ -288,6 +291,38 @@ describe('status page subscriptions', () => {
     assert.equal(confirm.statusCode, 200)
     assert.equal((await db.select().from(subscribers))[0]!.status, 'active')
     await waitFor(() => emails.length === 2)
+  })
+
+  it('counts the mailbox, not the destination, for the cooldown and the pending cap', async () => {
+    await enable({ allowWebhook: true })
+    process.env['SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE'] = 'true'
+    const start = Date.now()
+    const submit = (n: number, at: number) =>
+      requestSubscription({ type: 'webhook', email: 'victim@example.test', webhookUrl: `${hookUrl}?n=${n}` }, at)
+
+    await submit(0, start)
+    // A different URL for the same address inside the cooldown sends nothing and stores nothing.
+    await submit(1, start + 1000)
+    assert.equal((await db.select().from(subscribers)).length, 1)
+
+    // Past each cooldown more pending rows are accepted, but only up to the cap.
+    for (let n = 1; n <= 8; n++) await submit(n, start + n * 11 * 60 * 1000)
+    assert.equal((await db.select().from(subscribers)).length, 5)
+    await waitFor(() => emails.length === 5)
+  })
+
+  it('ignores a webhook URL that is already registered under another address', async () => {
+    await enable({ allowWebhook: true })
+    process.env['SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE'] = 'true'
+    const start = Date.now()
+    await requestSubscription({ type: 'webhook', email: 'owner@example.test', webhookUrl: hookUrl }, start)
+    // The destination is unique: a second address must get the same silent answer, not a database error.
+    await requestSubscription({ type: 'webhook', email: 'stranger@example.test', webhookUrl: hookUrl }, start + 1000)
+
+    const rows = await db.select().from(subscribers)
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0]!.email, 'owner@example.test')
+    await waitFor(() => emails.length === 1)
   })
 
   it('delivers incident events only to subscribers whose events and components match', async () => {
