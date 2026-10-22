@@ -191,6 +191,11 @@ export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
 
+/** The manage token of a subscriber, as it goes into the links of their emails. */
+export function readManageToken(row: Pick<SubscriberRow, 'manageToken'>): string {
+  return decrypt(row.manageToken)
+}
+
 function newToken(): string {
   return randomBytes(32).toString('base64url')
 }
@@ -350,7 +355,7 @@ async function sendConfirmationEmail(row: SubscriberRow, confirmToken: string, p
 
 async function sendAlreadySubscribedEmail(row: SubscriberRow, publicUrl: string): Promise<void> {
   const brand = await loadEmailBrand(publicUrl)
-  const links = subscriptionLinks(publicUrl, row.manageToken)
+  const links = subscriptionLinks(publicUrl, readManageToken(row))
   const what = row.type === 'webhook' ? `the webhook ${row.webhookUrl}` : 'this address'
   await sendSmtpMail({
     to: row.email,
@@ -451,9 +456,12 @@ export async function requestSubscription(input: SubscriptionRequest, now = Date
     disabledAt: null,
     updatedAt: now,
   }
+  const manageToken = newToken()
   const [row] = existing
     ? await db.update(subscribers).set(values).where(eq(subscribers.id, existing.id)).returning()
-    : await db.insert(subscribers).values({ ...values, targetKey, manageToken: newToken(), createdAt: now }).returning()
+    : await db.insert(subscribers).values({
+        ...values, targetKey, manageToken: encrypt(manageToken), manageTokenHash: hashToken(manageToken), createdAt: now,
+      }).returning()
   deliverInBackground(() => sendConfirmationEmail(row!, confirmToken, publicUrl))
 }
 
@@ -468,7 +476,7 @@ const EVENT_NAMES: Record<SubscriberEventType, string> = {
 async function sendSubscribedEmail(row: SubscriberRow, publicUrl: string): Promise<void> {
   const brand = await loadEmailBrand(publicUrl)
   const subscriber = toSubscriber(row)
-  const links = subscriptionLinks(publicUrl, row.manageToken)
+  const links = subscriptionLinks(publicUrl, readManageToken(row))
   const components = await getPublicComponents()
   const scope = [
     ...subscriber.monitorIds.map((id) => components.find((component) => component.id === id)?.name).filter((name): name is string => !!name),
@@ -514,7 +522,7 @@ export async function confirmSubscription(token: string, now = Date.now()): Prom
 }
 
 async function findByManageToken(token: string): Promise<SubscriberRow> {
-  const row = token ? (await db.select().from(subscribers).where(eq(subscribers.manageToken, token)))[0] : undefined
+  const row = token ? (await db.select().from(subscribers).where(eq(subscribers.manageTokenHash, hashToken(token))))[0] : undefined
   // A pending subscriber has not proven the address yet, so the manage link does nothing for it.
   if (!row || row.status === 'pending') throw new SubscriptionError('Invalid or expired link', 404)
   return row
@@ -590,7 +598,14 @@ export async function recordWebhookFailure(subscriberId: number, error: string, 
   if (!disable && !alert) return
 
   const publicUrl = resolvePublicUrl()
-  const links = subscriptionLinks(publicUrl, row.manageToken)
+  // A token that cannot be decrypted (lost key) must not stop the notice itself.
+  let manageUrl: string | null = null
+  try {
+    manageUrl = subscriptionLinks(publicUrl, readManageToken(row)).manageUrl
+  } catch (tokenError) {
+    console.error(`[subscriptions] Cannot read the manage token of subscriber ${row.id}:`, tokenError)
+  }
+  const cta = manageUrl ? { cta: { label: 'Manage or unsubscribe', url: manageUrl } } : {}
   const brand = await loadEmailBrand(publicUrl)
   const footer = {
     footer: `You are receiving this because you subscribed a webhook to status updates from ${brand.siteName}.`,
@@ -607,7 +622,7 @@ export async function recordWebhookFailure(subscriberId: number, error: string, 
             'Fix the endpoint, then turn notifications back on from your subscription page.',
           ],
           code: `Last error: ${error}`,
-          cta: { label: 'Manage or unsubscribe', url: links.manageUrl },
+          ...cta,
           ...footer,
         }),
       }
@@ -622,7 +637,7 @@ export async function recordWebhookFailure(subscriberId: number, error: string, 
             `After ${WEBHOOK_DISABLE_AFTER_FAILURES} failed updates in a row (${failures} so far) we will pause the subscription.`,
           ],
           code: `Last error: ${error}`,
-          cta: { label: 'Manage or unsubscribe', url: links.manageUrl },
+          ...cta,
           ...footer,
         }),
       }

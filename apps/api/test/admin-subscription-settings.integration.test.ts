@@ -5,6 +5,8 @@ import { eq } from 'drizzle-orm'
 import { db, sqlite } from '../src/db/client.js'
 import { auditLog, smtpSettings, subscribers } from '../src/db/schema.js'
 import { adminSubscriberRoutes } from '../src/routes/subscriptions.js'
+import { hashToken } from '../src/services/subscriptions.js'
+import { encrypt } from '../src/kit/secretBox.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 import { SUBSCRIBER_EVENT_TYPES } from '@bsp/shared'
 
@@ -28,7 +30,8 @@ async function addSubscriber(values: Partial<typeof subscribers.$inferInsert> = 
     email,
     status: 'active',
     events: JSON.stringify(SUBSCRIBER_EVENT_TYPES),
-    manageToken: `manage-${subscriberCounter}`,
+    manageToken: encrypt(`manage-${subscriberCounter}`),
+    manageTokenHash: hashToken(`manage-${subscriberCounter}`),
     createdAt: subscriberCounter,
     updatedAt: subscriberCounter,
     ...values,

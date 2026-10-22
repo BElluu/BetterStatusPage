@@ -76,6 +76,8 @@ The form answers the same way whether the address is new, pending or already sub
 
 Tokens in links sit in the URL fragment (`/#subscription=…`), which browsers never send to the server. The one-click unsubscribe URL has to carry its token in the query string, and the API redacts `token=` from request logs.
 
+The database does not hold a usable manage link either. The manage token is stored encrypted with `VAULT_ENCRYPTION_KEY` (every notification carries the link again, so it has to be readable) and a link finds its subscriber by the SHA-256 of the token. A copy of the database or a backup without the key cannot change or cancel a subscription; with the key it can, so keep the key apart from the backups.
+
 ## Webhook subscribers
 
 Webhooks are off by default. When on, the form asks for:

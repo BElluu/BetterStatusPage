@@ -282,7 +282,7 @@ export const subscribers = sqliteTable('subscribers', {
   confirmTokenHash: text('confirm_token_hash'),
   confirmExpiresAt: integer('confirm_expires_at'),
   confirmationSentAt: integer('confirmation_sent_at'),
-  /** Long-lived capability behind the manage and unsubscribe links, so it must stay readable. */
+  /** Long-lived capability behind the manage and unsubscribe links. Encrypted, because every notification carries the link again; looked up by `manageTokenHash`. */
   manageToken: text('manage_token').notNull().unique(),
   createdAt: integer('created_at').notNull(),
   confirmedAt: integer('confirmed_at'),
@@ -298,6 +298,8 @@ export const subscribers = sqliteTable('subscribers', {
   consecutiveFailures: integer('consecutive_failures').notNull().default(0),
   failureNotifiedAt: integer('failure_notified_at'),
   disabledAt: integer('disabled_at'),
+  /** SHA-256 of the manage token, which is how a link from an email finds its row. */
+  manageTokenHash: text('manage_token_hash'),
 })
 
 export const subscriberDeliveries = sqliteTable('subscriber_deliveries', {

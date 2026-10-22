@@ -14,7 +14,7 @@ import { adminSubscriberRoutes, publicSubscriptionRoutes } from '../src/routes/s
 import { feedRoutes } from '../src/routes/feeds.js'
 import { incidentRoutes } from '../src/routes/incidents.js'
 import { maintenanceRoutes } from '../src/routes/maintenance.js'
-import { saveSubscriptionSettings, getSubscriptionSettings, normalizeSubscriptionSettings, requestSubscription } from '../src/services/subscriptions.js'
+import { saveSubscriptionSettings, getSubscriptionSettings, hashToken, normalizeSubscriptionSettings, readManageToken, requestSubscription } from '../src/services/subscriptions.js'
 import { isPublicAddress, validateWebhookUrl } from '../src/services/publicWebhook.js'
 import { processDueSubscriberDeliveries } from '../src/workers/subscriberNotifier.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
@@ -236,7 +236,7 @@ describe('status page subscriptions', () => {
     assert.match(emails[0]!, /Subject: Confirm your subscription/)
 
     // A pending subscriber cannot use the manage link yet, and a bad token confirms nothing.
-    const early = await inject({ method: 'POST', url: '/api/v1/public/subscriptions/preferences', payload: { token: row!.manageToken } })
+    const early = await inject({ method: 'POST', url: '/api/v1/public/subscriptions/preferences', payload: { token: readManageToken(row!) } })
     assert.equal(early.statusCode, 404)
     const wrong = await inject({ method: 'POST', url: '/api/v1/public/subscriptions/confirm', payload: { token: 'nope' } })
     assert.equal(wrong.statusCode, 404)
@@ -251,7 +251,10 @@ describe('status page subscriptions', () => {
     // Confirming sends one email that carries the single manage-or-unsubscribe link.
     await waitFor(() => emails.length === 2)
     assert.match(emails[1]!, /Subject: You are subscribed/)
-    assert.equal(tokenFrom(emails[1]!, 'manage'), row!.manageToken)
+    assert.equal(tokenFrom(emails[1]!, 'manage'), readManageToken(row!))
+    // The database holds the token encrypted and finds it by hash, never in the clear.
+    assert.notEqual(row!.manageToken, tokenFrom(emails[1]!, 'manage'))
+    assert.equal(row!.manageTokenHash, hashToken(tokenFrom(emails[1]!, 'manage')))
     assert.doesNotMatch(emails[1]!, /subscription=unsubscribe/)
     const reused = await inject({ method: 'POST', url: '/api/v1/public/subscriptions/confirm', payload: { token: tokenFrom(emails[0]!, 'confirm') } })
     assert.equal(reused.statusCode, 404)
