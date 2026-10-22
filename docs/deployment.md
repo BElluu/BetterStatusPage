@@ -506,6 +506,7 @@ Before exposing an instance publicly:
 | `OIDC_DISABLE_PASSWORD_LOGIN`, `OIDC_ALLOW_UNVERIFIED_EMAIL` | No | `true` hides and rejects password sign-in while OIDC is active / accepts IdPs that send neither `email_verified` nor `xms_edov` (for Entra ID add the `xms_edov` optional claim instead). |
 | `OIDC_FORCE_PASSWORD_LOGIN` | No | Break-glass: `true` re-enables password sign-in even if it was disabled, for when the identity provider is down. Restart required. |
 | `SCHEDULER_TICK_SECONDS` | No | How often the scheduler scans for due monitors. Default: `10`. Must be 1-59 seconds. |
+| `SSE_MAX_CLIENTS` / `SSE_MAX_CLIENTS_PER_IP` | No | Most live event streams (status page and admin) open at the same time, in total and from one address. Streams over the limit get `429`; the status page then falls back to refreshing every 30 seconds. Defaults: `1000` and `10`. Each stream holds a file descriptor, so keep the total below the process limit (`ulimit -n`). |
 | `MONITOR_CHECK_CONCURRENCY` | No | Maximum number of scheduled checks running at the same time, across all ticks. Default: `20`. "Check now" is not counted. |
 | `MONITOR_RESULT_RETENTION_DAYS` | No | Monitor result retention period. Default: `90`. |
 | `MONITOR_RESULT_PURGE_CRON` | No | Cron expression for purging old monitor results. Default: `0 2 * * *` (daily at 02:00). |

@@ -6,6 +6,7 @@ class FakeEventSource {
   static instances: FakeEventSource[] = []
   listeners = new Map<string, Array<(event: MessageEvent) => void>>()
   onerror: (() => void) | null = null
+  onopen: (() => void) | null = null
   close = vi.fn()
 
   constructor(public url: string) {
@@ -47,8 +48,9 @@ describe('useSSE', () => {
     expect(source.close).toHaveBeenCalled()
   })
 
-  it('closes a failed connection and retries after two seconds', () => {
+  it('closes a failed connection and retries after about two seconds', () => {
     vi.useFakeTimers()
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
     const { unmount } = renderHook(() => useSSE())
     const first = FakeEventSource.instances[0]!
 
@@ -59,5 +61,35 @@ describe('useSSE', () => {
 
     unmount()
     vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('backs off while the stream keeps failing and refreshes by polling meanwhile', () => {
+    vi.useFakeTimers()
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    const onIncidentChange = vi.fn()
+    const { unmount } = renderHook(() => useSSE(onIncidentChange))
+
+    act(() => FakeEventSource.instances[0]!.onerror?.())
+    act(() => vi.advanceTimersByTime(2_000))
+    act(() => FakeEventSource.instances[1]!.onerror?.())
+    act(() => vi.advanceTimersByTime(3_999))
+    expect(FakeEventSource.instances).toHaveLength(2)
+    act(() => vi.advanceTimersByTime(1))
+    expect(FakeEventSource.instances).toHaveLength(3)
+
+    expect(onIncidentChange).not.toHaveBeenCalled()
+    act(() => vi.advanceTimersByTime(30_000))
+    expect(onIncidentChange).toHaveBeenCalled()
+
+    // A stream that opens again stops the polling and resets the delay.
+    FakeEventSource.instances[2]!.onopen?.()
+    onIncidentChange.mockClear()
+    act(() => vi.advanceTimersByTime(60_000))
+    expect(onIncidentChange).not.toHaveBeenCalled()
+
+    unmount()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 })

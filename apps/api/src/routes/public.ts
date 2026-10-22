@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { serveEventStream, sseService } from '../kit/sse.js'
 import { chartRangeKey, getPublishedChartRanges, getPublishedMonitorIds, publishedMonitorIdsSnapshot } from '../services/publishedMonitors.js'
 import { createTtlCache } from '../lib/ttlCache.js'
-import { PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
+import { PUBLIC_EVENTS_RATE_LIMIT, PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
 import {
   loadPublicStatus, loadPublicLayout, loadPublicIncidents, loadPublicIncident, loadUptime, loadHistory,
 } from '../services/publicStatusData.js'
@@ -107,7 +107,7 @@ export async function publicRoutes(app: FastifyInstance) {
 
   // Visitors only hear about published monitors; the admin panel has its own authenticated stream.
   // On a private page the stream belongs to a session: signing out ends it, and the keep-alive re-checks access.
-  app.get('/events', async (req, reply) => {
+  app.get('/events', { config: { rateLimit: PUBLIC_EVENTS_RATE_LIMIT } }, async (req, reply) => {
     await getPublishedMonitorIds()
     const identity = req.user as AuthIdentity | undefined
     const session = identity?.sessionId ? { sessionId: identity.sessionId, userId: identity.userId } : undefined
