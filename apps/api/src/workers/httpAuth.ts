@@ -1,5 +1,6 @@
 import type { HttpsConfig } from '@bsp/shared'
 import { resolveVaultSecret } from '../kit/resolveSecret.js'
+import { unwrapRefusal } from '../services/ssrfGuard.js'
 
 // Shared by the scheduled HTTPS check and the "Test" button so both authenticate the same way.
 // The scheduled check passes no step reporter; the test runner turns every step into diagnostics.
@@ -111,7 +112,8 @@ export async function discardBody(res: HttpResponse): Promise<void> {
 }
 
 export function errMsg(err: unknown): string {
-  return err instanceof Error ? err.message : String(err)
+  const reason = unwrapRefusal(err)
+  return reason instanceof Error ? reason.message : String(reason)
 }
 
 /**

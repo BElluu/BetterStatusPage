@@ -494,6 +494,8 @@ MONITOR_RESULT_PURGE_CRON=0 2 * * *
 PUBLIC_URL=https://status.example.com
 # Optional: let subscriber webhooks reach internal addresses (intranet status pages only)
 SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE=false
+# Optional: let monitors reach cloud metadata addresses (169.254.169.254 and the like)
+MONITOR_ALLOW_METADATA=false
 ```
 
 > 🔑 **Generate a vault encryption key:**

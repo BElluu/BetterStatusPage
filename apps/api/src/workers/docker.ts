@@ -1,4 +1,5 @@
 import { Agent, request } from 'undici'
+import { guardedAgent } from '../services/ssrfGuard.js'
 import type { DockerConfig, MonitorStatus } from '@bsp/shared'
 
 export interface ContainerState {
@@ -80,11 +81,12 @@ export async function inspectContainer(config: DockerConfig, timeoutMs: number):
   const invalid = validateDockerConfig(config)
   if (invalid) throw new Error(invalid)
   const { origin, socketPath } = parseDockerEndpoint(config.endpoint)
-  const dispatcher = socketPath ? new Agent({ connect: { socketPath } }) : undefined
+  // A TCP endpoint is an address someone typed in; the shared guarded agent outlives the call, a socket agent does not.
+  const socketAgent = socketPath ? new Agent({ connect: { socketPath } }) : undefined
   try {
     const res = await request(`${origin}/containers/${encodeURIComponent(config.container.trim())}/json`, {
       method: 'GET',
-      ...(dispatcher ? { dispatcher } : {}),
+      dispatcher: socketAgent ?? guardedAgent,
       signal: AbortSignal.timeout(timeoutMs),
     })
     if (res.statusCode === 404) { await res.body.dump(); return null }
@@ -108,7 +110,7 @@ export async function inspectContainer(config: DockerConfig, timeoutMs: number):
       health: state.Health?.Status ?? null,
     }
   } finally {
-    await dispatcher?.close()
+    await socketAgent?.close()
   }
 }
 

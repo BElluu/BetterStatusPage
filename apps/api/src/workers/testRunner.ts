@@ -12,6 +12,7 @@ import { expiresInPhrase } from './notifier.js'
 import { checkPing } from './ping.js'
 import { Resolver } from 'dns/promises'
 import { Agent, fetch as undiciFetch } from 'undici'
+import { guardedConnector, guardedFetch } from '../services/ssrfGuard.js'
 
 export interface TestStep {
   label: string
@@ -31,7 +32,8 @@ export interface TestResult {
 
 // ── HTTPS ─────────────────────────────────────────────────────────────────────
 
-export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise<TestResult> {
+/** `showActual`: the failure messages may quote what the endpoint answered (administrators only). */
+export async function testHttps(config: HttpsConfig, timeoutMs: number, { showActual = false }: { showActual?: boolean } = {}): Promise<TestResult> {
   const steps: TestStep[] = []
   const totalStart = Date.now()
   const fail = (): TestResult => ({ overall: 'error', steps, totalMs: Date.now() - totalStart })
@@ -97,7 +99,7 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
 
       // ── Assertions and response time ──────────────────────────────────────
       // A failure here fails the test whatever its severity; the step says what the scheduled check would report.
-      const outcomes = await evaluateAssertions(config.assertions ?? [], res.headers, async () => responseBody)
+      const outcomes = await evaluateAssertions(config.assertions ?? [], res.headers, async () => responseBody, { showActual })
       for (const o of outcomes) {
         steps.push(o.ok
           ? { label: o.label, status: 'ok' }
@@ -144,8 +146,8 @@ export async function certificateStep(config: HttpsConfig, timeoutMs: number): P
   }
 }
 
-const globalFetch: HttpFetch = (url, init) => fetch(url, init)
-const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } })
+const globalFetch: HttpFetch = (url, init) => guardedFetch(url, init)
+const insecureAgent = new Agent({ connect: guardedConnector({ rejectUnauthorized: false }) })
 const insecureFetch: HttpFetch = (url, init) => undiciFetch(url, { ...init, dispatcher: insecureAgent })
 
 // ── Databases (SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB) ───────────────────

@@ -142,6 +142,24 @@ Redirects are followed, and the expected status is compared with the last respon
 response time is measured until the response headers arrive, before the body is read. It is
 recorded and charted; it only changes the status when **Degraded when slower than** is set.
 
+### Where a monitor may connect
+
+> [!WARNING]
+> **Not released yet.** This change is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+A monitor requests the address you give it, and a failed response check or a test shows something
+of the answer, so a URL must not be able to read the credentials of the host the server runs on.
+HTTPS monitors, the test runner, the certificate reading, HTTP actions and Docker monitors on a TCP endpoint therefore refuse to
+connect to cloud metadata services: the link-local range `169.254.0.0/16` (AWS, GCP, Azure and others),
+`fe80::/10`, `fd00:ec2::254`, `fd20:ce::254`, `100.100.100.200` and `metadata.google.internal`. The address that is
+actually connected to is checked, so a redirect, a host name that resolves to such an address or a
+DNS answer that changes between checks does not get around it.
+
+Private networks (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) and `localhost` stay reachable, since
+watching internal services is what a self-hosted status page is for. If the server runs on a host
+where a monitor has to read a metadata service, set `MONITOR_ALLOW_METADATA=true`. Ping / TCP, DNS and the
+database monitors are not affected: they connect to the host you name and show nothing of what it answers.
+
 ### Response checks
 
 Beyond the status code and the keyword, a monitor can check the **headers** and the **JSON body** of
@@ -574,7 +592,9 @@ full log as a text file, including the informational steps hidden in the panel, 
 probe hop.
 
 Secrets stay out of the result: the response body is reported by size only, and cookie values are
-replaced with `[redacted]`.
+replaced with `[redacted]`. A failed response check names the value the endpoint answered
+(`it is "2"`) only to administrators signed in with a session; for operators, API tokens and in the
+messages of scheduled checks, which are stored and sent in notifications, it says `the value is not shown`.
 
 When you edit a saved monitor, a password, client secret or credential header that you did not change
 is tested as stored, even though the form only shows it as `••••••••`.

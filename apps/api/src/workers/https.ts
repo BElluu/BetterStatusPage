@@ -5,6 +5,7 @@ import { discardBody, followRedirects, insecureForOrigin, requestWithCas, resolv
 import { Agent, fetch as httpFetch } from 'undici'
 import { lookup as dnsLookup } from 'dns'
 import type { LookupFunction } from 'net'
+import { guardedConnector, unwrapRefusal } from '../services/ssrfGuard.js'
 
 // Application-level DNS cache — avoids repeated resolver round-trips between checks.
 const dnsCache = new Map<string, { address: string; family: number; expires: number }>()
@@ -36,14 +37,14 @@ const cachedLookup: LookupFunction = (hostname, options, callback): void => {
 // Persistent connection pool — reuses TCP/TLS connections and caches DNS lookups
 // between checks, keeping measured response times accurate.
 const httpAgent = new Agent({
-  connect: { lookup: cachedLookup },
+  connect: guardedConnector({ lookup: cachedLookup }),
   keepAliveTimeout: 5 * 60_000,
   keepAliveMaxTimeout: 30 * 60_000,
 })
 
 // Same pool for monitors that opted out of certificate verification (`ignoreTls`).
 const insecureHttpAgent = new Agent({
-  connect: { lookup: cachedLookup, rejectUnauthorized: false },
+  connect: guardedConnector({ lookup: cachedLookup, rejectUnauthorized: false }),
   keepAliveTimeout: 5 * 60_000,
   keepAliveMaxTimeout: 30 * 60_000,
 })
@@ -121,7 +122,8 @@ export async function checkHttps(
     return { status: 'up', responseMs, error: null }
   } catch (err) {
     const responseMs = Date.now() - start
-    const msg = err instanceof Error ? err.message : String(err)
+    const reason = unwrapRefusal(err)
+    const msg = reason instanceof Error ? reason.message : String(reason)
     return { status: 'down', responseMs, error: msg }
   } finally {
     clearTimeout(timer)

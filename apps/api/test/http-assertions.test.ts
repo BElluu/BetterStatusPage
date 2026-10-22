@@ -61,7 +61,8 @@ describe('header assertions', () => {
 
     const different = await check([{ type: 'header', name: 'X-Replicas', op: 'equals', value: '3', onFail: 'down' }])
     assert.equal(different.status, 'down')
-    assert.match(different.error ?? '', /it is "2"/)
+    assert.match(different.error ?? '', /failed: the value is not shown/)
+    assert.doesNotMatch(different.error ?? '', /"2"/)
   })
 
   it('never shows what a credential header held', async () => {
@@ -88,10 +89,10 @@ describe('JSON assertions', () => {
     assert.equal(result.status, 'up', result.error ?? '')
   })
 
-  it('reports the actual value of a failed comparison', async () => {
+  it('names the failed comparison without quoting the value', async () => {
     const result = await check([{ type: 'json', path: '$.queue.length', op: 'lt', value: 100 }])
     assert.equal(result.status, 'degraded')
-    assert.match(result.error ?? '', /\$\.queue\.length is less than 100 failed: it is 150/)
+    assert.match(result.error ?? '', /\$\.queue\.length is less than 100 failed: the value is not shown/)
   })
 
   it('fails a missing field, a non-number for lt/gt and a path through a scalar', async () => {
@@ -158,6 +159,14 @@ describe('test run', () => {
     const steps = result.steps.map((s) => `${s.status}: ${s.label}${s.detail ? ` | ${s.detail}` : ''}`)
     assert.ok(steps.includes('ok: Header "X-Replicas" equals "2"'), steps.join('\n'))
     assert.ok(steps.some((s) => s.startsWith('error: $.queue.length is less than 100') && s.includes('would be Down')), steps.join('\n'))
+  })
+
+  it('quotes the answered value only when asked to, so only administrators read it', async () => {
+    const assertions: HttpAssertion[] = [{ type: 'json', path: '$.name', op: 'equals', value: 'x' }]
+    const detail = async (showActual: boolean) =>
+      (await testHttps(config('/api', { assertions }), 3_000, { showActual })).steps.find((s) => s.status === 'error')?.detail ?? ''
+    assert.match(await detail(true), /it is "api"/)
+    assert.doesNotMatch(await detail(false), /api"/)
   })
 
   it('passes when all assertions hold and rejects an invalid assertion without a request', async () => {
