@@ -21,9 +21,17 @@ function publicIds(links: Array<{ monitorId: number }>, published: ReadonlySet<n
   return links.map((link) => link.monitorId).filter((id) => published.has(id))
 }
 
-/** Incidents lose their links to internal monitors before they reach visitors. */
-export function publishIncidents<T extends { monitorIds: number[] }>(rows: T[], published: ReadonlySet<number>): T[] {
-  return rows.map((row) => ({ ...row, monitorIds: row.monitorIds.filter((id) => published.has(id)) }))
+/** An incident loses its links to internal monitors, and the id of the one that opened it, before it reaches visitors. */
+export function publishIncident<T extends { monitorIds?: number[]; autoMonitorId?: number | null }>(row: T, published: ReadonlySet<number>): T {
+  return {
+    ...row,
+    ...(row.monitorIds ? { monitorIds: row.monitorIds.filter((id) => published.has(id)) } : {}),
+    ...(row.autoMonitorId != null && !published.has(row.autoMonitorId) ? { autoMonitorId: null } : {}),
+  }
+}
+
+export function publishIncidents<T extends { monitorIds: number[]; autoMonitorId?: number | null }>(rows: T[], published: ReadonlySet<number>): T[] {
+  return rows.map((row) => publishIncident(row, published))
 }
 
 export async function loadPublicStatus() {

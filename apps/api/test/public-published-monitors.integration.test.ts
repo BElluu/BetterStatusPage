@@ -37,7 +37,7 @@ before(async () => {
     ] }),
   })
 
-  const [incident] = await db.insert(incidents).values({ title: 'Mixed impact', status: 'investigating', impact: 'major', startedAt: now, createdAt: now, updatedAt: now }).returning()
+  const [incident] = await db.insert(incidents).values({ title: 'Mixed impact', autoMonitorId: ids['Internal DB'], status: 'investigating', impact: 'major', startedAt: now, createdAt: now, updatedAt: now }).returning()
   await db.insert(incidentMonitors).values([
     { incidentId: incident!.id, monitorId: ids['Website']! },
     { incidentId: incident!.id, monitorId: ids['Internal DB']! },
@@ -94,6 +94,8 @@ describe('public API exposes only published monitors', () => {
     assert.deepEqual(list[0].monitorIds, [ids['Website']])
     const detail = (await app.inject({ url: `/public/incidents/${ids['incident']}` })).json()
     assert.deepEqual(detail.monitorIds, [ids['Website']])
+    assert.equal(list[0].autoMonitorId, null)
+    assert.equal(detail.autoMonitorId, null)
   })
 
   it('serves history only for the charts of published monitors', async () => {
@@ -124,13 +126,14 @@ describe('public API exposes only published monitors', () => {
 
     sseService.broadcast('monitor.status', { monitorId: ids['Internal DB'], status: 'down' })
     sseService.broadcast('monitor.status', { monitorId: ids['Website'], status: 'down' })
-    sseService.broadcast('incident.updated', { id: ids['incident'], title: 'Mixed impact', monitorIds: [ids['Website'], ids['Internal DB']] })
+    sseService.broadcast('incident.updated', { id: ids['incident'], title: 'Mixed impact', autoMonitorId: ids['Internal DB'], monitorIds: [ids['Website'], ids['Internal DB']] })
     await readUntil('event: incident.updated')
     controller.abort()
 
     assert.doesNotMatch(received, new RegExp(`"monitorId":${ids['Internal DB']}\\b`))
     assert.match(received, new RegExp(`"monitorId":${ids['Website']}\\b`))
     assert.match(received, new RegExp(`"monitorIds":\\[${ids['Website']}\\]`))
+    assert.match(received, /"autoMonitorId":null/)
   })
 
   it('publishes a monitor as soon as the layout includes it', async () => {

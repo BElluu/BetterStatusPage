@@ -4,7 +4,7 @@ import { chartRangeKey, getPublishedChartRanges, getPublishedMonitorIds, publish
 import { createTtlCache } from '../lib/ttlCache.js'
 import { PUBLIC_EVENTS_RATE_LIMIT, PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
 import {
-  loadPublicStatus, loadPublicLayout, loadPublicIncidents, loadPublicIncident, loadUptime, loadHistory,
+  loadPublicStatus, loadPublicLayout, loadPublicIncidents, loadPublicIncident, loadUptime, loadHistory, publishIncident,
 } from '../services/publicStatusData.js'
 import { parseStrictPagination } from '../lib/pagination.js'
 import { authenticateRequest, type AuthIdentity } from '../kit/authSession.js'
@@ -121,7 +121,7 @@ export async function publicRoutes(app: FastifyInstance) {
 
 /**
  * Status changes of internal monitors are not sent at all, and incident events lose their links to
- * internal monitors. The status page only uses incident events as a cue to refetch.
+ * internal monitors (including the one that opened them). The status page only uses incident events as a cue to refetch.
  */
 function publicEventFilter(event: string, data: unknown): { data: unknown } | null {
   const published = publishedMonitorIdsSnapshot()
@@ -130,9 +130,6 @@ function publicEventFilter(event: string, data: unknown): { data: unknown } | nu
   }
   // Drafts exist for operators only.
   if (event.startsWith('incident.') && (data as { draft?: unknown } | null)?.draft === true) return null
-  if (event.startsWith('incident.') && data && typeof data === 'object' && Array.isArray((data as { monitorIds?: unknown }).monitorIds)) {
-    const incident = data as { monitorIds: number[] }
-    return { data: { ...incident, monitorIds: incident.monitorIds.filter((id) => published.has(id)) } }
-  }
+  if (event.startsWith('incident.') && data && typeof data === 'object') return { data: publishIncident(data as { monitorIds?: number[]; autoMonitorId?: number | null }, published) }
   return { data }
 }
