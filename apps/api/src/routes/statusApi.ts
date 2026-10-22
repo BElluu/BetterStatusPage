@@ -10,7 +10,7 @@ import type {
 } from '@bsp/shared'
 import { PUBLIC_API_RATE_LIMIT } from '../config/rateLimits.js'
 import { feedMethodAvailable } from '../services/subscriptions.js'
-import { resolvePublicUrl } from '../kit/runtime.js'
+import { requestBase } from '../services/requestBase.js'
 
 const SEVERITY: Record<Exclude<ApiComponentStatus, 'under_maintenance'>, number> = {
   operational: 0,
@@ -161,13 +161,9 @@ function apiHeaders(reply: FastifyReply): FastifyReply {
 export async function statusApiRoutes(app: FastifyInstance) {
   const route = { config: { rateLimit: PUBLIC_API_RATE_LIMIT } }
 
-  async function baseUrl(req: { protocol: string; host: string }) {
-    return resolvePublicUrl() || `${req.protocol}://${req.host}`
-  }
-
   app.get('/summary.json', route, async (req, reply): Promise<ApiSummary | void> => {
     if (!await feedMethodAvailable('api')) return reply.code(404).send({ error: 'Not found' })
-    const state = await loadState(await baseUrl(req))
+    const state = await loadState(requestBase(req, reply))
     const name = (await db.select({ siteName: branding.siteName }).from(branding))[0]?.siteName || 'Status Page'
     apiHeaders(reply)
     return {
@@ -179,7 +175,7 @@ export async function statusApiRoutes(app: FastifyInstance) {
 
   app.get('/components.json', route, async (req, reply): Promise<ApiComponents | void> => {
     if (!await feedMethodAvailable('api')) return reply.code(404).send({ error: 'Not found' })
-    const state = await loadState(await baseUrl(req))
+    const state = await loadState(requestBase(req, reply))
     apiHeaders(reply)
     return { components: state.components }
   })

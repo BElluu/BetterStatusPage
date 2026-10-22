@@ -1,12 +1,12 @@
 import { shownOccurrence } from '../services/maintenanceSchedule.js'
-import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { desc, inArray } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { branding, incidents, maintenanceWindowMonitors, maintenanceWindows } from '../db/schema.js'
 import type { SubscriberEventType } from '@bsp/shared'
 import { PUBLIC_FEED_RATE_LIMIT } from '../config/rateLimits.js'
 import { feedMethodAvailable, getPublicComponents, getSubscriptionSettings } from '../services/subscriptions.js'
-import { resolvePublicUrl } from '../kit/runtime.js'
+import { requestBase } from '../services/requestBase.js'
 import { publishedIncident, withIncidentDetails } from '../services/incidentDetails.js'
 
 const FEED_SIZE = 50
@@ -32,8 +32,8 @@ interface FeedEntry {
   summary: string
 }
 
-async function loadFeed(req: FastifyRequest) {
-  const base = resolvePublicUrl() || `${req.protocol}://${req.host}`
+async function loadFeed(req: FastifyRequest, reply: FastifyReply) {
+  const base = requestBase(req, reply)
   const site = (await db.select({ siteName: branding.siteName }).from(branding))[0]?.siteName || 'Status Page'
 
   const rows = await withIncidentDetails(await db.select().from(incidents).where(publishedIncident).orderBy(desc(incidents.updatedAt)).limit(FEED_SIZE))
@@ -65,7 +65,7 @@ export async function feedRoutes(app: FastifyInstance) {
 
   app.get('/incidents.rss', feedRoute, async (req, reply) => {
     if (!await feedMethodAvailable('rss')) return reply.code(404).send({ error: 'Not found' })
-    const { base, site, entries } = await loadFeed(req)
+    const { base, site, entries } = await loadFeed(req, reply)
     const items = entries.map((entry) => `
     <item>
       <title>${xml(entry.title)}</title>
@@ -90,7 +90,7 @@ export async function feedRoutes(app: FastifyInstance) {
 
   app.get('/incidents.atom', feedRoute, async (req, reply) => {
     if (!await feedMethodAvailable('rss')) return reply.code(404).send({ error: 'Not found' })
-    const { base, site, entries } = await loadFeed(req)
+    const { base, site, entries } = await loadFeed(req, reply)
     const items = entries.map((entry) => `
   <entry>
     <id>${xml(`${base}/incidents/${entry.id}`)}</id>
@@ -126,9 +126,9 @@ interface SlackItem {
  * an event stream — one item per publication — rather than one item per incident that keeps
  * changing. Only the event types operators allow for subscribers appear in it.
  */
-async function loadSlackFeed(req: FastifyRequest) {
+async function loadSlackFeed(req: FastifyRequest, reply: FastifyReply) {
   const settings = await getSubscriptionSettings()
-  const base = resolvePublicUrl() || `${req.protocol}://${req.host}`
+  const base = requestBase(req, reply)
   const site = (await db.select({ siteName: branding.siteName }).from(branding))[0]?.siteName || 'Status Page'
   const allowed = new Set<SubscriberEventType>(settings.allowedEvents)
   const componentNames = new Map((await getPublicComponents()).map((component) => [component.id, component.name]))
@@ -191,7 +191,7 @@ async function loadSlackFeed(req: FastifyRequest) {
 export async function slackFeedRoutes(app: FastifyInstance) {
   app.get('/slack.rss', { config: { rateLimit: PUBLIC_FEED_RATE_LIMIT } }, async (req, reply) => {
     if (!await feedMethodAvailable('slack')) return reply.code(404).send({ error: 'Not found' })
-    const { base, site, items } = await loadSlackFeed(req)
+    const { base, site, items } = await loadSlackFeed(req, reply)
     const body = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
