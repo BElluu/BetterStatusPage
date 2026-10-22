@@ -48,7 +48,15 @@ export function evaluateAlertTransition(state: AlertThresholdState, observed: Mo
   }
 
   const threshold = thresholdFor(confirmed, observed, state)
-  const count = state.alertPendingStatus === observed ? state.alertPendingCount + 1 : 1
+  const pending = state.alertPendingStatus
+  // Leaving a healthy state, down and degraded are one failing streak confirmed by the latest status.
+  const sameStreak =
+    pending === observed ||
+    (pending !== null &&
+      FAILURE_STATUSES.has(pending) &&
+      FAILURE_STATUSES.has(observed) &&
+      !FAILURE_STATUSES.has(confirmed))
+  const count = sameStreak ? state.alertPendingCount + 1 : 1
 
   if (count >= threshold) {
     return {
