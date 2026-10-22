@@ -66,21 +66,13 @@ export async function checkHttps(
   try {
     const auth = await resolveHttpAuth(config.auth, config.url, opts)
 
-    const method = config.method ?? 'GET'
     let res: HttpResponse
     if (auth.cas) {
       res = await requestWithCas(config, { ...auth, cas: auth.cas }, opts)
-    } else if (skipsTlsVerification(config)) {
-      // A redirect to another origin is checked with certificate verification, as in the test: fetch itself would keep the insecure dispatcher for every hop.
-      res = await followRedirects({ ...config, url: auth.url }, auth.headers, controller.signal, fetchWith)
     } else {
-      res = await fetchWith(auth.url, {
-        method,
-        headers: { ...(config.headers ?? {}), ...auth.headers },
-        ...(config.body !== undefined && method !== 'GET' && method !== 'HEAD' ? { body: config.body } : {}),
-        signal: controller.signal,
-        redirect: 'follow',
-      })
+      // Redirects are followed by hand: a redirect to another origin is checked with certificate verification and
+      // carries no credential headers, which fetch itself would not guarantee.
+      res = await followRedirects({ ...config, url: auth.url }, auth.headers, controller.signal, fetchWith)
     }
 
     const responseMs = Date.now() - start

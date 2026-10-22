@@ -37,8 +37,11 @@ const MONITOR_DESTINATIONS: readonly (readonly string[])[] = [
   ['url'], ['auth', 'oauth2', 'tokenUrl'], ['auth', 'cas', 'casServerUrl'], ['host'], ['port'],
 ]
 
+/** Turning certificate checks off makes the same destination less safe; turning them back on does not. */
+const MONITOR_LOOSENING: readonly (readonly string[])[] = [['ignoreTls']]
+
 const secretFields = createSecretFields<ConfigKind>({
-  monitor: { fields: uniqueSecretFields(Object.values(MONITOR_SECRETS).flat()), destinations: MONITOR_DESTINATIONS },
+  monitor: { fields: uniqueSecretFields(Object.values(MONITOR_SECRETS).flat()), destinations: MONITOR_DESTINATIONS, loosening: MONITOR_LOOSENING },
   channel: { fields: uniqueSecretFields(Object.values(CHANNEL_SECRETS).flat()), destinations: CHANNEL_DESTINATIONS },
 })
 

@@ -138,7 +138,7 @@ The **Checks** tab on the right of the form adds what the response must contain 
 | **Degraded when slower than** | — | A response time over this many milliseconds makes the check **Degraded**. |
 | **Response checks** | — | Headers and JSON fields, see [Response checks](#response-checks). |
 
-Redirects are followed, and the expected status is compared with the last response. The
+Redirects are followed, and the expected status is compared with the last response. A redirect to another origin carries only `Accept`, `Accept-Language`, `Accept-Encoding`, `User-Agent` and `Cache-Control` from your headers, and no request body (a `307`/`308` is sent there as a plain `GET`); the upgrade of an `http://` URL to `https://` on the same host and default port is not leaving the monitor, so it keeps them. CAS session cookies go only to the host that set them (and the subdomains of its `Domain`), and `Secure` ones only over HTTPS. The OAuth2 token request is never redirected: set the token URL to its final address. The
 response time is measured until the response headers arrive, before the body is read. It is
 recorded and charted; it only changes the status when **Degraded when slower than** is set.
 
@@ -590,7 +590,7 @@ A header counts as a credential when its name contains `auth`, `token`, `secret`
 A secret reads back as `••••••••`. Leave the field untouched to keep the stored value, or type a new one to replace it.
 A secret read from a [vault](vault.md) is a reference, not a secret, and is shown as such.
 
-A stored secret is only kept while it is sent to the same place. If you change the **URL**, the OAuth2 token URL, the CAS server, or a database **host** or **port** while a secret still shows as `••••••••`, saving is refused with a message asking you to enter the secrets again, so a saved password cannot be redirected to a new address. A **Test** run with such a change is refused the same way. Do not write credentials into a URL or request body: only the authentication fields and headers are masked.
+A stored secret is only kept while it is sent to the same place. If you change the **URL**, the OAuth2 token URL, the CAS server, a database **host** or **port**, or switch on **Ignore TLS certificate errors** while a secret still shows as `••••••••`, saving is refused with a message asking you to enter the secrets again, so a saved password cannot be redirected to a new address. A **Test** run with such a change is refused the same way. Do not write credentials into a URL or request body: only the authentication fields and headers are masked.
 
 ---
 

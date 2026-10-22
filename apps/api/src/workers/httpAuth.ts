@@ -70,38 +70,64 @@ export interface ResolvedHttpAuth {
 const CAS_PROBE_HOP_TIMEOUT_MS = 5_000
 const MAX_REDIRECT_HOPS = 10
 
+interface Cookie { name: string; value: string; host: string; hostOnly: boolean; secure: boolean }
+
+/**
+ * Session cookies scoped as a browser would: to the host that set them (or, with a `Domain` that host belongs to,
+ * its subdomains), never to another host, and over https only when marked `Secure`. Port and scheme do not matter,
+ * since a proxy that ends TLS reports the service under a different scheme than the monitored URL.
+ */
 export class CookieJar {
-  private readonly cookies: Map<string, string>
+  private cookies: Cookie[]
 
   constructor(initial?: CookieJar) {
-    this.cookies = new Map(initial?.cookies)
+    this.cookies = [...(initial?.cookies ?? [])]
   }
 
-  /** Stores every Set-Cookie of a response and returns the names it set. */
-  collect(res: HttpResponse): string[] {
+  /** Stores every Set-Cookie of a response from `url` and returns the names it set. */
+  collect(res: HttpResponse, url: string): string[] {
     const names: string[] = []
+    const host = new URL(url).hostname
     for (const c of res.headers.getSetCookie?.() ?? []) {
-      const kv = c.split(';')[0]?.trim() ?? ''
-      const eq = kv.indexOf('=')
-      if (eq > 0) {
-        this.cookies.set(kv.substring(0, eq), kv.substring(eq + 1))
-        names.push(kv.substring(0, eq))
+      const [pair = '', ...attributes] = c.split(';').map((part) => part.trim())
+      const eq = pair.indexOf('=')
+      if (eq <= 0) continue
+      let cookieHost = host
+      let hostOnly = true
+      let secure = false
+      for (const attribute of attributes) {
+        const [key = '', value = ''] = attribute.split('=')
+        if (key.toLowerCase() === 'secure') secure = true
+        if (key.toLowerCase() === 'domain') {
+          // A Domain the setting host does not belong to (or a bare top-level one) is ignored, as a browser would.
+          const domain = value.replace(/^\./, '').toLowerCase()
+          if (domain.includes('.') && (host === domain || host.endsWith(`.${domain}`))) { cookieHost = domain; hostOnly = false }
+        }
       }
+      const name = pair.substring(0, eq)
+      this.cookies = this.cookies.filter((o) => !(o.name === name && o.host === cookieHost && o.hostOnly === hostOnly))
+      this.cookies.push({ name, value: pair.substring(eq + 1), host: cookieHost, hostOnly, secure })
+      names.push(name)
     }
     return names
   }
 
-  header(): Record<string, string> {
-    const h = [...this.cookies.entries()].map(([k, v]) => `${k}=${v}`).join('; ')
+  /** The Cookie header for a request to `url`: only what its own host set. */
+  header(url: string): Record<string, string> {
+    const { hostname, protocol } = new URL(url)
+    const h = this.cookies
+      .filter((c) => (c.hostOnly ? hostname === c.host : hostname === c.host || hostname.endsWith(`.${c.host}`)) && (!c.secure || protocol === 'https:'))
+      .map((c) => `${c.name}=${c.value}`)
+      .join('; ')
     return h ? { Cookie: h } : {}
   }
 
   names(): string[] {
-    return [...this.cookies.keys()]
+    return [...new Set(this.cookies.map((c) => c.name))]
   }
 
   get size(): number {
-    return this.cookies.size
+    return this.names().length
   }
 }
 
@@ -255,11 +281,13 @@ export async function resolveHttpAuth(
         method: 'POST',
         headers: FORM,
         body: params.toString(),
-        redirect: 'follow',
+        redirect: 'manual',
         signal: opts.signal,
       })
       if (!tokenRes.ok) {
         await discardBody(tokenRes)
+        // The client secret goes only to the configured token URL, so a redirect is not followed.
+        if (tokenRes.status >= 300 && tokenRes.status < 400) throw new Error(`OAuth2 token request was redirected (HTTP ${tokenRes.status}); use the final token URL`)
         throw new Error(`OAuth2 token request failed with HTTP ${tokenRes.status}`)
       }
       const tokenText = await readBodyText(tokenRes)
@@ -348,11 +376,11 @@ async function probeCasService(serviceUrl: string, jar: CookieJar, opts: HttpFlo
     for (let hops = 0; hops < MAX_REDIRECT_HOPS; hops++) {
       const r = await opts.fetch(nextUrl, {
         redirect: 'manual',
-        headers: jar.header(),
+        headers: jar.header(nextUrl),
         signal: AbortSignal.any([opts.signal, AbortSignal.timeout(CAS_PROBE_HOP_TIMEOUT_MS)]),
       })
       await discardBody(r)
-      const newCookieNames = jar.collect(r)
+      const newCookieNames = jar.collect(r, nextUrl)
       const cookies = redactedCookies(newCookieNames)
       const detail = newCookieNames.length > 0 ? `Set-Cookie: ${newCookieNames.join(', ')}` : undefined
       if (r.status < 300 || r.status >= 400) {
@@ -402,9 +430,9 @@ export async function requestWithCas(
   const jar = new CookieJar(auth.cas.jar)
 
   const tTicket = Date.now()
-  let res = await opts.fetch(auth.url, { method: 'GET', headers: jar.header(), redirect: 'manual', signal: opts.signal })
+  let res = await opts.fetch(auth.url, { method: 'GET', headers: jar.header(auth.url), redirect: 'manual', signal: opts.signal })
   await discardBody(res)
-  jar.collect(res)
+  jar.collect(res, auth.url)
   opts.onStep?.({
     label: `CAS: ticket registered → ${res.status}`,
     status: 'ok',
@@ -419,14 +447,16 @@ export async function requestWithCas(
   for (let hops = 0; hops < MAX_REDIRECT_HOPS; hops++) {
     // The previous hop was a redirect; only the final response keeps its body for the caller.
     if (hops > 0) await discardBody(res)
+    // A 307/308 to somebody else would deliver the request body there: it goes as a plain GET instead.
+    if (body !== undefined && !staysWithEndpoint(config.url, currentUrl)) { body = undefined; method = 'GET' }
     res = await opts.fetch(currentUrl, {
       method,
-      headers: { ...(config.headers ?? {}), ...auth.headers, ...jar.header() },
+      headers: { ...hopHeaders(config, auth.headers, currentUrl), ...jar.header(currentUrl) },
       ...(body !== undefined && method !== 'GET' && method !== 'HEAD' ? { body } : {}),
       redirect: 'manual',
       signal: opts.signal,
     })
-    const newCookies = jar.collect(res)
+    const newCookies = jar.collect(res, currentUrl)
     const cookies = redactedCookies(newCookies)
     const cookieNote = newCookies.length ? ` [Set-Cookie: ${newCookies.join(', ')}]` : ''
     if (res.status < 300 || res.status >= 400) break
@@ -459,18 +489,28 @@ export async function requestWithCas(
   return res
 }
 
-/** The headers fetch strips when a redirect crosses origins. */
-const CROSS_ORIGIN_STRIPPED = new Set(['authorization', 'cookie', 'proxy-authorization'])
+/** Whether a hop stays with the monitored endpoint: the same origin, or the upgrade of its http URL to https on the same host. */
+function staysWithEndpoint(endpointUrl: string, url: string): boolean {
+  const a = new URL(endpointUrl)
+  const b = new URL(url)
+  return a.origin === b.origin || (a.protocol === 'http:' && b.protocol === 'https:' && a.hostname === b.hostname && b.port === '')
+}
 
-function withoutCredentials(headers: Record<string, string> | undefined): Record<string, string> {
-  return Object.fromEntries(Object.entries(headers ?? {}).filter(([name]) => !CROSS_ORIGIN_STRIPPED.has(name.toLowerCase())))
+/** All that is sent to somebody else: nothing that identifies the monitor's account. */
+const FOREIGN_HOP_HEADERS = new Set(['accept', 'accept-language', 'accept-encoding', 'user-agent', 'cache-control'])
+
+/** The headers of a hop. A redirect that leaves the endpoint carries only harmless ones, whatever a credential header is called. */
+function hopHeaders(config: { url: string; headers?: Record<string, string> | undefined }, authHeaders: Record<string, string>, url: string): Record<string, string> {
+  const all = { ...(config.headers ?? {}), ...authHeaders }
+  if (staysWithEndpoint(config.url, url)) return all
+  return Object.fromEntries(Object.entries(all).filter(([name]) => FOREIGN_HOP_HEADERS.has(name.toLowerCase())))
 }
 
 /**
  * Follows redirects by hand, so each hop goes through `doFetch` and can be told apart (an insecure fetch for the
  * monitored origin only, see `insecureForOrigin`), while sending what fetch itself sends: no cookie jar, 303 (and
- * 301/302 after POST) turned into a body-less GET, and Authorization and Cookie dropped once a redirect leaves the
- * original origin. `onRedirect` sees every redirect that is followed.
+ * 301/302 after POST) turned into a body-less GET, and only harmless headers and no body on every hop that leaves the
+ * endpoint (an upgrade of its http URL to https on the same host stays with it). `onRedirect` sees every redirect that is followed.
  */
 export async function followRedirects(
   config: { url: string; method?: string | undefined; body?: string | undefined; headers?: Record<string, string> | undefined },
@@ -481,15 +521,16 @@ export async function followRedirects(
 ): Promise<HttpResponse> {
   let method = (config.method ?? 'GET').toUpperCase()
   let body: string | undefined = config.body
-  let sendCredentials = true
   let currentUrl = config.url
   let res!: HttpResponse
   for (let hops = 0; hops < 10; hops++) {
     // The previous hop was a redirect; only the final response keeps its body.
     if (hops > 0) await discardBody(res)
+    // A 307/308 to somebody else would deliver the request body there: it goes as a plain GET instead.
+    if (body !== undefined && !staysWithEndpoint(config.url, currentUrl)) { body = undefined; method = 'GET' }
     res = await doFetch(currentUrl, {
       method,
-      headers: sendCredentials ? { ...(config.headers ?? {}), ...authHeaders } : withoutCredentials(config.headers),
+      headers: hopHeaders(config, authHeaders, currentUrl),
       ...(body !== undefined && method !== 'GET' && method !== 'HEAD' ? { body } : {}),
       signal,
       redirect: 'manual',
@@ -499,12 +540,11 @@ export async function followRedirects(
     if (!loc) break
     const next = new URL(loc, currentUrl).toString()
 
-    onRedirect?.({ status: res.status, next, cookies: new CookieJar().collect(res) })
+    onRedirect?.({ status: res.status, next, cookies: new CookieJar().collect(res, currentUrl) })
     if ((res.status === 303 && method !== 'GET' && method !== 'HEAD') || ((res.status === 301 || res.status === 302) && method === 'POST')) {
       method = 'GET'
       body = undefined
     }
-    if (new URL(next).origin !== new URL(currentUrl).origin) sendCredentials = false
     currentUrl = next
   }
   return res
