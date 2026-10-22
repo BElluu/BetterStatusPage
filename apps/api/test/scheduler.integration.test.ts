@@ -7,9 +7,10 @@ import Fastify from 'fastify'
 import type { FastifyReply } from 'fastify'
 import { webhookRoutes } from '../src/routes/webhook.js'
 import { eq } from 'drizzle-orm'
-import { db } from '../src/db/client.js'
+import { db, sqlite } from '../src/db/client.js'
+import { findDailyResultsMismatches } from '../src/db/dailyResults.js'
 import {
-  maintenanceWindowMonitors, maintenanceWindows, monitorDependencies, monitorResults, monitors,
+  maintenanceWindowMonitors, maintenanceWindows, monitorDailyResults, monitorDependencies, monitorResults, monitors,
 } from '../src/db/schema.js'
 import { sseService } from '../src/kit/sse.js'
 import {
@@ -46,6 +47,8 @@ function monitorValues(name: string, overrides: Partial<typeof monitors.$inferIn
   }
 }
 
+const config = (resultRetentionDays: number): SchedulerConfig =>
+  ({ tickCron: '*/10 * * * * *', resultPurgeCron: '0 2 * * *', resultRetentionDays, checkConcurrency: 20 })
 const poolConfig = (checkConcurrency: number): SchedulerConfig =>
   ({ tickCron: '*/10 * * * * *', resultPurgeCron: '0 2 * * *', resultRetentionDays: 90, checkConcurrency })
 const tick = () => new Promise((resolve) => setImmediate(resolve))
@@ -388,6 +391,49 @@ describe('scheduler orchestration', () => {
     const remaining = await db.select().from(monitorResults)
     assert.equal(remaining.length, 1)
     assert.equal(remaining[0]!.checkedAt, now - 89 * 86_400_000)
+  })
+
+  it('purges exactly one full batch, and the empty batch after it ends the loop', async () => {
+    const [full] = await db.insert(monitors).values([monitorValues('Full')]).returning()
+    const now = Date.now()
+    const insert = sqlite.prepare('INSERT INTO monitor_results (monitor_id, status, response_ms, checked_at) VALUES (?, ?, ?, ?)')
+    sqlite.exec('BEGIN')
+    for (let i = 0; i < 5_000; i++) insert.run(full!.id, 'up', 5, now - 100 * 86_400_000 + i)
+    sqlite.exec('COMMIT')
+
+    await purgeOldResults(now, config(90))
+
+    assert.equal((await db.select().from(monitorResults)).length, 0)
+    assert.equal((await db.select().from(monitorDailyResults)).length, 0)
+    assert.deepEqual(findDailyResultsMismatches(sqlite), [])
+  })
+
+  it('purges many results in batches, leaves the event loop free between them, and touches nothing else', async () => {
+    const [busy, quiet] = await db.insert(monitors).values([monitorValues('Busy'), monitorValues('Quiet')]).returning()
+    const now = Date.now()
+    const insert = sqlite.prepare('INSERT INTO monitor_results (monitor_id, status, response_ms, checked_at) VALUES (?, ?, ?, ?)')
+    sqlite.exec('BEGIN')
+    for (let i = 0; i < 12_000; i++) insert.run(busy!.id, 'up', 5, now - 100 * 86_400_000 + i) // two and a half batches, all expired
+    for (let i = 0; i < 30; i++) insert.run(busy!.id, 'up', 5, now - 1000 - i) // current
+    for (let i = 0; i < 40; i++) insert.run(quiet!.id, 'up', 5, now - 100 * 86_400_000 + i) // expired, another monitor
+    insert.run(quiet!.id, 'up', 5, now - 1000)
+    sqlite.exec('COMMIT')
+    // Every turn of the event loop that something else gets while the purge runs.
+    let turns = 0
+    let purging = true
+    const spin = () => { turns++; if (purging) setImmediate(spin) }
+    setImmediate(spin)
+
+    await purgeOldResults(now, config(90))
+    purging = false
+
+    assert.deepEqual(
+      (sqlite.prepare('SELECT monitor_id AS id, count(*) AS n FROM monitor_results GROUP BY monitor_id ORDER BY monitor_id').all() as Array<{ id: number; n: number }>).map((r) => [r.id, r.n]),
+      [[busy!.id, 30], [quiet!.id, 1]],
+    )
+    assert.ok(turns >= 3, `the event loop was given back after every batch (${turns} turns)`) // 5,000 + 5,000 + 2,000, then the other monitor
+    assert.deepEqual(findDailyResultsMismatches(sqlite), [])
+    assert.equal((await db.select().from(monitorDailyResults)).every((row) => row.checksTotal + row.maintenanceChecks > 0), true)
   })
 })
 

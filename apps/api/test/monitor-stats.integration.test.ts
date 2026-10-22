@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { eq } from 'drizzle-orm'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
-import { db } from '../src/db/client.js'
+import { db, sqlite } from '../src/db/client.js'
 import { incidentMonitors, incidents, monitorResults, monitors } from '../src/db/schema.js'
 import { monitorRoutes } from '../src/routes/monitors.js'
 import type { MonitorStats } from '@bsp/shared'
@@ -110,6 +110,27 @@ describe('monitor stats', () => {
     assert.equal(stats.response, null)
     assert.equal(stats.incidents.mttrMs, null)
     assert.deepEqual(stats.recentFailures, [])
+  })
+
+  it('gives the percentiles the database would, for many results with ties and gaps', async () => {
+    const [busy] = await db.insert(monitors).values({ name: 'Busy', type: 'https', config: '{}', createdAt: Date.now(), updatedAt: Date.now() }).returning()
+    const now = Date.now()
+    let seed = 7
+    const next = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296 }
+    await db.insert(monitorResults).values(Array.from({ length: 3_001 }, (_, i) => ({
+      monitorId: busy!.id, status: 'up', checkedAt: now - 1000 - i * 60_000,
+      responseMs: next() < 0.15 ? null : Math.floor(next() * 40) * 10, // many equal values
+    })))
+
+    const stats = (await get(busy!.id, '?hours=72')).json() as MonitorStats
+    // The way the percentiles were read before: the value at an offset of the sorted response times.
+    const atOffset = (fraction: number) => {
+      const timed = (sqlite.prepare('SELECT count(response_ms) AS n FROM monitor_results WHERE monitor_id = ? AND checked_at >= ?').get(busy!.id, stats.from) as { n: number }).n
+      const offset = Math.min(timed - 1, Math.floor(timed * fraction))
+      return (sqlite.prepare('SELECT response_ms AS ms FROM monitor_results WHERE monitor_id = ? AND checked_at >= ? AND response_ms IS NOT NULL ORDER BY response_ms LIMIT 1 OFFSET ?').get(busy!.id, stats.from, offset) as { ms: number }).ms
+    }
+    assert.ok(stats.response && stats.response.max > stats.response.min)
+    assert.deepEqual([stats.response.p50, stats.response.p95, stats.response.p99], [atOffset(0.5), atOffset(0.95), atOffset(0.99)])
   })
 
   it('rejects a bad window and an unknown monitor', async () => {

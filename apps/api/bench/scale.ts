@@ -64,9 +64,12 @@ async function sample(label: string, iterations: number, fn: (i: number) => Prom
 async function withLoopDelay<T>(fn: () => Promise<T>) {
   const histogram = monitorEventLoopDelay({ resolution: 5 })
   histogram.enable()
+  await sleep(20) // the histogram skips its first sample, so a long call right after enable() would go unseen
   const start = performance.now()
   const value = await fn()
   const elapsed = performance.now() - start
+  // The delay of a long synchronous call is only seen when the loop gets to its timer again.
+  await sleep(20)
   histogram.disable()
   return { value, elapsed, loopP99: ms(histogram.percentile(99) / 1e6), loopMax: ms(histogram.max / 1e6) }
 }
@@ -270,6 +273,7 @@ async function main() {
   console.log(`uptime 90d, every monitor once (uncached page view): ${ms(performance.now() - pageStart)} ms`)
   await sample('history 24h, 60 buckets', 100, (i) => publicData.loadHistory(ids[i % ids.length]!, 24, 60))
   await sample('history 7d, 60 buckets', 50, (i) => publicData.loadHistory(ids[i % ids.length]!, 168, 60))
+  await sample('history 90d, 60 buckets', 10, (i) => publicData.loadHistory(ids[i % ids.length]!, 2160, 60))
   await sample('admin stats 24h', 50, (i) => loadMonitorStats(ids[i % ids.length]!, 24, 90))
   await sample('admin stats 7d', 50, (i) => loadMonitorStats(ids[i % ids.length]!, 168, 90))
   await sample(`admin stats ${Math.min(DAYS, 30)}d`, 20, (i) => loadMonitorStats(ids[i % ids.length]!, Math.min(DAYS, 30) * 24, 90))
@@ -302,11 +306,10 @@ async function main() {
   await app.close()
 
   section('Retention purge')
-  const purgeStart = performance.now()
   const before = (sqlite.prepare('SELECT count(*) AS n FROM monitor_results').get() as { n: number }).n
-  await scheduler.purgeOldResults(Date.now(), { ...baseConfig(), resultRetentionDays: DAYS - 1 })
+  const purged = await withLoopDelay(() => scheduler.purgeOldResults(Date.now(), { ...baseConfig(), resultRetentionDays: DAYS - 1 }))
   const after = (sqlite.prepare('SELECT count(*) AS n FROM monitor_results').get() as { n: number }).n
-  console.log(`deleted ${(before - after).toLocaleString('en')} rows in ${ms(performance.now() - purgeStart)} ms`)
+  console.log(`deleted ${(before - after).toLocaleString('en')} rows in ${ms(purged.elapsed)} ms; the event loop stood still for at most ${purged.loopMax} ms`)
 
   section('Integrity')
   verify('daily totals match the results after checks, observations and retention', findDailyResultsMismatches(sqlite).length === 0)

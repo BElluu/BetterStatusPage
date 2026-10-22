@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { serveEventStream, sseService } from '../kit/sse.js'
 import { getPublishedMonitorIds, publishedMonitorIdsSnapshot } from '../services/publishedMonitors.js'
+import { createTtlCache } from '../lib/ttlCache.js'
 import { PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
 import {
   loadPublicStatus, loadPublicLayout, loadPublicIncidents, loadPublicIncident, loadUptime, loadHistory,
@@ -14,6 +15,9 @@ const STATUS_CACHE_TTL_MS = 2_000
 /** Daily uptime bars change slowly; a short cache absorbs bursts of page views per monitor. */
 const UPTIME_CACHE_TTL_MS = 30_000
 const UPTIME_CACHE_MAX_ENTRIES = 1_000
+/** The response time charts slide with the clock, but a bucket is minutes wide: a few seconds old is not visible. */
+const HISTORY_CACHE_TTL_MS = 10_000
+const HISTORY_CACHE_MAX_ENTRIES = 1_000
 
 function parseInteger(value: string | undefined, fallback: number, min: number, max: number): number | null {
   const parsed = Number(value ?? fallback)
@@ -24,7 +28,9 @@ export async function publicRoutes(app: FastifyInstance) {
   protectStatusPage(app)
   let statusCache: { expiresAt: number; value: Promise<unknown> } | null = null
   // Keyed by `${monitorId}:${days}`.
-  const uptimeCache = new Map<string, { expiresAt: number; value: Promise<unknown> }>()
+  const uptimeCache = createTtlCache<unknown>(UPTIME_CACHE_TTL_MS, UPTIME_CACHE_MAX_ENTRIES)
+  // Keyed by `${monitorId}:${hours}:${buckets}`; it holds no incidents, so incident events leave it alone.
+  const historyCache = createTtlCache<unknown>(HISTORY_CACHE_TTL_MS, HISTORY_CACHE_MAX_ENTRIES)
   // Clients refetch the status as soon as an incident event arrives; a cached copy from just
   // before the change would hide it from them until the next periodic refresh.
   const stopListening = sseService.onBroadcast((event) => {
@@ -78,21 +84,7 @@ export async function publicRoutes(app: FastifyInstance) {
     }
     if (!(await getPublishedMonitorIds()).has(monitorId)) return reply.code(404).send({ error: 'Not found' })
 
-    const key = `${monitorId}:${days}`
-    const now = Date.now()
-    const cached = uptimeCache.get(key)
-    if (cached && cached.expiresAt > now) return cached.value
-
-    if (uptimeCache.size >= UPTIME_CACHE_MAX_ENTRIES) {
-      for (const [entryKey, entry] of uptimeCache) if (entry.expiresAt <= now) uptimeCache.delete(entryKey)
-      if (uptimeCache.size >= UPTIME_CACHE_MAX_ENTRIES) uptimeCache.clear()
-    }
-    const value = loadUptime(monitorId, days)
-    uptimeCache.set(key, { expiresAt: now + UPTIME_CACHE_TTL_MS, value })
-    value.catch(() => {
-      if (uptimeCache.get(key)?.value === value) uptimeCache.delete(key)
-    })
-    return value
+    return uptimeCache.get(`${monitorId}:${days}`, () => loadUptime(monitorId, days))
   })
 
   app.get<{ Params: { id: string }; Querystring: { hours?: string; buckets?: string } }>(
@@ -108,7 +100,7 @@ export async function publicRoutes(app: FastifyInstance) {
 
       if (!(await getPublishedMonitorIds()).has(monitorId)) return reply.code(404).send({ error: 'Not found' })
 
-      return loadHistory(monitorId, hours, nBuckets)
+      return historyCache.get(`${monitorId}:${hours}:${nBuckets}`, () => loadHistory(monitorId, hours, nBuckets))
     },
   )
 

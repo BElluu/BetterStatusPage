@@ -45,10 +45,13 @@ The database driver is synchronous: while a query runs, nothing else in the proc
 | Daily uptime for 90 days (one monitor) | 0.3 ms |
 | History, 24 h | 1.5 ms |
 | History, 7 d | 11 ms |
-| Monitor statistics, 24 h / 7 d / 30 d | 4.5 / 27 / 119 ms |
+| History, 90 d | 183 ms |
+| Monitor statistics, 24 h / 7 d / 30 d | 3.2 / 18 / 71 ms |
 
-Response time statistics (average, percentiles, charts) are still counted from the results, so the 7-day and 30-day views of a monitor take longer as the history grows.
+Response time statistics (average, percentiles, charts) are still counted from the results, so the 7-day and 30-day views of a monitor take longer as the history grows. The percentiles are taken from the response times that are loaded for the charts anyway, which saved three more queries over the window: 30 days took 119 ms before and 71 ms now, 7 days 27 ms and 18 ms.
+
+The status page asks for the response time chart of each monitor, and the answer is kept for 10 seconds. A chart is counted from the results of its window, so it costs 1.5 ms for the last 24 hours, 11 ms for 7 days and 183 ms for 90 days (the longest range a chart can be set to), and nothing else in the process runs meanwhile. With the answer kept, visitors who ask for the same chart within 10 seconds, as they do when an incident brings many of them at once, share one query instead of running one each. A chart can be up to 10 seconds old, which is less than the width of one of its buckets. On a quiet page this changes little; it matters for long ranges and for a burst of visitors.
 
 ## Retention
 
-Deleting the results older than `MONITOR_RESULT_RETENTION_DAYS` (about one day of results a day) took 0.9 s at 100 monitors and 2.2 s at 250. It was 0.7 s and 1.9 s before the daily totals: the triggers adjust them for each deleted result.
+Deleting the results older than `MONITOR_RESULT_RETENTION_DAYS` (about one day of results a day: 144,000 rows at 100 monitors, 361,000 at 250) used to be one statement during which nothing else in the process ran: 0.6 s at 100 monitors and 2.2 s at 250. It now deletes in batches of 5,000 per monitor with the process free between them. At 100 monitors it takes 0.24 s in total and the longest stretch in which checks, live updates and requests had to wait was 23 ms; at 250 monitors 0.58 s in total and 25 ms. Both were measured with `npm run bench`, which reports the longest stall of the process during the deletion.

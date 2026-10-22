@@ -21,7 +21,7 @@ import { activeWindows } from '../services/maintenanceSchedule.js'
 import { evaluateAlertTransition, isFailureStatus } from '../services/alertThresholds.js'
 import { openIncidentForOutage, resolveIncidentForRecovery } from '../services/autoIncident.js'
 import { withImmediateTransaction } from '../db/transaction.js'
-import { lt, gt, eq, and, inArray, sql } from 'drizzle-orm'
+import { gt, eq, and, inArray, sql } from 'drizzle-orm'
 import type { HttpsConfig, PingConfig, DnsConfig, DatabaseConfig, DockerConfig, MonitorStatus } from '@bsp/shared'
 import { getSchedulerConfig, type SchedulerConfig } from '../config/scheduler.js'
 
@@ -294,9 +294,23 @@ export async function runSchedulerTick(
   }
 }
 
+const PURGE_BATCH_ROWS = 5_000
+
 export async function purgeOldResults(now = Date.now(), config: SchedulerConfig = getSchedulerConfig()) {
   const cutoff = now - config.resultRetentionDays * 24 * 60 * 60 * 1000
-  await db.delete(monitorResults).where(lt(monitorResults.checkedAt, cutoff))
+  // A day of results of many monitors is a long statement, and nothing else in the process runs meanwhile. Deleted in
+  // small batches per monitor (an index range each) with the event loop free between them: checks, live updates and
+  // requests wait for one batch at most.
+  const deleteBatch = sqlite.prepare(
+    'DELETE FROM monitor_results WHERE id IN (SELECT id FROM monitor_results WHERE monitor_id = ? AND checked_at < ? LIMIT ?)',
+  )
+  for (const { id } of await db.select({ id: monitors.id }).from(monitors)) {
+    for (;;) {
+      const { changes } = deleteBatch.run(id, cutoff, PURGE_BATCH_ROWS)
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      if (Number(changes) < PURGE_BATCH_ROWS) break
+    }
+  }
   deleteEmptyDailyResults(sqlite)
   console.log('[scheduler] Purged old monitor results')
 }
