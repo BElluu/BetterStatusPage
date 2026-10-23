@@ -508,6 +508,7 @@ Before exposing an instance publicly:
 | `SCHEDULER_TICK_SECONDS` | No | How often the scheduler scans for due monitors. Default: `10`. Must be 1-59 seconds. |
 | `SSE_MAX_CLIENTS` / `SSE_MAX_CLIENTS_PER_IP` | No | Most live event streams (status page and admin) open at the same time, in total and from one address (an IPv6 `/64` counts as one). Only anonymous streams are counted. Streams over the limit get `429`; the status page then falls back to refreshing every 30 seconds. Defaults: `1000` and `10`. Behind a reverse proxy or CDN, set `TRUST_PROXY` so the address is the visitor's: otherwise every visitor shares the proxy's address and the per-address limit applies to all of them. Each stream holds a file descriptor, so keep the total below the process limit (`ulimit -n`). |
 | `MONITOR_CHECK_CONCURRENCY` | No | Maximum number of scheduled checks running at the same time, across all ticks. Default: `20`. "Check now" is not counted. |
+| `HEARTBEAT_AUTO_CREATE_LIMIT` | No | How many monitors one API token may create an hour by [sending a heartbeat to a key](monitors.md#sending-by-key-created-on-the-first-heartbeat) that has no monitor yet. Default: `50`. `0` means no limit. |
 | `MONITOR_RESULT_RETENTION_DAYS` | No | Monitor result retention period. Default: `90`. |
 | `MONITOR_RESULT_PURGE_CRON` | No | Cron expression for purging old monitor results. Default: `0 2 * * *` (daily at 02:00). |
 

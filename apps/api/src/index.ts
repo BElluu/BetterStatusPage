@@ -10,6 +10,7 @@ import { acquireAppLock } from './kit/appLock.js'
 import { drainScheduler } from './workers/scheduler.js'
 import { startBackgroundServices, stopBackgroundServices } from './services/backgroundServices.js'
 import { validateEncryptionKey as validateVaultEncryptionKey } from '@better-kit/vault'
+import { getHeartbeatAutoCreateLimit } from './config/heartbeat.js'
 import { sseService } from './kit/sse.js'
 import { registerProductionFrontends } from './services/productionFallback.js'
 
@@ -20,7 +21,7 @@ const { run } = await createBetterApp({
   redactQueryParams: ['token', 'msg'],
   // The heartbeat token is the credential of its monitor and sits in the path.
   redactPathTokenPrefixes: ['/api/v1/hook/'],
-  validate: validateVaultEncryptionKey,
+  validate: () => { validateVaultEncryptionKey(); getHeartbeatAutoCreateLimit() },
   uploads: { dir: uploadDir(), maxFileBytes: 5 * 1024 * 1024 },
   // The branding editor previews the status page in a frame of the admin console.
   allowSameOriginFraming: ({ path: requestPath, query }) => requestPath === '/' && query.get('branding-preview') === '1',

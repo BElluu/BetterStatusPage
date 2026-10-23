@@ -20,7 +20,7 @@ To revoke a token click the bin icon and confirm with **Revoke**. It stops worki
 
 ### Permissions
 
-A token has a list of permissions instead of a role. Each names a part of the application and whether the token may read it (`read`) or change it (`write`). Writing a part includes reading it. A request without the permission it needs is answered `403`, and the message names the permission (`This token does not have the "monitors:write" permission`). `GET` needs `read`, every other method `write`.
+A token has a list of permissions instead of a role. Each names a part of the application and whether the token may read it (`read`) or change it (`write`). Writing a part includes reading it. A request without the permission it needs is answered `403`, and the message names the permission (`This token does not have the "monitors:write" permission`). `GET` needs `read`, every other method `write`. The one exception is [a heartbeat by key](monitors.md#sending-by-key-created-on-the-first-heartbeat), which needs `monitors:write` for `GET` as well, because it can create a monitor.
 
 | Part | What it covers | Levels |
 |---|---|---|

@@ -44,7 +44,7 @@ These fields are in the form for every type. **Name** and **Type** come first, f
 | --- | --- | --- |
 | **Name** | — | Shown in the admin console, in notifications and on the status page. Required, up to 200 characters. A technical [key](api.md#monitors-and-notification-channels-have-keys) is generated from it; it is not shown in the form and never changes. |
 | **Type** | HTTPS | Chosen from a searchable list grouped by area (Web, Network, Data, Infrastructure, Inbound). Switching type resets the type-specific settings. |
-| **Interval (s)** | `60` | How often the check runs. `10`–`86400`. For a webhook monitor, how long silence may last. |
+| **Interval (s)** | `60` | How often the check runs. `10`–`86400`. For a webhook monitor, how long silence may last,. |
 | **Timeout (ms)** | `10000` | How long one attempt may take, authentication and redirects included. `1000`–`300000`. |
 | **Attempts** | `1` | How many times one check is tried before it counts as down. `1–10`. |
 | **Alert after (checks)** | `1` | Consecutive failed checks before an alert is sent. `1–20`. |
@@ -465,6 +465,48 @@ Without parameters the call records `up`, as before. A `down` or `degraded` call
 check: **Alert after (checks)**, **Recover after (checks)** and maintenance windows apply as they do
 to scheduled checks. If a dependency of the monitor is down, a failing heartbeat is recorded as
 **Affected**, as for a scheduled check. A heartbeat that reports `up` is always recorded as up.
+
+### Sending by key (created on the first heartbeat)
+
+> [!WARNING]
+> **Not released yet.** Heartbeats by key are only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+The URL above is made when the monitor is saved, so a sender that can only be given one URL for many jobs (a backup server that notifies per datastore, say) would need a monitor created by hand for each. Heartbeats by key remove that step: the monitor is named in the URL and is created by the first heartbeat.
+
+```
+https://<your-bsp-host>/api/v1/hook/key/<key>
+```
+
+The request must carry an [API token](api.md) with the `monitors:write` permission in an `Authorization: Bearer bsp_…` header. The token goes in the header only, never in the URL. A session cookie is not accepted. A token without the permission gets `403`, whether the key exists or not.
+
+| Answer | Meaning |
+|---|---|
+| `200` `{"ok":true}` | The monitor with this key exists; the heartbeat was recorded. |
+| `201` `{"ok":true,"created":true}` | There was no monitor with this key; one was created and the heartbeat recorded. |
+| `400` | The key cannot be used, or `status`/`msg` are wrong (as for the secret URL). Nothing is created. |
+| `401` | No bearer token, or an unknown or revoked one. |
+| `403` | The token lacks `monitors:write`, or it has reached its limit of created monitors (`"code":"AUTO_CREATE_LIMIT"`). |
+| `429` | More than 60 requests a minute for this token and key, or more than 300 a minute for the token. |
+| `409` | A monitor with this key exists but is not a webhook monitor; nothing is recorded. |
+
+`status` and `msg` work as in [Reporting a failure](#reporting-a-failure), and are read from the query string only. Two more parameters matter only to the heartbeat that creates the monitor, and are ignored for a monitor that exists: `interval` (seconds of silence allowed, `10`–`86400`, default `86400`) and `name` (up to 200 characters, cleaned like `msg`; default the key). A wrong `interval` answers `400` on every request, creating nothing, and neither parameter may be given twice. A request body is never read, so a sender may add one of any type or size up to 64 KB. Only `GET` and `POST` are answered.
+
+- **The key** is lower-cased and every run of characters other than letters, digits, `_` and `-` becomes `-`, so `PBS.Store1` is `pbs-store1`. A result that is empty, longer than 64 characters, or does not start with a letter or digit (`.hidden` becomes `-hidden`) is refused with `400`. Different spellings reach the same monitor: `a.b`, `a b` and `A-B` are all `a-b`. It is also the monitor's [key](configuration-as-code.md) in the API and in configuration files.
+- **The new monitor** is a webhook monitor named after its key, with the interval and name you sent (24 hours and the key otherwise), and has its own secret URL like any other. It is not on the status page until you place it in the layout. It has no notification channels: link one in the admin before you rely on it to alert. Change the name, interval and thresholds there as for any monitor.
+- **A limit** protects against a mistaken template creating monitors without end: one token may create 50 monitors an hour this way, counted over the last 60 minutes, so a token can set up hundreds in a few hours. Set `HEARTBEAT_AUTO_CREATE_LIMIT` to change it; `0` removes the limit. A request over the limit answers `403` and creates nothing; the sender can repeat it later. Heartbeats to existing keys are never limited by it.
+- **The audit log** records each monitor created this way, with the token as the actor and its id in the entry. Heartbeats are not logged.
+- **Pruning** a [configuration import](configuration-as-code.md) deletes these monitors like any other the file does not mention; the next heartbeat creates them again, without history.
+
+#### Example: Proxmox Backup Server
+
+In **Configuration → Notifications**, add a **Webhook** target and a matcher that sends the jobs you want to watch to it:
+
+- **Method:** `POST`
+- **URL:** `https://status.example.com/api/v1/hook/key/pbs_{{ fields.datastore }}_{{ fields.type }}`
+- **Header:** `Authorization` = `Bearer {{ secrets.bsp_token }}`
+- **Secret:** `bsp_token` = an API token with `monitors:write`
+
+A heartbeat without `status` records the monitor as up, and PBS also notifies about failed jobs, so the two kinds must go to different targets. Give the first target a matcher on severity `info` and `notice` only, and a second target with the URL ending in `?status=down` a matcher on severity `error`. If the first target also received failures it would send an `up` next to the `down`, in no fixed order, and the failure could be lost. Match on the job `type` (`gc`, `prune`, `sync`, `verification`) so that notifications without a datastore do not create monitors. Check the field names against the documentation of your PBS version.
 
 ### How silence is detected
 

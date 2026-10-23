@@ -67,6 +67,7 @@ GET /api/v1/auth/oidc/confirm | auth=yes | token=no | scope=- | roles=none
 GET /api/v1/auth/oidc/login | auth=no | token=no | scope=- | roles=none
 GET /api/v1/auth/session | auth=yes | token=no | scope=- | roles=none
 GET /api/v1/hook/:token | auth=no | token=no | scope=- | roles=none
+GET /api/v1/hook/key/:key | auth=yes | token=yes | scope=custom | roles=none
 GET /api/v1/public/access | auth=no | token=no | scope=- | roles=none
 GET /api/v1/public/components.json | auth=no | token=no | scope=- | roles=none
 GET /api/v1/public/events | auth=no | token=no | scope=- | roles=none
@@ -239,6 +240,7 @@ POST /api/v1/auth/login | auth=no | token=no | scope=- | roles=none
 POST /api/v1/auth/logout | auth=yes | token=no | scope=- | roles=none
 POST /api/v1/auth/logout-all | auth=yes | token=no | scope=- | roles=none
 POST /api/v1/hook/:token | auth=no | token=no | scope=- | roles=none
+POST /api/v1/hook/key/:key | auth=yes | token=yes | scope=custom | roles=none
 POST /api/v1/public/subscriptions/ | auth=no | token=no | scope=- | roles=none
 POST /api/v1/public/subscriptions/confirm | auth=no | token=no | scope=- | roles=none
 POST /api/v1/public/subscriptions/preferences | auth=no | token=no | scope=- | roles=none
