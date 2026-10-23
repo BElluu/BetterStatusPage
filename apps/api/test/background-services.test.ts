@@ -55,6 +55,23 @@ describe('runtime shutdown', () => {
     assert.deepEqual(order, ['stopIntake', 'closeServer', 'release', 'exit:0'])
   })
 
+  it('waits for background work after the server has drained, and only then releases', async () => {
+    let finished!: () => void
+    const { order, steps: s } = steps(() => Promise.resolve())
+    const runtime = createRuntimeShutdown({
+      ...s,
+      drain: () => { order.push('drain'); return new Promise<void>((resolve) => { finished = resolve }) },
+    })
+    runtime.shutdown()
+    // The server's close hook runs while the shutdown is under way; it must not release ahead of the drain.
+    runtime.cleanup()
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.deepEqual(order, ['stopIntake', 'closeServer', 'drain'])
+    finished()
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.deepEqual(order, ['stopIntake', 'closeServer', 'drain', 'release', 'exit:0'])
+  })
+
   it('exits non-zero when closing fails and still releases resources', async () => {
     const { order, steps: s } = steps(() => Promise.reject(new Error('close failed')))
     createRuntimeShutdown(s).shutdown()

@@ -59,9 +59,16 @@ export interface BetterAppOptions {
   /** Takes the lock that keeps a second instance away from the data directory; returns the release. */
   acquireLock: () => () => void
   /** Work that runs only while the application is set up. */
-  backgroundServices?: { start: () => void; stop: () => void }
+  backgroundServices?: {
+    start: () => void
+    stop: () => void
+    /** Resolves once the work `stop` left running has finished; the shutdown waits for it until its deadline. */
+    drain?: () => Promise<void>
+  }
   /** Called when the process is asked to stop, before the server drains (close event streams, say). */
   stopIntake?: () => void
+  /** How long a stop waits for the server and the background work to drain before it exits anyway. Default 5 seconds. */
+  shutdownDeadlineMs?: number
   /** Name used in the line logged when the server is up. */
   logName?: string
   port?: number
@@ -196,6 +203,8 @@ export async function createBetterApp(options: BetterAppOptions) {
         options.backgroundServices?.stop()
       },
       closeServer: () => app.close(),
+      ...(options.backgroundServices?.drain ? { drain: options.backgroundServices.drain } : {}),
+      ...(options.shutdownDeadlineMs !== undefined ? { forceExitMs: options.shutdownDeadlineMs } : {}),
       releaseResources: () => {
         options.database.close()
         releaseLock()

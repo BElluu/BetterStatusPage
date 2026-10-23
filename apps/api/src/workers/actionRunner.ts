@@ -43,25 +43,27 @@ export async function cancelUnlinkedRuns(monitorId: number, links: { actionId: n
 
 /**
  * Called when a monitor's alert state changes. Runs still waiting for the old status are cancelled, then every
- * action linked to the new status is queued for `delayMinutes` from now (an action without a delay runs at once).
+ * action linked to the new status is queued for `delayMinutes` from now. Resolves to the runs to start at once (an
+ * action without a delay); starting them is left to the caller so the queueing can share the transaction that
+ * confirmed the change. A queued run that was never started is picked up by `processDueActionRuns`.
  */
-export async function scheduleActionRuns(
+export async function planActionRuns(
   monitor: MonitorRow,
   status: string,
   previousStatus: string,
   errorMessage: string | null,
-): Promise<void> {
+): Promise<number[]> {
   const now = Date.now()
   await db.update(actionRuns)
     .set({ status: 'cancelled', nextAttemptAt: null, completedAt: now, lastError: `Monitor changed to ${status}`, updatedAt: now })
     .where(and(eq(actionRuns.monitorId, monitor.id), eq(actionRuns.status, 'pending'), ne(actionRuns.onStatus, status)))
 
-  if (status !== 'down' && !(status === 'up' && OUTAGE_STATUSES.includes(previousStatus))) return
+  if (status !== 'down' && !(status === 'up' && OUTAGE_STATUSES.includes(previousStatus))) return []
 
   // Two queries, not a join: both tables have an id column, which the driver would map by position.
   const links = await db.select().from(monitorActions)
     .where(and(eq(monitorActions.monitorId, monitor.id), eq(monitorActions.onStatus, status)))
-  if (links.length === 0) return
+  if (links.length === 0) return []
   const actionRows = await db.select().from(actions).where(inArray(actions.id, links.map((link) => link.actionId)))
   const actionById = new Map(actionRows.map((action) => [action.id, action]))
 
@@ -75,6 +77,7 @@ export async function scheduleActionRuns(
     event_type: status === 'down' ? 'alert' : 'recovery',
   })
 
+  const startNow: number[] = []
   for (const link of links) {
     const action = actionById.get(link.actionId)
     if (!action || action.enabled !== 1) continue
@@ -100,9 +103,20 @@ export async function scheduleActionRuns(
       createdAt: now,
       updatedAt: now,
     }).returning({ id: actionRuns.id })
-    if (link.delayMinutes === 0) {
-      attemptActionRun(run!.id).catch((err) => console.error('[actions] Run failed:', err))
-    }
+    if (link.delayMinutes === 0) startNow.push(run!.id)
+  }
+  return startNow
+}
+
+/** Queues the runs of a status change and starts those without a delay. */
+export async function scheduleActionRuns(
+  monitor: MonitorRow,
+  status: string,
+  previousStatus: string,
+  errorMessage: string | null,
+): Promise<void> {
+  for (const runId of await planActionRuns(monitor, status, previousStatus, errorMessage)) {
+    attemptActionRun(runId).catch((err) => console.error('[actions] Run failed:', err))
   }
 }
 

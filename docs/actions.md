@@ -65,7 +65,7 @@ The same action can be linked once per status, so one action can serve both `dow
 - **The monitor's confirmed status counts**, the same as for notifications: it is the status after **Alert after (checks)** and **Recover after (checks)** are met. Raise the thresholds to keep a flapping check from triggering an action. During a [maintenance window](incidents-and-maintenance.md) the confirmed status is not updated, and a run that comes due inside the window is cancelled, so an action never starts while you are working on the service.
 - **A `down` action waits for its delay and is dropped if the monitor recovers first.** The status, the maintenance windows and the link are checked again just before every attempt.
 - **A `back up` action runs after an outage**, that is when the monitor was down, degraded or affected by a dependency. It does not run for a monitor's first successful check.
-- **Waiting runs survive a restart.** They are stored in the database and sent by the same background worker as notification retries, which runs every 30 seconds, so a run can start up to about 30 seconds after it is due.
+- **Waiting runs survive a restart.** A run is stored in the same step that confirms the status change, even when it starts at once, and is sent by the same background worker as notification retries, which runs every 30 seconds, so a run can start up to about 30 seconds after it is due.
 - Removing the link, deleting the action or deleting the monitor cancels the runs that are still waiting.
 
 ---
