@@ -3,6 +3,7 @@ import { VAULT_USE_SCOPE, type TokenPreset, type TokenResource } from '@better-k
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { uiConfig } from '../config'
+import { ConfirmIdentityModal } from '../components/ConfirmIdentityModal'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { ModalFooter, ModalHeader, ModalShell } from '../components/ModalShell'
 import { CopyButton } from '../components/CopyButton'
@@ -61,7 +62,7 @@ export default function ApiTokensPage({ resources, presets }: { resources: reado
   const [expiresInDays, setExpiresInDays] = useState(DEFAULT_EXPIRY)
   const [created, setCreated] = useState<{ name: string; token: string } | null>(null)
   const [revokeTarget, setRevokeTarget] = useState<ApiToken | null>(null)
-  const [error, setError] = useState('')
+  const [confirming, setConfirming] = useState(false)
 
   const { data: tokens = [], isLoading, isError, refetch } = useQuery<ApiToken[]>({
     queryKey: ['api-tokens'],
@@ -74,23 +75,20 @@ export default function ApiTokensPage({ resources, presets }: { resources: reado
     'last used': (t) => t.lastUsedAt,
   })
 
-  const createMutation = useMutation({
-    mutationFn: () => api.post<ApiToken & { token: string }>('/admin/api-tokens', {
+  async function createToken(currentPassword: string | undefined) {
+    const data = await api.post<ApiToken & { token: string }>('/admin/api-tokens', {
       name,
       scopes,
       expiresInDays: expiresInDays === 'never' ? null : Number(expiresInDays),
-    }),
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ['api-tokens'] })
-      setCreated({ name: data.name, token: data.token })
-      setShowCreate(false)
-      setName('')
-      setScopes([])
-      setExpiresInDays(DEFAULT_EXPIRY)
-      setError('')
-    },
-    onError: (err) => setError(errorMessage(err, 'Failed to create token')),
-  })
+      currentPassword,
+    })
+    qc.invalidateQueries({ queryKey: ['api-tokens'] })
+    setCreated({ name: data.name, token: data.token })
+    setShowCreate(false)
+    setName('')
+    setScopes([])
+    setExpiresInDays(DEFAULT_EXPIRY)
+  }
 
   const revokeMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/admin/api-tokens/${id}`),
@@ -108,7 +106,6 @@ export default function ApiTokensPage({ resources, presets }: { resources: reado
   function openCreate() {
     setShowCreate(true)
     setCreated(null)
-    setError('')
   }
 
   /** Writing a part includes reading it, so ticking Write ticks Read and unticking Read unticks Write. */
@@ -127,7 +124,7 @@ export default function ApiTokensPage({ resources, presets }: { resources: reado
     })
   }
 
-  const canCreate = name.trim().length > 0 && scopes.length > 0 && !createMutation.isPending
+  const canCreate = name.trim().length > 0 && scopes.length > 0
 
   return (
     <PageContainer>
@@ -151,9 +148,8 @@ export default function ApiTokensPage({ resources, presets }: { resources: reado
         <ModalShell align="top" onClose={() => setShowCreate(false)} label="New token">
         <div className="rounded-2xl w-full max-w-2xl my-8" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
         <ModalHeader icon="key" title="New token" onClose={() => setShowCreate(false)} />
-        <form onSubmit={(e) => { e.preventDefault(); if (canCreate) createMutation.mutate() }}>
+        <form onSubmit={(e) => { e.preventDefault(); if (canCreate) setConfirming(true) }}>
         <div className="p-4 sm:p-6">
-          {error && <Alert tone="error" className="mb-3">{error}</Alert>}
           <label htmlFor={nameInputId} className="block text-xs mb-1.5" style={{ color: 'var(--m3-secondary)' }}>Name</label>
           <div className="flex flex-wrap gap-3">
             <input
@@ -239,12 +235,23 @@ export default function ApiTokensPage({ resources, presets }: { resources: reado
         <ModalFooter>
           <button type="button" onClick={() => setShowCreate(false)} className="btn btn-secondary">Cancel</button>
           <button type="submit" disabled={!canCreate} className="btn btn-primary">
-            {createMutation.isPending ? 'Creating…' : 'Create'}
+            Create
           </button>
         </ModalFooter>
         </form>
         </div>
         </ModalShell>
+      )}
+
+      {confirming && (
+        <ConfirmIdentityModal
+          title="Create token"
+          message="A token can act on the admin API without you being signed in. Confirm it's you to create it."
+          confirmLabel="Create token"
+          pendingLabel="Creating…"
+          action={createToken}
+          onClose={() => setConfirming(false)}
+        />
       )}
 
       {created && (

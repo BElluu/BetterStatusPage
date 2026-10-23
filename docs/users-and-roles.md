@@ -60,7 +60,7 @@ Open **Users** (administrators only). The table lists every account with its rol
 ### Create a user
 
 1. Click **New User**, enter the email and pick a role (default **Branding**).
-2. Click **Create**. A 12-character temporary password is shown **once**, with a copy button. Send it to the user.
+2. Click **Create** and [confirm who you are](#confirming-sensitive-actions). A 12-character temporary password is shown **once**, with a copy button. Send it to the user.
 
 On their first sign-in the user must replace the temporary password before they can do anything else; the API refuses every other request until they do. A user who signs in through [single sign-on](single-sign-on.md#how-it-works) never needs the temporary password: the SSO sign-in revokes it.
 
@@ -68,11 +68,11 @@ Each email can have only one account.
 
 ### Change a role
 
-Click another role in the user's row. Moving a user to a role with less access asks for confirmation first. The change ends all of the user's sessions at once, so they sign in again with the new role. Moving an administrator to another role also deletes every [API token](api.md#api-tokens) they created, for good: promoting them again does not bring the tokens back.
+Click another role in the user's row and [confirm who you are](#confirming-sensitive-actions). Moving a user to a role with less access also warns you first. The change ends all of the user's sessions at once, so they sign in again with the new role. Moving an administrator to another role also deletes every [API token](api.md#api-tokens) they created, for good: promoting them again does not bring the tokens back.
 
 ### Reset a password
 
-Click **Reset password** in the user's row and confirm. The old password stops working, all of the user's sessions end, and a new temporary password is shown once. The user replaces it on their next sign-in. Resetting a password does not change the user's 2FA.
+Click **Reset password** in the user's row and [confirm who you are](#confirming-sensitive-actions). The old password stops working, all of the user's sessions end, and a new temporary password is shown once. The user replaces it on their next sign-in. Resetting a password does not change the user's 2FA.
 
 ### Reset two-factor authentication
 
@@ -88,7 +88,7 @@ You cannot change your own role, delete your own account, or reset your own 2FA 
 
 ### Confirming sensitive actions
 
-Resetting another user's 2FA, turning your own 2FA on or off, changing your password and changing the sign-in settings ask you to confirm who you are: with your current password, or, when you signed in through SSO, by signing in again at the identity provider. See [Confirming sensitive actions](single-sign-on.md#confirming-sensitive-actions). **Reset 2FA** and saving the sign-in settings accept at most 5 attempts per 15 minutes.
+Creating a user, changing a role, resetting another user's password or 2FA, creating an [API token](api.md#api-tokens), turning your own 2FA on or off, changing your password and changing the sign-in settings ask you to confirm who you are, so a stolen session alone cannot add an administrator or mint a token: with your current password, or, when you signed in through SSO, by signing in again at the identity provider. See [Confirming sensitive actions](single-sign-on.md#confirming-sensitive-actions). These actions accept at most 5 attempts per 15 minutes.
 
 ## Your own account
 
@@ -169,12 +169,13 @@ The **Audit Log** (administrators only) records who changed what and when. Each 
 | Vault, Vault Secret | Create, update, delete (secret values never) |
 | Branding, Status Page Layout, Language | Branding and page builder saves, translation changes |
 | User | Create (also viewer accounts created through SSO), role change, password reset, delete |
+| Vault Secret (revealed) | An administrator revealed a secret value: **Allowed**, with who and which secret, never the value. |
 | API Token | Created or revoked: name, permissions, the first characters of the token and its expiry, never the token. |
 | Import | One entry for each import that changed something, with the counts (created, updated, unchanged). Every monitor and channel it changed also has an entry of its own. |
 | Monitor (heartbeat token) | Resetting the heartbeat token of a webhook monitor is recorded as `heartbeat_token_reset`, never the token. |
 | User Security | Password changed, 2FA turned on or off, 2FA reset by an administrator (`admin_recovery`) or from the command line (`emergency_cli`), SSO account linked, temporary password revoked by an SSO sign-in |
 | SSO Settings, Status Page Access | Settings changes |
-| Backup, Backup Schedule | Backup created or deleted, schedule changes |
+| Backup, Backup Schedule | Backup created, downloaded (**Allowed**) or deleted, schedule changes |
 | Sign-in | Every sign-in with a password or SSO: **Allowed** (with the method and whether a 2FA code was used) or **Denied** (with the reason) |
 
 A change made with an [API token](api.md#api-tokens) is recorded as `token: <name>`, not under a user.

@@ -405,6 +405,7 @@
     "entity-keys-backfill-v1",
     "monitor-daily-results-v1",
     "monitors-seed-alert-confirmed-status-v1",
+    "sealed-inline-secrets-v1",
     "sso-users-temporary-password-revoked-v1",
     "subscriber-manage-token-hash-v1"
   ]

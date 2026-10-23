@@ -3,7 +3,9 @@ export interface ShutdownSteps {
   stopIntake: () => void
   /** Stops accepting connections and resolves once in-flight requests have finished. */
   closeServer: () => Promise<void>
-  /** Closes the DB and releases the app lock — only safe once no request can still use them. */
+  /** Resolves once background work that started before the stop (a check about to record its result, say) has finished. */
+  drain?: () => Promise<void>
+  /** Closes the DB and releases the app lock — only safe once no request or background work can still use them. */
   releaseResources: () => void
   exit: (code: number) => void
   forceExitMs?: number
@@ -12,7 +14,7 @@ export interface ShutdownSteps {
 export interface RuntimeShutdown {
   /** Immediate full teardown, for paths where the server never started or has already closed. */
   cleanup: () => void
-  /** Signal handler: drain the server first, then release shared resources and exit. */
+  /** Signal handler: drain the server and the background work first, then release shared resources and exit. */
   shutdown: () => void
 }
 
@@ -33,7 +35,8 @@ export function createRuntimeShutdown(steps: ShutdownSteps): RuntimeShutdown {
   }
   const cleanup = () => {
     stopIntake()
-    release()
+    // A signal-driven shutdown releases after the drain; the server's close hook fires before it.
+    if (!shuttingDown) release()
   }
   const finish = (code: number) => {
     clearTimeout(forceExit)
@@ -52,7 +55,8 @@ export function createRuntimeShutdown(steps: ShutdownSteps): RuntimeShutdown {
       }, steps.forceExitMs ?? 5_000)
       forceExit.unref()
       stopIntake()
-      steps.closeServer().then(() => finish(0), () => finish(1))
+      // The forced exit above is the deadline of the drain: work still running by then is left to the next start.
+      steps.closeServer().then(() => steps.drain?.()).then(() => finish(0), () => finish(1))
     },
   }
 }

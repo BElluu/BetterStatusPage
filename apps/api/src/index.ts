@@ -7,6 +7,7 @@ import { closeDb, initDb } from './db/client.js'
 import { runMigrations } from './db/migrate.js'
 import { registerApiRoutes } from './apiRoutes.js'
 import { acquireAppLock } from './kit/appLock.js'
+import { drainScheduler } from './workers/scheduler.js'
 import { startBackgroundServices, stopBackgroundServices } from './services/backgroundServices.js'
 import { validateEncryptionKey as validateVaultEncryptionKey } from '@better-kit/vault'
 import { sseService } from './kit/sse.js'
@@ -28,7 +29,9 @@ const { run } = await createBetterApp({
   frontends: (app) => registerProductionFrontends(app, path.join(__dirname, '../../admin/dist'), path.join(__dirname, '../../status/dist'), isSetupComplete),
   acquireLock: acquireAppLock,
   stopIntake: () => sseService.closeAll(),
-  backgroundServices: { start: startBackgroundServices, stop: stopBackgroundServices },
+  backgroundServices: { start: startBackgroundServices, stop: stopBackgroundServices, drain: drainScheduler },
+  // A running check finishes and records its result first; one that hangs must not hold the restart longer than this.
+  shutdownDeadlineMs: 20_000,
 })
 
 await run()

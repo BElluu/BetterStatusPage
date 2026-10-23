@@ -12,8 +12,8 @@ import { checkPostgres } from './postgres.js'
 import { checkMysql } from './mysql.js'
 import { checkMongo } from './mongodb.js'
 import { checkDocker } from './docker.js'
-import { sendNotifications } from './notifier.js'
-import { scheduleActionRuns } from './actionRunner.js'
+import { attemptNotificationDelivery, planNotifications } from './notifier.js'
+import { attemptActionRun, planActionRuns } from './actionRunner.js'
 import { checkCertificateExpiry } from './certificate.js'
 import { skipsTlsVerification } from './httpAuth.js'
 import { RESULT_IN_MAINTENANCE, RESULT_UNCONFIRMED } from '../db/resultMarks.js'
@@ -54,6 +54,22 @@ export function getDueMonitors(allMonitors: MonitorRow[], now = Date.now()): Mon
  * (or by "check now") and could fire the same alert twice.
  */
 const inFlight = new Set<number>()
+
+/**
+ * Work that outlives the call that started it: scheduler ticks and the sending of confirmed alerts. Shutdown waits
+ * for it (see drainScheduler) so the database is not closed under a check that is about to record its result.
+ */
+const background = new Set<Promise<unknown>>()
+
+function track(work: Promise<unknown>): void {
+  const entry = work.catch(() => undefined).finally(() => background.delete(entry))
+  background.add(entry)
+}
+
+/** Resolves once the ticks and sends running now, and any they start meanwhile, have finished. */
+export async function drainScheduler(): Promise<void> {
+  while (background.size > 0) await Promise.all([...background])
+}
 
 export function isCheckInFlight(monitorId: number): boolean {
   return inFlight.has(monitorId)
@@ -174,7 +190,7 @@ export async function recordObservation(
   const checkedAt = Date.now()
 
   // Read to write in one transaction: the result and the monitor's state move together. Everything inside is
-  // database work only (see withImmediateTransaction); notifications and incidents follow after the commit.
+  // database work only (see withImmediateTransaction); sending and incidents follow after the commit.
   const recorded = await withImmediateTransaction(async () => {
     // `monitor` was read before the check ran and may be stale: a heartbeat or another observation can have moved
     // the alert_* state and the outage clock since, so the transition is judged against the current row.
@@ -224,24 +240,35 @@ export async function recordObservation(
         alertPendingCount: transition.alertPendingCount,
       } : {}),
     }).where(eq(monitors.id, current.id))
-    return { current, transition, fireStatus, failingSince }
+    // The deliveries and action runs of a confirmed change are recorded with it, for every channel and action
+    // before any of them is sent: a restart in the middle of a slow send cannot lose the ones not reached yet,
+    // because the alert state that confirmed the change is not committed without them.
+    const fire = transition?.fire
+    const dueNow = fire
+      ? {
+          deliveries: await planNotifications(current, fire.status, fire.previousStatus, result.error),
+          actionRuns: await planActionRuns(current, fire.status, fire.previousStatus, result.error),
+        }
+      : null
+    return { current, transition, fireStatus, failingSince, dueNow }
   })
   if (!recorded) return
-  const { current, transition, fireStatus, failingSince } = recorded
+  const { current, transition, fireStatus, failingSince, dueNow } = recorded
 
   // By default always broadcast so the admin UI can update lastCheckedAt and status in real-time.
   if ((options.broadcast ?? 'always') === 'always' || current.currentStatus !== result.status) {
     sseService.broadcast('monitor.status', { monitorId: current.id, status: result.status, responseMs: result.responseMs, checkedAt })
   }
 
-  const fire = transition?.fire
-  if (fire) {
-    sendNotifications(current, fire.status, fire.previousStatus, result.error).catch((err) =>
-      console.error('[notifier] sendNotifications failed:', err),
-    )
-    scheduleActionRuns(current, fire.status, fire.previousStatus, result.error).catch((err) =>
-      console.error('[actions] scheduleActionRuns failed:', err),
-    )
+  // Sent side by side and not awaited: a channel that hangs holds up neither the others nor the next check. What is
+  // not sent by the time the process stops stays recorded as due and is sent by the workers after the restart.
+  if (dueNow) {
+    for (const deliveryId of dueNow.deliveries) {
+      track(attemptNotificationDelivery(deliveryId).catch((err) => console.error('[notifier] delivery failed:', err)))
+    }
+    for (const runId of dueNow.actionRuns) {
+      track(attemptActionRun(runId).catch((err) => console.error('[actions] Run failed:', err)))
+    }
   }
 
   // Checked on every observation, not only on transitions: the incident opens once the outage has lasted long enough.
@@ -348,7 +375,7 @@ export function getSchedulerHealth(): SchedulerHealth {
 export function startScheduler(config: SchedulerConfig = getSchedulerConfig()): void {
   if (tasks.length > 0) return
   tasks.push(cron.schedule(config.tickCron, () => {
-    runSchedulerTick(undefined, config).catch((err) => console.error('[scheduler] tick error:', err))
+    track(runSchedulerTick(undefined, config).catch((err) => console.error('[scheduler] tick error:', err)))
   }))
   tasks.push(cron.schedule(config.resultPurgeCron, () => {
     purgeOldResults(undefined, config).catch(console.error)

@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify'
 import type { SqliteDatabase } from '@better-kit/db'
 import { createHashicorp } from './hashicorp.js'
-import { createSecretBox } from './secretBox.js'
+import { createSecretBox, type SecretBox } from './secretBox.js'
 import { createSecretResolver } from './resolveSecret.js'
 import { createVaultRoutes, type VaultAudit } from './vaultRoutes.js'
 
@@ -13,6 +13,8 @@ export interface VaultOptions {
   identity: (req: FastifyRequest) => { userId: number; email: string }
   /** Where the encryption key comes from. Defaults to the process environment. */
   env?: NodeJS.ProcessEnv
+  /** A box the application already created, for the tables that seal their own columns; it is made from `env` when absent. */
+  secretBox?: SecretBox
 }
 
 /**
@@ -20,7 +22,7 @@ export interface VaultOptions {
  * its value, and the routes that manage them. Everything is built from `options` and kept in the returned closures.
  */
 export function createVault(options: VaultOptions) {
-  const secretBox = createSecretBox(options.env ? { env: options.env } : {})
+  const secretBox = options.secretBox ?? createSecretBox(options.env ? { env: options.env } : {})
   const ctx = { db: options.db, secretBox }
   const hashicorp = createHashicorp(ctx)
   const resolver = createSecretResolver(ctx, hashicorp)

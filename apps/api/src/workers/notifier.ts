@@ -25,12 +25,17 @@ const dispatchToChannel = (
   details: { monitorId: number | null; monitorName: string; eventType: string },
 ) => engine.dispatch(channel, vars, { sourceId: details.monitorId, sourceName: details.monitorName, eventType: details.eventType })
 
-export async function sendNotifications(
+/**
+ * Records the delivery of a status change for every channel linked to the monitor, and resolves to the deliveries
+ * that are due now. Nothing is sent here, so a caller can record them in the transaction that confirmed the change
+ * and send after it commits; a recorded delivery that was never sent is sent by the retry worker.
+ */
+export async function planNotifications(
   monitor: typeof monitors.$inferSelect,
   newStatus: MonitorStatus,
   prevStatus: string,
   errorMessage: string | null,
-) {
+): Promise<number[]> {
   const isDown = newStatus === 'down' || newStatus === 'degraded'
   // 'affected' = monitor failed but a dependency is already down — suppress alert (root cause fires its own)
   // Recovery from 'affected' is suppressed too, unless this monitor had alerted on its own before it
@@ -39,10 +44,9 @@ export async function sendNotifications(
     prevStatus === 'down' || prevStatus === 'degraded' ||
     (prevStatus === 'affected' && await hasOpenAlert(monitor.id))
   )
-  if (!isDown && !isRecovery) return
+  if (!isDown && !isRecovery) return []
 
   const channels = await linkedChannels(monitor.id)
-  if (channels.length === 0) return
 
   const eventType = isRecovery ? 'recovery' : 'alert'
   const vars: Record<string, string> = {
@@ -58,11 +62,25 @@ export async function sendNotifications(
     affected_count: '1',
   }
 
+  const dueNow: number[] = []
   for (const channel of channels) {
     if (channel.enabled !== 1) continue
     if (isRecovery && channel.notifyOnRecovery !== 1) continue
-    await dispatchToChannel(channel, vars, { monitorId: monitor.id, monitorName: monitor.name, eventType })
+    const deliveryId = await engine.plan(channel, vars, { sourceId: monitor.id, sourceName: monitor.name, eventType })
+    if (deliveryId !== null) dueNow.push(deliveryId)
   }
+  return dueNow
+}
+
+/** Records the delivery for every channel, then sends them all at once: a channel that hangs does not hold up the others. */
+export async function sendNotifications(
+  monitor: typeof monitors.$inferSelect,
+  newStatus: MonitorStatus,
+  prevStatus: string,
+  errorMessage: string | null,
+) {
+  const dueNow = await planNotifications(monitor, newStatus, prevStatus, errorMessage)
+  await Promise.all(dueNow.map((deliveryId) => engine.attemptDelivery(deliveryId)))
 }
 
 export interface CertificateEvent {

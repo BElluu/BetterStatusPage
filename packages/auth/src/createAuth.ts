@@ -33,7 +33,7 @@ export function createAuth(options: AuthOptions) {
   const signIn = createSignInRoutes(options, { sessions, middleware, twoFactor, identityConfirmation, signInAudit, oidcSettings, oidc })
   const users = createUserRoutes(options, { sessions, twoFactor, identityConfirmation })
   const oidcSettingsRoutes = createOidcSettingsRoutes(options, { identityConfirmation, oidc, oidcSettings, resolver: oidcConfig, startOidcFlow: signIn.startOidcFlow })
-  const tokenRoutes = createApiTokenRoutes(options, apiTokens)
+  const tokenRoutes = createApiTokenRoutes(options, apiTokens, identityConfirmation)
 
   return {
     sessions,

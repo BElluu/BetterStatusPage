@@ -74,28 +74,35 @@ describe('UsersPage confirmations and feedback', () => {
     await user.click(await screen.findByRole('button', { name: 'Reset password for operator@example.test' }))
     expect(screen.getByText('Reset password for operator@example.test? Their current password will stop working.')).toBeInTheDocument()
     expect(api.post).not.toHaveBeenCalled()
+    await user.type(screen.getByLabelText('Your current password'), 'admin-password')
     await user.click(screen.getByRole('button', { name: 'Reset password' }))
 
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/users/2/reset-password', {}))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/users/2/reset-password', { currentPassword: 'admin-password' }))
     expect(await screen.findByText('tmp-123')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('confirms a demotion but promotes immediately', async () => {
+  it('asks for the password on every role change, and warns about a demotion', async () => {
     const user = userEvent.setup()
     vi.mocked(api.patch).mockResolvedValue({})
     renderPage()
 
     await user.click(await screen.findByRole('button', { name: 'Admin' }))
-    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/users/2/role', { role: 'admin' }))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('lose access')
+    expect(api.patch).not.toHaveBeenCalled()
+    await user.type(screen.getByLabelText('Your current password'), 'admin-password')
+    await user.click(screen.getByRole('button', { name: 'Make Admin' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/users/2/role', { role: 'admin', currentPassword: 'admin-password' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 
     vi.mocked(api.patch).mockClear()
     await user.click(screen.getByRole('button', { name: 'Branding' }))
     expect(screen.getByRole('dialog')).toHaveTextContent('from Operator to Branding')
+    expect(screen.getByRole('dialog')).toHaveTextContent('lose access')
     expect(api.patch).not.toHaveBeenCalled()
+    await user.type(screen.getByLabelText('Your current password'), 'admin-password')
     await user.click(screen.getByRole('button', { name: 'Make Branding' }))
-    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/users/2/role', { role: 'branding' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/users/2/role', { role: 'branding', currentPassword: 'admin-password' }))
   })
 
   it('shows loading and error states with retry', async () => {
@@ -128,9 +135,27 @@ describe('UsersPage roles', () => {
     await user.type(screen.getByLabelText('Email'), 'reader@example.test')
     await user.selectOptions(screen.getByRole('combobox', { name: 'Role' }), 'viewer')
     await user.click(screen.getByRole('button', { name: 'Create' }))
+    expect(api.post).not.toHaveBeenCalled()
+    await user.type(screen.getByLabelText('Your current password'), 'admin-password')
+    await user.click(screen.getByRole('button', { name: 'Create user' }))
 
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/users', { email: 'reader@example.test', role: 'viewer' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/users', { email: 'reader@example.test', role: 'viewer', currentPassword: 'admin-password' }))
     expect(await screen.findByText('tmp-456')).toBeInTheDocument()
+  })
+
+  it('stays on the password prompt and shows why when the password is wrong', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.post).mockRejectedValueOnce(new Error('Current password is incorrect'))
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: /New User/ }))
+    await user.type(screen.getByLabelText('Email'), 'reader@example.test')
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+    await user.type(screen.getByLabelText('Your current password'), 'nope')
+    await user.click(screen.getByRole('button', { name: 'Create user' }))
+
+    expect(await screen.findByText('Current password is incorrect')).toBeInTheDocument()
+    expect(screen.getByLabelText('Your current password')).toBeEnabled()
   })
 
   it('opens the dialogs the application adds next to single sign-on, and closes them', async () => {

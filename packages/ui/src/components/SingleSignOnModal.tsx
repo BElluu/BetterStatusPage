@@ -96,7 +96,7 @@ export function SingleSignOnModal({ onClose }: { onClose: () => void }) {
           <Field label="Client ID">
             <input className="input-m3" value={form.clientId} onChange={(e) => update({ clientId: e.target.value })} autoComplete="off" />
           </Field>
-          <Field label="Client secret" hint={form.hasClientSecret ? 'A secret is stored. Leave empty to keep it.' : 'Optional for public clients.'}>
+          <Field label="Client secret" hint={form.hasClientSecret ? 'A secret is stored. Leave empty to keep it. Re-enter it when you change the issuer URL or client ID.' : 'Optional for public clients.'}>
             <input
               className="input-m3" type="password" autoComplete="new-password" value={clientSecret}
               onChange={(e) => setClientSecret(e.target.value)}

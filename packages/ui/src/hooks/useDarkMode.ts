@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { safeLocalStorage } from '@better-kit/contracts'
 import { storageKey } from '../config'
 
 // The public status app keeps a copy of this hook with the same behaviour, since it does not use this package.
@@ -6,7 +7,7 @@ import { storageKey } from '../config'
 export function useDarkMode(): [boolean, () => void] {
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === 'undefined') return false
-    const stored = localStorage.getItem(storageKey('dark-mode'))
+    const stored = safeLocalStorage.get(storageKey('dark-mode'))
     if (stored !== null) return stored === 'true'
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
@@ -18,7 +19,7 @@ export function useDarkMode(): [boolean, () => void] {
     } else {
       html.classList.remove('dark')
     }
-    localStorage.setItem(storageKey('dark-mode'), String(isDark))
+    safeLocalStorage.set(storageKey('dark-mode'), String(isDark))
     // Every mounted instance (e.g. the sidebar toggle and a page that swaps its logo) listens for this, so one toggle
     // updates them all.
     window.dispatchEvent(new CustomEvent(storageKey('dark-mode-change'), { detail: isDark }))

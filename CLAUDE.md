@@ -75,6 +75,7 @@ Copy `apps/template` (server in `src/server`, interface in `web/`). The server i
 
 - Tests and the end-to-end scenarios run through `tsx`, which does not check types; `npm run typecheck` (`tsconfig.test.json`) does, and CI runs it. Run it after editing tests.
 
+- Icons come from a subset of Material Symbols. After using a new icon name, run `npm run build:icons` to add it to the fonts (`npm run check:icons` fails in CI otherwise).
 - Rename code, CSS, and DB identifiers when UI wording changes; names must match what the UI says.
 - Do not reference other products as the model for a feature in docs, README, or code comments.
 - README links point to `https://docs.betterstatuspage.dev/<slug>/`; the changelog lives in `docs/changelog.md`.

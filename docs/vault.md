@@ -28,6 +28,17 @@ There is no way to recover secrets without the original key, and no built-in way
 
 The same key also encrypts the single sign-on client secret, two-factor authentication secrets and the custom headers of webhook subscriptions, so losing it affects those too.
 
+### Credentials typed into a monitor, action or channel
+
+> [!WARNING]
+> **Not released yet.** Until a release includes it, credentials typed in directly are stored as plain text; to get this, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+A credential you type straight into a monitor, an action or a notification channel, instead of choosing it from a vault, is encrypted with the same key before it is written to the database: the password of a database monitor and the basic, OAuth 2 and CAS credentials and credential headers of an HTTP monitor; the headers of a webhook channel or action; the webhook URL of Slack, Discord and Teams; the token of Telegram, ntfy and Pushover; and the SMTP password. Other settings (hosts, URLs, names) stay readable. A copy of the database file, or a [backup](backup-restore.md), then does not carry these credentials without `VAULT_ENCRYPTION_KEY`.
+
+The first start after the upgrade encrypts what is already stored. If there is anything to encrypt and `VAULT_ENCRYPTION_KEY` is not set outside development, that start stops instead of encrypting with the built-in development key. The admin console, the API and config files work as before: secrets are shown masked and a masked value sent back keeps the stored one. If the key does not match the one the credentials were encrypted with, reading them fails with an error rather than using a wrong value, so monitoring stays stopped until the right key is back.
+
+What is not a credential field is not encrypted: the body and URL of an action, the query string of a webhook URL and a login written into a URL (`https://user:pass@host`). Put such secrets in a vault and reference them.
+
 ### Backups and the key
 
 Backups never contain `VAULT_ENCRYPTION_KEY`. Each backup records a fingerprint (SHA-256) of the key it was made with, and a restore refuses to run unless you pass the same key. Store the key somewhere outside the server, next to where your backups go. See [Backup and restore](backup-restore.md) and the [environment variables reference](deployment.md#environment-variables).
@@ -205,4 +216,4 @@ A [configuration document](configuration-as-code.md#secrets) refers to a secret 
 
 ### Audit log
 
-Creating, renaming and deleting a vault, and creating, changing and deleting a secret, are written to the audit log as **Vault** and **Vault Secret**. A secret is shown as `vault name / secret name`. For a HashiCorp Vault vault the entry shows the address, namespace, mount and auth method (never the token, Role ID or Secret ID; replacing them is logged as `credentials: [redacted] → [redacted]`), and a secret reference shows its path and key. When a value changes the entry shows `value: [redacted] → [redacted]`; secret values never reach the audit log. Revealing a secret is not logged.
+Creating, renaming and deleting a vault, and creating, changing and deleting a secret, are written to the audit log as **Vault** and **Vault Secret**. A secret is shown as `vault name / secret name`. For a HashiCorp Vault vault the entry shows the address, namespace, mount and auth method (never the token, Role ID or Secret ID; replacing them is logged as `credentials: [redacted] → [redacted]`), and a secret reference shows its path and key. When a value changes the entry shows `value: [redacted] → [redacted]`; secret values never reach the audit log. Revealing a secret is logged as an **Allowed** entry on the secret with the administrator's email, never the value.

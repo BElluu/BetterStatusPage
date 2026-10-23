@@ -3,6 +3,7 @@ import { backfillKeys } from '@better-kit/config-as-code'
 import type { MigrationStep } from '@better-kit/db'
 import { createSecretBox } from '@better-kit/vault'
 import { createHash } from 'node:crypto'
+import { sealStoredSecrets } from '../../../services/sealedColumns.js'
 import { rebuildDailyResults } from '../../dailyResults.js'
 
 /** Everything the application adds to the shared tables. Steps run in this order. */
@@ -437,4 +438,6 @@ CREATE TABLE IF NOT EXISTS static_mirror_runs (
     for (const row of rows) update.run(encrypt(row.manage_token), createHash('sha256').update(row.manage_token).digest('hex'), row.id)
   } },
   { kind: 'exec', sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_subscribers_manage_token_hash ON subscribers(manage_token_hash)` },
+  // Credentials entered straight into a monitor, action or channel (and the SMTP password) were stored in the clear.
+  { kind: 'data', name: 'sealed-inline-secrets-v1', run: sealStoredSecrets },
 ]

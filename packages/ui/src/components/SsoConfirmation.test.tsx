@@ -56,7 +56,7 @@ describe('useSsoConfirmation', () => {
     render(<Harness action={action} />)
 
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    await waitFor(() => expect(open).toHaveBeenCalledWith('/api/v1/auth/oidc/confirm', 'bsp-sso-confirm', expect.stringContaining('popup')))
+    await waitFor(() => expect(open).toHaveBeenCalledWith('/api/v1/auth/oidc/confirm', 'test-sso-confirm', expect.stringContaining('popup')))
     expect(await screen.findByRole('button', { name: 'Cancel' })).toBeInTheDocument()
 
     reportFromPopup(true)

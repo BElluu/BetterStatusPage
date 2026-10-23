@@ -58,6 +58,9 @@ describe('backup routes', () => {
     const download = await app.inject(`/backups/${filename}/download`)
     assert.equal(download.headers['content-disposition'], `attachment; filename="${filename}"`)
     assert.equal(download.rawPayload.subarray(0, 8).toString(), 'KITBKP01')
+    // A copy of the whole database leaving the server is on record, with who took it.
+    const downloads = audit.sqlite.prepare("select user_email, entity_name from audit_log where action = 'allow' and entity_type = 'backup'").all()
+    assert.deepEqual(downloads.map((row) => ({ ...row })), [{ user_email: 'admin@example.test', entity_name: filename }])
     assert.equal((await app.inject('/backups/kit-backup-1.backup/download')).statusCode, 404)
     assert.equal((await app.inject('/backups/..%2Fx/download')).statusCode, 400)
   })

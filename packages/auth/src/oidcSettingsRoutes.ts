@@ -11,7 +11,7 @@ interface SettingsBody {
   enabled?: boolean
   issuer?: string
   clientId?: string
-  /** Non-empty replaces the stored secret; omitted or empty keeps it. */
+  /** Non-empty replaces the stored secret; omitted or empty keeps it, unless the issuer or client ID changed. */
   clientSecret?: string
   scopes?: string
   redirectUri?: string
@@ -85,6 +85,12 @@ export function createOidcSettingsRoutes(ctx: AuthOptions, parts: {
 
       const previous = await getOidcSettingsRow()
       const secretChanged = !!body.clientSecret?.trim()
+      // The stored secret is sent to the issuer's token endpoint, so it must not follow a changed target.
+      if (previous?.clientSecret && !secretChanged && (
+        (body.issuer ?? '').trim() !== previous.issuer || (body.clientId ?? '').trim() !== previous.clientId
+      )) {
+        return reply.code(400).send({ error: 'Re-enter the client secret when changing the issuer URL or client ID' })
+      }
       const clientSecret = secretChanged ? secretBox.encrypt(body.clientSecret!.trim()) : previous?.clientSecret ?? ''
       const next: OidcSettingsRow = {
         id: 1,

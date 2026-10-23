@@ -123,6 +123,16 @@ describe('OIDC settings', () => {
     assert.equal(audit.some((entry) => (entry.diff ?? '').includes(valid.clientSecret)), false)
   })
 
+  it('refuses to keep the stored secret when the issuer or client ID changes', async () => {
+    const { clientSecret: _omit, ...withoutSecret } = valid
+    const before = (await db.select().from(oidcSettings))[0]!.clientSecret
+    for (const change of [{ issuer: 'https://other-idp.example.test' }, { clientId: 'other-client' }]) {
+      const response = await app.inject({ method: 'PUT', url: '/admin/oidc', headers: admin, payload: { ...withoutSecret, ...change } })
+      assert.equal(response.statusCode, 400)
+    }
+    assert.equal((await db.select().from(oidcSettings))[0]!.clientSecret, before)
+  })
+
   it('refuses to disable password login when the IdP cannot be reached', async () => {
     const response = await app.inject({
       method: 'PUT', url: '/admin/oidc', headers: admin,
