@@ -23,6 +23,7 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ### Fixed
 
+- **Single sign-on secret after changing the issuer**: changing the issuer URL or client ID in the SSO settings now requires entering the client secret again, so the stored secret is never sent to a different identity provider.
 - **Confirming an outage no longer scans the whole history**: marking the checks of a failing streak as counted looks them up by time on the monitor's index instead of walking its whole history, so a mass outage no longer holds the database for seconds (36 ms to 0.03 ms for a monitor with 130,000 results).
 - **Check errors are no longer swallowed**: a monitor whose stored configuration cannot be read is recorded as **Down** with the error, instead of the check aborting without a result and the monitor staying at its last status (for example **Up**). A failure to store a check result is logged with the monitor ID.
 - **Alternating down and degraded now alerts**: with a failure threshold above 1, a monitor that swapped between **Down** and **Degraded** on every check never reached the threshold, so it never alerted and its results counted as healthy. Both statuses now form one failing streak and the alert reports the last one. Monitors that behaved like this will start alerting.

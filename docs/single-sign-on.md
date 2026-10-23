@@ -27,7 +27,7 @@ No restart or `.env` change is needed.
    | Field | Notes |
    |-------|-------|
    | Issuer URL | The provider's issuer, for example `https://login.microsoftonline.com/<tenant-id>/v2.0` or `https://keycloak.example.com/realms/main`. `/.well-known/openid-configuration` must be reachable from the server. Use `https`; plain `http` works only for a provider that is itself served over http, such as a local test Keycloak. |
-   | Client ID / Client secret | The secret is stored encrypted with `VAULT_ENCRYPTION_KEY` and is never shown again. Leave the field empty to keep the stored one. |
+   | Client ID / Client secret | The secret is stored encrypted with `VAULT_ENCRYPTION_KEY` and is never shown again. Leave the field empty to keep the stored one, except when you change the issuer URL or client ID: the secret would be sent to the new issuer, so it must be entered again. |
    | Redirect URI | Optional. Defaults to `PUBLIC_URL` + `/api/v1/auth/oidc/callback`. Set it when the admin panel is served from another origin. |
    | Scopes | Defaults to `openid email profile`. |
    | Button label | Text of the button on the sign-in page. |
