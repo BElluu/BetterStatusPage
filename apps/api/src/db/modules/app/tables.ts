@@ -40,6 +40,8 @@ export const monitors = sqliteTable('monitors', {
   autoIncidentTemplateId: integer('auto_incident_template_id'),
   /** When the currently confirmed outage began; null while the monitor is not confirmed failing. */
   failingSince: integer('failing_since'),
+  /** api_tokens.id of the token whose first heartbeat by key created the monitor; null for a monitor made any other way. */
+  autoCreatedByTokenId: integer('auto_created_by_token_id'),
 })
 
 export const monitorResults = sqliteTable('monitor_results', {

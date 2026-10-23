@@ -7,6 +7,7 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ### Added
 
+- **Monitors created by their first heartbeat**: a webhook monitor can be addressed by its key, `/api/v1/hook/key/<key>`, with an API token (`monitors:write`) in a bearer header. The first heartbeat for a key that has no monitor creates one, so a sender that can only be given one templated URL, such as the webhook of a Proxmox Backup Server, needs no monitor made by hand for each job. One token may create 50 monitors an hour this way (`HEARTBEAT_AUTO_CREATE_LIMIT`, `0` for no limit). The first heartbeat can set the monitor's `name` and `interval`. See [Monitors](monitors.md#sending-by-key-created-on-the-first-heartbeat).
 - **Performance benchmark**: `npm run bench` measures the scheduler, the write path and the public API against a temporary database with any number of monitors and days of history. Results for 10, 25, 100 and 250 monitors are in [Performance](performance.md).
 
 ### Changed

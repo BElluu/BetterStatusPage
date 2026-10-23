@@ -311,6 +311,7 @@ CREATE TABLE IF NOT EXISTS status_page_access (
   { kind: 'column', sql: `ALTER TABLE monitors ADD COLUMN auto_incident_mode TEXT NOT NULL DEFAULT 'draft'`, desc: 'monitors.auto_incident_mode' },
   { kind: 'column', sql: `ALTER TABLE monitors ADD COLUMN auto_incident_template_id INTEGER`, desc: 'monitors.auto_incident_template_id' },
   { kind: 'column', sql: `ALTER TABLE monitors ADD COLUMN failing_since INTEGER`, desc: 'monitors.failing_since' },
+  { kind: 'column', sql: `ALTER TABLE monitors ADD COLUMN auto_created_by_token_id INTEGER`, desc: 'monitors.auto_created_by_token_id' },
   { kind: 'column', sql: `ALTER TABLE incidents ADD COLUMN draft INTEGER NOT NULL DEFAULT 0`, desc: 'incidents.draft' },
   { kind: 'column', sql: `ALTER TABLE incidents ADD COLUMN auto_monitor_id INTEGER`, desc: 'incidents.auto_monitor_id' },
   { kind: 'column', sql: `ALTER TABLE maintenance_windows ADD COLUMN recurrence TEXT NOT NULL DEFAULT 'none'`, desc: 'maintenance_windows.recurrence' },
