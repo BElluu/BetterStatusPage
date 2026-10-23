@@ -24,7 +24,7 @@ It does not contain:
 - `JWT_SECRET`,
 - `VAULT_ENCRYPTION_KEY`.
 
-Keep `VAULT_ENCRYPTION_KEY` separately. Restore requires it explicitly because encrypted vault records cannot be validated or used without the original key.
+Keep `VAULT_ENCRYPTION_KEY` separately. Restore requires it explicitly because encrypted vault records cannot be validated or used without the original key. The credentials typed into monitors, actions and channels and the SMTP password are encrypted with the same key (see [Vault](vault.md#credentials-typed-into-a-monitor-action-or-channel)), so the backup file alone does not reveal them either.
 
 ## Create a backup
 

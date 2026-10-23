@@ -5,7 +5,8 @@ import { parseAllDocuments, stringify } from 'yaml'
 import { db, sqlite } from '../src/db/client.js'
 import { vaultSecrets, vaults } from '../src/db/schema.js'
 import { configRoutes } from '../src/kit/configRoutes.js'
-import { SECRET_MASK } from '../src/services/secretFields.js'
+import { sealer } from '../src/kit/sealer.js'
+import { configCodec, SECRET_MASK } from '../src/services/secretFields.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const testDb = createTestDb('bsp-config-import-')
@@ -70,7 +71,8 @@ async function applied(documents: unknown): Promise<Doc> {
 }
 
 const rows = (table: string) => sqlite.prepare(`SELECT * FROM ${table} ORDER BY 1, 2`).all() as Array<Record<string, any>> // eslint-disable-line @typescript-eslint/no-explicit-any
-const stored = (key: string) => JSON.parse((sqlite.prepare('SELECT config FROM monitors WHERE key = ?').get(key) as { config: string }).config)
+const openMonitorConfig = configCodec('monitor', sealer).open
+const stored = (key: string) => JSON.parse(openMonitorConfig((sqlite.prepare('SELECT config FROM monitors WHERE key = ?').get(key) as { config: string }).config))
 const everything = () => JSON.stringify(['monitors', 'notification_channels', 'monitor_notification_channels', 'monitor_dependencies'].map(rows))
 const change = (result: Doc, kind: string, key?: string) => result['changes'].find((c: Doc) => c['kind'] === kind && c['key'] === key)
 

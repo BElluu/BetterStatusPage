@@ -12,6 +12,8 @@
  * extra keys), and those must not read back in the clear.
  */
 
+import type { Sealer } from './sealed.js'
+
 export const SECRET_MASK = '••••••••'
 
 /** Three bullets in a row are never part of a real secret; they are a mask, or a mask somebody edited by hand. */
@@ -137,5 +139,35 @@ export function createSecretFields<Kind extends string>(kinds: Readonly<Record<K
     return null
   }
 
-  return { maskSecrets, restoreSecrets, changedDestination }
+  /** A copy of `config` with every secret that is text passed through `convert` (a vault reference or a number is not text and stays). */
+  function convertSecrets<T>(kind: Kind, config: T, convert: (value: string) => string): T {
+    const copy = structuredClone(config)
+    for (const { holder, key } of slotsIn(copy, kind)) {
+      const value = holder[key]
+      if (typeof value === 'string') holder[key] = convert(value)
+    }
+    return copy
+  }
+
+  /**
+   * The codec of a column that stores a configuration as JSON text: the secrets are encrypted on the way in and opened
+   * on the way out, so a copy of the database alone does not carry them. Text that is not JSON is passed through.
+   */
+  function configCodec(kind: Kind, sealer: Pick<Sealer, 'seal' | 'open'>): Pick<Sealer, 'seal' | 'open'> {
+    const through = (convert: (value: string) => string) => (json: string): string => {
+      let parsed: unknown
+      try { parsed = JSON.parse(json) } catch { return json }
+      // A config without a secret is returned as it was written, not as JSON.stringify would write it.
+      let changed = false
+      const converted = convertSecrets(kind, parsed, (value) => {
+        const result = convert(value)
+        if (result !== value) changed = true
+        return result
+      })
+      return changed ? JSON.stringify(converted) : json
+    }
+    return { seal: through(sealer.seal), open: through(sealer.open) }
+  }
+
+  return { maskSecrets, restoreSecrets, changedDestination, configCodec }
 }

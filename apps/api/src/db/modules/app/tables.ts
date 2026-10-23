@@ -1,6 +1,7 @@
 import { sqliteTable, integer, text, real, primaryKey } from 'drizzle-orm/sqlite-core'
 import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 import { randomEntityKey } from '@better-kit/config-as-code'
+import { actionConfigColumn, monitorConfigColumn } from '../../../services/sealedColumns.js'
 
 export const monitors = sqliteTable('monitors', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -8,7 +9,7 @@ export const monitors = sqliteTable('monitors', {
   type: text('type').notNull(), // 'https'|'ping'|'dns'|'sqlserver'|'postgresql'|'mysql'|'mongodb'
   intervalSecs: integer('interval_secs').notNull().default(60),
   timeoutMs: integer('timeout_ms').notNull().default(10000),
-  config: text('config').notNull(), // JSON
+  config: monitorConfigColumn('config').notNull(), // JSON, secrets encrypted
   currentStatus: text('current_status').notNull().default('pending'),
   lastCheckedAt: integer('last_checked_at'),
   createdAt: integer('created_at').notNull(),
@@ -142,7 +143,7 @@ export const monitorNotificationChannels = sqliteTable('monitor_notification_cha
 export const actions = sqliteTable('actions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
-  config: text('config').notNull().default('{}'), // JSON ActionHttpConfig
+  config: actionConfigColumn('config').notNull().default('{}'), // JSON ActionHttpConfig, secrets encrypted
   enabled: integer('enabled').notNull().default(1),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),

@@ -45,4 +45,4 @@ const secretFields = createSecretFields<ConfigKind>({
   channel: { fields: uniqueSecretFields(Object.values(CHANNEL_SECRETS).flat()), destinations: CHANNEL_DESTINATIONS },
 })
 
-export const { maskSecrets, restoreSecrets, changedDestination } = secretFields
+export const { maskSecrets, restoreSecrets, changedDestination, configCodec } = secretFields
