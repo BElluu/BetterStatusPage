@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import {
-  BackupsPage, ChangePasswordPage, RequireAuth, RequirePasswordChanged, SettingsPage, SetupGate, SetupPage,
+  BackupsPage, ChangePasswordPage, ErrorBoundary, LoadingState, RequireAuth, RequirePasswordChanged, SettingsPage, SetupGate, SetupPage,
   SsoConfirmPage, SsoTestResultPage, VaultPage, createRoleGuard,
 } from '@better-kit/ui'
 import { getCurrentUser } from './api/client'
@@ -45,7 +45,8 @@ function RoleHome() {
 export default function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={null}>
+      <ErrorBoundary>
+      <Suspense fallback={<LoadingState />}>
       <Routes>
         {/* Setup wizard — only accessible when no users exist */}
         <Route path="/admin/setup" element={<SetupPage />} />
@@ -102,6 +103,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/admin/" replace />} />
       </Routes>
       </Suspense>
+      </ErrorBoundary>
     </BrowserRouter>
   )
 }

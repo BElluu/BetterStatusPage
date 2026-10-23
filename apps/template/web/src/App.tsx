@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import {
-  ApiTokensPage, AuditLogPage, BackupsPage, ChangePasswordPage, LoginPage, RequireAuth, RequirePasswordChanged, SettingsPage, SetupGate,
+  ApiTokensPage, AuditLogPage, BackupsPage, ChangePasswordPage, ErrorBoundary, LoadingState, LoginPage, RequireAuth, RequirePasswordChanged, SettingsPage, SetupGate,
   SetupPage, SsoConfirmPage, UsersPage, VaultPage, createAdminShell, createRoleGuard, type AuditEntities,
 } from '@better-kit/ui'
 import { TOKEN_RESOURCES } from '../../src/shared/tokens'
@@ -76,7 +76,8 @@ function Home() {
 export default function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={null}>
+      <ErrorBoundary>
+      <Suspense fallback={<LoadingState />}>
         <Routes>
           <Route path="/setup" element={<SetupPage />} />
           <Route path="/sso-confirm" element={<SsoConfirmPage />} />
@@ -94,6 +95,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
+      </ErrorBoundary>
     </BrowserRouter>
   )
 }
