@@ -54,6 +54,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Icon fonts hold the icons in use
+        run: npm run check:icons
+
       - name: Import cycles through kit/
         run: npm run check:cycles
 

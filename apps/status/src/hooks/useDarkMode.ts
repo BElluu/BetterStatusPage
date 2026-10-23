@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { safeLocalStorage } from '@better-kit/contracts'
 
-// Kept byte-identical in apps/admin and apps/status (the shared package is framework-free and also runs in the API).
+// Mirrors packages/ui's useDarkMode with this app's fixed storage keys; the public app does not depend on @better-kit/ui.
 
 export function useDarkMode(): [boolean, () => void] {
   const [isDark, setIsDark] = useState(() => {

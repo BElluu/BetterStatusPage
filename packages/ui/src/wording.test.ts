@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 const root = path.dirname(fileURLToPath(import.meta.url))
 const sources = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
   const file = path.join(dir, entry.name)
-  if (entry.isDirectory()) return entry.name === 'testing' ? [] : sources(file)
+  if (entry.isDirectory()) return sources(file)
   return /\.(ts|tsx)$/.test(entry.name) && !/\.test\.(ts|tsx)$/.test(entry.name) ? [file] : []
 })
 

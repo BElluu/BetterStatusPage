@@ -132,9 +132,9 @@ describe('SettingsPage security flows', () => {
     await user.click(twoFactor.getByRole('button', { name: 'Set up 2FA' }))
     expect(api.post).toHaveBeenCalledWith('/auth/2fa/setup', {})
     expect(await twoFactor.findByRole('button', { name: 'Cancel' })).toBeInTheDocument()
-    expect(open).toHaveBeenCalledWith('/api/v1/auth/oidc/confirm', 'bsp-sso-confirm', expect.any(String))
+    expect(open).toHaveBeenCalledWith('/api/v1/auth/oidc/confirm', 'test-sso-confirm', expect.any(String))
 
-    const channel = new BroadcastChannel('bsp-sso-confirm')
+    const channel = new BroadcastChannel('test-sso-confirm')
     channel.postMessage({ ok: true })
     channel.close()
     expect(await twoFactor.findByAltText('QR code for two-factor authentication setup')).toBeInTheDocument()
