@@ -6,7 +6,7 @@ The admin panel is a client of the same REST API you can call from scripts, CI/C
 
 ## API tokens
 
-Create tokens in **Administration → API tokens** (administrators only). Click **New token**, enter a **Name**, tick the **Permissions** and choose when it **Expires**, click **Create**, and copy the token.
+Create tokens in **Administration → API tokens** (administrators only). Click **New token**, enter a **Name**, tick the **Permissions** and choose when it **Expires**, click **Create**, [confirm who you are](users-and-roles.md#confirming-sensitive-actions) and copy the token.
 
 | Field | Meaning |
 |---|---|

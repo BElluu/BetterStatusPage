@@ -55,8 +55,8 @@ test('a branding user edits the site name, which the status page picks up', asyn
 test('an operator whose access is revoked is sent to the login page from a live Monitors page', async ({ browser, adminApi }) => {
   // A dedicated account: revoking the shared operator's sessions would break other scenarios.
   const email = `e2e-revoked-${Date.now()}@example.test`
-  const created = await ok<{ id: number; temporaryPassword: string }>(adminApi.post('admin/users', { data: { email } }))
-  await ok(adminApi.patch(`admin/users/${created.id}/role`, { data: { role: 'operator' } }))
+  const created = await ok<{ id: number; temporaryPassword: string }>(adminApi.post('admin/users', { data: { email, currentPassword: ADMIN.password } }))
+  await ok(adminApi.patch(`admin/users/${created.id}/role`, { data: { role: 'operator', currentPassword: ADMIN.password } }))
 
   const context = await browser.newContext()
   const page = await context.newPage()
@@ -76,7 +76,7 @@ test('an operator whose access is revoked is sent to the login page from a live 
   await Promise.all([listLoaded, streamOpened])
 
   // Demoting the user revokes every session; the open live stream ends and the page must notice.
-  await ok(adminApi.patch(`admin/users/${created.id}/role`, { data: { role: 'branding' } }))
+  await ok(adminApi.patch(`admin/users/${created.id}/role`, { data: { role: 'branding', currentPassword: ADMIN.password } }))
   await expect(page).toHaveURL(/\/admin\/login$/, { timeout: 10_000 })
 
   // And it stays there instead of retrying the stream in the background.

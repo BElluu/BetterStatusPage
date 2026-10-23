@@ -291,13 +291,13 @@ describe('authentication security regressions', () => {
     const roleChallenge = (await login(target.email)).json().challengeToken
     const roleVerified = await app.inject({ method: 'POST', url: '/auth/2fa/verify', payload: { challengeToken: roleChallenge, code: generateTotpCode(secret) } })
     const authenticatedRoleSession = sessionHeaders(roleVerified)
-    assert.equal((await app.inject({ method: 'PATCH', url: `/admin/users/${target.id}/role`, headers: adminHeaders, payload: { role: 'branding' } })).statusCode, 200)
+    assert.equal((await app.inject({ method: 'PATCH', url: `/admin/users/${target.id}/role`, headers: adminHeaders, payload: { role: 'branding', currentPassword: password } })).statusCode, 200)
     assert.equal((await app.inject({ url: '/auth/session', headers: authenticatedRoleSession })).statusCode, 401)
     const resetChallenge = (await login(target.email)).json().challengeToken
     const resetVerified = await app.inject({ method: 'POST', url: '/auth/2fa/verify', payload: { challengeToken: resetChallenge, code: generateTotpCode(secret) } })
     const resetSession = sessionHeaders(resetVerified)
     const beforeReset = (await db.select().from(users).where(eq(users.id, target.id)))[0]!
-    const reset = await app.inject({ method: 'POST', url: `/admin/users/${target.id}/reset-password`, headers: adminHeaders })
+    const reset = await app.inject({ method: 'POST', url: `/admin/users/${target.id}/reset-password`, headers: adminHeaders, payload: { currentPassword: password } })
     assert.equal(reset.statusCode, 200)
     assert.equal((await app.inject({ url: '/auth/session', headers: resetSession })).statusCode, 401)
     const afterReset = (await db.select().from(users).where(eq(users.id, target.id)))[0]!

@@ -1,8 +1,8 @@
-import { ADMIN_URL, STATUS_URL, expect, ok, test } from './fixtures'
+import { ADMIN, ADMIN_URL, STATUS_URL, expect, ok, test } from './fixtures'
 
 test('a private status page asks visitors to sign in and shows itself to a viewer', async ({ browser, adminApi }) => {
   const email = `e2e-viewer-${Date.now()}@example.test`
-  const created = await ok<{ temporaryPassword: string }>(adminApi.post('admin/users', { data: { email, role: 'viewer' } }))
+  const created = await ok<{ temporaryPassword: string }>(adminApi.post('admin/users', { data: { email, role: 'viewer', currentPassword: ADMIN.password } }))
   await ok(adminApi.put('admin/status-page-access', { data: { private: true } }))
   const context = await browser.newContext()
   try {

@@ -205,12 +205,12 @@ describe('A private status page', () => {
 
 describe('Viewer accounts', () => {
   it('can be created directly with any valid role', async () => {
-    const created = await app.inject({ method: 'POST', url: '/api/v1/admin/users', headers: admin, payload: { email: 'new-viewer@example.test', role: 'viewer' } })
+    const created = await app.inject({ method: 'POST', url: '/api/v1/admin/users', headers: admin, payload: { email: 'new-viewer@example.test', role: 'viewer', currentPassword: password } })
     assert.equal(created.statusCode, 200)
     assert.equal(created.json().role, 'viewer')
-    const defaulted = await app.inject({ method: 'POST', url: '/api/v1/admin/users', headers: admin, payload: { email: 'designer@example.test' } })
+    const defaulted = await app.inject({ method: 'POST', url: '/api/v1/admin/users', headers: admin, payload: { email: 'designer@example.test', currentPassword: password } })
     assert.equal(defaulted.json().role, 'branding')
-    const invalid = await app.inject({ method: 'POST', url: '/api/v1/admin/users', headers: admin, payload: { email: 'x@example.test', role: 'owner' } })
+    const invalid = await app.inject({ method: 'POST', url: '/api/v1/admin/users', headers: admin, payload: { email: 'x@example.test', role: 'owner', currentPassword: password } })
     assert.equal(invalid.statusCode, 400)
   })
 

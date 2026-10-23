@@ -7,6 +7,7 @@ import Fastify, { type RouteOptions } from 'fastify'
 import jwt from '@fastify/jwt'
 import cookie from '@fastify/cookie'
 import multipart from '@fastify/multipart'
+import bcrypt from 'bcryptjs'
 import { and, eq } from 'drizzle-orm'
 import { API_TOKEN_SCOPES } from '@bsp/shared'
 import { adminApi } from '../src/adminApi.js'
@@ -23,6 +24,7 @@ process.env['UPLOAD_DIR'] = join(testDb.dir, 'uploads')
 const app = Fastify({ logger: false })
 const sessions: Record<string, { authorization: string }> = {}
 const registeredRoutes: RouteOptions[] = []
+const PASSWORD = 'admin-password'
 
 // The real admin tree from adminApi.ts, so a route group that is moved or added is checked, not a copy of it.
 before(async () => {
@@ -37,9 +39,10 @@ before(async () => {
   app.get('/auth/session', { preHandler: requireAuth }, async () => ({ ok: true }))
   await app.ready()
 
+  const passwordHash = await bcrypt.hash(PASSWORD, 4)
   for (const role of ['admin', 'operator'] as const) {
     const now = Date.now()
-    const [user] = await db.insert(users).values({ email: `${role}@example.test`, passwordHash: 'unused', role, createdAt: now }).returning()
+    const [user] = await db.insert(users).values({ email: `${role}@example.test`, passwordHash, role, createdAt: now }).returning()
     const sessionId = `session-${role}`
     await db.insert(authSessions).values({ id: sessionId, userId: user!.id, csrfTokenHash: 'unused', createdAt: now, lastSeenAt: now, expiresAt: now + 60_000 })
     sessions[role] = { authorization: `Bearer ${app.jwt.sign({ userId: user!.id, email: user!.email, role, sessionId })}` }
@@ -57,7 +60,7 @@ interface Created { id: number; token: string; prefix: string; scopes: string[];
 async function createToken(payload: Record<string, unknown> = {}) {
   const response = await app.inject({
     method: 'POST', url: '/admin/api-tokens', headers: sessions['admin']!,
-    payload: { name: 'CI', scopes: ['monitors:read'], ...payload },
+    payload: { name: 'CI', scopes: ['monitors:read'], currentPassword: PASSWORD, ...payload },
   })
   return { response, body: response.json() as Created }
 }
@@ -151,6 +154,14 @@ describe('creating and listing tokens', () => {
     assert.equal(legacy.statusCode, 400)
   })
 
+  it('needs the current password of the administrator, and creates nothing without it', async () => {
+    const before = (await db.select().from(apiTokens)).length
+    for (const currentPassword of [undefined, '', 'wrong-password']) {
+      assert.equal((await createToken({ currentPassword })).response.statusCode, 400, String(currentPassword))
+    }
+    assert.equal((await db.select().from(apiTokens)).length, before)
+  })
+
   it('is reserved for administrators signed in with a session', async () => {
     const asOperator = await app.inject({ method: 'POST', url: '/admin/api-tokens', headers: sessions['operator']!, payload: { name: 'x', scopes: ['monitors:read'] } })
     assert.equal(asOperator.statusCode, 403)
@@ -232,14 +243,14 @@ describe('what a token may do', () => {
 
   it('belongs to no user: it outlives the administrator who created it', async () => {
     const now = Date.now()
-    const [creator] = await db.insert(users).values({ email: 'temp-admin@example.test', passwordHash: 'unused', role: 'admin', createdAt: now }).returning()
+    const [creator] = await db.insert(users).values({ email: 'temp-admin@example.test', passwordHash: await bcrypt.hash(PASSWORD, 4), role: 'admin', createdAt: now }).returning()
     const sessionId = 'session-temp-admin'
     await db.insert(authSessions).values({ id: sessionId, userId: creator!.id, csrfTokenHash: 'unused', createdAt: now, lastSeenAt: now, expiresAt: now + 60_000 })
     const headers = { authorization: `Bearer ${app.jwt.sign({ userId: creator!.id, email: creator!.email, role: 'admin', sessionId })}` }
-    const minted = (await app.inject({ method: 'POST', url: '/admin/api-tokens', headers, payload: { name: 'temp', scopes: ['monitors:read'] } })).json() as { token: string }
+    const minted = (await app.inject({ method: 'POST', url: '/admin/api-tokens', headers, payload: { name: 'temp', scopes: ['monitors:read'], currentPassword: PASSWORD } })).json() as { token: string }
     assert.equal((await get('/admin/monitors', minted.token)).statusCode, 200)
 
-    const demote = await app.inject({ method: 'PATCH', url: `/admin/users/${creator!.id}/role`, headers: sessions['admin']!, payload: { role: 'operator' } })
+    const demote = await app.inject({ method: 'PATCH', url: `/admin/users/${creator!.id}/role`, headers: sessions['admin']!, payload: { role: 'operator', currentPassword: PASSWORD } })
     assert.equal(demote.statusCode, 200)
     assert.equal((await get('/admin/monitors', minted.token)).statusCode, 200)
 
@@ -360,5 +371,54 @@ describe('rate limiting', () => {
     // Another token has its own budget.
     const other = (await createToken()).body
     assert.equal((await get('/admin/monitors', other.token)).statusCode, 200)
+  })
+})
+
+describe('sensitive actions in a single sign-on session', () => {
+  const sessionId = 'session-sso-admin'
+  let headers: { authorization: string }
+  let operatorId: number
+
+  before(async () => {
+    const now = Date.now()
+    const [admin] = await db.insert(users).values({ email: 'sso-admin@example.test', passwordHash: 'unused', role: 'admin', createdAt: now }).returning()
+    await db.insert(authSessions).values({ id: sessionId, userId: admin!.id, authMethod: 'oidc', csrfTokenHash: 'unused', createdAt: now, lastSeenAt: now, expiresAt: now + 3_600_000 })
+    headers = { authorization: `Bearer ${app.jwt.sign({ userId: admin!.id, email: admin!.email, role: 'admin', sessionId })}` }
+    operatorId = (await db.select().from(users).where(eq(users.email, 'operator@example.test')))[0]!.id
+  })
+
+  const setVerifiedAt = (verifiedAt: number) => db.update(authSessions).set({ verifiedAt }).where(eq(authSessions.id, sessionId))
+
+  // A wrong password is sent on purpose: an SSO session is confirmed at the identity provider, never with one.
+  const currentPassword = 'ignored-in-sso'
+  let created = 0
+  const actions: Array<[string, () => Promise<{ statusCode: number; json(): { code?: string } }>]> = [
+    ['creating a user', () => app.inject({ method: 'POST', url: '/admin/users', headers, payload: { email: `sso-made-${++created}@example.test`, currentPassword } })],
+    ['changing a role', () => app.inject({ method: 'PATCH', url: `/admin/users/${operatorId}/role`, headers, payload: { role: 'operator', currentPassword } })],
+    ['resetting a password', () => app.inject({ method: 'POST', url: `/admin/users/${operatorId}/reset-password`, headers, payload: { currentPassword } })],
+    ['creating an API token', () => app.inject({ method: 'POST', url: '/admin/api-tokens', headers, payload: { name: 'sso', scopes: ['monitors:read'], currentPassword } })],
+  ]
+
+  it('goes through without a password while the sign-in is recent', async () => {
+    await setVerifiedAt(Date.now() - 60_000)
+    for (const [name, run] of actions) assert.equal((await run()).statusCode, 200, name)
+  })
+
+  it('asks to confirm at the identity provider once the sign-in is older than 10 minutes, and changes nothing', async () => {
+    await setVerifiedAt(Date.now() - 11 * 60_000)
+    const tokensBefore = (await db.select().from(apiTokens)).length
+    const usersBefore = (await db.select().from(users)).length
+    for (const [name, run] of actions) {
+      const response = await run()
+      assert.equal(response.statusCode, 403, name)
+      assert.equal(response.json().code, 'SSO_CONFIRMATION_REQUIRED', name)
+    }
+    assert.equal((await db.select().from(apiTokens)).length, tokensBefore)
+    assert.equal((await db.select().from(users)).length, usersBefore)
+  })
+
+  it('works again after the confirmation is renewed', async () => {
+    await setVerifiedAt(Date.now())
+    for (const [name, run] of actions) assert.equal((await run()).statusCode, 200, name)
   })
 })

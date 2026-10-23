@@ -8,6 +8,7 @@ import ApiTokensPage from './ApiTokens'
 
 vi.mock('../api/client', () => ({
   api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  getCurrentUser: vi.fn(() => ({ userId: 1, email: 'admin@example.test', role: 'admin' })),
 }))
 
 const token = {
@@ -58,11 +59,15 @@ describe('ApiTokensPage', () => {
     await user.click(checkbox('Incidents write'))
     await user.click(checkbox('Reports read'))
     await user.click(screen.getByRole('button', { name: 'Create' }))
+    expect(api.post).not.toHaveBeenCalled()
+    await user.type(screen.getByLabelText('Your current password'), 'admin-password')
+    await user.click(screen.getByRole('button', { name: 'Create token' }))
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/api-tokens', {
       name: 'GitHub Actions',
       scopes: expect.arrayContaining(['incidents:read', 'incidents:write', 'reports:read']),
       expiresInDays: 90,
+      currentPassword: 'admin-password',
     }))
     expect(vi.mocked(api.post).mock.calls[0]![1]).toMatchObject({ scopes: expect.not.arrayContaining(['monitors:read']) })
     expect(await screen.findByText('bsp_full-secret-value')).toBeInTheDocument()
@@ -125,12 +130,31 @@ describe('ApiTokensPage', () => {
     await user.click(screen.getByRole('checkbox', { name: /Use vault secrets/ }))
     await user.selectOptions(screen.getByLabelText('Expires'), 'never')
     await user.click(screen.getByRole('button', { name: 'Create' }))
+    await user.type(screen.getByLabelText('Your current password'), 'admin-password')
+    await user.click(screen.getByRole('button', { name: 'Create token' }))
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/api-tokens', {
       name: 'Terraform',
       scopes: expect.arrayContaining(['monitors:write', 'channels:write', 'vault:use']),
       expiresInDays: null,
+      currentPassword: 'admin-password',
     }))
+  })
+
+  it('keeps the form and says so when the password is wrong', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.post).mockRejectedValueOnce(new Error('Current password is incorrect'))
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'New token' }))
+    await user.type(screen.getByLabelText('Name'), 'Terraform')
+    await user.click(screen.getByRole('button', { name: 'Deploy monitoring' }))
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+    await user.type(screen.getByLabelText('Your current password'), 'nope')
+    await user.click(screen.getByRole('button', { name: 'Create token' }))
+
+    expect(await screen.findByText('Current password is incorrect')).toBeInTheDocument()
+    expect(screen.getByLabelText('Name')).toHaveValue('Terraform')
+    expect(screen.queryByText(/will not be shown again/)).not.toBeInTheDocument()
   })
 
   it('asks before revoking', async () => {

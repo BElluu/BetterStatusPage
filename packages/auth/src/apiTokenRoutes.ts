@@ -4,6 +4,7 @@ import { apiTokens } from './tables.js'
 import { requestIdentity } from './middleware.js'
 import type { AuthOptions } from './context.js'
 import type { ApiTokens } from './apiTokens.js'
+import type { IdentityConfirmation } from './identityConfirmation.js'
 
 const MAX_NAME_LENGTH = 80
 
@@ -14,10 +15,11 @@ const DEFAULT_EXPIRY_DAYS = 90
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-export function createApiTokenRoutes(ctx: AuthOptions, tokens: ApiTokens) {
+export function createApiTokenRoutes(ctx: AuthOptions, tokens: ApiTokens, identityConfirmation: IdentityConfirmation) {
   const { db, audit } = ctx
   const hooks = ctx.hooks ?? {}
   const { generateApiToken, parseScopes } = tokens
+  const { confirmIdentity } = identityConfirmation
 
   async function apiTokenRoutes(app: FastifyInstance) {
     type TokenRow = typeof apiTokens.$inferSelect
@@ -30,7 +32,9 @@ export function createApiTokenRoutes(ctx: AuthOptions, tokens: ApiTokens) {
     app.get('/', async () => (await db.select().from(apiTokens)).map(publicToken))
 
     // `expiresInDays` left out means the default; `null` is the explicit "never".
-    app.post<{ Body: { name?: unknown; scopes?: unknown; expiresInDays?: unknown } }>('/', async (req, reply) => {
+    app.post<{ Body: { name?: unknown; scopes?: unknown; expiresInDays?: unknown; currentPassword?: unknown } }>('/', {
+      config: { rateLimit: ctx.rateLimits.sensitiveAction },
+    }, async (req, reply) => {
       const { name, scopes: requested, expiresInDays } = req.body ?? {}
       if (typeof name !== 'string' || !name.trim() || name.trim().length > MAX_NAME_LENGTH) {
         return reply.code(400).send({ error: `Name is required (up to ${MAX_NAME_LENGTH} characters)` })
@@ -43,6 +47,7 @@ export function createApiTokenRoutes(ctx: AuthOptions, tokens: ApiTokens) {
       }
 
       const identity = requestIdentity(req)
+      if (!await confirmIdentity(identity, req.body?.currentPassword, reply)) return reply
       const now = Date.now()
       const generated = generateApiToken()
       const days = expiresInDays === undefined ? DEFAULT_EXPIRY_DAYS : expiresInDays

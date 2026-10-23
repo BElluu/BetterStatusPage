@@ -41,7 +41,7 @@ Docker Compose:
 docker compose exec app node apps/api/dist/cli/backup.js
 ```
 
-The admin Backups page can also create and download backups.
+The admin Backups page can also create and download backups. A download is recorded in the audit log with who took it.
 
 ## Verify a backup
 

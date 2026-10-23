@@ -7,8 +7,9 @@ import jwt from '@fastify/jwt'
 import rateLimit from '@fastify/rate-limit'
 import cookie from '@fastify/cookie'
 import bcrypt from 'bcryptjs'
+import { eq } from 'drizzle-orm'
 import { db } from '../src/db/client.js'
-import { users } from '../src/db/schema.js'
+import { auditLog, users } from '../src/db/schema.js'
 import { requireAuth, requireRole } from '../src/kit/authMiddleware.js'
 import { authRoutes } from '../src/kit/authRoutes.js'
 import { userRoutes } from '../src/kit/userRoutes.js'
@@ -145,8 +146,12 @@ describe('user administration', () => {
 
   it('creates, promotes, resets, and deletes a user', async () => {
     const created = await app.inject({ method: 'POST', url: '/admin/users', headers: adminHeaders, payload: { email: 'new@example.test' } })
-    assert.equal(created.statusCode, 200)
-    const user = created.json()
+    assert.equal(created.statusCode, 400)
+    assert.equal((await app.inject({ method: 'POST', url: '/admin/users', headers: adminHeaders, payload: { email: 'new@example.test', currentPassword: 'wrong-password' } })).statusCode, 400)
+    assert.equal((await db.select().from(users).where(eq(users.email, 'new@example.test'))).length, 0)
+    const confirmed = await app.inject({ method: 'POST', url: '/admin/users', headers: adminHeaders, payload: { email: 'new@example.test', currentPassword: 'new-admin-password' } })
+    assert.equal(confirmed.statusCode, 200)
+    const user = confirmed.json()
     assert.equal(user.role, 'branding')
     assert.equal(typeof user.temporaryPassword, 'string')
 
@@ -156,10 +161,14 @@ describe('user administration', () => {
     assert.equal(forcedChange.statusCode, 200)
 
     const promoted = await app.inject({ method: 'PATCH', url: `/admin/users/${user.id}/role`, headers: adminHeaders, payload: { role: 'operator' } })
-    assert.equal(promoted.json().role, 'operator')
+    assert.equal(promoted.statusCode, 400)
+    assert.equal((await db.select().from(users).where(eq(users.id, user.id)))[0]!.role, 'branding')
+    const confirmedPromotion = await app.inject({ method: 'PATCH', url: `/admin/users/${user.id}/role`, headers: adminHeaders, payload: { role: 'operator', currentPassword: 'new-admin-password' } })
+    assert.equal(confirmedPromotion.json().role, 'operator')
     assert.equal((await app.inject({ method: 'PATCH', url: `/admin/users/${user.id}/role`, headers: adminHeaders, payload: { role: 'invalid' } })).statusCode, 400)
 
-    const reset = await app.inject({ method: 'POST', url: `/admin/users/${user.id}/reset-password`, headers: adminHeaders })
+    assert.equal((await app.inject({ method: 'POST', url: `/admin/users/${user.id}/reset-password`, headers: adminHeaders })).statusCode, 400)
+    const reset = await app.inject({ method: 'POST', url: `/admin/users/${user.id}/reset-password`, headers: adminHeaders, payload: { currentPassword: 'new-admin-password' } })
     assert.equal(typeof reset.json().temporaryPassword, 'string')
     assert.equal((await app.inject({ method: 'POST', url: '/auth/login', payload: { email: user.email, password: 'permanent-password' } })).statusCode, 401)
 
@@ -218,6 +227,11 @@ describe('vault administration', () => {
 
     const revealed = await app.inject({ url: `/admin/vaults/${vault.id}/secrets/${secrets[0].id}/reveal`, headers: adminHeaders })
     assert.deepEqual(revealed.json().value, { username: 'service', password: 'secret' })
+    const revealEntries = (await db.select().from(auditLog)).filter((entry) => entry.entityType === 'vault_secret' && entry.action === 'allow')
+    assert.equal(revealEntries.length, 1)
+    assert.equal(revealEntries[0]!.userEmail, 'admin@example.test')
+    // The value itself never goes into the log.
+    assert.equal(revealEntries[0]!.diff, '{"access":"revealed"}')
     assert.deepEqual(await resolveVaultSecret({ vaultId: vault.id, secretId: secrets[2].id, fieldMapping: { clientId: 'client', clientSecret: 'secret' } }), { clientId: 'abc', clientSecret: 'xyz' })
 
     const updated = await app.inject({ method: 'PATCH', url: `/admin/vaults/${vault.id}/secrets/${secrets[1].id}`, headers: adminHeaders, payload: { name: 'Updated token', value: 'new-token' } })
