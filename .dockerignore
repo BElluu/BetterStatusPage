@@ -14,3 +14,16 @@ data
 docs
 
 !docs/changelog.md
+
+# Patterns are anchored at the context root, so nested copies need **/.
+**/node_modules
+**/dist
+**/.env*
+!**/.env.example
+**/data
+**/*.sqlite*
+**/.e2e*
+**/coverage
+**/test-results
+**/playwright-report
+**/*.tsbuildinfo
