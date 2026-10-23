@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { resolveTranslation, type TranslationKey } from '@bsp/shared'
-import { type LocaleSummary } from '@better-kit/contracts'
+import { safeLocalStorage, type LocaleSummary } from '@better-kit/contracts'
 import { getJSON } from '../api'
 
 const LS_KEY = 'bsp-locale'
@@ -42,7 +42,7 @@ export function useLocale() {
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [availableLocales, setAvailableLocales] = useState<LocaleSummary[]>([])
-  const [locale, setLocaleState] = useState<string>(() => localStorage.getItem(LS_KEY) ?? 'en')
+  const [locale, setLocaleState] = useState<string>(() => safeLocalStorage.get(LS_KEY) ?? 'en')
   const [translations, setTranslations] = useState<Partial<Record<TranslationKey, string>>>({})
 
   // Fetch list of available locales; determine active locale if not yet set
@@ -52,7 +52,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
         if (!Array.isArray(data) || data.length === 0) return
         setAvailableLocales(data)
 
-        const saved = localStorage.getItem(LS_KEY)
+        const saved = safeLocalStorage.get(LS_KEY)
         if (saved && data.find((l) => l.code === saved)) {
           // User previously chose a language — keep it
           return
@@ -82,7 +82,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   }, [locale])
 
   const setLocale = useCallback((code: string) => {
-    localStorage.setItem(LS_KEY, code)
+    safeLocalStorage.set(LS_KEY, code)
     setLocaleState(code)
   }, [])
 

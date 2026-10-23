@@ -1,3 +1,4 @@
+import { safeLocalStorage } from '@better-kit/contracts'
 import { storageKey } from '../config'
 import { parseChangelog, releasesBetween, summarizeRelease, type ReleaseItem, type ReleaseNotes } from '../lib/changelog'
 import { ModalFooter, ModalHeader, ModalShell } from './ModalShell'
@@ -6,7 +7,7 @@ const seenKey = (userId: number) => storageKey(`whatsnew-seen-${userId}`)
 
 /** Remembers that this user has seen the notes up to `version`. */
 export function markWhatsNewSeen(userId: number, version: string): void {
-  try { localStorage.setItem(seenKey(userId), version) } catch { /* the notes may show again next visit */ }
+  safeLocalStorage.set(seenKey(userId), version) // blocked storage: the notes may show again next visit
 }
 
 /**
@@ -15,7 +16,7 @@ export function markWhatsNewSeen(userId: number, version: string): void {
  */
 export function pendingWhatsNew(userId: number, changelog: string, current: string): ReleaseNotes[] {
   try {
-    const seen = localStorage.getItem(seenKey(userId))
+    const seen = safeLocalStorage.get(seenKey(userId))
     if (seen === null) {
       markWhatsNewSeen(userId, current)
       return []

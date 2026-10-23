@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
+import { safeLocalStorage } from '@better-kit/contracts'
 
 // Kept byte-identical in apps/admin and apps/status (the shared package is framework-free and also runs in the API).
 
 export function useDarkMode(): [boolean, () => void] {
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === 'undefined') return false
-    const stored = localStorage.getItem('bsp-dark-mode')
+    const stored = safeLocalStorage.get('bsp-dark-mode')
     if (stored !== null) return stored === 'true'
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
@@ -17,7 +18,7 @@ export function useDarkMode(): [boolean, () => void] {
     } else {
       html.classList.remove('dark')
     }
-    localStorage.setItem('bsp-dark-mode', String(isDark))
+    safeLocalStorage.set('bsp-dark-mode', String(isDark))
     // Every mounted instance (e.g. the sidebar toggle and a page that swaps its logo) listens for this, so one toggle
     // updates them all.
     window.dispatchEvent(new CustomEvent('bsp-dark-mode-change', { detail: isDark }))

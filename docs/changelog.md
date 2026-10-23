@@ -24,6 +24,7 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ### Fixed
 
+- **Status page works when the browser blocks storage**: a browser that denies access to local storage (strict privacy settings, some embedded views) left the public status page and the admin blank. Theme, language and similar preferences are now simply not remembered in that case.
 - **Single sign-on secret after changing the issuer**: changing the issuer URL or client ID in the SSO settings now requires entering the client secret again, so the stored secret is never sent to a different identity provider.
 - **Confirming an outage no longer scans the whole history**: marking the checks of a failing streak as counted looks them up by time on the monitor's index instead of walking its whole history, so a mass outage no longer holds the database for seconds (36 ms to 0.03 ms for a monitor with 130,000 results).
 - **Check errors are no longer swallowed**: a monitor whose stored configuration cannot be read is recorded as **Down** with the error, instead of the check aborting without a result and the monitor staying at its last status (for example **Up**). A failure to store a check result is logged with the monitor ID.

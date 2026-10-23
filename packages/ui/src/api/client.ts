@@ -1,3 +1,4 @@
+import { safeSessionStorage } from '@better-kit/contracts'
 import { storageKey, uiConfig } from '../config'
 import { navigation } from '../navigation'
 
@@ -13,18 +14,18 @@ export interface AuthUser {
 }
 
 export function setSession(user: AuthUser): void {
-  sessionStorage.setItem(userKey(), JSON.stringify(user))
+  safeSessionStorage.set(userKey(), JSON.stringify(user))
   window.dispatchEvent(new CustomEvent(storageKey('auth-change')))
 }
 
 export function clearSession(): void {
-  sessionStorage.removeItem(userKey())
+  safeSessionStorage.remove(userKey())
   window.dispatchEvent(new CustomEvent(storageKey('auth-change')))
 }
 
 export function getCurrentUser(): AuthUser | null {
   try {
-    const stored = sessionStorage.getItem(userKey())
+    const stored = safeSessionStorage.get(userKey())
     return stored ? JSON.parse(stored) as AuthUser : null
   } catch { return null }
 }
