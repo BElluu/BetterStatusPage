@@ -30,6 +30,8 @@ export interface GroupNode extends BaseNode {
 export interface MonitorNode extends BaseNode {
   type: 'monitor'
   monitorId: number
+  /** Name shown on the public page instead of the monitor's own name */
+  displayName?: string
   showUptimeBar: boolean
   uptimeBarPosition?: 'right' | 'below'
   showMonitorType?: boolean

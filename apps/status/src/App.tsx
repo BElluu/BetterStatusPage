@@ -50,6 +50,20 @@ function collectLayoutMonitorIds(nodes: LayoutNode[]): Set<number> {
   return ids
 }
 
+/** The name a monitor goes by on the page: the display name of its first card that has one. */
+function collectDisplayNames(nodes: LayoutNode[], names = new Map<number, string>()): Map<number, string> {
+  for (const node of nodes) {
+    if (node.type === 'monitor') {
+      const { monitorId, displayName } = node as MonitorNode
+      const name = displayName?.trim()
+      if (name && !names.has(monitorId)) names.set(monitorId, name)
+    } else if (node.type === 'group') {
+      collectDisplayNames((node as GroupNode).children, names)
+    }
+  }
+  return names
+}
+
 function hasIncidentsBlock(nodes: LayoutNode[]): boolean {
   return nodes.some((node) => node.type === 'incidents')
 }
@@ -184,8 +198,10 @@ function StatusPage({ account }: { account: { email: string; role: string | null
     return map
   }, [monitorDependencies])
 
+  const displayNames = tree ? collectDisplayNames(tree.children) : new Map<number, string>()
   const liveMonitors = monitors.map((m) => ({
     ...m,
+    name: displayNames.get(m.id) ?? m.name,
     currentStatus: applyIncidentStatus(statusMap[m.id]?.status ?? m.currentStatus, m.id, activeIncidents),
   }))
 
