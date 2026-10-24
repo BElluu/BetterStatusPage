@@ -69,6 +69,22 @@ describe('first-run setup', () => {
     }
   })
 
+  it('sets up beside seeded accounts when BSP_DEMO_MODE is true', async () => {
+    sqlite.exec("INSERT INTO users(email,password_hash,role,created_at) VALUES ('seeded@example.test','existing','operator',1)")
+    process.env['BSP_DEMO_MODE'] = 'true'
+    try {
+      const response = await app.inject({ method: 'POST', url: '/setup/complete', payload: { email: 'owner@example.test', password: 'secure-password' } })
+      assert.equal(response.statusCode, 200)
+      const rows = sqlite.prepare('SELECT email, role FROM users ORDER BY id').all() as { email: string; role: string }[]
+      assert.deepEqual(rows.map((row) => ({ ...row })), [{ email: 'seeded@example.test', role: 'operator' }, { email: 'owner@example.test', role: 'admin' }])
+    } finally {
+      delete process.env['BSP_DEMO_MODE']
+      rmSync(process.env['SETUP_CONFIG_PATH']!, { force: true })
+      sqlite.exec('DELETE FROM users; DELETE FROM branding; DELETE FROM layout')
+      schedulerStart.mock.resetCalls()
+    }
+  })
+
   it('rejects a body that is not made of strings', async () => {
     for (const payload of [{ email: 'a@example.test', password: 12345678 }, { email: ['a@example.test'], password: 'secure-password' }]) {
       assert.equal((await app.inject({ method: 'POST', url: '/setup/complete', payload })).statusCode, 400)

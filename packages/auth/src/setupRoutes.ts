@@ -23,6 +23,8 @@ export interface SetupRoutesOptions<Identity extends { sessionId?: string }> {
   onSetup?: () => Promise<void>
   /** Starts the work that runs only once the application is set up. */
   startBackgroundServices?: () => void
+  /** Lets setup run although accounts already exist, for an installation that is filled with accounts before its first run. Checked on each request. */
+  allowExistingUsers?: () => boolean
 }
 
 /**
@@ -68,7 +70,7 @@ export function createSetupRoutes<Identity extends { sessionId?: string }>(optio
         const user = await options.withTransaction(async () => {
           // The marker can be missing while the data is not (a lost volume, a restore). Accounts that already
           // exist mean setup was done: never create or overwrite an administrator over them.
-          if ((await db.select({ id: users.id }).from(users).limit(1)).length > 0) return null
+          if (!options.allowExistingUsers?.() && (await db.select({ id: users.id }).from(users).limit(1)).length > 0) return null
 
           await db.insert(users).values({ email, passwordHash: hash, role: 'admin', createdAt: Date.now() })
 

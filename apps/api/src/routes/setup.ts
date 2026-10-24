@@ -39,4 +39,5 @@ export const setupRoutes = createSetupRoutes({
     }
   },
   startBackgroundServices,
+  allowExistingUsers: () => process.env['BSP_DEMO_MODE'] === 'true',
 })
