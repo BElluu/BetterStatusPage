@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { applyIncidentStatus } from '@bsp/shared'
 import type {
   LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode,
   IncidentsNode, ChartNode, PublicMonitor, MonitorStatus, Incident,
@@ -8,7 +9,6 @@ import Markdown from 'react-markdown'
 import { IncidentCard } from './IncidentCard'
 import { useLocale } from '../i18n/LocaleContext'
 const ResponseTimeChart = lazy(() => import('./ResponseTimeChart').then((m) => ({ default: m.ResponseTimeChart })))
-import { applyIncidentStatus } from '../utils/incidentStatus'
 import { useMonitorUptime, type UptimeDay } from '../hooks/useMonitorUptime'
 
 interface StatusInfo {

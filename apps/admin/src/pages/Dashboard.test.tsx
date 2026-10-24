@@ -81,6 +81,18 @@ describe('DashboardPage', () => {
     expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument()
   })
 
+  it('counts monitors by the status visitors see, with open incidents applied', async () => {
+    mockData([
+      { ...monitors[0], activity: { maintenance: false, windows: [], incident: 'major' } },
+      monitors[2],
+    ])
+    renderPage()
+
+    expect(await screen.findByRole('heading', { name: 'Partial Outage' })).toBeInTheDocument()
+    expect(screen.getByText('2 monitors tracked · 0 operational · 1 down · 1 degraded')).toBeInTheDocument()
+    expect(screen.getByText('Down · incident')).toBeInTheDocument()
+  })
+
   it('shows empty states without monitors or incidents', async () => {
     dark.value = true
     mockData([])

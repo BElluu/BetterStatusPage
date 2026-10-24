@@ -58,7 +58,7 @@ An incident counts as **active** until its status is `resolved`. The resolution 
 | `major` | Shown as down |
 | `critical` | Shown as down |
 
-The incident only ever makes a monitor look **worse**: a monitor that is already down stays down under a minor incident. Monitoring itself is not affected — checks, uptime and alerts carry on as before — and resolving the incident brings back the status the checks report.
+The incident only ever makes a monitor look **worse**: a monitor that is already down stays down under a minor incident. The admin console shows the same status as the status page, with the reason (for example *Down · incident*) in the monitor list, on the dashboard and on the monitor page, where **Check result** keeps what the checks report. Monitoring itself is not affected — checks, uptime and alerts carry on as before — and resolving the incident brings back the status the checks report.
 
 ### Posting updates
 
