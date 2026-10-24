@@ -4,7 +4,7 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import { eq } from 'drizzle-orm'
 import { db } from '../src/db/client.js'
-import { actionFailureChannels, actionRuns, actions, auditLog, maintenanceWindows, monitorActions, monitors, notificationChannels, notificationDeliveries, notificationDeliveryAttempts } from '../src/db/schema.js'
+import { actionNotificationChannels, actionRuns, actions, auditLog, maintenanceWindows, monitorActions, monitors, notificationChannels, notificationDeliveries, notificationDeliveryAttempts } from '../src/db/schema.js'
 import { actionRoutes } from '../src/routes/actions.js'
 import { notificationRoutes } from '../src/routes/notifications.js'
 import { cancelRunsOfMonitor, processDueActionRuns, purgeOldActionRuns, scheduleActionRuns } from '../src/workers/actionRunner.js'
@@ -19,6 +19,11 @@ const server = createServer((request, response) => {
   request.on('data', (chunk: Buffer) => chunks.push(chunk))
   request.on('end', () => {
     requests.push({ url: request.url ?? '', method: request.method ?? '', body: Buffer.concat(chunks).toString(), authorization: request.headers.authorization })
+    if (request.url === '/cancel-while-sending') {
+      // The run is cancelled (the monitor recovered, say) while the request is on its way.
+      void db.update(actionRuns).set({ status: 'cancelled' }).where(eq(actionRuns.status, 'pending')).then(() => response.writeHead(201).end())
+      return
+    }
     if (request.url === '/flaky' && failuresRemaining-- > 0) {
       response.writeHead(500).end()
       return
@@ -48,7 +53,7 @@ beforeEach(async () => {
   await db.delete(notificationDeliveryAttempts)
   await db.delete(notificationDeliveries)
   await db.delete(notificationChannels)
-  await db.delete(actionFailureChannels)
+  await db.delete(actionNotificationChannels)
   await db.delete(actionRuns)
   await db.delete(maintenanceWindows)
   await db.delete(monitorActions)
@@ -441,7 +446,7 @@ describe('action failure notifications', () => {
     const monitor = await monitorRow()
     failuresRemaining = 10
     const action = await linkedAction(monitor.id, { path: '/flaky' })
-    for (const channelId of linked) await db.insert(actionFailureChannels).values({ actionId: action.id, channelId })
+    for (const channelId of linked) await db.insert(actionNotificationChannels).values({ actionId: action.id, channelId })
     await scheduleActionRuns(monitor, 'down', 'up', null)
     await settle()
     return { monitor, action }
@@ -455,7 +460,7 @@ describe('action failure notifications', () => {
   const notified = () => requests.filter((r) => r.url !== '/flaky')
 
   it('tells the chosen channels once, after the last attempt, without the request', async () => {
-    const hook = await channel('webhook', { url: `${baseUrl}/notify`, method: 'POST', body: '{"action":"{{action_name}}","status":"{{status}}","event":"{{event_type}}","error":"{{error_message}}","attempts":"{{attempts}}"}' })
+    const hook = await channel('webhook', { url: `${baseUrl}/notify`, method: 'POST', eventOverrides: { action: { body: '{"action":"{{action_name}}","status":"{{status}}","event":"{{event_type}}","error":"{{error_message}}","attempts":"{{attempts}}"}' } } })
     await failingAction([hook.id])
     assert.equal(notified().length, 0)
 
@@ -493,6 +498,75 @@ describe('action failure notifications', () => {
     assert.deepEqual(notified().map((r) => r.url), ['/notify'])
   })
 
+  it('tells the chosen channels about a success only when the channel is set to hear about it', async () => {
+    const eventOverrides = { action: { body: '{"status":"{{status}}","error":"{{error_message}}","attempts":"{{attempts}}"}' } }
+    const hears = await channel('webhook', { url: `${baseUrl}/notify`, method: 'POST', notifyOnActionSuccess: true, eventOverrides })
+    const silent = await channel('webhook', { url: `${baseUrl}/silent`, method: 'POST', eventOverrides })
+    await failingAction([hears.id, silent.id])
+    failuresRemaining = 0
+
+    await processDueActionRuns(Date.now() + 2 * 60_000)
+    await settle()
+
+    assert.deepEqual(notified().map((r) => r.url), ['/notify'])
+    assert.deepEqual(JSON.parse(notified()[0]!.body), { status: 'action-succeeded', error: '', attempts: '2' })
+  })
+
+  it('sends an action in its default form when the channel has no wording for it, whatever its monitor wording says', async () => {
+    const hook = await channel('webhook', { url: `${baseUrl}/notify`, method: 'POST', body: '{"monitor":"{{monitor_name}}"}' })
+    await failingAction([hook.id])
+    await exhaust()
+
+    assert.deepEqual(JSON.parse(notified()[0]!.body), {
+      action: 'Start VM2', monitor: 'VM1 SQL cluster', status: 'action-failed', trigger_status: 'down', attempts: '3', error: 'HTTP 500', time: JSON.parse(notified()[0]!.body).time,
+    })
+  })
+
+  it('does not tell a channel about a run that was cancelled while it was sending, or through a disabled channel', async () => {
+    const eventOverrides = { action: { body: '{"status":"{{status}}"}' } }
+    const hears = await channel('webhook', { url: `${baseUrl}/notify`, method: 'POST', notifyOnActionSuccess: true, eventOverrides })
+    const off = await channel('webhook', { url: `${baseUrl}/off`, method: 'POST', notifyOnActionSuccess: true, eventOverrides }, 0)
+    const monitor = await monitorRow()
+    const action = await linkedAction(monitor.id, { path: '/cancel-while-sending' })
+    for (const channelId of [hears.id, off.id]) await db.insert(actionNotificationChannels).values({ actionId: action.id, channelId })
+    await scheduleActionRuns(monitor, 'down', 'up', null)
+    await settle()
+
+    assert.equal((await db.select().from(actionRuns))[0]!.status, 'cancelled')
+    const told = () => notified().map((r) => r.url).filter((url) => url === '/notify' || url === '/off')
+    assert.deepEqual(told(), [])
+
+    await db.delete(actionRuns)
+    await db.update(actions).set({ config: JSON.stringify({ url: `${baseUrl}/ok`, method: 'POST' }) }).where(eq(actions.id, action.id))
+    await scheduleActionRuns(monitor, 'down', 'up', null)
+    await settle()
+    // The channel that is disabled stays silent even though it is set to hear about successes.
+    assert.deepEqual(told(), ['/notify'])
+  })
+
+  it('refuses both names of the channels at once, and a channel list that is null', async () => {
+    const hook = await channel('webhook', { url: `${baseUrl}/notify`, method: 'POST' })
+    const config = { url: 'https://host/', method: 'POST' }
+    const both = await app.inject({ method: 'POST', url: '/actions', payload: { name: 'A', config, notificationChannelIds: [hook.id], failureChannelIds: [hook.id] } })
+    assert.equal(both.statusCode, 400)
+    assert.match(both.json().error, /old name/)
+    const nothing = await app.inject({ method: 'POST', url: '/actions', payload: { name: 'A', config, notificationChannelIds: null } })
+    assert.equal(nothing.statusCode, 400)
+    const created = await app.inject({ method: 'POST', url: '/actions', payload: { name: 'A', config } })
+    assert.equal((await app.inject({ method: 'PATCH', url: `/actions/${created.json().id}`, payload: { notificationChannelIds: [hook.id], failureChannelIds: [] } })).statusCode, 400)
+  })
+
+  it('words an action with the wording the channel has for actions', async () => {
+    const hook = await channel('webhook', {
+      url: `${baseUrl}/notify`, method: 'POST', body: '{"monitor":"{{monitor_name}}"}',
+      eventOverrides: { action: { body: '{"action":"{{action_name}}","result":"{{status}}"}' } },
+    })
+    await failingAction([hook.id])
+    await exhaust()
+
+    assert.deepEqual(JSON.parse(notified()[0]!.body), { action: 'Start VM2', result: 'action-failed' })
+  })
+
   it('words the failure for a Slack channel with the action and the monitor, not as a monitor status', async () => {
     const slack = await channel('slack', { webhookUrl: `${baseUrl}/slack` })
     await failingAction([slack.id])
@@ -509,19 +583,22 @@ describe('action failure notifications', () => {
     const hook = await channel('webhook', { url: `${baseUrl}/notify`, method: 'POST' })
     const config = { url: 'https://host/', method: 'POST' }
 
-    const created = await app.inject({ method: 'POST', url: '/actions', payload: { name: 'A', config, failureChannelIds: [hook.id, hook.id] } })
+    const created = await app.inject({ method: 'POST', url: '/actions', payload: { name: 'A', config, notificationChannelIds: [hook.id, hook.id] } })
     assert.equal(created.statusCode, 200)
-    assert.deepEqual(created.json().failureChannelIds, [hook.id])
-    assert.deepEqual((await app.inject({ url: '/actions' })).json()[0].failureChannelIds, [hook.id])
+    assert.deepEqual(created.json().notificationChannelIds, [hook.id])
+    assert.deepEqual((await app.inject({ url: '/actions' })).json()[0].notificationChannelIds, [hook.id])
 
-    assert.equal((await app.inject({ method: 'PATCH', url: `/actions/${created.json().id}`, payload: { failureChannelIds: [9999] } })).statusCode, 400)
-    assert.equal((await app.inject({ method: 'PATCH', url: `/actions/${created.json().id}`, payload: { failureChannelIds: 'all' } })).statusCode, 400)
-    const cleared = await app.inject({ method: 'PATCH', url: `/actions/${created.json().id}`, payload: { failureChannelIds: [] } })
-    assert.deepEqual(cleared.json().failureChannelIds, [])
+    const oldName = await app.inject({ method: 'PATCH', url: `/actions/${created.json().id}`, payload: { failureChannelIds: [] } })
+    assert.deepEqual(oldName.json().notificationChannelIds, [], 'the name used up to 0.6 is still accepted')
+    await app.inject({ method: 'PATCH', url: `/actions/${created.json().id}`, payload: { notificationChannelIds: [hook.id] } })
+    assert.equal((await app.inject({ method: 'PATCH', url: `/actions/${created.json().id}`, payload: { notificationChannelIds: [9999] } })).statusCode, 400)
+    assert.equal((await app.inject({ method: 'PATCH', url: `/actions/${created.json().id}`, payload: { notificationChannelIds: 'all' } })).statusCode, 400)
+    const cleared = await app.inject({ method: 'PATCH', url: `/actions/${created.json().id}`, payload: { notificationChannelIds: [] } })
+    assert.deepEqual(cleared.json().notificationChannelIds, [])
 
-    await app.inject({ method: 'PATCH', url: `/actions/${created.json().id}`, payload: { failureChannelIds: [hook.id] } })
+    await app.inject({ method: 'PATCH', url: `/actions/${created.json().id}`, payload: { notificationChannelIds: [hook.id] } })
     assert.equal((await app.inject({ method: 'DELETE', url: `/actions/${created.json().id}` })).statusCode, 204)
-    assert.equal((await db.select().from(actionFailureChannels)).length, 0)
+    assert.equal((await db.select().from(actionNotificationChannels)).length, 0)
   })
 
   it('keeps the failure out of the notification history of anyone who may not read actions', async () => {

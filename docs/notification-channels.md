@@ -25,14 +25,20 @@ Email and Webhook are fully templated. Slack, Discord, Teams and Telegram build 
 
 1. Go to **Notifications** and click **Add Channel** (or pick a type from the quick-start tiles while you have no channels yet).
 2. Enter a **Name** and pick the **Type**. A technical [key](api.md#monitors-and-notification-channels-have-keys) is generated from the name; it is not shown in the form and never changes.
-3. Fill in the type-specific fields (see below).
-4. Set the two switches:
-   - **Enabled** — a disabled channel sends nothing. On by default.
-   - **Notify on recovery (when monitor comes back up)** — off by default.
-5. Optionally open the alert hygiene panel to set quiet hours, a rate cap or grouping — see [Alert hygiene](alert-hygiene.md).
-6. Click **Create Channel**.
+3. Fill in the type-specific fields (see below): where the messages go and the credentials.
+4. Below them, the **Monitor** and **Action** tabs word the messages of the two kinds of event (see [Wording for monitors and for actions](#wording-for-monitors-and-for-actions)). **Notify on recovery (when monitor comes back up)** is on the Monitor tab and is off by default; **Notify when an action run succeeds** is its counterpart on the Action tab, also off by default (failed runs are always sent).
+5. Set **Enabled**: a disabled channel sends nothing. On by default.
+6. Optionally open the alert hygiene panel to set quiet hours, a rate cap or grouping — see [Alert hygiene](alert-hygiene.md).
+7. Click **Create Channel**.
 
 Deleting a channel also removes it from every monitor it was assigned to.
+
+### Wording for monitors and for actions
+
+> [!WARNING]
+> **Not released yet.** This is not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+One channel serves both. The **Monitor** tab words what is sent about monitors (status changes and certificates); the **Action** tab words what is sent about [actions](actions.md#when-a-run-fails), so you do not need a second channel to say something different about them. The Action tab has the same message fields as the Monitor tab, with the [action variables](#action-runs-only) available. A field you leave empty there is not filled from the Monitor tab: the message about an action is then sent in its default form (the standard message of the channel, and for a webhook a JSON with the action, the monitor, the status, the status that triggered it, the attempts, the error and the time). The destination, the credentials, quiet hours and limits are the channel's own, and recovery and grouping apply to monitors only.
 
 ## Assigning channels to monitors
 
@@ -48,7 +54,7 @@ The usual pattern is a few channels with different rules — an on-call channel 
 | **Recovery** | A monitor that had alerted is confirmed `up` again | Channel is **Enabled** and **Notify on recovery** is on |
 | **Certificate** — expiring | An HTTPS monitor's certificate reaches a warning milestone | Channel is **Enabled** |
 | **Certificate** — renewed | A certificate you were warned about has been replaced | Channel is **Enabled** and **Notify on recovery** is on |
-| **Action failed** | A run of an [action](actions.md) failed after its last attempt, and the channel is one of the action's **Notify when a run fails** channels | Channel is **Enabled** (**Notify on recovery** does not matter) |
+| **Action** | A run of an [action](actions.md) failed after its last attempt, or succeeded when the channel is set to hear about successes, and the channel is one of the action's **Notifications** channels | Channel is **Enabled** (**Notify on recovery** does not matter) |
 | **Test** | You click **Send test** | Channel is **Enabled** |
 
 There are no other per-event switches. A monitor in the `affected` state (one of its dependencies is already down) does not alert, so the root cause sends the only alert. Certificate warnings are switched on per HTTPS monitor, with a lead time of 14 days by default and reminders 7, 3 and 1 days before expiry — see [Monitors](monitors.md).
@@ -112,6 +118,11 @@ Status:  {{status}}
 Error:   {{error_message}}
 Time:    {{checked_at}}
 ```
+
+> [!WARNING]
+> **Not released yet.** This is not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+As long as you leave this template as it is, each message is worded for its event instead: "Monitor VM1 is DOWN", "TLS certificate of VM1 expires in 7 days", "Action Start VM2 failed for monitor VM1", each with the facts that belong to that event. Edit the subject or the body and the channel sends your template for every event about a monitor (status changes and certificates), with the variables listed below. Actions are worded on the **Action** tab of the channel, never by this template.
 
 Channel emails are plain text only. The branded HTML layout that follows your status page colours and logo is used for subscriber emails, not for notification channels.
 
@@ -246,9 +257,9 @@ A variable that does not exist for the event is left in the text unchanged — f
 | `{{monitor_list}}` | Comma-separated monitor names in a digest; the monitor's own name otherwise | `Checkout API, Search API` |
 | `{{affected_count}}` | Number of monitors in a digest; `1` otherwise | `1` |
 
-### Action failures only
+### Action runs only
 
-The `action` event carries the usual variables, with `{{status}}` set to `action-failed` and `{{previous_status}}` to the status that triggered the action, and these:
+The `action` event carries the usual variables, with `{{status}}` set to `action-failed`, or `action-succeeded` for a channel that is [set to hear about successes](actions.md#when-a-run-succeeds) (`{{error_message}}` is then empty), and `{{previous_status}}` to the status that triggered the action, and these:
 
 | Variable | Value |
 | --- | --- |
@@ -259,7 +270,7 @@ The `action` event carries the usual variables, with `{{status}}` set to `action
 | `{{monitor_name}}` | The monitor the action ran for |
 | `{{error_message}}` | The error of the last attempt, for example `HTTP 500: Job queue is full`. Never the request itself |
 
-Slack, Discord, Teams and Telegram word it as "Action *Start VM2* failed for monitor *VM1*" and list the action, the monitor, the status it waited for and the attempts. Email and webhook channels use their own template, which can use the variables above. Quiet hours apply, a digest does not: a failed action is always sent on its own.
+Slack, Discord, Teams and Telegram word it as "Action *Start VM2* failed for monitor *VM1*" and list the action, the monitor, the status it waited for and the attempts. A channel words it with what its **Action** tab says, with the variables above; a field left empty there gets the default form: the same wording as above for email, the standard message for the chat and push channels, and a JSON with the action, the monitor, the status, the status that triggered it, the attempts, the error and the time for a webhook. What you wrote on the **Monitor** tab is never used for an action. Quiet hours apply, a digest does not: a failed action is always sent on its own.
 
 ### Certificate events only
 
@@ -379,5 +390,15 @@ A channel has a unique `key` next to its `id` (see [Keys](api.md#monitors-and-no
 | `telegram` | `chatId`, and `botToken` or a `vault` reference to the token; `text` (optional) |
 | `ntfy` | `topic`; `serverUrl`, `accessToken` or a `vault` reference to it, and `text` (all optional) |
 | `pushover` | `userKey`, and `appToken` or a `vault` reference to the token; `text` (optional) |
+
+> [!WARNING]
+> **Not released yet.** This is not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+Whether successful runs of an action are sent is `config.notifyOnActionSuccess` (`true`). The wording for actions is `config.eventOverrides.action`, made of the message fields of the type (`subject` and `body` for email, `body` for webhook, `content` for Discord, `summary` for Teams, `text` for the others). Any other field in it is refused, so it can never change where a message goes.
+
+```json
+"config": { "to": "ops@example.com", "subject": "Monitor {{monitor_name}} is {{status}}", "body": "…",
+            "eventOverrides": { "action": { "subject": "Action {{action_name}}: {{status}}" } } }
+```
 
 Creating, updating and deleting channels, and changing SMTP settings, are written to the audit log.

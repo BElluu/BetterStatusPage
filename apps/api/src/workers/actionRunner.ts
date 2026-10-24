@@ -1,7 +1,7 @@
 import { and, eq, gt, inArray, lt, lte, ne, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { actionRuns, actions, monitorActions, monitors } from '../db/schema.js'
-import { MAX_DELIVERY_ATTEMPTS, RETRY_DELAYS_MS, sendActionFailureNotifications } from './notifier.js'
+import { MAX_DELIVERY_ATTEMPTS, RETRY_DELAYS_MS, sendActionFailureNotifications, sendActionSuccessNotifications } from './notifier.js'
 import { executeAction, type ActionHttpResult } from './actionHttp.js'
 import { isInMaintenance } from './scheduler.js'
 import type { ActionHttpConfig } from '@bsp/shared'
@@ -161,10 +161,16 @@ export async function attemptActionRun(runId: number, now = Date.now()): Promise
       const result = await executeAction(JSON.parse(action.config) as ActionHttpConfig, JSON.parse(run.variables) as Record<string, string>)
       if (!result.ok) throw new Error(result.error)
       const completedAt = Date.now()
-      await db.update(actionRuns).set({
+      const updated = await db.update(actionRuns).set({
         status: 'succeeded', attemptCount: attemptNumber, nextAttemptAt: null,
         lastAttemptAt: completedAt, completedAt, lastError: null, updatedAt: completedAt,
-      }).where(and(eq(actionRuns.id, runId), eq(actionRuns.status, 'pending')))
+      }).where(and(eq(actionRuns.id, runId), eq(actionRuns.status, 'pending'))).returning({ id: actionRuns.id })
+      // A run that was cancelled while it was sending is not a success to report. Of the rest, only the channels set to
+      // hear about successes are told; the notifier decides which.
+      if (updated.length > 0) {
+        sendActionSuccessNotifications({ ...run, actionName: action.name, attemptCount: attemptNumber }).catch((err) =>
+          console.error('[actions] Success notification failed:', err instanceof Error ? err.message : err))
+      }
     } catch (error) {
       const completedAt = Date.now()
       const message = error instanceof Error ? error.message : String(error)

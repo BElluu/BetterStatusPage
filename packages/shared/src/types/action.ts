@@ -34,8 +34,8 @@ export interface Action {
   name: string
   config: ActionHttpConfig
   enabled: number
-  /** Notification channels told when a run of this action fails after its last attempt. */
-  failureChannelIds: number[]
+  /** Notification channels told when a run of this action fails after its last attempt, and when one succeeds if the channel is set to. */
+  notificationChannelIds: number[]
   createdAt: number
   updatedAt: number
 }

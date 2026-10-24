@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { db } from '../db/client.js'
-import { actionFailureChannels, actionRuns, actions, monitorActions, monitors, notificationChannels } from '../db/schema.js'
+import { actionNotificationChannels, actionRuns, actions, monitorActions, monitors, notificationChannels } from '../db/schema.js'
 import { cancelRunsOfAction, cancelUnlinkedRuns, retryActionRun, testAction } from '../workers/actionRunner.js'
 import { auditActor, diffObjects, snapshot, writeAudit } from '../kit/audit.js'
 import { requestIdentity } from '../kit/authMiddleware.js'
@@ -31,17 +31,27 @@ export async function actionRoutes(app: FastifyInstance) {
    * The channels told about a failed run come with them.
    */
   async function present(rows: ActionRow[]) {
-    const links = rows.length === 0 ? [] : await db.select().from(actionFailureChannels).where(inArray(actionFailureChannels.actionId, rows.map((r) => r.id)))
+    const links = rows.length === 0 ? [] : await db.select().from(actionNotificationChannels).where(inArray(actionNotificationChannels.actionId, rows.map((r) => r.id)))
     return rows.map((r) => ({
       ...r,
       config: maskSecrets('channel', JSON.parse(r.config)),
-      failureChannelIds: links.filter((l) => l.actionId === r.id).map((l) => l.channelId).sort((a, b) => a - b),
+      notificationChannelIds: links.filter((l) => l.actionId === r.id).map((l) => l.channelId).sort((a, b) => a - b),
     }))
   }
 
+  /**
+   * The channel ids a request asks for, or none when it does not mention them. `failureChannelIds` is the name this
+   * field had up to 0.6 and is still accepted, but not together with the new one.
+   */
+  async function requestedChannelIds(body: { notificationChannelIds?: unknown; failureChannelIds?: unknown }, token: { scopes: readonly string[] } | undefined): Promise<{ ids: number[] | undefined } | { error: string; status: number }> {
+    if (body.notificationChannelIds !== undefined && body.failureChannelIds !== undefined) return { error: 'Send notificationChannelIds only; failureChannelIds is its old name', status: 400 }
+    const value = body.notificationChannelIds !== undefined ? body.notificationChannelIds : body.failureChannelIds
+    return value === undefined ? { ids: undefined } : parseChannelIds(value, token)
+  }
+
   /** The channel ids of a request, or what is wrong with them. A token must be allowed to manage channels to pick them. */
-  async function parseFailureChannels(value: unknown, token: { scopes: readonly string[] } | undefined): Promise<{ ids: number[] } | { error: string; status: number }> {
-    if (!Array.isArray(value) || !value.every((id) => Number.isSafeInteger(id) && id > 0)) return { error: 'failureChannelIds must be an array of channel ids', status: 400 }
+  async function parseChannelIds(value: unknown, token: { scopes: readonly string[] } | undefined): Promise<{ ids: number[] } | { error: string; status: number }> {
+    if (!Array.isArray(value) || !value.every((id) => Number.isSafeInteger(id) && id > 0)) return { error: 'notificationChannelIds must be an array of channel ids', status: 400 }
     const ids = [...new Set(value as number[])].sort((a, b) => a - b)
     if (ids.length > 0) {
       const known = await db.select({ id: notificationChannels.id }).from(notificationChannels).where(inArray(notificationChannels.id, ids))
@@ -52,9 +62,9 @@ export async function actionRoutes(app: FastifyInstance) {
   }
 
   /** Replaces the list. Call it inside the transaction that saves the action, so the two never disagree. */
-  async function setFailureChannels(actionId: number, ids: number[]) {
-    await db.delete(actionFailureChannels).where(eq(actionFailureChannels.actionId, actionId))
-    if (ids.length > 0) await db.insert(actionFailureChannels).values(ids.map((channelId) => ({ actionId, channelId })))
+  async function setChannels(actionId: number, ids: number[]) {
+    await db.delete(actionNotificationChannels).where(eq(actionNotificationChannels.actionId, actionId))
+    if (ids.length > 0) await db.insert(actionNotificationChannels).values(ids.map((channelId) => ({ actionId, channelId })))
   }
 
   app.get('/', async () => present(await db.select().from(actions)))
@@ -67,7 +77,7 @@ export async function actionRoutes(app: FastifyInstance) {
     return (await present([r]))[0]
   })
 
-  app.post<{ Body: { name: string; key?: string; config: unknown; enabled?: number; failureChannelIds?: unknown } }>('/', async (req, reply) => {
+  app.post<{ Body: { name: string; key?: string; config: unknown; enabled?: number; notificationChannelIds?: unknown; failureChannelIds?: unknown } }>('/', async (req, reply) => {
     if (typeof req.body?.name !== 'string' || !req.body.name.trim() || req.body.name.length > MAX_NAME) return reply.code(400).send({ error: `Name is required, up to ${MAX_NAME} characters` })
     if (req.body.enabled !== undefined && !isFlag(req.body.enabled)) return reply.code(400).send({ error: 'enabled must be 0 or 1' })
     if (!isObject(req.body.config)) return reply.code(400).send({ error: 'config must be an object' })
@@ -77,12 +87,9 @@ export async function actionRoutes(app: FastifyInstance) {
     if (problem) return reply.code(400).send({ error: problem })
     const vaultProblem = vaultUseProblem(requestIdentity(req).apiToken, secrets.config, undefined)
     if (vaultProblem) return reply.code(403).send({ error: vaultProblem })
-    let channelIds: number[] = []
-    if (req.body.failureChannelIds !== undefined) {
-      const parsed = await parseFailureChannels(req.body.failureChannelIds, requestIdentity(req).apiToken)
-      if ('error' in parsed) return reply.code(parsed.status).send({ error: parsed.error })
-      channelIds = parsed.ids
-    }
+    const requested = await requestedChannelIds(req.body, requestIdentity(req).apiToken)
+    if ('error' in requested) return reply.code(requested.status).send({ error: requested.error })
+    const channelIds = requested.ids ?? []
     const resolvedKey = await keyForNew(req.body.name, req.body.key, keyOwner)
     if ('error' in resolvedKey) return reply.code(resolvedKey.status).send({ error: resolvedKey.error })
     const now = Date.now()
@@ -95,15 +102,15 @@ export async function actionRoutes(app: FastifyInstance) {
         createdAt: now,
         updatedAt: now,
       }).returning())[0]!
-      if (channelIds.length > 0) await setFailureChannels(row.id, channelIds)
+      if (channelIds.length > 0) await setChannels(row.id, channelIds)
       return row
     })
     writeAudit(auditActor(requestIdentity(req)), 'create', 'action', r.id, r.name,
-      snapshot({ name: r.name, enabled: r.enabled, failureChannels: channelIds.length }))
+      snapshot({ name: r.name, enabled: r.enabled, notificationChannels: channelIds.length }))
     return (await present([r]))[0]
   })
 
-  app.patch<{ Params: { id: string }; Body: Partial<{ name: string; key: string; config: unknown; enabled: number; failureChannelIds: unknown }> }>('/:id', async (req, reply) => {
+  app.patch<{ Params: { id: string }; Body: Partial<{ name: string; key: string; config: unknown; enabled: number; notificationChannelIds: unknown; failureChannelIds: unknown }> }>('/:id', async (req, reply) => {
     const id = Number(req.params.id)
     const existing = (await db.select().from(actions).where(eq(actions.id, id)))[0]
     if (!existing) return reply.code(404).send({ error: 'Not found' })
@@ -125,19 +132,16 @@ export async function actionRoutes(app: FastifyInstance) {
       if (vaultProblem) return reply.code(403).send({ error: vaultProblem })
       updates.config = JSON.stringify(secrets.config)
     }
-    const storedChannels = (await db.select().from(actionFailureChannels).where(eq(actionFailureChannels.actionId, id))).map((l) => l.channelId).sort((a, b) => a - b)
-    let channelIds = storedChannels
-    if (req.body.failureChannelIds !== undefined) {
-      const parsed = await parseFailureChannels(req.body.failureChannelIds, requestIdentity(req).apiToken)
-      if ('error' in parsed) return reply.code(parsed.status).send({ error: parsed.error })
-      channelIds = parsed.ids
-    }
+    const storedChannels = (await db.select().from(actionNotificationChannels).where(eq(actionNotificationChannels.actionId, id))).map((l) => l.channelId).sort((a, b) => a - b)
+    const requested = await requestedChannelIds(req.body, requestIdentity(req).apiToken)
+    if ('error' in requested) return reply.code(requested.status).send({ error: requested.error })
+    const channelIds = requested.ids ?? storedChannels
     const r = await withImmediateTransaction(async () => {
       const row = (await db.update(actions).set(updates).where(eq(actions.id, id)).returning())[0]!
-      if (channelIds.join() !== storedChannels.join()) await setFailureChannels(id, channelIds)
+      if (channelIds.join() !== storedChannels.join()) await setChannels(id, channelIds)
       return row
     })
-    const diff = diffObjects({ name: existing.name, enabled: existing.enabled, failureChannels: storedChannels.length }, { name: r.name, enabled: r.enabled, failureChannels: channelIds.length })
+    const diff = diffObjects({ name: existing.name, enabled: existing.enabled, notificationChannels: storedChannels.length }, { name: r.name, enabled: r.enabled, notificationChannels: channelIds.length })
     if (req.body.config !== undefined) diff['config'] = { from: '[previous config]', to: '[updated config]' }
     if (Object.keys(diff).length) writeAudit(auditActor(requestIdentity(req)), 'update', 'action', id, existing.name, diff)
     return (await present([r]))[0]
@@ -149,7 +153,7 @@ export async function actionRoutes(app: FastifyInstance) {
     if (existing) {
       await cancelRunsOfAction(id)
       await db.delete(monitorActions).where(eq(monitorActions.actionId, id))
-      await db.delete(actionFailureChannels).where(eq(actionFailureChannels.actionId, id))
+      await db.delete(actionNotificationChannels).where(eq(actionNotificationChannels.actionId, id))
       await db.delete(actions).where(eq(actions.id, id))
       writeAudit(auditActor(requestIdentity(req)), 'delete', 'action', id, existing.name, snapshot({ name: existing.name }))
     }

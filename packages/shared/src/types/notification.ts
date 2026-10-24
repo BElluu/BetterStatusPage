@@ -34,7 +34,10 @@ export interface NotificationChannel {
   key: string
   name: string
   type: NotificationChannelType
-  config: NotificationChannelConfig
+  config: NotificationChannelConfig & {
+    /** The channel is also told about the runs of an action that succeeded, not only about the ones that failed. */
+    notifyOnActionSuccess?: boolean
+  }
   enabled: number
   notifyOnRecovery: number
   alertPolicy: ChannelAlertPolicy
@@ -68,3 +71,11 @@ export interface NotificationDelivery {
   createdAt: number
   updatedAt: number
 }
+
+/** The subject and body a new email channel starts with. */
+export const DEFAULT_EMAIL_SUBJECT = 'Monitor {{monitor_name}} is {{status}}'
+export const DEFAULT_EMAIL_BODY = `Monitor: {{monitor_name}}
+Type:    {{monitor_type}}
+Status:  {{status}}
+Error:   {{error_message}}
+Time:    {{checked_at}}`

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { DEFAULT_ALERT_POLICY, type NotificationChannel } from '@bsp/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -423,5 +423,91 @@ describe('ChannelFormModal YAML view', () => {
   it('has no YAML for a channel that does not exist yet', () => {
     renderModal(null)
     expect(screen.queryByRole('button', { name: 'YAML' })).not.toBeInTheDocument()
+  })
+})
+
+describe('ChannelFormModal message tabs', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(api.get).mockResolvedValue([] as never)
+    vi.mocked(api.post).mockResolvedValue({})
+    vi.mocked(api.patch).mockResolvedValue({})
+  })
+
+  it('words the messages about actions on their own tab, and leaves recovery to the Monitor tab', async () => {
+    const user = userEvent.setup()
+    renderModal()
+    await user.type(field('Name'), 'On-call')
+    await user.type(field('To'), 'oncall@example.test')
+    expect(toggle('Notify on recovery (when monitor comes back up)')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Action' }))
+    expect(screen.queryByRole('switch', { name: 'Notify on recovery (when monitor comes back up)' })).not.toBeInTheDocument()
+    await user.type(field('Subject'), 'Action {{{{action_name}}')
+    await create(user)
+
+    expect(submittedBody()['config']).toMatchObject({
+      to: 'oncall@example.test',
+      subject: 'Monitor {{monitor_name}} is {{status}}',
+      eventOverrides: { action: { subject: 'Action {{action_name}}' } },
+    })
+  })
+
+  it('sets whether a successful run of an action is told, on the Action tab only', async () => {
+    const user = userEvent.setup()
+    renderModal()
+    await user.type(field('Name'), 'On-call')
+    await user.type(field('To'), 'oncall@example.test')
+    expect(screen.queryByRole('switch', { name: 'Notify when an action run succeeds' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Action' }))
+    await user.click(toggle('Notify when an action run succeeds'))
+    await create(user)
+
+    expect(submittedBody()['config']).toMatchObject({ to: 'oncall@example.test', notifyOnActionSuccess: true })
+    expect(submittedBody()['config']).not.toHaveProperty('eventOverrides')
+  })
+
+  it('sends no override when the Action tab is left empty, and reads a stored one back', async () => {
+    const user = userEvent.setup()
+    renderModal()
+    await user.type(field('Name'), 'On-call')
+    await user.type(field('To'), 'oncall@example.test')
+    await create(user)
+    expect(submittedBody()['config']).not.toHaveProperty('eventOverrides')
+    cleanup()
+    vi.clearAllMocks()
+    vi.mocked(api.patch).mockResolvedValue({})
+
+    render(<ChannelFormModal channel={channel({ config: { to: 'a@b.test', subject: 'S', body: 'B', eventOverrides: { action: { subject: 'Ran {{action_name}}' } } } })} onClose={vi.fn()} onSaved={vi.fn()} />)
+    await user.click(screen.getByRole('tab', { name: 'Action' }))
+    expect(field('Subject')).toHaveValue('Ran {{action_name}}')
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledOnce())
+    expect(vi.mocked(api.patch).mock.calls[0]?.[1]).toMatchObject({ config: { eventOverrides: { action: { subject: 'Ran {{action_name}}' } } } })
+  })
+})
+
+describe('ChannelFormModal wording the form does not edit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(api.get).mockResolvedValue([] as never)
+    vi.mocked(api.patch).mockResolvedValue({})
+  })
+
+  it('keeps the wording a channel has for other kinds of event when it is saved', async () => {
+    const user = userEvent.setup()
+    render(<ChannelFormModal channel={channel({ config: { to: 'a@b.test', subject: 'S', body: 'B', eventOverrides: { alert: { subject: 'Alert {{monitor_name}}' }, action: { subject: 'Ran' } } } })} onClose={vi.fn()} onSaved={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledOnce())
+    expect(vi.mocked(api.patch).mock.calls[0]?.[1]).toMatchObject({ config: { eventOverrides: { alert: { subject: 'Alert {{monitor_name}}' }, action: { subject: 'Ran' } } } })
+  })
+
+  it('drops the Action body of a webhook that cannot carry one', async () => {
+    const user = userEvent.setup()
+    render(<ChannelFormModal channel={channel({ type: 'webhook', config: { url: 'https://x.test/h', method: 'GET', eventOverrides: { action: { body: '{"a":1}' } } } })} onClose={vi.fn()} onSaved={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledOnce())
+    expect((vi.mocked(api.patch).mock.calls[0]?.[1] as { config: Record<string, unknown> }).config).not.toHaveProperty('eventOverrides')
   })
 })

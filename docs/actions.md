@@ -101,7 +101,14 @@ Finished runs are kept for 180 days. The run history is in *Admin → Alerts →
 
 ### When a run fails
 
-In the action's form, the **Notify when a run fails** tab at the right edge lists your [notification channels](notification-channels.md). Each one you tick is told **once**, after the last attempt has failed: nothing is sent for a success, a cancelled run or **Run now**. Disabled channels are skipped. The message names the action, the monitor, the status that triggered it and the error of the last attempt, never the request. See the [Action failed event](notification-channels.md#action-failures-only).
+In the action's form, the **Notifications** tab at the right edge lists your [notification channels](notification-channels.md). Each one you tick is told **once**, after the last attempt has failed: nothing is sent for a cancelled run or **Run now**. Disabled channels are skipped. The message names the action, the monitor, the status that triggered it and the error of the last attempt, never the request. See the [Action failed event](notification-channels.md#action-runs-only).
+
+### When a run succeeds
+
+> [!WARNING]
+> **Not released yet.** This feature is not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+A channel can also be told when a run **succeeds**, so you know the action really ran: turn on **Notify when an action run succeeds** on the **Action** tab of the [channel](notification-channels.md#wording-for-monitors-and-for-actions). It is off by default and decided per channel, for every action the channel is ticked on. Only the action's own runs are reported, not **Run now**, and the message names the action, the monitor and the status that triggered it.
 
 ---
 
@@ -119,7 +126,7 @@ If `VM1` is down for five minutes without recovering, the job starts `VM2`. If i
 
 ## Security
 
-- Only administrators can create, change, test, retry or link actions, and see the run history. The **Action failed** entries of the notification history are hidden from everyone else for the same reason: they quote what the target answered. An [API token](api.md#permissions) needs the `actions` permission, `channels:write` to choose the failure channels, and `vault:use` to add or change a vault reference.
+- Only administrators can create, change, test, retry or link actions, and see the run history. The **Action** entries of the notification history are hidden from everyone else for the same reason: they quote what the target answered. An [API token](api.md#permissions) needs the `actions` permission, `channels:write` to choose the notification channels, and `vault:use` to add or change a vault reference.
 - Credential-looking headers are masked in the panel and the API. Sending the mask back keeps the stored value. A save that changes the URL but keeps a masked secret is refused, so a stored secret cannot be sent to another address: enter it again.
 - **Keep credentials in a [vault secret](#secrets-from-the-vault).** Whatever you type into a header, the URL or the body is stored in the database as plain JSON, like the headers of a webhook channel, and the URL is shown in clear text to every administrator and returned by the API. The form warns when a header or the URL looks like it holds a credential.
 - A request can go to any address the server can reach, internal ones included. That is what makes an action useful for a Jenkins on a private network, so give the permission only to people who may start those jobs. Redirects are not followed.

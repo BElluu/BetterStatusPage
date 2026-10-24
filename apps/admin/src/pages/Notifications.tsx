@@ -282,7 +282,7 @@ export function DeliveryHistory({ channels }: { channels: NotificationChannel[] 
           <option value="">All channels</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
         </select>
         <select aria-label="Event" className="input-sig text-sm min-w-32" value={eventType} onChange={(e) => changeFilter(setEventType, e.target.value)}>
-          <option value="">All events</option><option value="alert">Alert</option><option value="recovery">Recovery</option><option value="certificate">Certificate</option><option value="action">Action failed</option><option value="test">Test</option>
+          <option value="">All events</option><option value="alert">Alert</option><option value="recovery">Recovery</option><option value="certificate">Certificate</option><option value="action">Action</option><option value="test">Test</option>
         </select>
       </div>
     </div>
@@ -325,13 +325,14 @@ const STATUS_NAMES: Record<string, string> = {
   'cert-expiring': 'Certificate expiring',
   'cert-renewed': 'Certificate renewed',
   'action-failed': 'Action failed',
+  'action-succeeded': 'Action ran',
 }
 
 const EVENT_LABELS: Record<NotificationDelivery['eventType'], string> = {
   alert: 'Alert',
   recovery: 'Recovery',
   certificate: 'Certificate',
-  action: 'Action failed',
+  action: 'Action',
   test: 'Test',
 }
 

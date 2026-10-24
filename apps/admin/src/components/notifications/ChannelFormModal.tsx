@@ -4,7 +4,7 @@ import { DEFAULT_ALERT_POLICY } from '@bsp/shared'
 import { YamlViewModal } from '../YamlViewModal'
 import type { ChannelAlertPolicy, NotificationChannel } from '@bsp/shared'
 import { ChannelTypePicker } from './ChannelTypePicker'
-import { CHANNEL_TYPES, Field, buildChannelConfig, initialDrafts, isChannelType, type ChannelDrafts, type ChannelType } from './channelTypes'
+import { CHANNEL_TYPES, Field, MessageSection, buildChannelConfig, initialDrafts, isChannelType, readActionTexts, readOtherOverrides, type ActionTexts, type ChannelDrafts, type ChannelType, type MessageScope } from './channelTypes'
 import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
 import { SidePanelFrame, SideTabStrip, type SidePanelMeta, type SideTab } from '@better-kit/ui'
 import { Alert, Switch } from '@better-kit/ui'
@@ -23,6 +23,11 @@ type ChannelPanelKey = 'hygiene'
 const PANEL_META: Record<ChannelPanelKey, SidePanelMeta> = {
   hygiene: { icon: 'notifications_paused', label: 'Alert hygiene' },
 }
+
+const MESSAGE_TABS: { key: MessageScope; label: string }[] = [
+  { key: 'monitor', label: 'Monitor' },
+  { key: 'action', label: 'Action' },
+]
 
 const FALLBACK_TIMEZONES = ['UTC', 'Europe/Warsaw', 'Europe/London', 'Europe/Berlin', 'America/New_York', 'America/Los_Angeles', 'Asia/Tokyo']
 
@@ -61,6 +66,13 @@ export default function ChannelFormModal({ channel, initialType, onClose, onSave
   const [type, setType]   = useState<ChannelType>(isChannelType(channel?.type) ? channel.type : (initialType ?? 'email'))
   const [enabled, setEnabled]               = useState((channel?.enabled ?? 1) === 1)
   const [notifyOnRecovery, setNotifyOnRecovery] = useState((channel?.notifyOnRecovery ?? 0) === 1)
+  const [messageScope, setMessageScope] = useState<MessageScope>('monitor')
+  // Wording for other kinds of event can only be set through the API or a file; it has to survive a save from here.
+  const otherOverrides = isChannelType(channel?.type) ? readOtherOverrides(channel.config) : undefined
+  const [notifyOnActionSuccess, setNotifyOnActionSuccess] = useState((channel?.config as { notifyOnActionSuccess?: unknown } | undefined)?.notifyOnActionSuccess === true)
+  // The wording of action messages, per type like the drafts, so switching types keeps what was typed.
+  const [actionTexts, setActionTexts] = useState<Partial<Record<ChannelType, ActionTexts>>>(() =>
+    isChannelType(channel?.type) ? { [channel.type]: readActionTexts(channel.type, channel.config) } : {})
 
   // One draft per channel type; the descriptor table in channelTypes.tsx knows how to read, edit and build each.
   const [drafts, setDrafts] = useState<ChannelDrafts>(() => initialDrafts(isChannelType(channel?.type) ? channel.type : null, channel?.config))
@@ -121,7 +133,7 @@ export default function ChannelFormModal({ channel, initialType, onClose, onSave
   }
 
   // "Send test" exercises the stored channel on the server, so it is only meaningful while the form matches it.
-  const snapshot = JSON.stringify({ name, type, config: buildChannelConfig(type, drafts), enabled, notifyOnRecovery, alertPolicy: buildAlertPolicy() })
+  const snapshot = JSON.stringify({ name, type, config: buildChannelConfig(type, drafts, { texts: actionTexts[type], notifyOnSuccess: notifyOnActionSuccess, otherOverrides: type === channel?.type ? otherOverrides : undefined }), enabled, notifyOnRecovery, alertPolicy: buildAlertPolicy() })
   const [savedSnapshot] = useState(snapshot)
   const dirty = snapshot !== savedSnapshot
   const titleId = useId()
@@ -133,7 +145,7 @@ export default function ChannelFormModal({ channel, initialType, onClose, onSave
     setLoading(true)
     try {
       const body = {
-        name, type, config: buildChannelConfig(type, drafts),
+        name, type, config: buildChannelConfig(type, drafts, { texts: actionTexts[type], notifyOnSuccess: notifyOnActionSuccess, otherOverrides: type === channel?.type ? otherOverrides : undefined }),
         enabled: enabled ? 1 : 0,
         notifyOnRecovery: notifyOnRecovery ? 1 : 0,
         alertPolicy: buildAlertPolicy(),
@@ -197,10 +209,49 @@ export default function ChannelFormModal({ channel, initialType, onClose, onSave
 
           <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
 
+          {/* The same channel can word and handle the messages about monitors and about actions differently. */}
+          <div role="tablist" aria-label="Messages of this channel" className="flex gap-6" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
+            {MESSAGE_TABS.map((item) => {
+              const active = messageScope === item.key
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  role="tab"
+                  id={`${titleId}-tab-${item.key}`}
+                  aria-selected={active}
+                  aria-controls={`${titleId}-panel`}
+                  onClick={() => setMessageScope(item.key)}
+                  className="inline-flex items-center gap-2 px-0.5 pb-3 -mb-px text-sm font-semibold focus-ring"
+                  style={{ borderBottom: `2px solid ${active ? 'var(--m3-on-surface)' : 'transparent'}`, color: active ? 'var(--m3-on-surface)' : 'var(--m3-secondary)' }}
+                >
+                  {item.label}
+                </button>
+              )
+            })}
+          </div>
+          <div role="tabpanel" id={`${titleId}-panel`} aria-labelledby={`${titleId}-tab-${messageScope}`} className="space-y-4">
+            <MessageSection
+              type={type}
+              scope={messageScope}
+              drafts={drafts}
+              onDraft={setDraft}
+              actionTexts={actionTexts[type] ?? {}}
+              onActionTexts={(texts) => setActionTexts((current) => ({ ...current, [type]: texts }))}
+            />
+            {messageScope === 'monitor' && (
+              <Switch label="Notify on recovery (when monitor comes back up)" checked={notifyOnRecovery} onChange={setNotifyOnRecovery} />
+            )}
+            {messageScope === 'action' && (
+              <Switch label="Notify when an action run succeeds" checked={notifyOnActionSuccess} onChange={setNotifyOnActionSuccess} />
+            )}
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
+
           {/* Toggles */}
           <div className="space-y-3">
             <Switch label="Enabled" checked={enabled} onChange={setEnabled} />
-            <Switch label="Notify on recovery (when monitor comes back up)" checked={notifyOnRecovery} onChange={setNotifyOnRecovery} />
           </div>
 
           {/* Test result */}

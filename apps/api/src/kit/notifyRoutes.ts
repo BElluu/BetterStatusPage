@@ -3,7 +3,7 @@ import { tokenAllows } from '@better-kit/contracts'
 import { createNotifyRoutes } from '@better-kit/notify'
 import { db } from '../db/client.js'
 import { notifyModule } from '../db/modules/notify/index.js'
-import { actionFailureChannels, monitorNotificationChannels } from '../db/schema.js'
+import { actionNotificationChannels, monitorNotificationChannels } from '../db/schema.js'
 import { keyForNew } from '@better-kit/config-as-code'
 import { requestIdentity } from './authMiddleware.js'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
@@ -37,7 +37,7 @@ export const notifyRoutes = createNotifyRoutes({
   resolveKey: keyForNew,
   onChannelDeleted: async (channelId) => {
     await db.delete(monitorNotificationChannels).where(eq(monitorNotificationChannels.channelId, channelId))
-    await db.delete(actionFailureChannels).where(eq(actionFailureChannels.channelId, channelId))
+    await db.delete(actionNotificationChannels).where(eq(actionNotificationChannels.channelId, channelId))
   },
   retryDelivery: (deliveryId) => notifyEngine.retryDelivery(deliveryId),
   testChannel: (channelId) => testNotificationChannel(channelId),

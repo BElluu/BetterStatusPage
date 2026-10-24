@@ -354,7 +354,7 @@
         "url": "/webhook",
         "contentType": "application/json",
         "extra": {},
-        "body": "{\"name\":\"Checkout <API>\",\"status\":\"action-failed\",\"event\":\"action\"}"
+        "body": "{\n  \"action\": \"Restart\",\n  \"monitor\": \"Checkout <API>\",\n  \"status\": \"action-failed\",\n  \"trigger_status\": \"down\",\n  \"attempts\": \"3\",\n  \"error\": \"HTTP 500\",\n  \"time\": \"2023-11-14T22:13:20.000Z\"\n}"
       },
       {
         "channel": "action-failed",
@@ -374,7 +374,7 @@
       }
     ],
     "emails": [
-      "From: Status <status@example.test>\nTo: team@example.test\nSubject: Checkout <API> is action-failed\nMessage-ID: -\nContent-Transfer-Encoding: 7bit\nDate: -\nMIME-Version: 1.0\nContent-Type: text/plain; charset=utf-8\n\nDetail: HTTP 500\n"
+      "From: Status <status@example.test>\nTo: team@example.test\nSubject: Action Restart failed for monitor Checkout <API>\nMessage-ID: -\nContent-Transfer-Encoding: 7bit\nDate: -\nMIME-Version: 1.0\nContent-Type: text/plain; charset=utf-8\n\nAction: Restart\nMonitor: Checkout <API>\nTriggered when: monitor was down\nAttempts: 3\nError: HTTP 500\nChecked at 2023-11-14 22:13:20 UTC\n"
     ]
   },
   "test-sends": {

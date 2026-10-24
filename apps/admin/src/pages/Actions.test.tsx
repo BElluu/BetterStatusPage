@@ -53,7 +53,7 @@ describe('Actions page', () => {
 
     await user.click(screen.getByRole('button', { name: /Add Action/ }))
     const dialog = await screen.findByRole('dialog')
-    await user.type(within(dialog).getByPlaceholderText('Start VM2'), 'Wake VM3')
+    await user.type(within(dialog).getByPlaceholderText('My action'), 'Wake VM3')
     await user.type(within(dialog).getByPlaceholderText('https://example.com/alert'), 'https://jenkins.test/job/vm3/build')
     await user.click(within(dialog).getByRole('button', { name: 'Create Action' }))
 
@@ -78,7 +78,7 @@ describe('Actions page', () => {
 describe('Action form', () => {
   beforeEach(() => {
     vi.mocked(api.get).mockImplementation(async (path: string) => {
-      if (path === '/admin/actions') return actions.map((action) => ({ ...action, failureChannelIds: [] }))
+      if (path === '/admin/actions') return actions.map((action) => ({ ...action, notificationChannelIds: [] }))
       if (path === '/admin/notifications/channels') return [{ id: 3, name: 'Ops Slack', type: 'slack', enabled: 1 }, { id: 4, name: 'Old mail', type: 'email', enabled: 0 }]
       if (path === '/admin/vaults') return [{ id: 7, name: 'Jenkins' }]
       if (path === '/admin/vaults/7/secrets') return [{ id: 70, name: 'api-token', type: 'value' }, { id: 71, name: 'json-thing', type: 'json' }]
@@ -106,17 +106,16 @@ describe('Action form', () => {
     expect(await within(dialog).findByText('Job queue is full')).toBeInTheDocument()
   })
 
-  it('saves the channels told about a failed run', async () => {
+  it('saves the channels told about a run', async () => {
     const user = userEvent.setup()
     vi.mocked(api.patch).mockResolvedValue({})
     const dialog = await openEdit(user)
-
-    await user.click(within(dialog).getByTitle('Notify when a run fails'))
+    await user.click(within(dialog).getByTitle('Notifications'))
     await user.click(await within(dialog).findByRole('checkbox', { name: /Ops Slack/ }))
     expect(within(dialog).getByText('disabled')).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Save Changes' }))
 
-    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/actions/1', expect.objectContaining({ failureChannelIds: [3] })))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/actions/1', expect.objectContaining({ notificationChannelIds: [3] })))
   })
 
   it('warns about a credential typed in plain text, and saves several named vault secrets', async () => {

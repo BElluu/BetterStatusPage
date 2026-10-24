@@ -1593,7 +1593,7 @@ components:
         name: { type: string }
         config: { $ref: '#/components/schemas/ActionHttpConfig' }
         enabled: { type: integer, enum: [0, 1] }
-        failureChannelIds: { type: array, items: { type: integer }, description: The notification channels told once a run has failed after its last attempt. }
+        notificationChannelIds: { type: array, items: { type: integer }, description: The notification channels told once a run has failed after its last attempt, and, for a channel that asks for it (`notifyOnActionSuccess` in its config), about a run that succeeded. }
         createdAt: { type: integer }
         updatedAt: { type: integer }
     ActionCreate:
@@ -1602,14 +1602,14 @@ components:
       properties:
         name: { type: string }
         key: { $ref: '#/components/schemas/Key' }
-        failureChannelIds: { type: array, items: { type: integer }, description: Needs the "channels:write" permission for a token. }
+        notificationChannelIds: { type: array, items: { type: integer }, description: Needs the "channels:write" permission for a token. }
         config: { $ref: '#/components/schemas/ActionHttpConfig' }
         enabled: { type: integer, enum: [0, 1] }
     ActionUpdate:
       type: object
       properties:
         name: { type: string }
-        failureChannelIds: { type: array, items: { type: integer }, description: Replaces the list. Needs the "channels:write" permission for a token. }
+        notificationChannelIds: { type: array, items: { type: integer }, description: Replaces the list. Called failureChannelIds up to 0.6, which is still accepted. Needs the "channels:write" permission for a token. }
         config: { $ref: '#/components/schemas/ActionHttpConfig' }
         enabled: { type: integer, enum: [0, 1] }
     MonitorAction:

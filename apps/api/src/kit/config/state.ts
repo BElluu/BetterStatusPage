@@ -1,11 +1,11 @@
 import { db } from '../../db/client.js'
 import {
-  actionFailureChannels, actions, incidentTemplates, monitorActions, monitorDependencies, monitorNotificationChannels, monitors, notificationChannels, vaultSecrets, vaults,
+  actionNotificationChannels, actions, incidentTemplates, monitorActions, monitorDependencies, monitorNotificationChannels, monitors, notificationChannels, vaultSecrets, vaults,
 } from '../../db/schema.js'
 
 /** What an import compares a file with: everything the three kinds of document describe, and the vaults they may name. */
 export async function loadState() {
-  const [monitorRows, channelRows, linkRows, dependencyRows, vaultRows, secretRows, templateRows, actionRows, actionLinkRows, failureRows] = await Promise.all([
+  const [monitorRows, channelRows, linkRows, dependencyRows, vaultRows, secretRows, templateRows, actionRows, actionLinkRows, notificationRows] = await Promise.all([
     db.select().from(monitors),
     db.select().from(notificationChannels),
     db.select().from(monitorNotificationChannels),
@@ -15,9 +15,9 @@ export async function loadState() {
     db.select({ id: incidentTemplates.id, name: incidentTemplates.name, isDefault: incidentTemplates.isDefault }).from(incidentTemplates),
     db.select().from(actions),
     db.select().from(monitorActions),
-    db.select().from(actionFailureChannels),
+    db.select().from(actionNotificationChannels),
   ])
-  return { monitorRows, channelRows, linkRows, dependencyRows, vaultRows, secretRows, templateRows, actionRows, actionLinkRows, failureRows }
+  return { monitorRows, channelRows, linkRows, dependencyRows, vaultRows, secretRows, templateRows, actionRows, actionLinkRows, notificationRows }
 }
 
 export type State = Awaited<ReturnType<typeof loadState>>
@@ -25,7 +25,7 @@ export type State = Awaited<ReturnType<typeof loadState>>
 /** What an export writes out. Actions are read only for a reader who may see them. */
 export async function loadExportState(included: ReadonlySet<string>) {
   const includeActions = included.has('Action')
-  const [monitorRows, channelRows, dependencyRows, linkRows, templateRows, vaultRows, secretRows, actionRows, actionLinkRows, failureRows] = await Promise.all([
+  const [monitorRows, channelRows, dependencyRows, linkRows, templateRows, vaultRows, secretRows, actionRows, actionLinkRows, notificationRows] = await Promise.all([
     db.select().from(monitors),
     db.select().from(notificationChannels),
     db.select().from(monitorDependencies),
@@ -35,9 +35,9 @@ export async function loadExportState(included: ReadonlySet<string>) {
     db.select({ id: vaultSecrets.id, vaultId: vaultSecrets.vaultId, name: vaultSecrets.name }).from(vaultSecrets),
     includeActions ? db.select().from(actions) : Promise.resolve([]),
     includeActions ? db.select().from(monitorActions) : Promise.resolve([]),
-    includeActions ? db.select().from(actionFailureChannels) : Promise.resolve([]),
+    includeActions ? db.select().from(actionNotificationChannels) : Promise.resolve([]),
   ])
-  return { monitorRows, channelRows, dependencyRows, linkRows, templateRows, vaultRows, secretRows, actionRows, actionLinkRows, failureRows }
+  return { monitorRows, channelRows, dependencyRows, linkRows, templateRows, vaultRows, secretRows, actionRows, actionLinkRows, notificationRows }
 }
 
 export type ExportState = Awaited<ReturnType<typeof loadExportState>>

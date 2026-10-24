@@ -1,10 +1,38 @@
-import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
+import { DEFAULT_BRANDING_COLORS, DEFAULT_EMAIL_BODY, DEFAULT_EMAIL_SUBJECT, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 import { backfillKeys } from '@better-kit/config-as-code'
 import type { MigrationStep } from '@better-kit/db'
+import { TEMPLATE_KEYS } from '@better-kit/notify'
 import { createSecretBox } from '@better-kit/vault'
 import { createHash } from 'node:crypto'
+import type { DatabaseSync } from 'node:sqlite'
 import { sealStoredSecrets } from '../../../services/sealedColumns.js'
 import { rebuildDailyResults } from '../../dailyResults.js'
+
+/**
+ * A channel used to word the messages about an action with its own message fields, like those about monitors. Now an
+ * action is worded by the channel's wording for actions, so the fields of every channel that tells an action's runs
+ * are copied there, and what such a channel sends stays what it was. A channel that still has the stock email template
+ * has nothing to copy: the standard wording of an action is what it is meant to get.
+ */
+function copyWordingToActions(sqlite: DatabaseSync): void {
+  const linked = sqlite.prepare('SELECT DISTINCT channel_id AS id FROM action_failure_channels').all() as { id: number }[]
+  const read = sqlite.prepare('SELECT type, config FROM notification_channels WHERE id = ?')
+  const write = sqlite.prepare('UPDATE notification_channels SET config = ? WHERE id = ?')
+  for (const { id } of linked) {
+    const row = read.get(id) as { type: string; config: string } | undefined
+    if (!row) continue
+    let config: Record<string, unknown>
+    try { config = JSON.parse(row.config) as Record<string, unknown> } catch { continue }
+    const keys = (TEMPLATE_KEYS as Record<string, readonly string[]>)[row.type] ?? []
+    const existing = config['eventOverrides'] as Record<string, unknown> | undefined
+    if (existing && typeof existing === 'object' && 'action' in existing) continue
+    const fields: Record<string, string> = {}
+    for (const key of keys) if (typeof config[key] === 'string' && config[key] !== '') fields[key] = config[key] as string
+    if (row.type === 'email' && fields['subject'] === DEFAULT_EMAIL_SUBJECT && fields['body'] === DEFAULT_EMAIL_BODY) continue
+    if (Object.keys(fields).length === 0) continue
+    write.run(JSON.stringify({ ...config, eventOverrides: { ...(existing && typeof existing === 'object' ? existing : {}), action: fields } }), id)
+  }
+}
 
 /** Everything the application adds to the shared tables. Steps run in this order. */
 export const appMigrations: readonly MigrationStep[] = [
@@ -111,13 +139,33 @@ CREATE TABLE IF NOT EXISTS monitor_actions (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_monitor_actions_link ON monitor_actions(monitor_id, action_id, on_status);
 ` },
+  // The channels of an action are told about its failures and, when they are set to, its successes. Runs before the
+  // CREATE below, so a database from an older release keeps its rows under the new name.
+  { kind: 'data', name: 'action-failure-channels-renamed-v1', run(sqlite) {
+    const old = sqlite.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'action_failure_channels'`).get()
+    if (!old) return
+    copyWordingToActions(sqlite)
+    const renamed = sqlite.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'action_notification_channels'`).get()
+    // A build that created the new table before this step ran leaves both; the rows of the old one are moved over.
+    if (renamed) {
+      sqlite.exec(`
+INSERT OR IGNORE INTO action_notification_channels (action_id, channel_id) SELECT action_id, channel_id FROM action_failure_channels;
+DROP TABLE action_failure_channels;
+`)
+      return
+    }
+    sqlite.exec(`
+DROP INDEX IF EXISTS idx_action_failure_channels_link;
+ALTER TABLE action_failure_channels RENAME TO action_notification_channels;
+`)
+  } },
   { kind: 'exec', sql: `
-CREATE TABLE IF NOT EXISTS action_failure_channels (
+CREATE TABLE IF NOT EXISTS action_notification_channels (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   action_id INTEGER NOT NULL,
   channel_id INTEGER NOT NULL
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_action_failure_channels_link ON action_failure_channels(action_id, channel_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_action_notification_channels_link ON action_notification_channels(action_id, channel_id);
 ` },
   { kind: 'exec', sql: `
 CREATE TABLE IF NOT EXISTS action_runs (

@@ -2,9 +2,9 @@
   "objects": [
     {
       "type": "index",
-      "name": "idx_action_failure_channels_link",
-      "table": "action_failure_channels",
-      "sql": "CREATE UNIQUE INDEX idx_action_failure_channels_link ON action_failure_channels(action_id, channel_id)"
+      "name": "idx_action_notification_channels_link",
+      "table": "action_notification_channels",
+      "sql": "CREATE UNIQUE INDEX idx_action_notification_channels_link ON action_notification_channels(action_id, channel_id)"
     },
     {
       "type": "index",
@@ -158,9 +158,9 @@
     },
     {
       "type": "table",
-      "name": "action_failure_channels",
-      "table": "action_failure_channels",
-      "sql": "CREATE TABLE action_failure_channels (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  action_id INTEGER NOT NULL,\n  channel_id INTEGER NOT NULL\n)"
+      "name": "action_notification_channels",
+      "table": "action_notification_channels",
+      "sql": "CREATE TABLE action_notification_channels (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  action_id INTEGER NOT NULL,\n  channel_id INTEGER NOT NULL\n)"
     },
     {
       "type": "table",
@@ -398,6 +398,7 @@
     }
   ],
   "migrations": [
+    "action-failure-channels-renamed-v1",
     "action-keys-backfill-v1",
     "branding-defaults-match-light-mode-v2",
     "branding-legacy-logo-variants-v1",

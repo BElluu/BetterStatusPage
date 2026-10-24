@@ -3,18 +3,18 @@ import { Field } from '@better-kit/ui'
 import type { VaultRef } from '@better-kit/contracts'
 import { CredentialSection } from '@better-kit/ui'
 import type { VaultPickerProps } from '@better-kit/ui'
+import { DEFAULT_EMAIL_BODY, DEFAULT_EMAIL_SUBJECT } from '@bsp/shared'
 import { DiscordIcon, SlackIcon, TeamsIcon, TelegramIcon } from './icons'
 
 export type ChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack' | 'telegram' | 'ntfy' | 'pushover'
 
-const VARS = ['{{monitor_name}}', '{{monitor_type}}', '{{status}}', '{{previous_status}}', '{{error_message}}', '{{checked_at}}', '{{monitor_list}}', '{{affected_count}}', '{{event_type}}', '{{cert_expires_in}}', '{{cert_expires_at}}']
+/** The variables of every event, then the ones only some events carry. */
+const VARS = ['{{monitor_name}}', '{{monitor_type}}', '{{status}}', '{{previous_status}}', '{{error_message}}', '{{checked_at}}', '{{monitor_list}}', '{{affected_count}}', '{{event_type}}']
+const VAR_GROUPS: { label: string; vars: string[] }[] = [
+  { label: 'Certificate events', vars: ['{{cert_host}}', '{{cert_expires_in}}', '{{cert_expires_at}}', '{{cert_days_left}}'] },
+  { label: 'Action events', vars: ['{{action_name}}', '{{trigger_status}}', '{{attempts}}'] },
+]
 
-const DEFAULT_EMAIL_SUBJECT = 'Monitor {{monitor_name}} is {{status}}'
-const DEFAULT_EMAIL_BODY = `Monitor: {{monitor_name}}
-Type:    {{monitor_type}}
-Status:  {{status}}
-Error:   {{error_message}}
-Time:    {{checked_at}}`
 
 const DEFAULT_WEBHOOK_BODY = `{
   "monitor": "{{monitor_name}}",
@@ -94,6 +94,16 @@ function VarsHint() {
           <code key={v} className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-primary)', fontFamily: 'monospace' }}>{v}</code>
         ))}
       </div>
+      {VAR_GROUPS.map((group) => (
+        <div key={group.label} className="space-y-1">
+          <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>{group.label}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {group.vars.map((v) => (
+              <code key={v} className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--m3-surface-container-high)', color: 'var(--m3-primary)', fontFamily: 'monospace' }}>{v}</code>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -115,13 +125,6 @@ function EmailFields({ draft, onChange }: ChannelFieldsProps<EmailDraft>) {
       <Field label="To">
         <input value={draft.to} onChange={(e) => onChange({ ...draft, to: e.target.value })} required className="input-sig" placeholder="ops@example.com" />
       </Field>
-      <Field label="Subject">
-        <input value={draft.subject} onChange={(e) => onChange({ ...draft, subject: e.target.value })} required className="input-sig" />
-      </Field>
-      <Field label="Body">
-        <textarea value={draft.body} onChange={(e) => onChange({ ...draft, body: e.target.value })} rows={6} className="input-sig w-full font-mono text-xs" style={{ resize: 'vertical' }} />
-      </Field>
-      <VarsHint />
     </>
   )
 }
@@ -138,13 +141,9 @@ function DiscordFields({ draft, onChange }: ChannelFieldsProps<DiscordDraft>) {
       <Field label="Avatar URL (optional)">
         <input value={draft.avatarUrl} onChange={(e) => onChange({ ...draft, avatarUrl: e.target.value })} className="input-sig" placeholder="https://example.com/avatar.png" />
       </Field>
-      <Field label="Message Content (optional)">
-        <input value={draft.content} onChange={(e) => onChange({ ...draft, content: e.target.value })} className="input-sig" placeholder="@here Monitor {{monitor_name}} is {{status}}" />
-      </Field>
       <InfoBox title="Rich embed is sent automatically">
         Status, monitor name, error message and timestamp are always included in the embed. Message Content is an optional plain-text line above the embed (supports variables).
       </InfoBox>
-      <VarsHint />
     </>
   )
 }
@@ -155,13 +154,9 @@ function TeamsFields({ draft, onChange }: ChannelFieldsProps<TeamsDraft>) {
       <Field label="Webhook URL">
         <input value={draft.webhookUrl} onChange={(e) => onChange({ ...draft, webhookUrl: e.target.value })} onFocus={(e) => e.target.select()} required className="input-sig" placeholder="https://…webhook.office.com/webhookb2/…" />
       </Field>
-      <Field label="Summary (optional)">
-        <input value={draft.summary} onChange={(e) => onChange({ ...draft, summary: e.target.value })} className="input-sig" placeholder="Monitor {{monitor_name}} is {{status}}" />
-      </Field>
       <InfoBox title="MessageCard is sent automatically">
         Status, monitor name, error and timestamp are included in the card. Summary is the notification toast text — leave blank to use the default.
       </InfoBox>
-      <VarsHint />
     </>
   )
 }
@@ -172,13 +167,9 @@ function SlackFields({ draft, onChange }: ChannelFieldsProps<SlackDraft>) {
       <Field label="Webhook URL">
         <input value={draft.webhookUrl} onChange={(e) => onChange({ ...draft, webhookUrl: e.target.value })} onFocus={(e) => e.target.select()} required className="input-sig" placeholder="https://hooks.slack.com/services/…" />
       </Field>
-      <Field label="Message Text (optional)">
-        <input value={draft.text} onChange={(e) => onChange({ ...draft, text: e.target.value })} className="input-sig" placeholder="<!here> Monitor {{monitor_name}} is {{status}}" />
-      </Field>
       <InfoBox title="Rich Block Kit message is sent automatically">
         A color-coded card with status, error and timestamp is always included. Message Text is an optional line above the card — use it for <code style={{ fontFamily: 'monospace' }}>{'<!here>'}</code> or <code style={{ fontFamily: 'monospace' }}>{'<!channel>'}</code> mentions.
       </InfoBox>
-      <VarsHint />
     </>
   )
 }
@@ -202,13 +193,9 @@ function TelegramFields({ draft, onChange, vaultPicker }: ChannelFieldsProps<Tel
       <Field label="Chat ID">
         <input value={draft.chatId} onChange={(e) => onChange({ ...draft, chatId: e.target.value })} required className="input-sig" placeholder="-1001234567890 or @channelname" />
       </Field>
-      <Field label="Message Text (optional)">
-        <input value={draft.text} onChange={(e) => onChange({ ...draft, text: e.target.value })} className="input-sig" placeholder="Monitor {{monitor_name}} is {{status}}" />
-      </Field>
       <InfoBox title="Formatted message is sent automatically">
         Status, monitor name, error and timestamp are always included. Message Text is an optional line above them (supports variables). Create the bot with @BotFather and add it to the chat or channel first.
       </InfoBox>
-      <VarsHint />
     </>
   )
 }
@@ -235,13 +222,9 @@ function NtfyFields({ draft, onChange, vaultPicker }: ChannelFieldsProps<NtfyDra
           <input value={draft.accessToken} onChange={(e) => onChange({ ...draft, accessToken: e.target.value })} onFocus={(e) => e.target.select()} className="input-sig" placeholder="tk_…" autoComplete="off" />
         </Field>
       </CredentialSection>
-      <Field label="Message Text (optional)">
-        <input value={draft.text} onChange={(e) => onChange({ ...draft, text: e.target.value })} className="input-sig" placeholder="Monitor {{monitor_name}} is {{status}}" />
-      </Field>
       <InfoBox title="Push notification is sent automatically">
         A title, status, error and timestamp are always included; a down monitor is sent with high priority. Message Text is an optional line above them (supports variables). Anyone who knows a topic on a public server can read it, so use a hard-to-guess name or an access token.
       </InfoBox>
-      <VarsHint />
     </>
   )
 }
@@ -265,13 +248,9 @@ function PushoverFields({ draft, onChange, vaultPicker }: ChannelFieldsProps<Pus
       <Field label="User Key">
         <input value={draft.userKey} onChange={(e) => onChange({ ...draft, userKey: e.target.value })} required className="input-sig" placeholder="uQiRzp…" autoComplete="off" />
       </Field>
-      <Field label="Message Text (optional)">
-        <input value={draft.text} onChange={(e) => onChange({ ...draft, text: e.target.value })} className="input-sig" placeholder="Monitor {{monitor_name}} is {{status}}" />
-      </Field>
       <InfoBox title="Push notification is sent automatically">
         A title, status, error and timestamp are always included; a down monitor is sent with high priority. Message Text is an optional line above them (supports variables). Create an application at pushover.net/apps/build for the token; the user key is on your Pushover dashboard (a group key works too).
       </InfoBox>
-      <VarsHint />
     </>
   )
 }
@@ -322,12 +301,6 @@ function WebhookFields({ draft, onChange }: ChannelFieldsProps<WebhookDraft>) {
         </div>
       </div>
 
-      {webhookHasBody(draft.method) && (
-        <Field label="Body (JSON)">
-          <textarea value={draft.body} onChange={(e) => onChange({ ...draft, body: e.target.value })} rows={6} className="input-sig w-full font-mono text-xs" style={{ resize: 'vertical' }} />
-        </Field>
-      )}
-      <VarsHint />
     </>
   )
 }
@@ -451,6 +424,111 @@ export function initialDrafts(type: ChannelType | null, config: unknown): Channe
   return { email: pick('email'), webhook: pick('webhook'), discord: pick('discord'), teams: pick('teams'), slack: pick('slack'), telegram: pick('telegram'), ntfy: pick('ntfy'), pushover: pick('pushover') }
 }
 
-export function buildChannelConfig<K extends ChannelType>(type: K, drafts: ChannelDrafts): Record<string, unknown> {
-  return CHANNEL_TYPES[type].build(drafts[type])
+/** What the Action tab of the form sets: the wording of action messages, and whether a run that succeeded is told too. */
+export interface ActionSettings {
+  texts?: ActionTexts | undefined
+  notifyOnSuccess?: boolean | undefined
+  /** The wording the stored channel has for other kinds of event, which the form does not edit but must not lose. */
+  otherOverrides?: Record<string, Record<string, string>> | undefined
+}
+
+export function buildChannelConfig<K extends ChannelType>(type: K, drafts: ChannelDrafts, action: ActionSettings = {}): Record<string, unknown> {
+  // A webhook that cannot carry a body (GET) has none to word, like the Monitor tab.
+  const canWord = (key: string) => type !== 'webhook' || key !== 'body' || webhookHasBody(drafts.webhook.method)
+  const texts = Object.fromEntries(Object.entries(action.texts ?? {}).filter(([key, text]) => text !== '' && canWord(key)))
+  const overrides = { ...(action.otherOverrides ?? {}), ...(Object.keys(texts).length ? { action: texts } : {}) }
+  return {
+    ...CHANNEL_TYPES[type].build(drafts[type]),
+    ...(action.notifyOnSuccess ? { notifyOnActionSuccess: true } : {}),
+    ...(Object.keys(overrides).length ? { eventOverrides: overrides } : {}),
+  }
+}
+
+/** The wording a stored config has for kinds of event other than an action's. */
+export function readOtherOverrides(config: unknown): Record<string, Record<string, string>> | undefined {
+  const all = (config && typeof config === 'object' ? (config as Record<string, unknown>)['eventOverrides'] : undefined) as Record<string, Record<string, string>> | undefined
+  if (!all || typeof all !== 'object') return undefined
+  const { action: _action, ...others } = all
+  return Object.keys(others).length ? others : undefined
+}
+
+// ── Message wording, per kind of event ────────────────────────────────────────
+
+/** The kinds of event a channel words separately: what a monitor does, and what an action does. */
+export type MessageScope = 'monitor' | 'action'
+
+/** The wording an action message has for each channel type, by field; empty fields fall back to the Monitor tab. */
+export type ActionTexts = Record<string, string>
+
+interface MessageField {
+  key: string
+  label: string
+  /** Rows of a multi-line field; a single line when absent. */
+  rows?: number
+  placeholder: Record<MessageScope, string>
+}
+
+const monitorLine = 'Monitor {{monitor_name}} is {{status}}'
+const actionLine = 'Action {{action_name}} {{status}} for {{monitor_name}}'
+const single = (key: string, label: string, monitor: string, action: string): MessageField[] =>
+  [{ key, label, placeholder: { monitor, action } }]
+
+/** The fields that word a message, which are the fields of `TEMPLATE_KEYS` in the notify package. */
+const MESSAGE_FIELDS: Record<ChannelType, MessageField[]> = {
+  email: [
+    { key: 'subject', label: 'Subject', placeholder: { monitor: monitorLine, action: actionLine } },
+    { key: 'body', label: 'Body', rows: 6, placeholder: { monitor: '', action: 'Action:  {{action_name}}\nMonitor: {{monitor_name}}\nResult:  {{status}}\nAttempts: {{attempts}}\nError:   {{error_message}}' } },
+  ],
+  webhook: [{ key: 'body', label: 'Body (JSON)', rows: 6, placeholder: { monitor: '', action: '{\n  "action": "{{action_name}}",\n  "monitor": "{{monitor_name}}",\n  "status": "{{status}}",\n  "trigger_status": "{{trigger_status}}",\n  "attempts": "{{attempts}}",\n  "error": "{{error_message}}",\n  "time": "{{checked_at}}"\n}' } }],
+  discord: single('content', 'Message Content (optional)', '@here ' + monitorLine, '@here ' + actionLine),
+  teams: single('summary', 'Summary (optional)', monitorLine, actionLine),
+  slack: single('text', 'Message Text (optional)', '<!here> ' + monitorLine, '<!here> ' + actionLine),
+  telegram: single('text', 'Message Text (optional)', monitorLine, actionLine),
+  ntfy: single('text', 'Message Text (optional)', monitorLine, actionLine),
+  pushover: single('text', 'Message Text (optional)', monitorLine, actionLine),
+}
+
+/** What the stored config says an action message should look like, for the fields this type has. */
+export function readActionTexts(type: ChannelType, config: unknown): ActionTexts {
+  const overrides = (config && typeof config === 'object' ? (config as Record<string, unknown>)['eventOverrides'] : undefined) as Record<string, unknown> | undefined
+  const stored = overrides?.['action']
+  const texts: ActionTexts = {}
+  if (stored && typeof stored === 'object') {
+    for (const { key } of MESSAGE_FIELDS[type]) {
+      const value = (stored as Record<string, unknown>)[key]
+      if (typeof value === 'string') texts[key] = value
+    }
+  }
+  return texts
+}
+
+/** The message fields of one tab. A webhook without a body (GET) has none to word. */
+export function MessageSection<K extends ChannelType>({ type, scope, drafts, onDraft, actionTexts, onActionTexts }: {
+  type: K
+  scope: MessageScope
+  drafts: ChannelDrafts
+  onDraft: (type: K, draft: ChannelDrafts[K]) => void
+  actionTexts: ActionTexts
+  onActionTexts: (texts: ActionTexts) => void
+}) {
+  const draft = drafts[type] as unknown as Record<string, string>
+  const hasBody = type !== 'webhook' || webhookHasBody(draft['method'] ?? 'POST')
+  return (
+    <>
+      {hasBody && MESSAGE_FIELDS[type].map((field) => {
+        const value = scope === 'monitor' ? draft[field.key] ?? '' : actionTexts[field.key] ?? ''
+        const set = (next: string) => scope === 'monitor'
+          ? onDraft(type, { ...drafts[type], [field.key]: next })
+          : onActionTexts({ ...actionTexts, [field.key]: next })
+        return (
+          <Field key={field.key} label={field.label}>
+            {field.rows
+              ? <textarea value={value} onChange={(e) => set(e.target.value)} rows={field.rows} className="input-sig w-full font-mono text-xs" style={{ resize: 'vertical' }} placeholder={field.placeholder[scope]} />
+              : <input value={value} onChange={(e) => set(e.target.value)} required={scope === 'monitor' && type === 'email'} className="input-sig" placeholder={field.placeholder[scope]} />}
+          </Field>
+        )
+      })}
+      <VarsHint />
+    </>
+  )
 }

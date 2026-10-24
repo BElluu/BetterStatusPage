@@ -4,7 +4,7 @@ import Fastify from 'fastify'
 import { parseAllDocuments } from 'yaml'
 import { db, sqlite } from '../src/db/client.js'
 import { runMigrations } from '../src/db/migrate.js'
-import { actionRuns, actions, monitorActions, monitors, vaultSecrets, vaults } from '../src/db/schema.js'
+import { actionNotificationChannels, actionRuns, actions, monitorActions, monitors, vaultSecrets, vaults } from '../src/db/schema.js'
 import { configRoutes } from '../src/kit/configRoutes.js'
 import type { AuthIdentity } from '../src/kit/authSession.js'
 import { SECRET_MASK } from '../src/services/secretFields.js'
@@ -19,7 +19,7 @@ after(() => { teardownTestDb(testDb) })
 
 beforeEach(() => {
   sqlite.exec(`
-    DELETE FROM action_runs; DELETE FROM action_failure_channels; DELETE FROM monitor_actions; DELETE FROM actions;
+    DELETE FROM action_runs; DELETE FROM action_notification_channels; DELETE FROM monitor_actions; DELETE FROM actions;
     DELETE FROM monitor_notification_channels; DELETE FROM monitor_dependencies; DELETE FROM monitors;
     DELETE FROM notification_channels; DELETE FROM audit_log; DELETE FROM vault_secrets; DELETE FROM vaults;
   `)
@@ -61,7 +61,7 @@ const channel = (): Doc => ({ kind: 'NotificationChannel', key: 'ops-slack', nam
 const action = (patch: Doc = {}): Doc => ({
   kind: 'Action', key: 'start-vm2', name: 'Start VM2',
   config: { url: 'https://jenkins.test/job/vm2/build', method: 'POST', headers: { Authorization: 'Bearer {{secret_jenkins}}', 'X-Note': 'plain' }, secrets: [{ name: 'jenkins', vault: { vault: 'Jenkins', secret: 'api-token' } }] },
-  failureNotifications: ['ops-slack'], ...patch,
+  notifications: ['ops-slack'], ...patch,
 })
 const monitor = (patch: Doc = {}): Doc => ({
   kind: 'Monitor', key: 'vm1', name: 'VM1 SQL', type: 'sqlserver',
@@ -99,6 +99,18 @@ describe('actions in a configuration file', () => {
     assert.deepEqual((await apply(baseline())).json().summary, { create: 0, update: 0, unchanged: 3 })
   })
 
+  it('still reads the name the channels of an action had up to 0.6', async () => {
+    await vaultWithToken()
+    const { notifications, ...rest } = action()
+    const first = await apply([channel(), { ...rest, failureNotifications: notifications }, monitor()])
+    assert.equal(first.statusCode, 200, first.body)
+    assert.equal((await db.select().from(actionNotificationChannels)).length, 1)
+    assert.deepEqual((await apply(baseline())).json().summary, { create: 0, update: 0, unchanged: 3 })
+    // Both names at once is a mistake to point out, not one to settle silently.
+    const both = (await problems([channel(), action({ failureNotifications: ['ops-slack'] })])).join('; ')
+    assert.match(both, /Action\[start-vm2\]: has both notifications and failureNotifications/)
+  })
+
   it('exports them with the secret masked and named, and the export applies back unchanged', async () => {
     await vaultWithToken()
     await apply(baseline())
@@ -109,7 +121,8 @@ describe('actions in a configuration file', () => {
     const exportedAction = documents[1]!
     assert.deepEqual(exportedAction['config'].secrets, [{ name: 'jenkins', vault: { vault: 'Jenkins', secret: 'api-token' } }])
     assert.equal(exportedAction['config'].headers.Authorization, SECRET_MASK)
-    assert.deepEqual(exportedAction['failureNotifications'], ['ops-slack'])
+    assert.deepEqual(exportedAction['notifications'], ['ops-slack'])
+    assert.equal(exportedAction['failureNotifications'], undefined)
     assert.deepEqual(documents[2]!['actions'], [{ action: 'start-vm2', onStatus: 'down', delayMinutes: 5, cooldownMinutes: 60 }])
 
     const again = await apply(documents)
@@ -168,14 +181,14 @@ describe('actions in a configuration file', () => {
 
     const references = (await problems([
       channel(),
-      action({ key: 'bad-url', config: { url: 'ftp://x', method: 'POST' }, failureNotifications: ['nope'] }),
-      action({ key: 'no-vault', config: { url: 'https://x.test', method: 'POST', headers: { A: '{{secret_jenkins}}' } }, failureNotifications: [] }),
-      action({ key: 'wrong-secret', config: { url: 'https://x.test', method: 'POST', headers: { A: '{{secret_jenkins_basic}}' }, secrets: [{ name: 'jenkins', vault: { vault: 'Jenkins', secret: 'api-token' } }] }, failureNotifications: [] }),
-      action({ key: 'unknown-vault', config: { url: 'https://x.test', method: 'POST', headers: { A: '{{secret_jenkins}}' }, secrets: [{ name: 'jenkins', vault: { vault: 'Nope', secret: 'x' } }] }, failureNotifications: [] }),
+      action({ key: 'bad-url', config: { url: 'ftp://x', method: 'POST' }, notifications: ['nope'] }),
+      action({ key: 'no-vault', config: { url: 'https://x.test', method: 'POST', headers: { A: '{{secret_jenkins}}' } }, notifications: [] }),
+      action({ key: 'wrong-secret', config: { url: 'https://x.test', method: 'POST', headers: { A: '{{secret_jenkins_basic}}' }, secrets: [{ name: 'jenkins', vault: { vault: 'Jenkins', secret: 'api-token' } }] }, notifications: [] }),
+      action({ key: 'unknown-vault', config: { url: 'https://x.test', method: 'POST', headers: { A: '{{secret_jenkins}}' }, secrets: [{ name: 'jenkins', vault: { vault: 'Nope', secret: 'x' } }] }, notifications: [] }),
       monitor({ actions: [{ action: 'missing', onStatus: 'down' }] }),
     ])).join('\n')
     assert.match(references, /Action\[bad-url\]\.config: url must start with/)
-    assert.match(references, /Action\[bad-url\]\.failureNotifications: unknown channel "nope"/)
+    assert.match(references, /Action\[bad-url\]\.notifications: unknown channel "nope"/)
     assert.match(references, /Action\[no-vault\]\.config: \{\{secret_jenkins\}\} refers to a secret named "jenkins"/)
     assert.match(references, /Action\[wrong-secret\]\.config: \{\{secret_jenkins_basic\}\} is not available from the single-value secret "jenkins"/)
     assert.match(references, /Action\[unknown-vault\]\.config\.secrets\[0\]\.vault: unknown vault "Nope"/)
