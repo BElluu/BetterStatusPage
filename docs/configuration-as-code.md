@@ -84,7 +84,7 @@ autoIncident:
 | `kind` | Contents |
 |---|---|
 | `NotificationChannel` | One channel: its settings, its alert policy (quiet hours, rate cap, grouping) and whether it is enabled. |
-| `Action` | One [action](actions.md): its HTTP request (the vault secret it reads is named, see [Secrets](#secrets)), whether it is enabled, and the **keys** of the notification channels told when a run fails (`failureNotifications`). |
+| `Action` | One [action](actions.md): its HTTP request (the vault secret it reads is named, see [Secrets](#secrets)), whether it is enabled, the **keys** of the notification channels told about its runs (`notifications`, called `failureNotifications` up to 0.6, which is still read). |
 | `Monitor` | One monitor: its schedule and thresholds, its configuration and tags, the **keys** of the channels it alerts through (`notifications`) and of the monitors it depends on (`dependsOn`), the [actions](actions.md) it runs (`actions`), and optionally its [automatic incident](#automatic-incidents). |
 
 ```yaml
@@ -98,7 +98,7 @@ config:
     Authorization: Basic {{secret_jenkins_basic}}
   secrets:
     - { name: jenkins, vault: { vault: Production, secret: jenkins-login } }
-failureNotifications: [ops-slack]
+notifications: [ops-slack]
 ---
 kind: Monitor
 key: vm1-sql

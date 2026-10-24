@@ -1,6 +1,7 @@
 import type { VaultRef } from '@better-kit/contracts'
 import { plainSegments, readableTimestamp, renderSegments, type Notice, type NoticeSeverity } from './notice.js'
 import type { SmtpMessage } from './engine.js'
+import { configForEvent, type EventWording } from './channelInput.js'
 import { buildWebhookRequest, encodeUrlPart, substituteVars } from './template.js'
 
 export interface TransportOptions {
@@ -10,6 +11,13 @@ export interface TransportOptions {
   sendMail: (message: SmtpMessage) => Promise<void>
   /** Discord only accepts a public image URL for a webhook avatar; it cannot be uploaded as a file. */
   discordAvatarUrl: string
+  /**
+   * The subject and body a new email channel starts with. A channel that still has them is written from the notice,
+   * so every kind of event gets wording of its own; a template the channel's owner edited is used as it is.
+   */
+  standardEmail?: { subject: string; body: string }
+  /** Which kinds of event the channel's own message fields word, and the wording of the others when the channel has none. */
+  wording?: EventWording
 }
 
 /** The part of a stored channel that picks and configures its transport. */
@@ -20,6 +28,7 @@ export interface TransportChannel {
 }
 
 const OUTBOUND_TIMEOUT_MS = 15_000
+const EMAIL_MAX_BODY = 10_000
 
 const SEVERITY_EMOJI: Record<NoticeSeverity, string> = { critical: '🔴', warning: '🟡', ok: '🟢' }
 
@@ -143,11 +152,15 @@ export function createTransports(options: TransportOptions) {
     return token
   }
 
-  async function sendEmail(config: { to: string; subject: string; body: string }, vars: Vars) {
+  async function sendEmail(config: { to: string; subject?: string; body?: string }, vars: Vars, notice?: Notice) {
+    const standard = options.standardEmail
+    const isStandard = !!standard && config.subject === standard.subject && config.body === standard.body
+    // A part without wording of its own, or one that still has the stock template, is written from the notice.
+    const written = notice && (isStandard || !config.subject || !config.body) ? plainAlert(notice, vars, undefined, EMAIL_MAX_BODY) : undefined
     await options.sendMail({
       to: substituteVars(config.to, vars),
-      subject: substituteVars(config.subject, vars),
-      text: substituteVars(config.body, vars),
+      subject: written && (isStandard || !config.subject) ? written.title : substituteVars(config.subject ?? '', vars),
+      text: written && (isStandard || !config.body) ? written.body : substituteVars(config.body ?? '', vars),
     })
   }
 
@@ -308,9 +321,9 @@ export function createTransports(options: TransportOptions) {
 
   /** Sends one event through the channel; throws when the channel type is unknown or the send fails. */
   async function deliver(channel: TransportChannel, vars: Vars, notice: Notice): Promise<void> {
-    const config = JSON.parse(channel.config) as Record<string, unknown>
+    const config = configForEvent(channel.type, JSON.parse(channel.config) as Record<string, unknown>, vars['event_type'], options.wording)
     switch (channel.type) {
-      case 'email': return sendEmail(config as { to: string; subject: string; body: string }, vars)
+      case 'email': return sendEmail(config as { to: string; subject: string; body: string }, vars, notice)
       case 'webhook': return sendWebhook(config as { url: string; method: string; headers?: Record<string, string>; body?: string }, vars)
       case 'discord': return sendDiscord(config as { webhookUrl: string; username?: string; avatarUrl?: string; content?: string }, vars, notice)
       case 'teams': return sendTeams(config as { webhookUrl: string; summary?: string }, vars, notice)

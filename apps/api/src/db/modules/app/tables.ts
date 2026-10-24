@@ -164,7 +164,7 @@ export const monitorActions = sqliteTable('monitor_actions', {
 })
 
 /** The notification channels told when a run of the action fails for good. */
-export const actionFailureChannels = sqliteTable('action_failure_channels', {
+export const actionNotificationChannels = sqliteTable('action_notification_channels', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   actionId: integer('action_id').notNull(),
   channelId: integer('channel_id').notNull(),

@@ -4,7 +4,7 @@ import { tokenAllows, type NotificationChannelType } from '@better-kit/contracts
 import { byKey, canonical, clip, documentKey, isObject, nestedDeeperThan, unknownFields, type AuditEntry, type ConfigChange, type ConfigKind, type Json, type Problems } from '@better-kit/config-as-code'
 import { CHANNEL_TYPES, channelConfigError } from '@better-kit/notify'
 import { db } from '../../db/client.js'
-import { actionFailureChannels, monitorNotificationChannels, notificationChannels } from '../../db/schema.js'
+import { actionNotificationChannels, monitorNotificationChannels, notificationChannels } from '../../db/schema.js'
 import { normalizeAlertPolicy, parseAlertPolicy } from '../../services/alertPolicy.js'
 import { maskSecrets, restoreSecrets } from '../../services/secretFields.js'
 import { vaultUseProblem } from '../vaultUse.js'
@@ -109,7 +109,7 @@ export const channelKind: ConfigKind<State, ExportState, DesiredChannel, Planned
       const id = ids('NotificationChannel').get(key)!
       const row = state.channelRows.find((each) => each.id === id)!
       await db.delete(monitorNotificationChannels).where(eq(monitorNotificationChannels.channelId, id))
-      await db.delete(actionFailureChannels).where(eq(actionFailureChannels.channelId, id))
+      await db.delete(actionNotificationChannels).where(eq(actionNotificationChannels.channelId, id))
       await db.delete(notificationChannels).where(eq(notificationChannels.id, id))
       audit.push({ action: 'delete', entity: 'notification_channel', id, name: row.name, diff: { key, type: row.type, source: 'configuration import' } })
     }

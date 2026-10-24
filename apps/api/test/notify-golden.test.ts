@@ -5,13 +5,14 @@ import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { after, before, describe, it, mock } from 'node:test'
 import Fastify from 'fastify'
+import { DEFAULT_EMAIL_BODY, DEFAULT_EMAIL_SUBJECT } from '@bsp/shared'
 import { SMTPServer } from 'smtp-server'
 import { db } from '../src/db/client.js'
-import { actionFailureChannels, actions, monitorNotificationChannels, monitors, notificationChannels, smtpSettings, vaults, vaultSecrets } from '../src/db/schema.js'
+import { actionNotificationChannels, actions, monitorNotificationChannels, monitors, notificationChannels, smtpSettings, vaults, vaultSecrets } from '../src/db/schema.js'
 import { encrypt } from '../src/kit/secretBox.js'
 import { notificationRoutes } from '../src/routes/notifications.js'
 import {
-  processDueNotificationDeliveries, sendActionFailureNotifications, sendCertificateNotifications, sendNotifications, testNotificationChannel,
+  processDueNotificationDeliveries, sendActionFailureNotifications, sendActionSuccessNotifications, sendCertificateNotifications, sendNotifications, testNotificationChannel,
 } from '../src/workers/notifier.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
@@ -142,7 +143,7 @@ describe('notification output', () => {
     const ids = await channelsFor()
     await db.insert(monitorNotificationChannels).values(Object.values(ids).map((channelId) => ({ monitorId: monitor!.id, channelId })))
     const [action] = await db.insert(actions).values({ name: 'Restart', config: '{}', createdAt: now, updatedAt: now }).returning()
-    await db.insert(actionFailureChannels).values(Object.values(ids).map((channelId) => ({ actionId: action!.id, channelId })))
+    await db.insert(actionNotificationChannels).values(Object.values(ids).map((channelId) => ({ actionId: action!.id, channelId })))
 
     const events: Array<[string, () => Promise<unknown>]> = [
       ['down', () => sendNotifications(monitor!, 'down', 'up', 'connection refused: "port" 443')],
@@ -240,5 +241,79 @@ describe('notification output', () => {
     const actual = JSON.stringify(output, null, 2) + '\n'
     if (process.env['UPDATE_SNAPSHOTS'] === '1' || !existsSync(GOLDEN_EXTRA)) writeFileSync(GOLDEN_EXTRA, actual)
     assert.equal(actual, readFileSync(GOLDEN_EXTRA, 'utf8').replace(/\r\n/g, '\n'))
+  })
+
+  it('writes a monitor message from the notice for an email channel that still has the stock template', async () => {
+    const now = NOW
+    const [mail] = await db.insert(notificationChannels).values({
+      name: 'Stock mail', type: 'email', config: JSON.stringify({ to: 'stock-monitor@example.test', subject: DEFAULT_EMAIL_SUBJECT, body: DEFAULT_EMAIL_BODY }),
+      enabled: 1, notifyOnRecovery: 1, createdAt: now, updatedAt: now,
+    }).returning()
+    const [monitor] = await db.insert(monitors).values({
+      name: 'Stock monitor', type: 'https', intervalSecs: 60, timeoutMs: 1_000, retries: 1, config: '{}', currentStatus: 'up', tags: '[]', createdAt: now, updatedAt: now,
+    }).returning()
+    await db.insert(monitorNotificationChannels).values({ monitorId: monitor!.id, channelId: mail!.id })
+
+    emails.length = 0
+    await sendNotifications(monitor!, 'down', 'up', 'connection refused')
+    await sendNotifications(monitor!, 'up', 'down', null)
+    await processDueNotificationDeliveries(NOW + 1)
+
+    const mine = emails.filter((email) => email.includes('To: stock-monitor@example.test'))
+    assert.equal(mine.length, 2)
+    assert.match(mine[0]!, /Subject: Monitor Stock monitor is DOWN/)
+    assert.match(mine[0]!, /Error: connection refused/)
+    assert.match(mine[1]!, /Subject: Monitor Stock monitor is UP/)
+  })
+
+  it('refuses a change of type that leaves wording the new type has no field for, and event names that exist on every object', async () => {
+    const created = await app.inject({ method: 'POST', url: '/notifications/channels', payload: { name: 'Typed', type: 'slack', config: { webhookUrl: 'https://hooks.example.test/s', eventOverrides: { action: { text: 'hi' } } } } })
+    assert.equal(created.statusCode, 200, created.body)
+    const retyped = await app.inject({ method: 'PATCH', url: `/notifications/channels/${created.json().id}`, payload: { type: 'webhook' } })
+    assert.equal(retyped.statusCode, 400)
+
+    for (const event of ['constructor', 'toString', 'prototype']) {
+      const refused = await app.inject({ method: 'POST', url: '/notifications/channels', payload: { name: 'Proto', type: 'slack', config: { webhookUrl: 'https://hooks.example.test/p', eventOverrides: { [event]: { text: 'x' } } } } })
+      assert.equal(refused.statusCode, 400, event)
+      assert.match(refused.json().error, /invalid event name/)
+    }
+  })
+
+  it('stores the wording a channel has for actions, and refuses one that could change where a message goes', async () => {
+    const config = { url: 'https://hooks.example.test/a', method: 'POST', body: '{}', eventOverrides: { action: { body: '{"a":"{{action_name}}"}' } } }
+    const created = await app.inject({ method: 'POST', url: '/notifications/channels', payload: { name: 'With override', type: 'webhook', config } })
+    assert.equal(created.statusCode, 200, created.body)
+    const read = await app.inject(`/notifications/channels/${created.json().id}`)
+    assert.deepEqual(read.json().config.eventOverrides, { action: { body: '{"a":"{{action_name}}"}' } })
+
+    const refused = await app.inject({ method: 'PATCH', url: `/notifications/channels/${created.json().id}`, payload: { config: { ...config, eventOverrides: { action: { url: 'https://evil.test/' } } } } })
+    assert.equal(refused.statusCode, 400)
+    assert.match(refused.json().error, /not a message field/)
+  })
+
+  it('words an action for an email channel that still has the stock template, and keeps a template the user wrote', async () => {
+    const now = NOW
+    const stock = { to: 'stock@example.test', subject: DEFAULT_EMAIL_SUBJECT, body: DEFAULT_EMAIL_BODY, notifyOnActionSuccess: true }
+    const custom = { to: 'custom@example.test', subject: 'Monitor wording', body: 'Monitor body', notifyOnActionSuccess: true, eventOverrides: { action: { subject: 'Mine {{action_name}}', body: 'Custom {{status}}' } } }
+    const monitorOnly = { to: 'monitor-only@example.test', subject: 'Monitor wording', body: 'Monitor body', notifyOnActionSuccess: true }
+    const rows = await db.insert(notificationChannels).values([stock, custom, monitorOnly].map((config, index) => ({
+      name: `Mail ${index}`, type: 'email', config: JSON.stringify(config), enabled: 1, notifyOnRecovery: 1, createdAt: now, updatedAt: now,
+    }))).returning()
+    const [action] = await db.insert(actions).values({ name: 'Restart', config: '{}', createdAt: now, updatedAt: now }).returning()
+    await db.insert(actionNotificationChannels).values(rows.map((row) => ({ actionId: action!.id, channelId: row.id })))
+    const run = { actionId: action!.id, actionName: 'Restart', monitorId: null, monitorName: 'Checkout', onStatus: 'down', attemptCount: 1 }
+
+    emails.length = 0
+    await sendActionSuccessNotifications(run)
+    await processDueNotificationDeliveries(NOW + 1)
+    const mail = (to: string) => emails.find((email) => email.includes(`To: ${to}`)) ?? ''
+    assert.match(mail('stock@example.test'), /Subject: Action Restart ran for monitor Checkout/)
+    assert.match(mail('stock@example.test'), /Triggered when: monitor was down/)
+    assert.doesNotMatch(mail('stock@example.test'), /Status:|{{/)
+    assert.match(mail('custom@example.test'), /Subject: Mine Restart/)
+    assert.match(mail('custom@example.test'), /Custom action-succeeded/)
+    // Wording written for monitors is not used for an action that has none of its own.
+    assert.match(mail('monitor-only@example.test'), /Subject: Action Restart ran for monitor Checkout/)
+    assert.doesNotMatch(mail('monitor-only@example.test'), /Monitor body/)
   })
 })

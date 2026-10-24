@@ -1,5 +1,5 @@
 import { db } from '../db/client.js'
-import { monitors, notificationChannels, monitorNotificationChannels, actionFailureChannels } from '../db/schema.js'
+import { monitors, notificationChannels, monitorNotificationChannels, actionNotificationChannels } from '../db/schema.js'
 import { eq, inArray } from 'drizzle-orm'
 import { buildWebhookRequest, MAX_DELIVERY_ATTEMPTS, RETRY_DELAYS_MS } from '@better-kit/notify'
 import { notifyEngine as engine, transports } from '../kit/notify.js'
@@ -133,22 +133,27 @@ export async function sendCertificateNotifications(monitor: typeof monitors.$inf
   }
 }
 
+type ActionRunInfo = { actionId: number; actionName: string; monitorId: number | null; monitorName: string; onStatus: string; attemptCount: number }
+
 /**
  * Tells the channels chosen for an action that one of its runs failed for good. The message carries the redacted
  * error of the last attempt and never the request, so no secret of the action reaches the delivery history.
  */
-export async function sendActionFailureNotifications(
-  run: { actionId: number; actionName: string; monitorId: number | null; monitorName: string; onStatus: string; attemptCount: number },
-  errorMessage: string,
-): Promise<void> {
-  const links = await db.select().from(actionFailureChannels).where(eq(actionFailureChannels.actionId, run.actionId))
+export const sendActionFailureNotifications = (run: ActionRunInfo, errorMessage: string) =>
+  sendActionNotifications(run, 'action-failed', errorMessage)
+
+/** Tells the channels chosen for an action that one of its runs went through; only those set to hear about successes. */
+export const sendActionSuccessNotifications = (run: ActionRunInfo) => sendActionNotifications(run, 'action-succeeded', '')
+
+async function sendActionNotifications(run: ActionRunInfo, status: 'action-failed' | 'action-succeeded', errorMessage: string): Promise<void> {
+  const links = await db.select().from(actionNotificationChannels).where(eq(actionNotificationChannels.actionId, run.actionId))
   if (links.length === 0) return
   const channels = await db.select().from(notificationChannels).where(inArray(notificationChannels.id, links.map((l) => l.channelId)))
   const monitor = run.monitorId === null ? undefined : (await db.select({ type: monitors.type }).from(monitors).where(eq(monitors.id, run.monitorId)))[0]
   const vars: Record<string, string> = {
     monitor_name: run.monitorName,
     monitor_type: monitor?.type ?? 'unknown',
-    status: 'action-failed',
+    status,
     previous_status: run.onStatus,
     error_message: errorMessage,
     checked_at: new Date().toISOString(),
@@ -161,7 +166,17 @@ export async function sendActionFailureNotifications(
   }
   for (const channel of channels) {
     if (channel.enabled !== 1) continue
+    if (status === 'action-succeeded' && !hearsActionSuccesses(channel)) continue
     await dispatchToChannel(channel, vars, { monitorId: run.monitorId, monitorName: run.monitorName, eventType: 'action' })
+  }
+}
+
+/** A channel is told about the runs of an action that succeeded when its config says so (the Action tab of its form). */
+function hearsActionSuccesses(channel: ChannelRow): boolean {
+  try {
+    return (JSON.parse(channel.config) as { notifyOnActionSuccess?: unknown }).notifyOnActionSuccess === true
+  } catch {
+    return false
   }
 }
 
