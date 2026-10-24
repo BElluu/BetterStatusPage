@@ -122,6 +122,7 @@ function NodeRenderer({
     const live = statusMap[monitor.id]
     const liveMonitor = {
       ...monitor,
+      name: monNode.displayName?.trim() || monitor.name,
       currentStatus: applyIncidentStatus(live?.status ?? monitor.currentStatus, monitor.id, activeIncidents),
     }
     const inMaintenance = maintenanceMonitorIds.has(monitor.id)
@@ -679,6 +680,7 @@ function GroupBlock({ groupNode, monitors, statusMap, activeIncidents, maintenan
               const live = statusMap[m.id]
               const liveMonitor = {
                 ...m,
+                name: monNode.displayName?.trim() || m.name,
                 currentStatus: applyIncidentStatus(live?.status ?? m.currentStatus, m.id, activeIncidents),
               }
               const isFullCard = (monNode.cardVariant ?? 'compact') === 'default'
