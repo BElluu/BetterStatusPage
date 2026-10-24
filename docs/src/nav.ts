@@ -64,6 +64,10 @@ const SECTIONS: { label: string; items: { slug: string; label?: string }[] }[] =
     ],
   },
   {
+    label: 'Contribute',
+    items: [{ slug: 'development', label: 'Development' }],
+  },
+  {
     label: 'Releases',
     items: [{ slug: 'changelog' }],
   },
