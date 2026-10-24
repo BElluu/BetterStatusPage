@@ -1,4 +1,5 @@
-import type { IncidentImpact, MonitorActivity, MonitorStatus } from '@bsp/shared'
+import { withIncidentImpact } from '@bsp/shared'
+import type { IncidentImpact, MonitorActivity, MonitorStatus, MonitorWithActivity } from '@bsp/shared'
 
 const configs: Record<MonitorStatus, { label: string; color: string; bg: string }> = {
   up:       { label: 'Operational',      color: 'var(--m3-up)',       bg: 'var(--m3-up-bg)' },
@@ -37,7 +38,18 @@ export function ActivityBadges({ activity }: { activity: MonitorActivity }) {
   )
 }
 
-export function StatusBadge({ status }: { status: MonitorStatus }) {
+/** The status visitors see: the check result with the monitor's open incident applied. */
+export function effectiveStatus(monitor: Pick<MonitorWithActivity, 'currentStatus' | 'activity'>): MonitorStatus {
+  return withIncidentImpact(monitor.currentStatus, monitor.activity?.incident)
+}
+
+/** The effective status, with the reason when an incident, not the checks, sets it. */
+export function MonitorStatusBadge({ monitor }: { monitor: Pick<MonitorWithActivity, 'currentStatus' | 'activity'> }) {
+  const status = effectiveStatus(monitor)
+  return <StatusBadge status={status} reason={status !== monitor.currentStatus ? 'incident' : undefined} />
+}
+
+export function StatusBadge({ status, reason }: { status: MonitorStatus; reason?: string | undefined }) {
   const cfg = configs[status] ?? configs.pending
   return (
     <span
@@ -45,7 +57,7 @@ export function StatusBadge({ status }: { status: MonitorStatus }) {
       style={{ background: cfg.bg, color: cfg.color }}
     >
       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: cfg.color }} />
-      {cfg.label}
+      {cfg.label}{reason && ` · ${reason}`}
     </span>
   )
 }

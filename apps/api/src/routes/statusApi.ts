@@ -8,6 +8,7 @@ import type {
   ApiActiveIncident, ApiActiveMaintenance, ApiComponent, ApiComponentRef, ApiComponentStatus, ApiComponents,
   ApiPageStatus, ApiSummary, LayoutNode, LayoutTree,
 } from '@bsp/shared'
+import { incidentImpactStatus, type IncidentImpact } from '@bsp/shared'
 import { PUBLIC_API_RATE_LIMIT } from '../config/rateLimits.js'
 import { feedMethodAvailable } from '../services/subscriptions.js'
 import { requestBase } from '../services/requestBase.js'
@@ -25,13 +26,6 @@ const worse = (a: Issue, b: Issue): Issue => (SEVERITY[b] > SEVERITY[a] ? b : a)
 function monitorIssue(status: string): Issue {
   if (status === 'down') return 'major_outage'
   if (status === 'degraded' || status === 'affected') return 'degraded_performance'
-  return 'operational'
-}
-
-/** Same rule as the status page: minor incidents degrade, major and critical ones take components down. */
-function incidentIssue(impact: string): Issue {
-  if (impact === 'minor') return 'degraded_performance'
-  if (impact === 'major' || impact === 'critical') return 'major_outage'
   return 'operational'
 }
 
@@ -81,7 +75,7 @@ async function loadState(baseUrl: string) {
     let status = monitorIssue(monitorById.get(monitorId)?.currentStatus ?? 'pending')
     for (const incident of activeIncidents) {
       if (incidentLinks.some((link) => link.incidentId === incident.id && link.monitorId === monitorId)) {
-        status = worse(status, incidentIssue(incident.impact))
+        status = worse(status, monitorIssue(incidentImpactStatus(incident.impact as IncidentImpact)))
       }
     }
     return status

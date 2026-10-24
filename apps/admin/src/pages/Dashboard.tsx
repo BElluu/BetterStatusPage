@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api, getCurrentUser } from '../api/client'
 import type { MonitorWithActivity, Incident } from '@bsp/shared'
-import { ActivityBadges, StatusBadge } from '../components/monitors/StatusBadge'
+import { ActivityBadges, MonitorStatusBadge, effectiveStatus } from '../components/monitors/StatusBadge'
 import { useDarkMode } from '@better-kit/ui'
 import { EmptyState, ErrorState, LoadingState, PageContainer, PageHeader } from '@better-kit/ui'
 import { formatDayMonth } from '@better-kit/ui'
@@ -34,9 +34,10 @@ export default function DashboardPage() {
   })
   const incidents = incidentsQuery.data ?? []
 
-  const up       = monitors.filter((m) => m.currentStatus === 'up').length
-  const down     = monitors.filter((m) => m.currentStatus === 'down').length
-  const degraded = monitors.filter((m) => m.currentStatus === 'degraded').length
+  const statuses = monitors.map(effectiveStatus)
+  const up       = statuses.filter((s) => s === 'up').length
+  const down     = statuses.filter((s) => s === 'down').length
+  const degraded = statuses.filter((s) => s === 'degraded').length
 
   const activeIncidents = incidents.filter((i) => i.status !== 'resolved')
   const recentActivity  = incidents.slice(0, 5)
@@ -221,11 +222,12 @@ export default function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {monitors.map((monitor) => {
-              const dotColor = monitor.currentStatus === 'up'
+              const status = effectiveStatus(monitor)
+              const dotColor = status === 'up'
                 ? 'var(--m3-up-bar)'
-                : monitor.currentStatus === 'down'
+                : status === 'down'
                 ? 'var(--m3-down)'
-                : monitor.currentStatus === 'degraded'
+                : status === 'degraded'
                 ? 'var(--m3-degraded-bar)'
                 : 'var(--m3-outline)'
 
@@ -254,7 +256,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    <StatusBadge status={monitor.currentStatus} />
+                    <MonitorStatusBadge monitor={monitor} />
                     <ActivityBadges activity={monitor.activity} />
                   </div>
                 </Link>

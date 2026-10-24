@@ -104,6 +104,19 @@ describe('MonitorDetailPage', () => {
     expect(screen.getByText('Incident · major')).toBeInTheDocument()
   })
 
+  it('shows the effective status in the title and the check result in the summary', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.includes('/stats')) return stats
+      if (path.includes('/dependencies')) return { dependsOnIds: [] }
+      if (path === '/admin/monitors') return [monitor]
+      return { ...monitor, currentStatus: 'up', activity: { maintenance: false, windows: [], incident: 'critical' } }
+    })
+    renderPage()
+    expect(await screen.findByText('Down · incident')).toBeInTheDocument()
+    expect(screen.getByText('Check result')).toBeInTheDocument()
+    expect(screen.getByText('Operational')).toBeInTheDocument()
+  })
+
   it('lists the running and upcoming maintenance of the monitor', async () => {
     const at = Date.now()
     vi.mocked(api.get).mockImplementation(async (path: string) => {

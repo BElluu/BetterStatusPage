@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { DEFAULT_CERT_WARN_DAYS } from '@bsp/shared'
 import type { HttpsConfig, Monitor, MonitorStatus, MonitorType, MonitorWithActivity } from '@bsp/shared'
-import { ActivityBadges, StatusBadge } from '../components/monitors/StatusBadge'
+import { ActivityBadges, MonitorStatusBadge, effectiveStatus } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
 import { YamlViewModal } from '../components/YamlViewModal'
 import { MONITOR_TYPES } from '../components/monitors/monitorTypes'
@@ -117,7 +117,7 @@ export default function MonitorsPage() {
     name: (m) => m.name,
     type: (m) => m.type,
     intervalSecs: (m) => m.intervalSecs,
-    currentStatus: (m) => m.currentStatus,
+    currentStatus: (m) => effectiveStatus(m),
     lastCheckedAt: (m) => m.lastCheckedAt,
   }, { key: 'name' })
 
@@ -242,7 +242,7 @@ export default function MonitorsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <StatusBadge status={monitor.currentStatus} />
+                      <MonitorStatusBadge monitor={monitor} />
                       <ActivityBadges activity={monitor.activity} />
                     </div>
                   </td>
