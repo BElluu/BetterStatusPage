@@ -7,7 +7,7 @@ import { db } from '../src/db/client.js'
 import { actionNotificationChannels, actionRuns, actions, auditLog, maintenanceWindows, monitorActions, monitors, notificationChannels, notificationDeliveries, notificationDeliveryAttempts } from '../src/db/schema.js'
 import { actionRoutes } from '../src/routes/actions.js'
 import { notificationRoutes } from '../src/routes/notifications.js'
-import { cancelRunsOfMonitor, processDueActionRuns, purgeOldActionRuns, scheduleActionRuns } from '../src/workers/actionRunner.js'
+import { approveActionRun, cancelRunsOfMonitor, processDueActionRuns, purgeOldActionRuns, scheduleActionRuns } from '../src/workers/actionRunner.js'
 import { SECRET_MASK } from '../src/services/secretFields.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
@@ -41,7 +41,7 @@ before(async () => {
   if (!address || typeof address === 'string') throw new Error('Action server did not bind')
   baseUrl = `http://127.0.0.1:${address.port}`
   app.addHook('preHandler', async (request) => {
-    request.user = { userId: 1, email: 'admin@example.test', role: 'admin' }
+    request.user = { userId: 1, email: 'admin@example.test', role: 'admin', ...(request.headers['x-test-token'] ? { apiToken: { id: 1, name: 'ci', scopes: ['actions:write'] } } : {}) }
   })
   await app.register(actionRoutes, { prefix: '/actions' })
   await app.ready()
@@ -619,5 +619,177 @@ describe('action failure notifications', () => {
     assert.equal((await history('operator', '/notifications/deliveries')).json().total, 0)
     assert.equal((await history('admin', `/notifications/deliveries/${delivery!.id}`)).statusCode, 200)
     assert.equal((await history('operator', `/notifications/deliveries/${delivery!.id}`)).statusCode, 404)
+  })
+})
+describe('actions that require approval', () => {
+  const MINUTE = 60_000
+
+  async function approvalAction(monitorId: number, link: { delayMinutes?: number; timeout?: number } = {}) {
+    const action = await linkedAction(monitorId, link.delayMinutes === undefined ? {} : { delayMinutes: link.delayMinutes })
+    await db.update(actions).set({ requiresApproval: 1, approvalTimeoutMinutes: link.timeout ?? 60 }).where(eq(actions.id, action.id))
+    return action
+  }
+  const decide = (id: number, decision: 'approve' | 'reject', headers: Record<string, string> = {}) =>
+    app.inject({ method: 'POST', url: `/actions/runs/${id}/${decision}`, headers })
+
+  it('holds the run instead of sending it', async () => {
+    const monitor = await monitorRow()
+    await approvalAction(monitor.id)
+
+    await scheduleActionRuns(monitor, 'down', 'up', null)
+    await settle()
+
+    assert.equal(requests.length, 0)
+    const [run] = await runsOf()
+    assert.equal(run!.status, 'awaiting_approval')
+    assert.equal(run!.nextAttemptAt, run!.createdAt + 60 * MINUTE)
+    assert.equal(await processDueActionRuns(Date.now() + 5 * MINUTE), 0)
+    assert.equal(requests.length, 0)
+  })
+
+  it('sends the run once it is approved, and a second click changes nothing', async () => {
+    const monitor = await monitorRow()
+    await approvalAction(monitor.id)
+    await scheduleActionRuns(monitor, 'down', 'up', null)
+    const [waiting] = await runsOf()
+
+    const approved = await decide(waiting!.id, 'approve')
+    assert.equal(approved.statusCode, 200)
+    await settle()
+
+    assert.equal(requests.length, 1)
+    assert.equal((await runsOf())[0]!.status, 'succeeded')
+    assert.equal((await decide(waiting!.id, 'approve')).statusCode, 409)
+    assert.equal((await decide(waiting!.id, 'reject')).statusCode, 409)
+    const entries = await db.select().from(auditLog).where(eq(auditLog.entityType, 'action_run'))
+    assert.ok(entries.some((entry) => entry.entityId === String(waiting!.id) && /approved/.test(entry.diff ?? '')))
+  })
+
+  it('counts the delay of the monitor from the approval', async () => {
+    const monitor = await monitorRow()
+    await approvalAction(monitor.id, { delayMinutes: 10 })
+    await scheduleActionRuns(monitor, 'down', 'up', null)
+    const [waiting] = await runsOf()
+
+    const before = Date.now()
+    assert.equal((await decide(waiting!.id, 'approve')).statusCode, 200)
+    const [queued] = await runsOf()
+    assert.equal(queued!.status, 'pending')
+    assert.ok(queued!.nextAttemptAt! >= before + 10 * MINUTE)
+    assert.equal(requests.length, 0)
+
+    assert.equal(await processDueActionRuns(Date.now() + 11 * MINUTE), 1)
+    assert.equal(requests.length, 1)
+  })
+
+  it('cancels a rejected run without sending it', async () => {
+    const monitor = await monitorRow()
+    await approvalAction(monitor.id)
+    await scheduleActionRuns(monitor, 'down', 'up', null)
+    const [waiting] = await runsOf()
+
+    assert.equal((await decide(waiting!.id, 'reject')).statusCode, 200)
+    await settle()
+
+    const [run] = await runsOf()
+    assert.equal(run!.status, 'cancelled')
+    assert.equal(run!.lastError, 'Rejected by an admin')
+    assert.equal(requests.length, 0)
+  })
+
+  it('cancels a run nobody approved in time, and refuses a late approval', async () => {
+    const monitor = await monitorRow()
+    await approvalAction(monitor.id, { timeout: 30 })
+    await scheduleActionRuns(monitor, 'down', 'up', null)
+    const [waiting] = await runsOf()
+
+    await processDueActionRuns(Date.now() + 31 * MINUTE)
+
+    const [run] = await runsOf()
+    assert.equal(run!.status, 'cancelled')
+    assert.equal(run!.lastError, 'Not approved in time')
+    assert.equal((await decide(waiting!.id, 'approve')).statusCode, 409)
+    assert.equal(requests.length, 0)
+  })
+
+  it('refuses a late approval even before the worker has cancelled the run', async () => {
+    const monitor = await monitorRow()
+    await approvalAction(monitor.id, { timeout: 30 })
+    await scheduleActionRuns(monitor, 'down', 'up', null)
+    const [waiting] = await runsOf()
+
+    assert.equal(await approveActionRun(waiting!.id, Date.now() + 31 * MINUTE), false)
+    assert.equal((await runsOf())[0]!.status, 'awaiting_approval')
+  })
+
+  it('drops a waiting run when the monitor recovers', async () => {
+    const monitor = await monitorRow()
+    await approvalAction(monitor.id)
+    await scheduleActionRuns(monitor, 'down', 'up', null)
+
+    await scheduleActionRuns(monitor, 'up', 'down', null)
+
+    assert.equal((await runsOf())[0]!.status, 'cancelled')
+  })
+
+  it('still checks the monitor when the approval comes late', async () => {
+    const monitor = await monitorRow()
+    await approvalAction(monitor.id)
+    await scheduleActionRuns(monitor, 'down', 'up', null)
+    const [waiting] = await runsOf()
+    await db.update(monitors).set({ alertConfirmedStatus: 'up' }).where(eq(monitors.id, monitor.id))
+
+    assert.equal((await decide(waiting!.id, 'approve')).statusCode, 200)
+    await settle()
+
+    const [run] = await runsOf()
+    assert.equal(run!.status, 'cancelled')
+    assert.equal(requests.length, 0)
+  })
+
+  it('does not let an API token decide', async () => {
+    const monitor = await monitorRow()
+    await approvalAction(monitor.id)
+    await scheduleActionRuns(monitor, 'down', 'up', null)
+    const [waiting] = await runsOf()
+
+    for (const decision of ['approve', 'reject'] as const) {
+      const response = await decide(waiting!.id, decision, { 'x-test-token': '1' })
+      assert.equal(response.statusCode, 403)
+    }
+    assert.equal((await runsOf())[0]!.status, 'awaiting_approval')
+    assert.equal((await decide(9999, 'approve')).statusCode, 404)
+  })
+
+  it('tells the channels of the action that a run needs approval', async () => {
+    const monitor = await monitorRow()
+    const action = await approvalAction(monitor.id)
+    const channel = (await db.insert(notificationChannels).values({
+      name: 'Ops', type: 'webhook', config: JSON.stringify({ url: `${baseUrl}/hook`, method: 'POST' }), enabled: 1, createdAt: Date.now(), updatedAt: Date.now(),
+    }).returning())[0]!
+    await db.insert(actionNotificationChannels).values({ actionId: action.id, channelId: channel.id })
+
+    await scheduleActionRuns(monitor, 'down', 'up', null)
+    await settle()
+
+    const [delivery] = await db.select().from(notificationDeliveries)
+    assert.equal(JSON.parse(delivery!.variables)['status'], 'action-approval')
+  })
+
+  it('stores the setting from the API and rejects a bad timeout', async () => {
+    const config = { url: `${baseUrl}/start`, method: 'POST' }
+    const created = await app.inject({ method: 'POST', url: '/actions', payload: { name: 'A', config, requiresApproval: 1, approvalTimeoutMinutes: 15 } })
+    assert.equal(created.statusCode, 200)
+    assert.equal(created.json().requiresApproval, 1)
+    assert.equal(created.json().approvalTimeoutMinutes, 15)
+
+    const plain = await app.inject({ method: 'POST', url: '/actions', payload: { name: 'B', config } })
+    assert.equal(plain.json().requiresApproval, 0)
+    assert.equal(plain.json().approvalTimeoutMinutes, 60)
+
+    const bad = await app.inject({ method: 'PATCH', url: `/actions/${created.json().id}`, payload: { approvalTimeoutMinutes: 0 } })
+    assert.equal(bad.statusCode, 400)
+    const off = await app.inject({ method: 'PATCH', url: `/actions/${created.json().id}`, payload: { requiresApproval: 0 } })
+    assert.equal(off.json().requiresApproval, 0)
   })
 })

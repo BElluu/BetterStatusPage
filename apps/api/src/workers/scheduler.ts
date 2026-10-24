@@ -13,7 +13,7 @@ import { checkMysql } from './mysql.js'
 import { checkMongo } from './mongodb.js'
 import { checkDocker } from './docker.js'
 import { attemptNotificationDelivery, planNotifications } from './notifier.js'
-import { attemptActionRun, planActionRuns } from './actionRunner.js'
+import { announceApprovals, attemptActionRun, planActionRuns } from './actionRunner.js'
 import { checkCertificateExpiry } from './certificate.js'
 import { skipsTlsVerification } from './httpAuth.js'
 import { RESULT_IN_MAINTENANCE, RESULT_UNCONFIRMED } from '../db/resultMarks.js'
@@ -266,9 +266,10 @@ export async function recordObservation(
     for (const deliveryId of dueNow.deliveries) {
       track(attemptNotificationDelivery(deliveryId).catch((err) => console.error('[notifier] delivery failed:', err)))
     }
-    for (const runId of dueNow.actionRuns) {
+    for (const runId of dueNow.actionRuns.startNow) {
       track(attemptActionRun(runId).catch((err) => console.error('[actions] Run failed:', err)))
     }
+    track(announceApprovals(dueNow.actionRuns.awaitingApproval).catch((err) => console.error('[actions] Approval notification failed:', err)))
   }
 
   // Checked on every observation, not only on transitions: the incident opens once the outage has lasted long enough.

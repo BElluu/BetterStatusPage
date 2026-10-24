@@ -50,13 +50,14 @@ function certificateNotice(vars: Vars): Notice {
   }
 }
 
-/** An action ran for a monitor, or failed after its last attempt. It has no status of its own to show, so it lists what ran. */
+/** An action ran for a monitor, failed after its last attempt, or waits for approval. It has no status of its own to show, so it lists what ran. */
 function actionNotice(vars: Vars): Notice {
   const succeeded = vars['status'] === 'action-succeeded'
+  const awaiting = vars['status'] === 'action-approval'
   return {
-    severity: succeeded ? 'ok' : 'critical',
-    headline: ['Action ', { subject: vars['action_name'] ?? 'unknown' }, succeeded ? ' ran for monitor ' : ' failed for monitor ', { subject: vars['monitor_name'] ?? UNKNOWN_MONITOR }],
-    subtitle: [succeeded ? 'Action ran successfully' : 'Action failed after its last attempt'],
+    severity: succeeded ? 'ok' : awaiting ? 'warning' : 'critical',
+    headline: ['Action ', { subject: vars['action_name'] ?? 'unknown' }, succeeded ? ' ran for monitor ' : awaiting ? ' needs approval for monitor ' : ' failed for monitor ', { subject: vars['monitor_name'] ?? UNKNOWN_MONITOR }],
+    subtitle: [succeeded ? 'Action ran successfully' : awaiting ? 'Waiting for an admin to approve it in the panel' : 'Action failed after its last attempt'],
     facts: [
       { label: 'Action', value: vars['action_name'] ?? 'unknown' },
       { label: 'Monitor', value: vars['monitor_name'] ?? UNKNOWN_MONITOR },

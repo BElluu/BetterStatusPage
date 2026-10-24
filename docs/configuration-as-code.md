@@ -84,7 +84,7 @@ autoIncident:
 | `kind` | Contents |
 |---|---|
 | `NotificationChannel` | One channel: its settings, its alert policy (quiet hours, rate cap, grouping) and whether it is enabled. |
-| `Action` | One [action](actions.md): its HTTP request (the vault secret it reads is named, see [Secrets](#secrets)), whether it is enabled, the **keys** of the notification channels told about its runs (`notifications`, called `failureNotifications` up to 0.6, which is still read). |
+| `Action` | One [action](actions.md): its HTTP request (the vault secret it reads is named, see [Secrets](#secrets)), whether it is enabled, whether its runs [need approval](actions.md#actions-that-need-approval) (`requiresApproval`, and `approvalTimeoutMinutes` for how long they wait, 60 by default; both are left out of an export while they have their default), the **keys** of the notification channels told about its runs (`notifications`, called `failureNotifications` up to 0.6, which is still read). |
 | `Monitor` | One monitor: its schedule and thresholds, its configuration and tags, the **keys** of the channels it alerts through (`notifications`) and of the monitors it depends on (`dependsOn`), the [actions](actions.md) it runs (`actions`), and optionally its [automatic incident](#automatic-incidents). |
 
 ```yaml

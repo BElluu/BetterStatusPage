@@ -489,4 +489,6 @@ CREATE TABLE IF NOT EXISTS static_mirror_runs (
   { kind: 'exec', sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_subscribers_manage_token_hash ON subscribers(manage_token_hash)` },
   // Credentials entered straight into a monitor, action or channel (and the SMTP password) were stored in the clear.
   { kind: 'data', name: 'sealed-inline-secrets-v1', run: sealStoredSecrets },
+  { kind: 'column', sql: `ALTER TABLE actions ADD COLUMN requires_approval INTEGER NOT NULL DEFAULT 0`, desc: 'actions.requires_approval' },
+  { kind: 'column', sql: `ALTER TABLE actions ADD COLUMN approval_timeout_minutes INTEGER NOT NULL DEFAULT 60`, desc: 'actions.approval_timeout_minutes' },
 ]

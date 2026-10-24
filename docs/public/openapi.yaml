@@ -939,6 +939,50 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /actions/runs/{id}/approve:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      tags: [Actions]
+      summary: Approve an action run
+      description: Queues a run that waits for approval; its delay counts from now. The usual checks still apply before it is sent. Only a signed-in admin can decide, in the admin panel; an API token is always refused.
+      x-scope: actions:write
+      responses:
+        '200':
+          description: The run after the decision.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActionRun' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The run is not waiting for approval any more.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /actions/runs/{id}/reject:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      tags: [Actions]
+      summary: Reject an action run
+      description: Cancels a run that waits for approval. Only a signed-in admin can decide, in the admin panel; an API token is always refused.
+      x-scope: actions:write
+      responses:
+        '200':
+          description: The run after the decision.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActionRun' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The run is not waiting for approval any more.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /actions/runs:
     get:
       tags: [Actions]
@@ -947,7 +991,7 @@ paths:
       parameters:
         - { name: page, in: query, schema: { type: integer, minimum: 1 } }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
-        - { name: status, in: query, schema: { type: string, enum: [pending, succeeded, failed, cancelled] } }
+        - { name: status, in: query, schema: { type: string, enum: [pending, awaiting_approval, succeeded, failed, cancelled] } }
         - { name: actionId, in: query, schema: { type: integer } }
         - { name: monitorId, in: query, schema: { type: integer } }
         - { name: from, in: query, description: Earliest creation time in milliseconds since the epoch., schema: { type: integer } }
@@ -1592,6 +1636,8 @@ components:
         key: { $ref: '#/components/schemas/Key' }
         name: { type: string }
         config: { $ref: '#/components/schemas/ActionHttpConfig' }
+        requiresApproval: { type: integer, enum: [0, 1], description: '1: a run of this action waits for an admin to approve it in the admin panel before it is sent.' }
+        approvalTimeoutMinutes: { type: integer, minimum: 1, maximum: 10080, default: 60, description: How long a run waits for approval before it is cancelled. }
         enabled: { type: integer, enum: [0, 1] }
         notificationChannelIds: { type: array, items: { type: integer }, description: The notification channels told once a run has failed after its last attempt, and, for a channel that asks for it (`notifyOnActionSuccess` in its config), about a run that succeeded. }
         createdAt: { type: integer }
@@ -1605,6 +1651,8 @@ components:
         notificationChannelIds: { type: array, items: { type: integer }, description: Needs the "channels:write" permission for a token. }
         config: { $ref: '#/components/schemas/ActionHttpConfig' }
         enabled: { type: integer, enum: [0, 1] }
+        requiresApproval: { type: integer, enum: [0, 1], description: '1: a run of this action waits for an admin to approve it in the admin panel before it is sent.' }
+        approvalTimeoutMinutes: { type: integer, minimum: 1, maximum: 10080, default: 60, description: How long a run waits for approval before it is cancelled. }
     ActionUpdate:
       type: object
       properties:
@@ -1612,6 +1660,8 @@ components:
         notificationChannelIds: { type: array, items: { type: integer }, description: Replaces the list. Called failureChannelIds up to 0.6, which is still accepted. Needs the "channels:write" permission for a token. }
         config: { $ref: '#/components/schemas/ActionHttpConfig' }
         enabled: { type: integer, enum: [0, 1] }
+        requiresApproval: { type: integer, enum: [0, 1], description: '1: a run of this action waits for an admin to approve it in the admin panel before it is sent.' }
+        approvalTimeoutMinutes: { type: integer, minimum: 1, maximum: 10080, default: 60, description: How long a run waits for approval before it is cancelled. }
     MonitorAction:
       type: object
       required: [actionId, onStatus]
@@ -1629,7 +1679,7 @@ components:
         monitorId: { type: [integer, 'null'] }
         monitorName: { type: string }
         onStatus: { type: string, enum: [down, up] }
-        status: { type: string, enum: [pending, succeeded, failed, cancelled] }
+        status: { type: string, enum: [pending, awaiting_approval, succeeded, failed, cancelled] }
         attemptCount: { type: integer }
         maxAttempts: { type: integer }
         nextAttemptAt: { type: [integer, 'null'] }

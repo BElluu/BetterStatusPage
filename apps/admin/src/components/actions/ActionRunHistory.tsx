@@ -15,6 +15,7 @@ interface RunListResponse {
 
 const STATUS_LABEL: Record<ActionRunStatus, string> = {
   pending: 'Pending',
+  awaiting_approval: 'Awaiting approval',
   succeeded: 'Succeeded',
   failed: 'Failed',
   cancelled: 'Cancelled',
@@ -22,6 +23,7 @@ const STATUS_LABEL: Record<ActionRunStatus, string> = {
 
 const STATUS_COLOR: Record<ActionRunStatus, string> = {
   pending: 'var(--m3-degraded-bar)',
+  awaiting_approval: 'var(--m3-degraded-bar)',
   succeeded: 'var(--m3-up-bar)',
   failed: 'var(--m3-error)',
   cancelled: 'var(--m3-outline)',
@@ -56,6 +58,18 @@ export function ActionRunHistory() {
       qc.invalidateQueries({ queryKey: ['action-runs'] })
     },
     onError: (err) => toast.error(err instanceof Error && err.message ? err.message : 'Retry failed'),
+  })
+
+  const decide = useMutation({
+    mutationFn: ({ id, decision }: { id: number; decision: 'approve' | 'reject' }) => api.post<ActionRun>(`/admin/actions/runs/${id}/${decision}`, {}),
+    onSuccess: (run, { decision }) => {
+      toast.success(decision === 'approve' ? 'Run approved.' : 'Run rejected.')
+      qc.invalidateQueries({ queryKey: ['action-runs'] })
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error && err.message ? err.message : 'Could not save the decision')
+      qc.invalidateQueries({ queryKey: ['action-runs'] })
+    },
   })
 
   function changeFilter(setter: (value: string) => void, value: string) {
@@ -106,6 +120,19 @@ export function ActionRunHistory() {
                   </td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--m3-secondary)' }}>
                     {run.status === 'pending' && run.nextAttemptAt !== null && <span className="block">Next attempt {formatDateTime(run.nextAttemptAt)}</span>}
+                    {run.status === 'awaiting_approval' && <>
+                      {run.nextAttemptAt !== null && <span className="block">Expires {formatDateTime(run.nextAttemptAt)}</span>}
+                      <span className="flex gap-2 mt-2">
+                        <button type="button" className="btn btn-primary btn-sm" disabled={decide.isPending}
+                          onClick={() => decide.mutate({ id: run.id, decision: 'approve' })} aria-label={`Approve run of ${run.actionName} for ${run.monitorName}`}>
+                          Approve
+                        </button>
+                        <button type="button" className="btn btn-outline btn-sm" disabled={decide.isPending}
+                          onClick={() => decide.mutate({ id: run.id, decision: 'reject' })} aria-label={`Reject run of ${run.actionName} for ${run.monitorName}`}>
+                          Reject
+                        </button>
+                      </span>
+                    </>}
                     {run.lastError && <span className="block break-words">{run.lastError}</span>}
                     {run.status === 'failed' && (
                       <button type="button" className="btn btn-outline btn-sm mt-2" disabled={retry.isPending && retry.variables === run.id}

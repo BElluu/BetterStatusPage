@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import { api } from '../../api/client'
-import type { Action, NotificationChannel } from '@bsp/shared'
+import { DEFAULT_APPROVAL_TIMEOUT_MINUTES, type Action, type NotificationChannel } from '@bsp/shared'
 import { CHANNEL_TYPES } from '../notifications/channelTypes'
 import type { VaultPickerProps } from '@better-kit/ui'
 import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
@@ -65,6 +65,8 @@ export default function ActionFormModal({ action, onClose, onSaved }: Props) {
   const testHintId = useId()
   const [name, setName]       = useState(action?.name ?? '')
   const [enabled, setEnabled] = useState((action?.enabled ?? 1) === 1)
+  const [requiresApproval, setRequiresApproval] = useState((action?.requiresApproval ?? 0) === 1)
+  const [approvalTimeoutMinutes, setApprovalTimeoutMinutes] = useState(action?.approvalTimeoutMinutes ?? DEFAULT_APPROVAL_TIMEOUT_MINUTES)
   const [draft, setDraft]     = useState(() => action
     ? { ...http.parse(action.config as unknown as Record<string, unknown>), body: action.config.body ?? '' }
     : { ...http.defaultDraft(), body: '' })
@@ -110,7 +112,7 @@ export default function ActionFormModal({ action, onClose, onSaved }: Props) {
   })
 
   // "Run now" sends the stored action, so it is only meaningful while the form matches it.
-  const snapshot = JSON.stringify({ name, enabled, config: buildConfig(), notificationChannelIds })
+  const snapshot = JSON.stringify({ name, enabled, requiresApproval, approvalTimeoutMinutes, config: buildConfig(), notificationChannelIds })
   const [savedSnapshot] = useState(snapshot)
   const dirty = snapshot !== savedSnapshot
 
@@ -136,7 +138,7 @@ export default function ActionFormModal({ action, onClose, onSaved }: Props) {
     }
     setLoading(true)
     try {
-      const body = { name, enabled: enabled ? 1 : 0, config: buildConfig(), notificationChannelIds }
+      const body = { name, enabled: enabled ? 1 : 0, requiresApproval: requiresApproval ? 1 : 0, approvalTimeoutMinutes, config: buildConfig(), notificationChannelIds }
       if (isEdit) await api.patch(`/admin/actions/${action.id}`, body)
       else await api.post('/admin/actions', body)
       onSaved()
@@ -200,6 +202,17 @@ export default function ActionFormModal({ action, onClose, onSaved }: Props) {
               <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
 
               <Switch label="Enabled" checked={enabled} onChange={setEnabled} />
+
+              <Switch label="Require approval" checked={requiresApproval} onChange={setRequiresApproval} />
+              {requiresApproval && <>
+                <Field label="Approval expires after (minutes)">
+                  <input type="number" min={1} max={10080} step={1} required className="input-sig"
+                    value={approvalTimeoutMinutes} onChange={(e) => setApprovalTimeoutMinutes(Number(e.target.value))} />
+                </Field>
+                <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
+                  A run waits in the Actions tab of the delivery history until an admin approves or rejects it. It is cancelled if nobody does within this time, and the delay set on the monitor starts counting when it is approved.
+                </p>
+              </>}
 
               {testMsg && (
                 <Alert tone={testMsg.ok ? 'success' : 'error'}>
