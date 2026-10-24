@@ -145,7 +145,10 @@ export const sendActionFailureNotifications = (run: ActionRunInfo, errorMessage:
 /** Tells the channels chosen for an action that one of its runs went through; only those set to hear about successes. */
 export const sendActionSuccessNotifications = (run: ActionRunInfo) => sendActionNotifications(run, 'action-succeeded', '')
 
-async function sendActionNotifications(run: ActionRunInfo, status: 'action-failed' | 'action-succeeded', errorMessage: string): Promise<void> {
+/** Tells the channels chosen for an action that a run waits for an admin to approve it in the panel. */
+export const sendActionApprovalNotifications = (run: ActionRunInfo) => sendActionNotifications(run, 'action-approval', '')
+
+async function sendActionNotifications(run: ActionRunInfo, status: 'action-failed' | 'action-succeeded' | 'action-approval', errorMessage: string): Promise<void> {
   const links = await db.select().from(actionNotificationChannels).where(eq(actionNotificationChannels.actionId, run.actionId))
   if (links.length === 0) return
   const channels = await db.select().from(notificationChannels).where(inArray(notificationChannels.id, links.map((l) => l.channelId)))

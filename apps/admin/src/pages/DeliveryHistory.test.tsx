@@ -154,6 +154,22 @@ describe('DeliveryHistoryPage tabs', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/actions/runs/5/retry', {}))
   })
 
+  it('approves or rejects an action run that waits for approval', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getCurrentUser).mockReturnValue({ userId: 1, email: 'admin@example.test', role: 'admin', mustChangePassword: false, twoFactorEnabled: false })
+    vi.mocked(api.get).mockImplementation(async (path: string) => path.startsWith('/admin/actions/runs')
+      ? { runs: [{ id: 7, actionId: 1, actionName: 'Fail over DB', monitorId: 5, monitorName: 'VM1 SQL', onStatus: 'down', status: 'awaiting_approval', attemptCount: 0, maxAttempts: 3, nextAttemptAt: 1_700_003_600_000, lastError: null, createdAt: 1_700_000_000_000 }], total: 1, page: 1, pages: 1 }
+      : [])
+    vi.mocked(api.post).mockResolvedValue({ id: 7, status: 'pending' })
+    renderPage('/admin/delivery-history?tab=actions')
+
+    expect(await screen.findByText('Awaiting approval', { selector: 'span' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Approve run of Fail over DB/ }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/actions/runs/7/approve', {}))
+    await user.click(screen.getByRole('button', { name: /Reject run of Fail over DB/ }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/actions/runs/7/reject', {}))
+  })
+
   it('keeps the addresses of the former history pages working', async () => {
     function Location() {
       const { pathname, search } = useLocation()

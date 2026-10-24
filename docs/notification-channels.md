@@ -259,7 +259,7 @@ A variable that does not exist for the event is left in the text unchanged — f
 
 ### Action runs only
 
-The `action` event carries the usual variables, with `{{status}}` set to `action-failed`, or `action-succeeded` for a channel that is [set to hear about successes](actions.md#when-a-run-succeeds) (`{{error_message}}` is then empty), and `{{previous_status}}` to the status that triggered the action, and these:
+The `action` event carries the usual variables, with `{{status}}` set to `action-failed`, `action-approval` when a run is [waiting for approval](actions.md#actions-that-need-approval), or `action-succeeded` for a channel that is [set to hear about successes](actions.md#when-a-run-succeeds) (`{{error_message}}` is then empty for the last two), and `{{previous_status}}` to the status that triggered the action, and these:
 
 | Variable | Value |
 | --- | --- |

@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { actionNotificationChannels, actionRuns, actions, monitorActions, monitors, notificationChannels } from '../db/schema.js'
-import { cancelRunsOfAction, cancelUnlinkedRuns, retryActionRun, testAction } from '../workers/actionRunner.js'
+import { approveActionRun, cancelRunsOfAction, cancelUnlinkedRuns, rejectActionRun, retryActionRun, testAction } from '../workers/actionRunner.js'
 import { auditActor, diffObjects, snapshot, writeAudit } from '../kit/audit.js'
 import { requestIdentity } from '../kit/authMiddleware.js'
 import { withImmediateTransaction } from '../db/transaction.js'
@@ -11,7 +11,7 @@ import { keyForNew, type KeyOwner } from '@better-kit/config-as-code'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
 import { actionConfigError, actionVaultProblem } from '../services/actionInput.js'
 import { vaultUseProblem } from '../kit/vaultUse.js'
-import { ACTION_TRIGGER_STATUSES, type ActionTriggerStatus } from '@bsp/shared'
+import { ACTION_TRIGGER_STATUSES, DEFAULT_APPROVAL_TIMEOUT_MINUTES, type ActionTriggerStatus } from '@bsp/shared'
 import { tokenAllows } from '@better-kit/contracts'
 
 const MAX_MINUTES = 7 * 24 * 60
@@ -22,6 +22,8 @@ const MAX_NAME = 200
 const isFlag = (value: unknown): value is 0 | 1 => value === 0 || value === 1
 
 const isMinutes = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0 && (value as number) <= MAX_MINUTES
+const isApprovalTimeout = (value: unknown): value is number => isMinutes(value) && value >= 1
+const APPROVAL_TIMEOUT_ERROR = `approvalTimeoutMinutes must be whole minutes from 1 to ${MAX_MINUTES}`
 
 export async function actionRoutes(app: FastifyInstance) {
   type ActionRow = typeof actions.$inferSelect
@@ -77,9 +79,11 @@ export async function actionRoutes(app: FastifyInstance) {
     return (await present([r]))[0]
   })
 
-  app.post<{ Body: { name: string; key?: string; config: unknown; enabled?: number; notificationChannelIds?: unknown; failureChannelIds?: unknown } }>('/', async (req, reply) => {
+  app.post<{ Body: { name: string; key?: string; config: unknown; enabled?: number; requiresApproval?: number; approvalTimeoutMinutes?: number; notificationChannelIds?: unknown; failureChannelIds?: unknown } }>('/', async (req, reply) => {
     if (typeof req.body?.name !== 'string' || !req.body.name.trim() || req.body.name.length > MAX_NAME) return reply.code(400).send({ error: `Name is required, up to ${MAX_NAME} characters` })
     if (req.body.enabled !== undefined && !isFlag(req.body.enabled)) return reply.code(400).send({ error: 'enabled must be 0 or 1' })
+    if (req.body.requiresApproval !== undefined && !isFlag(req.body.requiresApproval)) return reply.code(400).send({ error: 'requiresApproval must be 0 or 1' })
+    if (req.body.approvalTimeoutMinutes !== undefined && !isApprovalTimeout(req.body.approvalTimeoutMinutes)) return reply.code(400).send({ error: APPROVAL_TIMEOUT_ERROR })
     if (!isObject(req.body.config)) return reply.code(400).send({ error: 'config must be an object' })
     const secrets = restoreSecrets('channel', req.body.config, undefined)
     if ('error' in secrets) return reply.code(400).send({ error: secrets.error })
@@ -99,6 +103,8 @@ export async function actionRoutes(app: FastifyInstance) {
         name: req.body.name.trim(),
         config: JSON.stringify(secrets.config),
         enabled: req.body.enabled ?? 1,
+        requiresApproval: req.body.requiresApproval ?? 0,
+        approvalTimeoutMinutes: req.body.approvalTimeoutMinutes ?? DEFAULT_APPROVAL_TIMEOUT_MINUTES,
         createdAt: now,
         updatedAt: now,
       }).returning())[0]!
@@ -106,11 +112,11 @@ export async function actionRoutes(app: FastifyInstance) {
       return row
     })
     writeAudit(auditActor(requestIdentity(req)), 'create', 'action', r.id, r.name,
-      snapshot({ name: r.name, enabled: r.enabled, notificationChannels: channelIds.length }))
+      snapshot({ name: r.name, enabled: r.enabled, requiresApproval: r.requiresApproval, notificationChannels: channelIds.length }))
     return (await present([r]))[0]
   })
 
-  app.patch<{ Params: { id: string }; Body: Partial<{ name: string; key: string; config: unknown; enabled: number; notificationChannelIds: unknown; failureChannelIds: unknown }> }>('/:id', async (req, reply) => {
+  app.patch<{ Params: { id: string }; Body: Partial<{ name: string; key: string; config: unknown; enabled: number; requiresApproval: number; approvalTimeoutMinutes: number; notificationChannelIds: unknown; failureChannelIds: unknown }> }>('/:id', async (req, reply) => {
     const id = Number(req.params.id)
     const existing = (await db.select().from(actions).where(eq(actions.id, id)))[0]
     if (!existing) return reply.code(404).send({ error: 'Not found' })
@@ -119,9 +125,13 @@ export async function actionRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: `Name is required, up to ${MAX_NAME} characters` })
     }
     if (req.body.enabled !== undefined && !isFlag(req.body.enabled)) return reply.code(400).send({ error: 'enabled must be 0 or 1' })
+    if (req.body.requiresApproval !== undefined && !isFlag(req.body.requiresApproval)) return reply.code(400).send({ error: 'requiresApproval must be 0 or 1' })
+    if (req.body.approvalTimeoutMinutes !== undefined && !isApprovalTimeout(req.body.approvalTimeoutMinutes)) return reply.code(400).send({ error: APPROVAL_TIMEOUT_ERROR })
     const updates: Partial<typeof actions.$inferInsert> = { updatedAt: Date.now() }
     if (req.body.name !== undefined) updates.name = req.body.name.trim()
     if (req.body.enabled !== undefined) updates.enabled = req.body.enabled
+    if (req.body.requiresApproval !== undefined) updates.requiresApproval = req.body.requiresApproval
+    if (req.body.approvalTimeoutMinutes !== undefined) updates.approvalTimeoutMinutes = req.body.approvalTimeoutMinutes
     if (req.body.config !== undefined) {
       if (!isObject(req.body.config)) return reply.code(400).send({ error: 'config must be an object' })
       const secrets = restoreSecrets('channel', req.body.config, JSON.parse(existing.config))
@@ -141,7 +151,7 @@ export async function actionRoutes(app: FastifyInstance) {
       if (channelIds.join() !== storedChannels.join()) await setChannels(id, channelIds)
       return row
     })
-    const diff = diffObjects({ name: existing.name, enabled: existing.enabled, notificationChannels: storedChannels.length }, { name: r.name, enabled: r.enabled, notificationChannels: channelIds.length })
+    const diff = diffObjects({ name: existing.name, enabled: existing.enabled, requiresApproval: existing.requiresApproval, approvalTimeoutMinutes: existing.approvalTimeoutMinutes, notificationChannels: storedChannels.length }, { name: r.name, enabled: r.enabled, requiresApproval: r.requiresApproval, approvalTimeoutMinutes: r.approvalTimeoutMinutes, notificationChannels: channelIds.length })
     if (req.body.config !== undefined) diff['config'] = { from: '[previous config]', to: '[updated config]' }
     if (Object.keys(diff).length) writeAudit(auditActor(requestIdentity(req)), 'update', 'action', id, existing.name, diff)
     return (await present([r]))[0]
@@ -206,6 +216,27 @@ export async function actionRoutes(app: FastifyInstance) {
     const { variables: _variables, ...run } = (await db.select().from(actionRuns).where(eq(actionRuns.id, id)))[0]!
     return run
   })
+
+  /**
+   * Approving or rejecting is a decision of a person looking at the panel, so it is refused to API tokens whatever
+   * their permissions.
+   */
+  for (const decision of ['approve', 'reject'] as const) {
+    app.post<{ Params: { id: string } }>(`/runs/:id/${decision}`, async (req, reply) => {
+      const identity = requestIdentity(req)
+      if (identity.apiToken) return reply.code(403).send({ error: 'Runs can only be approved or rejected in the admin panel, not with an API token' })
+      const id = Number(req.params.id)
+      const existing = (await db.select().from(actionRuns).where(eq(actionRuns.id, id)))[0]
+      if (!existing) return reply.code(404).send({ error: 'Run not found' })
+      const decided = await (decision === 'approve' ? approveActionRun(id) : rejectActionRun(id))
+      if (!decided) return reply.code(409).send({ error: 'This run is not waiting for approval any more' })
+      writeAudit(auditActor(identity), 'update', 'action_run', id, `${existing.actionName} · ${existing.monitorName}`, {
+        approval: { from: 'awaiting approval', to: decision === 'approve' ? 'approved' : 'rejected' },
+      })
+      const { variables: _variables, ...run } = (await db.select().from(actionRuns).where(eq(actionRuns.id, id)))[0]!
+      return run
+    })
+  }
 
   // ── Monitor ↔ Action links ─────────────────────────────────────────────────
 

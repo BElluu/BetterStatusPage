@@ -326,6 +326,7 @@ const STATUS_NAMES: Record<string, string> = {
   'cert-renewed': 'Certificate renewed',
   'action-failed': 'Action failed',
   'action-succeeded': 'Action ran',
+  'action-approval': 'Action needs approval',
 }
 
 const EVENT_LABELS: Record<NotificationDelivery['eventType'], string> = {

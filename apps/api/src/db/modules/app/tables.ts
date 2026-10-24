@@ -152,6 +152,8 @@ export const actions = sqliteTable('actions', {
   // Additive column (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
   /** Stable identifier for config-as-code and API clients; unlike `id` it survives export/import. */
   key: text('key').notNull().unique().$defaultFn(randomEntityKey),
+  requiresApproval: integer('requires_approval').notNull().default(0),
+  approvalTimeoutMinutes: integer('approval_timeout_minutes').notNull().default(60),
 })
 
 export const monitorActions = sqliteTable('monitor_actions', {
@@ -177,7 +179,7 @@ export const actionRuns = sqliteTable('action_runs', {
   monitorId: integer('monitor_id'),
   monitorName: text('monitor_name').notNull(),
   onStatus: text('on_status').notNull(),
-  status: text('status').notNull().default('pending'), // 'pending' | 'succeeded' | 'failed' | 'cancelled'
+  status: text('status').notNull().default('pending'), // 'pending' | 'awaiting_approval' | 'succeeded' | 'failed' | 'cancelled'
   variables: text('variables').notNull(),
   attemptCount: integer('attempt_count').notNull().default(0),
   maxAttempts: integer('max_attempts').notNull().default(3),
