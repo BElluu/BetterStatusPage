@@ -93,7 +93,7 @@ chmod 600 .env
 Edytuj `.env` i ustaw co najmniej:
 
 ```env
-BSP_IMAGE=ghcr.io/belluu/better-status-page:0.6.0
+BSP_IMAGE=ghcr.io/belluu/better-status-page:0.7.0
 JWT_SECRET=<losowy sekret, min. 32 znaki>
 VAULT_ENCRYPTION_KEY=<64-znakowy klucz hex>
 ```

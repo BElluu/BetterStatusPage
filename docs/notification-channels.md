@@ -35,9 +35,6 @@ Deleting a channel also removes it from every monitor it was assigned to.
 
 ### Wording for monitors and for actions
 
-> [!WARNING]
-> **Not released yet.** This is not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 One channel serves both. The **Monitor** tab words what is sent about monitors (status changes and certificates); the **Action** tab words what is sent about [actions](actions.md#when-a-run-fails), so you do not need a second channel to say something different about them. The Action tab has the same message fields as the Monitor tab, with the [action variables](#action-runs-only) available. A field you leave empty there is not filled from the Monitor tab: the message about an action is then sent in its default form (the standard message of the channel, and for a webhook a JSON with the action, the monitor, the status, the status that triggered it, the attempts, the error and the time). The destination, the credentials, quiet hours and limits are the channel's own, and recovery and grouping apply to monitors only.
 
 ## Assigning channels to monitors
@@ -118,9 +115,6 @@ Status:  {{status}}
 Error:   {{error_message}}
 Time:    {{checked_at}}
 ```
-
-> [!WARNING]
-> **Not released yet.** This is not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 As long as you leave this template as it is, each message is worded for its event instead: "Monitor VM1 is DOWN", "TLS certificate of VM1 expires in 7 days", "Action Start VM2 failed for monitor VM1", each with the facts that belong to that event. Edit the subject or the body and the channel sends your template for every event about a monitor (status changes and certificates), with the variables listed below. Actions are worded on the **Action** tab of the channel, never by this template.
 
@@ -390,9 +384,6 @@ A channel has a unique `key` next to its `id` (see [Keys](api.md#monitors-and-no
 | `telegram` | `chatId`, and `botToken` or a `vault` reference to the token; `text` (optional) |
 | `ntfy` | `topic`; `serverUrl`, `accessToken` or a `vault` reference to it, and `text` (all optional) |
 | `pushover` | `userKey`, and `appToken` or a `vault` reference to the token; `text` (optional) |
-
-> [!WARNING]
-> **Not released yet.** This is not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 Whether successful runs of an action are sent is `config.notifyOnActionSuccess` (`true`). The wording for actions is `config.eventOverrides.action`, made of the message fields of the type (`subject` and `body` for email, `body` for webhook, `content` for Discord, `summary` for Teams, `text` for the others). Any other field in it is refused, so it can never change where a message goes.
 

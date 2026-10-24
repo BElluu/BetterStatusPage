@@ -5,6 +5,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-24
+
 ### Added
 
 - **Actions that need approval**: turn on **Require approval** on an action and its runs wait as *Awaiting approval* in the delivery history until an administrator approves or rejects them there, instead of being sent when the monitor changes status. A run nobody decides on is cancelled after **Approval expires after (minutes)** (60 by default, set per action). The channels of the action are told when a run starts waiting, the decision is written to the audit log, and API tokens cannot decide. `Action` documents of the configuration as code and the API (`requiresApproval`, `approvalTimeoutMinutes`, `POST /actions/runs/{id}/approve` and `/reject`) carry the setting. See [Actions](actions.md#actions-that-need-approval).

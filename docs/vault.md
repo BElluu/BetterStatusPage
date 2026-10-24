@@ -30,9 +30,6 @@ The same key also encrypts the single sign-on client secret, two-factor authenti
 
 ### Credentials typed into a monitor, action or channel
 
-> [!WARNING]
-> **Not released yet.** Until a release includes it, credentials typed in directly are stored as plain text; to get this, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 A credential you type straight into a monitor, an action or a notification channel, instead of choosing it from a vault, is encrypted with the same key before it is written to the database: the password of a database monitor and the basic, OAuth 2 and CAS credentials and credential headers of an HTTP monitor; the headers of a webhook channel or action; the webhook URL of Slack, Discord and Teams; the token of Telegram, ntfy and Pushover; and the SMTP password. Other settings (hosts, URLs, names) stay readable. A copy of the database file, or a [backup](backup-restore.md), then does not carry these credentials without `VAULT_ENCRYPTION_KEY`.
 
 The first start after the upgrade encrypts what is already stored. If there is anything to encrypt and `VAULT_ENCRYPTION_KEY` is not set outside development, that start stops instead of encrypting with the built-in development key. The admin console, the API and config files work as before: secrets are shown masked and a masked value sent back keeps the stored one. If the key does not match the one the credentials were encrypted with, reading them fails with an error rather than using a wrong value, so monitoring stays stopped until the right key is back.

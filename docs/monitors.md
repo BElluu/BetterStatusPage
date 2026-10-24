@@ -144,9 +144,6 @@ recorded and charted; it only changes the status when **Degraded when slower tha
 
 ### Where a monitor may connect
 
-> [!WARNING]
-> **Not released yet.** This change is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 A monitor requests the address you give it, and a failed response check or a test shows something
 of the answer, so a URL must not be able to read the credentials of the host the server runs on.
 HTTPS monitors, the test runner, the certificate reading, HTTP actions and Docker monitors on a TCP endpoint therefore refuse to
@@ -364,9 +361,6 @@ Choose how to connect. The sign-in itself (user and password, or the Vault secre
 
 ### Connection security
 
-> [!WARNING]
-> **Not released yet.** The **Connection security** setting is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 In individual-fields mode the **Connection security** setting (`tls` in the monitor's `config`) decides how the password is protected:
 
 | Setting | `tls` | Behaviour |
@@ -467,9 +461,6 @@ to scheduled checks. If a dependency of the monitor is down, a failing heartbeat
 **Affected**, as for a scheduled check. A heartbeat that reports `up` is always recorded as up.
 
 ### Sending by key (created on the first heartbeat)
-
-> [!WARNING]
-> **Not released yet.** Heartbeats by key are only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 The URL above is made when the monitor is saved, so a sender that can only be given one URL for many jobs (a backup server that notifies per datastore, say) would need a monitor created by hand for each. Heartbeats by key remove that step: the monitor is named in the URL and is created by the first heartbeat.
 

@@ -107,9 +107,6 @@ In the action's form, the **Notifications** tab at the right edge lists your [no
 
 ### When a run succeeds
 
-> [!WARNING]
-> **Not released yet.** This feature is not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 A channel can also be told when a run **succeeds**, so you know the action really ran: turn on **Notify when an action run succeeds** on the **Action** tab of the [channel](notification-channels.md#wording-for-monitors-and-for-actions). It is off by default and decided per channel, for every action the channel is ticked on. Only the action's own runs are reported, not **Run now**, and the message names the action, the monitor and the status that triggered it.
 
 ---
@@ -127,9 +124,6 @@ If `VM1` is down for five minutes without recovering, the job starts `VM2`. If i
 ---
 
 ## Actions that need approval
-
-> [!WARNING]
-> **Not released yet.** This feature is not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 Some actions are too significant to start on their own, for example one that fails over a database or shuts a server down. Turn on **Require approval** in the action's form and a run of that action is not sent when the monitor reaches the status. It waits as `awaiting_approval` until an administrator decides:
 

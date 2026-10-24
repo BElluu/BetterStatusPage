@@ -1,8 +1,5 @@
 # Performance
 
-> [!WARNING]
-> **Not released yet.** The benchmark script is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 How BetterStatusPage behaves with many monitors, measured with the real scheduler, write path and public API on a SQLite file. Run it yourself with `npm run bench -- --monitors=100 --days=90 --interval=60` (it uses a temporary database and never touches your data).
 
 **Setup of the numbers below:** Node 26.10, AMD Ryzen 7 7700 (16 threads), 32 GB RAM, Windows 11, NVMe disk; HTTPS monitors against a local endpoint answering in 20 ms; every monitor checked every 60 s and 90 days of history kept. Absolute numbers depend on your hardware, a container on a small VPS will be slower. Compare the shape, not the milliseconds.
