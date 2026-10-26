@@ -21,6 +21,7 @@ import { checkDomainExpiry } from './domainExpiry.js'
 import { attemptNotificationDelivery, planNotifications } from './notifier.js'
 import { announceApprovals, attemptActionRun, planActionRuns } from './actionRunner.js'
 import { checkCertificateExpiry } from './certificate.js'
+import { checkLatency } from './latencyAnomaly.js'
 import { skipsTlsVerification } from './httpAuth.js'
 import { RESULT_IN_MAINTENANCE, RESULT_UNCONFIRMED } from '../db/resultMarks.js'
 import { activeWindows } from '../services/maintenanceSchedule.js'
@@ -162,7 +163,14 @@ async function performCheck(monitor: MonitorRow): Promise<void> {
     result = { status: 'down', responseMs: null, error: err instanceof Error ? err.message : String(err) }
   }
 
-  await recordObservation(monitor, await applyDependencies(monitor, result))
+  const observed = await applyDependencies(monitor, result)
+  await recordObservation(monitor, observed)
+
+  // A check that answered adds a response time to the window. Checks in maintenance are not judged: like every other
+  // notification, a slower-than-usual alert waits until the window is over.
+  if (monitor.latencyAlertFactor !== null && observed.responseMs !== null && (observed.status === 'up' || observed.status === 'degraded') && !(await isInMaintenance(monitor.id))) {
+    await checkLatency(monitor.id).catch((err) => console.error('[latency] check failed:', err))
+  }
 
   if (config && monitor.type === 'https' && !skipsTlsVerification(config as HttpsConfig)) {
     await checkCertificateExpiry(monitor, config as HttpsConfig).catch((err) =>

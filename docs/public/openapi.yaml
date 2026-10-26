@@ -1389,6 +1389,12 @@ components:
         autoIncidentMinutes: { type: [integer, 'null'], description: 'Minutes a confirmed outage must last before an incident is opened automatically, 1 to 10080; null = off.' }
         autoIncidentMode: { type: string, enum: [draft, published], description: 'Whether the automatic incident is a draft (default) or published at once.' }
         autoIncidentTemplateId: { type: [integer, 'null'], description: 'Incident template for the automatic incident; null = the default template.' }
+        latencyAlertFactor: { type: [number, 'null'], description: 'Times the p95 response time must exceed the monitor''s usual p95 (previous 7 days) to alert as slower than usual, 1.5 to 10; null = off.' }
+        latencyAlertWindowMinutes: { type: integer, description: 'Minutes of recent checks the p95 is taken over, 10 to 240.' }
+        latencyAlertMinDeltaMs: { type: integer, description: 'The p95 must also be at least this many ms above the usual, 0 to 60000.' }
+        latencyAlertSustain: { type: integer, description: 'Consecutive checks that must agree before the alert or its recovery is sent, 1 to 20.' }
+        latencyBaselineP95: { type: [integer, 'null'], description: 'The usual p95 in ms as last measured for the alert; null until it has run once.' }
+        latencyAlertSince: { type: [integer, 'null'], description: 'When the open slower-than-usual alert was confirmed (ms since epoch); null while there is none.' }
         config: { $ref: '#/components/schemas/MonitorConfig' }
         tags:
           type: array
@@ -1440,6 +1446,10 @@ components:
         autoIncidentMinutes: { type: [integer, 'null'], description: 'Minutes a confirmed outage must last before an incident is opened automatically, 1 to 10080; null = off.' }
         autoIncidentMode: { type: string, enum: [draft, published], description: 'Whether the automatic incident is a draft (default) or published at once.' }
         autoIncidentTemplateId: { type: [integer, 'null'], description: 'Incident template for the automatic incident; null = the default template.' }
+        latencyAlertFactor: { type: [number, 'null'], description: 'Times the p95 response time must exceed the monitor''s usual p95 (previous 7 days) to alert as slower than usual, 1.5 to 10; null (default) = off. Refused for the types domain, tls, docker and webhook.' }
+        latencyAlertWindowMinutes: { type: integer, default: 30, description: 'Minutes of recent checks the p95 is taken over, 10 to 240.' }
+        latencyAlertMinDeltaMs: { type: integer, default: 200, description: 'The p95 must also be at least this many ms above the usual, 0 to 60000.' }
+        latencyAlertSustain: { type: integer, default: 3, description: 'Consecutive checks that must agree before the alert or its recovery is sent, 1 to 20.' }
         config: { $ref: '#/components/schemas/MonitorConfig' }
         tags:
           type: array
@@ -1458,6 +1468,10 @@ components:
         autoIncidentMinutes: { type: [integer, 'null'], description: 'Minutes a confirmed outage must last before an incident is opened automatically, 1 to 10080; null = off.' }
         autoIncidentMode: { type: string, enum: [draft, published], description: 'Whether the automatic incident is a draft (default) or published at once.' }
         autoIncidentTemplateId: { type: [integer, 'null'], description: 'Incident template for the automatic incident; null = the default template.' }
+        latencyAlertFactor: { type: [number, 'null'], description: 'Times the p95 response time must exceed the monitor''s usual p95 to alert as slower than usual, 1.5 to 10; null = off. Changing any latencyAlert field closes an open alert without a notification.' }
+        latencyAlertWindowMinutes: { type: integer, description: '10 to 240.' }
+        latencyAlertMinDeltaMs: { type: integer, description: '0 to 60000.' }
+        latencyAlertSustain: { type: integer, description: '1 to 20.' }
         config: { $ref: '#/components/schemas/MonitorConfig' }
         tags:
           type: array

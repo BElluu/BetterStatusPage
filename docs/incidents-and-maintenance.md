@@ -245,7 +245,7 @@ While a window is running, for every monitor it covers:
 - **Notification channels stay silent.** Neither alerts nor recoveries are sent, and nothing is recorded in the delivery history for them. See [Notification channels](notification-channels.md).
 - **Alert state is frozen.** After the window, the next check is compared with the status confirmed before it started. An outage that began during the window and is still going alerts once the window ends; a monitor that was already down and recovered during the window sends its recovery then. Problems that came and went inside the window are never alerted.
 
-Certificate expiry warnings are not affected by maintenance windows.
+Certificate expiry warnings are not affected by maintenance windows. The [slower-than-usual alert](monitors.md#slower-than-usual-alert) is: checks inside a window are not judged, so it neither opens nor closes there.
 
 On the status page:
 

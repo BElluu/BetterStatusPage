@@ -27,13 +27,17 @@ function Chip({ icon, color, bg, children }: { icon: string; color: string; bg: 
   )
 }
 
-/** Chips for a running maintenance window and an open incident, beside the status badge. */
-export function ActivityBadges({ activity }: { activity: MonitorActivity }) {
+/**
+ * Chips for a running maintenance window, an open incident and a slower-than-usual alert, beside the status badge.
+ * The last one is no status: the monitor still answers, so its own badge does not change.
+ */
+export function ActivityBadges({ activity, slower = false }: { activity: MonitorActivity; slower?: boolean }) {
   const incident = activity.incident
   return (
     <>
       {activity.maintenance && <Chip icon="construction" color="var(--m3-primary)" bg="var(--m3-primary-fixed)">Maintenance</Chip>}
       {incident && <Chip icon="warning" {...incidentTones[incident]}>Incident · {incident}</Chip>}
+      {slower && <Chip icon="speed" color="var(--m3-degraded)" bg="var(--m3-degraded-bg)">Slower than usual</Chip>}
     </>
   )
 }

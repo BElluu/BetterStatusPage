@@ -42,6 +42,21 @@ export const monitors = sqliteTable('monitors', {
   failingSince: integer('failing_since'),
   /** api_tokens.id of the token whose first heartbeat by key created the monitor; null for a monitor made any other way. */
   autoCreatedByTokenId: integer('auto_created_by_token_id'),
+  /** Times the 95th-percentile response time must exceed the baseline to count as slower than usual; null = off. */
+  latencyAlertFactor: real('latency_alert_factor'),
+  /** Minutes of recent checks whose p95 is compared with the baseline. */
+  latencyAlertWindowMinutes: integer('latency_alert_window_minutes').notNull().default(30),
+  /** The p95 must also be at least this many ms above the baseline. */
+  latencyAlertMinDeltaMs: integer('latency_alert_min_delta_ms').notNull().default(200),
+  /** Consecutive checks that must agree before an alert or its recovery is sent. */
+  latencyAlertSustain: integer('latency_alert_sustain').notNull().default(3),
+  /** p95 of the previous 7 days, refreshed hourly and frozen while an alert is open. */
+  latencyBaselineP95: integer('latency_baseline_p95'),
+  latencyBaselineAt: integer('latency_baseline_at'),
+  /** When the open slower-than-usual alert was confirmed; null while there is none. */
+  latencyAlertSince: integer('latency_alert_since'),
+  /** Consecutive checks agreeing on the opposite state (towards an alert, or towards its recovery). */
+  latencyAlertCount: integer('latency_alert_count').notNull().default(0),
 })
 
 export const monitorResults = sqliteTable('monitor_results', {

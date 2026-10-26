@@ -79,13 +79,18 @@ autoIncident:
   afterMinutes: 10
   mode: draft
   template: Payments
+latencyAlert:
+  factor: 3
+  windowMinutes: 30
+  minDeltaMs: 200
+  sustain: 3
 ```
 
 | `kind` | Contents |
 |---|---|
 | `NotificationChannel` | One channel: its settings, its alert policy (quiet hours, rate cap, grouping) and whether it is enabled. |
 | `Action` | One [action](actions.md): its HTTP request (the vault secret it reads is named, see [Secrets](#secrets)), whether it is enabled, whether its runs [need approval](actions.md#actions-that-need-approval) (`requiresApproval`, and `approvalTimeoutMinutes` for how long they wait, 60 by default; both are left out of an export while they have their default), the **keys** of the notification channels told about its runs (`notifications`, called `failureNotifications` up to 0.6, which is still read). |
-| `Monitor` | One monitor: its schedule and thresholds, its configuration and tags, the **keys** of the channels it alerts through (`notifications`) and of the monitors it depends on (`dependsOn`), the [actions](actions.md) it runs (`actions`), and optionally its [automatic incident](#automatic-incidents). |
+| `Monitor` | One monitor: its schedule and thresholds, its configuration and tags, the **keys** of the channels it alerts through (`notifications`) and of the monitors it depends on (`dependsOn`), the [actions](actions.md) it runs (`actions`), and optionally its [automatic incident](#automatic-incidents) and its [slower-than-usual alert](#slower-than-usual-alert). |
 
 ```yaml
 kind: Action
@@ -150,6 +155,20 @@ The optional `autoIncident` block of a `Monitor` switches on [automatic incident
 A monitor without an `autoIncident` block, or with `enabled: false`, has automatic incidents **off**. Because a file describes the whole monitor, importing a monitor without the block also switches the feature off if it was on. The export writes the block only for monitors that have it on, and leaves out `template` for the default one.
 
 Templates are not documents: create them in the admin console or through the API first. An unknown template name is refused. A token needs the `incidents:write` permission to import `mode: published` or a `template`.
+
+### Slower-than-usual alert
+
+The optional `latencyAlert` block of a `Monitor` switches on the [slower-than-usual alert](monitors.md#slower-than-usual-alert). Every setting is optional and takes its default when left out, so `latencyAlert: {}` turns the alert on with the defaults:
+
+| Setting | Meaning | Default |
+|---|---|---|
+| `factor` | Times the p95 response time must exceed the monitor's usual p95, `1.5`–`10`. | `3` |
+| `windowMinutes` | Minutes of recent checks the p95 is taken over, `10`–`240`. | `30` |
+| `minDeltaMs` | The p95 must also be at least this many ms above the usual, `0`–`60000`. | `200` |
+| `sustain` | Consecutive checks that must agree before the alert or its recovery is sent, `1`–`20`. | `3` |
+| `enabled` | Optional. `false` turns the alert off, whatever else the block says. | |
+
+A monitor without a `latencyAlert` block, or with `enabled: false`, has the alert **off**; importing a monitor without the block also switches it off if it was on. A value outside its range, or one that is not a number, is refused, and so is the block for a monitor whose type has no [Latency alert](monitors.md#slower-than-usual-alert) (Domain expiry, TLS certificate, Docker and Webhook). Changing a setting, the check interval or the type closes an alert that is open, without a notification. The export writes the block only for monitors that have the alert on.
 
 ### What is left out
 

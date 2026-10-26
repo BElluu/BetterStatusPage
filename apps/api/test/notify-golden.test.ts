@@ -12,7 +12,7 @@ import { actionNotificationChannels, actions, monitorNotificationChannels, monit
 import { encrypt } from '../src/kit/secretBox.js'
 import { notificationRoutes } from '../src/routes/notifications.js'
 import {
-  processDueNotificationDeliveries, sendActionFailureNotifications, sendActionSuccessNotifications, sendCertificateNotifications, sendNotifications, testNotificationChannel,
+  processDueNotificationDeliveries, sendActionFailureNotifications, sendActionSuccessNotifications, sendCertificateNotifications, sendLatencyNotifications, sendNotifications, testNotificationChannel,
 } from '../src/workers/notifier.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
@@ -152,6 +152,8 @@ describe('notification output', () => {
       ['certificate-expiring', () => sendCertificateNotifications(monitor!, { kind: 'expiring', host: 'checkout.example.test', expiresAt: NOW + 5 * 86_400_000, daysLeft: 5 })],
       ['certificate-renewed', () => sendCertificateNotifications(monitor!, { kind: 'renewed', host: 'checkout.example.test', expiresAt: NOW + 90 * 86_400_000, daysLeft: 90 })],
       ['action-failed', () => sendActionFailureNotifications({ actionId: action!.id, actionName: 'Restart', monitorId: monitor!.id, monitorName: 'Checkout <API>', onStatus: 'down', attemptCount: 3 }, 'HTTP 500')],
+      ['latency-slow', () => sendLatencyNotifications(monitor!, { kind: 'slow', p95Ms: 642, baselineMs: 188, windowMinutes: 30, since: NOW })],
+      ['latency-normal', () => sendLatencyNotifications(monitor!, { kind: 'normal', p95Ms: 201, baselineMs: 188, windowMinutes: 30, since: NOW })],
     ]
     const output: Record<string, unknown> = {}
     for (const [name, run] of events) {

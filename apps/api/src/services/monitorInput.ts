@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { DATABASE_TLS_MODES, isDatabaseType } from '@bsp/shared'
+import { DATABASE_TLS_MODES, DEFAULT_LATENCY_ALERT, LATENCY_FACTOR_RANGE, LATENCY_MIN_DELTA_MS_RANGE, LATENCY_SUSTAIN_RANGE, LATENCY_WINDOW_MINUTES_RANGE, isDatabaseType, supportsLatencyAlert } from '@bsp/shared'
 import type { AutoIncidentMode, DatabaseTlsMode, MonitorTag, MonitorType } from '@bsp/shared'
 import { validateHttpAssertions } from '../workers/assertions.js'
 import { validateDockerConfig } from '../workers/docker.js'
@@ -52,8 +52,31 @@ export interface MonitorFields {
   autoIncidentMinutes: number | null
   autoIncidentMode: AutoIncidentMode
   autoIncidentTemplateId: number | null
+  latencyAlertFactor: number | null
+  latencyAlertWindowMinutes: number
+  latencyAlertMinDeltaMs: number
+  latencyAlertSustain: number
   config: Record<string, unknown>
   tags: MonitorTag[]
+}
+
+export type LatencyFields = Pick<MonitorFields, 'latencyAlertFactor' | 'latencyAlertWindowMinutes' | 'latencyAlertMinDeltaMs' | 'latencyAlertSustain'>
+const LATENCY_FIELDS: readonly (keyof LatencyFields)[] = ['latencyAlertFactor', 'latencyAlertWindowMinutes', 'latencyAlertMinDeltaMs', 'latencyAlertSustain']
+
+type LatencyBasis = LatencyFields & { intervalSecs: number; type: string }
+const LATENCY_BASIS: readonly (keyof LatencyBasis)[] = [...LATENCY_FIELDS, 'intervalSecs', 'type']
+
+/**
+ * What changed slower-than-usual settings reset: an open alert is closed without a notification and the baseline is
+ * measured again, because both were judged by the old settings. The check interval and the type count too: a longer
+ * interval can leave the window with too few checks to ever end the alert, and a monitor of another type measures
+ * something else. Nothing is reset while the values stay the same, so saving an unrelated change to a monitor
+ * leaves an open alert alone.
+ */
+export function latencyResetsFor(existing: LatencyBasis, patch: Partial<LatencyBasis>):
+  { latencyAlertSince: null; latencyAlertCount: 0; latencyBaselineAt: null } | null {
+  const changed = LATENCY_BASIS.some((field) => patch[field] !== undefined && patch[field] !== existing[field])
+  return changed ? { latencyAlertSince: null, latencyAlertCount: 0, latencyBaselineAt: null } : null
 }
 
 export type Parsed<T> = { value: T } | { error: string }
@@ -94,6 +117,31 @@ function parseAutoIncident(input: Record<string, unknown>): Parsed<Partial<Pick<
   if (templateId !== undefined) {
     if (templateId !== null && !(Number.isInteger(templateId) && (templateId as number) > 0)) return { error: 'autoIncidentTemplateId must be a template id or null' }
     out.autoIncidentTemplateId = templateId as number | null
+  }
+  return { value: out }
+}
+
+export const latencyTypeError = (type: string): string => `The slower-than-usual alert is not available for ${type} monitors: their response time is not the time a service took to answer`
+
+/** The slower-than-usual fields of a request; absent ones stay out so a partial update leaves them alone. */
+export function parseLatencyAlert(input: Record<string, unknown>): Parsed<Partial<LatencyFields>> {
+  const out: Partial<LatencyFields> = {}
+  const factor = input['latencyAlertFactor']
+  if (factor !== undefined) {
+    if (factor !== null && !(typeof factor === 'number' && Number.isFinite(factor) && factor >= LATENCY_FACTOR_RANGE[0] && factor <= LATENCY_FACTOR_RANGE[1])) {
+      return { error: `latencyAlertFactor must be a number from ${LATENCY_FACTOR_RANGE[0]} to ${LATENCY_FACTOR_RANGE[1]} or null` }
+    }
+    out.latencyAlertFactor = factor === null ? null : Math.round(factor * 10) / 10
+  }
+  for (const [field, range] of [
+    ['latencyAlertWindowMinutes', LATENCY_WINDOW_MINUTES_RANGE],
+    ['latencyAlertMinDeltaMs', LATENCY_MIN_DELTA_MS_RANGE],
+    ['latencyAlertSustain', LATENCY_SUSTAIN_RANGE],
+  ] as const) {
+    const value = input[field]
+    if (value === undefined) continue
+    if (!inRange(value, range)) return { error: rangeError(field, range) }
+    out[field] = value
   }
   return { value: out }
 }
@@ -169,6 +217,9 @@ export function parseNewMonitor(body: unknown): Parsed<MonitorFields> {
   if ('error' in tags) return tags
   const auto = parseAutoIncident(input)
   if ('error' in auto) return auto
+  const latency = parseLatencyAlert(input)
+  if ('error' in latency) return latency
+  if (latency.value.latencyAlertFactor != null && !supportsLatencyAlert(type.value)) return { error: latencyTypeError(type.value) }
 
   return {
     value: {
@@ -178,6 +229,10 @@ export function parseNewMonitor(body: unknown): Parsed<MonitorFields> {
       autoIncidentMinutes: auto.value.autoIncidentMinutes ?? null,
       autoIncidentMode: auto.value.autoIncidentMode ?? 'draft',
       autoIncidentTemplateId: auto.value.autoIncidentTemplateId ?? null,
+      latencyAlertFactor: latency.value.latencyAlertFactor ?? null,
+      latencyAlertWindowMinutes: latency.value.latencyAlertWindowMinutes ?? DEFAULT_LATENCY_ALERT.windowMinutes,
+      latencyAlertMinDeltaMs: latency.value.latencyAlertMinDeltaMs ?? DEFAULT_LATENCY_ALERT.minDeltaMs,
+      latencyAlertSustain: latency.value.latencyAlertSustain ?? DEFAULT_LATENCY_ALERT.sustain,
       config: config.value, tags: tags.value,
     },
   }
@@ -211,6 +266,15 @@ export function parseMonitorPatch(body: unknown, existing: ExistingMonitor): Par
   const auto = parseAutoIncident(input)
   if ('error' in auto) return auto
   Object.assign(patch, auto.value)
+  const latency = parseLatencyAlert(input)
+  if ('error' in latency) return latency
+  Object.assign(patch, latency.value)
+  const resultingType = patch.type ?? existing.type
+  if (!supportsLatencyAlert(resultingType)) {
+    if (latency.value.latencyAlertFactor != null) return { error: latencyTypeError(resultingType) }
+    // Moving a monitor to a type with nothing to compare turns the alert off with it.
+    if (patch.type !== undefined) patch.latencyAlertFactor = null
+  }
   if (input['config'] !== undefined) {
     const config = parseConfig(patch.type ?? existing.type as MonitorType, input['config'])
     if ('error' in config) return config

@@ -6,7 +6,7 @@ import type { SidePanelMeta } from '@better-kit/ui'
 import { ConnectionStringSection, CredentialSection } from '@better-kit/ui'
 import { Field, JSON_MAPPING_FIELDS, Note, toggleInSet, type VaultPickerProps } from '@better-kit/ui'
 
-export type SidePanelKey = 'request' | 'checks' | 'auth' | 'credentials' | 'tags' | 'channels' | 'actions' | 'dependencies' | 'incident'
+export type SidePanelKey = 'request' | 'checks' | 'auth' | 'credentials' | 'tags' | 'channels' | 'actions' | 'dependencies' | 'incident' | 'latency'
 
 export const PANEL_META: Record<SidePanelKey, SidePanelMeta> = {
   auth:         { icon: 'lock',          label: 'Auth' },
@@ -18,6 +18,7 @@ export const PANEL_META: Record<SidePanelKey, SidePanelMeta> = {
   actions:      { icon: 'bolt',          label: 'Actions' },
   dependencies: { icon: 'account_tree',  label: 'Depends on' },
   incident:     { icon: 'emergency_home', label: 'Incident' },
+  latency:      { icon: 'speed',         label: 'Latency' },
 }
 
 // ── Request (headers & body) ──────────────────────────────────────────────────

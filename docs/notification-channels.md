@@ -35,7 +35,7 @@ Deleting a channel also removes it from every monitor it was assigned to.
 
 ### Wording for monitors and for actions
 
-One channel serves both. The **Monitor** tab words what is sent about monitors (status changes and certificates); the **Action** tab words what is sent about [actions](actions.md#when-a-run-fails), so you do not need a second channel to say something different about them. The Action tab has the same message fields as the Monitor tab, with the [action variables](#action-runs-only) available. A field you leave empty there is not filled from the Monitor tab: the message about an action is then sent in its default form (the standard message of the channel, and for a webhook a JSON with the action, the monitor, the status, the status that triggered it, the attempts, the error and the time). The destination, the credentials, quiet hours and limits are the channel's own, and recovery and grouping apply to monitors only.
+One channel serves both. The **Monitor** tab words what is sent about monitors (status changes, certificates and slower-than-usual alerts); the **Action** tab words what is sent about [actions](actions.md#when-a-run-fails), so you do not need a second channel to say something different about them. The Action tab has the same message fields as the Monitor tab, with the [action variables](#action-runs-only) available. A field you leave empty there is not filled from the Monitor tab: the message about an action is then sent in its default form (the standard message of the channel, and for a webhook a JSON with the action, the monitor, the status, the status that triggered it, the attempts, the error and the time). The destination, the credentials, quiet hours and limits are the channel's own, and recovery and grouping apply to monitors only.
 
 ## Assigning channels to monitors
 
@@ -51,12 +51,14 @@ The usual pattern is a few channels with different rules — an on-call channel 
 | **Recovery** | A monitor that had alerted is confirmed `up` again | Channel is **Enabled** and **Notify on recovery** is on |
 | **Certificate** — expiring | An HTTPS monitor's certificate reaches a warning milestone | Channel is **Enabled** |
 | **Certificate** — renewed | A certificate you were warned about has been replaced | Channel is **Enabled** and **Notify on recovery** is on |
+| **Slower than usual** | A monitor's p95 response time has been several times its usual for several checks in a row, see [Monitors](monitors.md#slower-than-usual-alert) | Channel is **Enabled** |
+| **Back to normal speed** | A monitor that was slower than usual is back near its usual p95 | Channel is **Enabled** and **Notify on recovery** is on |
 | **Action** | A run of an [action](actions.md) failed after its last attempt, or succeeded when the channel is set to hear about successes, and the channel is one of the action's **Notifications** channels | Channel is **Enabled** (**Notify on recovery** does not matter) |
 | **Test** | You click **Send test** | Channel is **Enabled** |
 
 There are no other per-event switches. A monitor in the `affected` state (one of its dependencies is already down) does not alert, so the root cause sends the only alert. Certificate warnings are switched on per HTTPS monitor, with a lead time of 14 days by default and reminders 7, 3 and 1 days before expiry — see [Monitors](monitors.md).
 
-Every event then passes through the channel's alert hygiene rules (quiet hours, rate cap, grouping) before it is sent. Test notifications skip those rules.
+Every event then passes through the channel's alert hygiene rules (quiet hours, rate cap, grouping) before it is sent. The rate cap counts alerts about outages only, so certificate warnings, slower-than-usual alerts and action notifications are never capped. Test notifications skip those rules.
 
 ---
 
@@ -116,7 +118,7 @@ Error:   {{error_message}}
 Time:    {{checked_at}}
 ```
 
-As long as you leave this template as it is, each message is worded for its event instead: "Monitor VM1 is DOWN", "TLS certificate of VM1 expires in 7 days", "Action Start VM2 failed for monitor VM1", each with the facts that belong to that event. Edit the subject or the body and the channel sends your template for every event about a monitor (status changes and certificates), with the variables listed below. Actions are worded on the **Action** tab of the channel, never by this template.
+As long as you leave this template as it is, each message is worded for its event instead: "Monitor VM1 is DOWN", "TLS certificate of VM1 expires in 7 days", "Action Start VM2 failed for monitor VM1", each with the facts that belong to that event. Edit the subject or the body and the channel sends your template for every event about a monitor (status changes, certificates and slower-than-usual alerts), with the variables listed below. Actions are worded on the **Action** tab of the channel, never by this template.
 
 Channel emails are plain text only. The branded HTML layout that follows your status page colours and logo is used for subscriber emails, not for notification channels.
 
@@ -243,11 +245,11 @@ A variable that does not exist for the event is left in the text unchanged — f
 | --- | --- | --- |
 | `{{monitor_name}}` | Monitor name; `N monitors` in a digest | `Checkout API` |
 | `{{monitor_type}}` | `https`, `ping`, `dns`, `sqlserver`, `postgresql`, `mysql`, `mongodb`, `oracle`, `redis`, `mail`, `ssh`, `tls`, `domain`, `docker`, `webhook`; `group` in a digest | `https` |
-| `{{status}}` | New status: `down`, `degraded`, `up`, `cert-expiring`, `cert-renewed`; the worst status in a digest | `down` |
+| `{{status}}` | New status: `down`, `degraded`, `up`, `cert-expiring`, `cert-renewed`, `latency-slow`, `latency-normal`; the worst status in a digest | `down` |
 | `{{previous_status}}` | Status before the change; `various` in a digest whose members differ | `up` |
 | `{{error_message}}` | Error of the failing check, empty on recovery; a certificate sentence for certificate events; one line per monitor in a digest | `connection timeout` |
 | `{{checked_at}}` | When the event was raised (ISO 8601, UTC). For a digest, when the digest was built | `2026-04-11T03:14:15.000Z` |
-| `{{event_type}}` | `alert`, `recovery`, `certificate` or `test` | `alert` |
+| `{{event_type}}` | `alert`, `recovery`, `certificate`, `latency`, `action` or `test` | `alert` |
 | `{{monitor_list}}` | Comma-separated monitor names in a digest; the monitor's own name otherwise | `Checkout API, Search API` |
 | `{{affected_count}}` | Number of monitors in a digest; `1` otherwise | `1` |
 
@@ -276,6 +278,18 @@ Slack, Discord, Teams and Telegram word it as "Action *Start VM2* failed for mon
 | `{{cert_days_left}}` | Whole days left | `7` |
 
 For certificate events `{{status}}` is `cert-expiring` or `cert-renewed`, `{{previous_status}}` is the monitor's current status, and `{{error_message}}` reads, for example, `TLS certificate for shop.example.com expires in 7 days (2026-05-01T12:00:00.000Z)`.
+
+### Slower-than-usual events only
+
+| Variable | Meaning | Example |
+| --- | --- | --- |
+| `{{latency_p95_ms}}` | p95 response time of the window, in ms | `642` |
+| `{{latency_baseline_ms}}` | The monitor's usual p95 of the previous 7 days, in ms | `188` |
+| `{{latency_ratio}}` | The first divided by the second, one decimal | `3.4` |
+| `{{latency_window_minutes}}` | Size of the window, in minutes | `30` |
+| `{{latency_since}}` | When the alert opened (ISO 8601, UTC) | `2026-10-26T14:07:00.000Z` |
+
+For these events `{{status}}` is `latency-slow` or `latency-normal`, `{{previous_status}}` is the monitor's current status, and `{{error_message}}` reads, for example, `p95 response time over the last 30 minutes is 642 ms, 3.4× the baseline of 188 ms`.
 
 Digests are described in [Alert hygiene](alert-hygiene.md#grouping-bursts-into-one-digest).
 
