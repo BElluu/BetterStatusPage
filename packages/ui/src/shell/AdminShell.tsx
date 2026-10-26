@@ -1,6 +1,7 @@
-import { Fragment, useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { Fragment, Suspense, useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-dom'
 import { api, clearSession, getCurrentUser } from '../api/client'
+import { LoadingState } from '../components/ui/StateViews'
 import { WhatsNew, markWhatsNewSeen, pendingWhatsNew } from '../components/WhatsNew'
 import { useDarkMode } from '../hooks/useDarkMode'
 import { useDatePrefs } from '../lib/dateFormat'
@@ -243,8 +244,11 @@ export function createAdminShell(config: AdminShellConfig) {
 
         {/* Main */}
         <main className="flex-1 min-h-0 min-w-0 overflow-auto" style={{ background: 'var(--m3-surface-container-low)' }}>
-          {/* Remount the page when the date format changes so every formatted date is recomputed. */}
-          <Fragment key={`${datePrefs.date}-${datePrefs.time}`}><Outlet /></Fragment>
+          {/* Lazy pages suspend here, not above the shell, so the menu stays while a page's code is fetched. */}
+          <Suspense fallback={<LoadingState />}>
+            {/* Remount the page when the date format changes so every formatted date is recomputed. */}
+            <Fragment key={`${datePrefs.date}-${datePrefs.time}`}><Outlet /></Fragment>
+          </Suspense>
         </main>
       </div>
     )

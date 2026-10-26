@@ -1,3 +1,4 @@
+import { lazy } from 'react'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -71,6 +72,22 @@ describe('admin shell', () => {
     expect(within(sidebar).queryByRole('link', { name: /Users/ })).not.toBeInTheDocument()
     expect(within(sidebar).queryByText('Administration')).not.toBeInTheDocument()
     expect(screen.getByText('Things page')).toBeInTheDocument()
+  })
+
+  it('keeps the menu on screen while a lazy page is still being fetched', () => {
+    as('member')
+    const Pending = lazy(() => new Promise<{ default: () => JSX.Element }>(() => {}))
+    render(
+      <MemoryRouter initialEntries={['/app/things']}>
+        <Routes>
+          <Route path="/app/*" element={<Shell />}>
+            <Route path="things" element={<Pending />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getAllByRole('link', { name: /Reports/ }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('status')).toHaveTextContent('Loading')
   })
 
   it('marks the home page only when it is exactly the current one', () => {
