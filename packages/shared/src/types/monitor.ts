@@ -106,7 +106,7 @@ export const LATENCY_SUSTAIN_RANGE = [1, 20] as const
 export const LATENCY_BASELINE_DAYS = 7
 /**
  * The monitor types whose response time is the time the service took to answer. Left out: a domain or certificate
- * monitor (it times a registry lookup, or a handshake that is not what it watches), Docker (it times the local socket
+ * monitor (it times a registry lookup, or the TLS negotiation, which is not what it watches), Docker (it times the local socket
  * that answers about the container, not the service in it) and webhook (a heartbeat has no response time).
  */
 export const LATENCY_ALERT_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'postgresql', 'mysql', 'mongodb', 'oracle', 'redis', 'mail', 'ssh']
