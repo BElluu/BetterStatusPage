@@ -11,7 +11,7 @@ import { postSubscriberWebhook } from '../services/publicWebhook.js'
 import { resolvePublicUrl } from '../kit/runtime.js'
 import { loadEmailBrand, renderEmail, toneColor, type EmailBrand, type EmailContent, type StatusTone } from '../services/emailTemplate.js'
 import {
-  allowedChannels, getPublicComponents, getSubscriptionSettings, readWebhookHeaders,
+  allowedChannels, getPublicComponents, getSubscriptionSettings, readManageToken, readWebhookHeaders,
   recordWebhookFailure, recordWebhookSuccess, subscriptionLinks, toSubscriber,
 } from '../services/subscriptions.js'
 
@@ -270,6 +270,17 @@ export function renderSubscriberWebhook(event: SubscriberEvent, site: string, pu
 
 type DeliveryRow = typeof subscriberDeliveries.$inferSelect
 
+/** The manage token cannot be decrypted (lost or changed key): the delivery is retried, but the subscriber is not blamed for it. */
+class ManageTokenError extends Error {}
+
+function manageTokenOf(subscriber: Parameters<typeof readManageToken>[0]): string {
+  try {
+    return readManageToken(subscriber)
+  } catch (error) {
+    throw new ManageTokenError(`Cannot read the manage token: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
 async function attemptDelivery(delivery: DeliveryRow, context: { brand: EmailBrand; publicUrl: string; now: number }): Promise<void> {
   const subscriber = (await db.select().from(subscribers).where(eq(subscribers.id, delivery.subscriberId)))[0]
   const settings = await getSubscriptionSettings()
@@ -283,16 +294,17 @@ async function attemptDelivery(delivery: DeliveryRow, context: { brand: EmailBra
   try {
     if (!context.publicUrl) throw new Error('Public URL is not configured')
     const event = JSON.parse(delivery.event) as SubscriberEvent
+    const manageToken = manageTokenOf(subscriber)
     if (subscriber.type === 'webhook') {
       const custom = Object.fromEntries(readWebhookHeaders(subscriber).map((header) => [header.name, header.value]))
       await postSubscriberWebhook(
         subscriber.webhookUrl ?? '',
-        renderSubscriberWebhook(event, context.brand.siteName, context.publicUrl, subscriber.manageToken),
+        renderSubscriberWebhook(event, context.brand.siteName, context.publicUrl, manageToken),
         { ...custom, 'X-BSP-Event': event.type },
         subscriber.webhookMethod as WebhookMethod,
       )
     } else {
-      await sendSmtpMail({ to: subscriber.email, ...renderSubscriberEmail(event, context.brand, context.publicUrl, subscriber.manageToken) })
+      await sendSmtpMail({ to: subscriber.email, ...renderSubscriberEmail(event, context.brand, context.publicUrl, manageToken) })
     }
     const completedAt = Date.now()
     await db.update(subscriberDeliveries).set({
@@ -309,8 +321,10 @@ async function attemptDelivery(delivery: DeliveryRow, context: { brand: EmailBra
       status: exhausted ? 'failed' : 'pending', attemptCount: attemptNumber,
       nextAttemptAt: exhausted ? null : context.now + delay, lastError: message, updatedAt: completedAt,
     }).where(eq(subscriberDeliveries.id, delivery.id))
-    await db.update(subscribers).set({ lastError: message }).where(eq(subscribers.id, subscriber.id))
-    if (exhausted && subscriber.type === 'webhook') await recordWebhookFailure(subscriber.id, message)
+    if (!(error instanceof ManageTokenError)) {
+      await db.update(subscribers).set({ lastError: message }).where(eq(subscribers.id, subscriber.id))
+      if (exhausted && subscriber.type === 'webhook') await recordWebhookFailure(subscriber.id, message)
+    }
     console.error(`[subscriptions] Delivery ${delivery.id}, attempt ${attemptNumber} failed: ${message}`)
   }
 }

@@ -388,11 +388,15 @@ export function createVaultRoutes(ctx: {
         ))[0]
         if (!secret) return reply.code(404).send({ error: 'Secret not found' })
         const vault = (await db.select().from(vaults).where(eq(vaults.id, vaultId)))[0]!
+        // The value itself never goes into the log, only the fact that it was shown and to whom.
+        const recordReveal = () => audit.write(audit.actor(requestIdentity(req)), 'allow', 'vault_secret', secretId, `${vault.name} / ${secret.name}`,
+          { access: 'revealed' })
         if (vault.type === 'hashicorp') {
           const ref = safeDecrypt(secret.encryptedValue) as { path: string; key?: string } | null
           if (!ref) return reply.code(500).send({ error: 'Failed to decrypt secret' })
           try {
             const value = await loadSecretPayload(secret, vault)
+            await recordReveal()
             return { id: secret.id, name: secret.name, type: secret.type, value, source: ref }
           } catch (e) {
             return reply.code(502).send({ error: (e as Error).message })
@@ -400,6 +404,7 @@ export function createVaultRoutes(ctx: {
         }
         const value = safeDecrypt(secret.encryptedValue)
         if (value === null) return reply.code(500).send({ error: 'Failed to decrypt secret' })
+        await recordReveal()
         return { id: secret.id, name: secret.name, type: secret.type, value }
       },
     )

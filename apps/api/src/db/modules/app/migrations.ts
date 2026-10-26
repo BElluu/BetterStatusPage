@@ -1,6 +1,38 @@
-import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
+import { DEFAULT_BRANDING_COLORS, DEFAULT_EMAIL_BODY, DEFAULT_EMAIL_SUBJECT, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 import { backfillKeys } from '@better-kit/config-as-code'
 import type { MigrationStep } from '@better-kit/db'
+import { TEMPLATE_KEYS } from '@better-kit/notify'
+import { createSecretBox } from '@better-kit/vault'
+import { createHash } from 'node:crypto'
+import type { DatabaseSync } from 'node:sqlite'
+import { sealStoredSecrets } from '../../../services/sealedColumns.js'
+import { rebuildDailyResults } from '../../dailyResults.js'
+
+/**
+ * A channel used to word the messages about an action with its own message fields, like those about monitors. Now an
+ * action is worded by the channel's wording for actions, so the fields of every channel that tells an action's runs
+ * are copied there, and what such a channel sends stays what it was. A channel that still has the stock email template
+ * has nothing to copy: the standard wording of an action is what it is meant to get.
+ */
+function copyWordingToActions(sqlite: DatabaseSync): void {
+  const linked = sqlite.prepare('SELECT DISTINCT channel_id AS id FROM action_failure_channels').all() as { id: number }[]
+  const read = sqlite.prepare('SELECT type, config FROM notification_channels WHERE id = ?')
+  const write = sqlite.prepare('UPDATE notification_channels SET config = ? WHERE id = ?')
+  for (const { id } of linked) {
+    const row = read.get(id) as { type: string; config: string } | undefined
+    if (!row) continue
+    let config: Record<string, unknown>
+    try { config = JSON.parse(row.config) as Record<string, unknown> } catch { continue }
+    const keys = (TEMPLATE_KEYS as Record<string, readonly string[]>)[row.type] ?? []
+    const existing = config['eventOverrides'] as Record<string, unknown> | undefined
+    if (existing && typeof existing === 'object' && 'action' in existing) continue
+    const fields: Record<string, string> = {}
+    for (const key of keys) if (typeof config[key] === 'string' && config[key] !== '') fields[key] = config[key] as string
+    if (row.type === 'email' && fields['subject'] === DEFAULT_EMAIL_SUBJECT && fields['body'] === DEFAULT_EMAIL_BODY) continue
+    if (Object.keys(fields).length === 0) continue
+    write.run(JSON.stringify({ ...config, eventOverrides: { ...(existing && typeof existing === 'object' ? existing : {}), action: fields } }), id)
+  }
+}
 
 /** Everything the application adds to the shared tables. Steps run in this order. */
 export const appMigrations: readonly MigrationStep[] = [
@@ -107,13 +139,33 @@ CREATE TABLE IF NOT EXISTS monitor_actions (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_monitor_actions_link ON monitor_actions(monitor_id, action_id, on_status);
 ` },
+  // The channels of an action are told about its failures and, when they are set to, its successes. Runs before the
+  // CREATE below, so a database from an older release keeps its rows under the new name.
+  { kind: 'data', name: 'action-failure-channels-renamed-v1', run(sqlite) {
+    const old = sqlite.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'action_failure_channels'`).get()
+    if (!old) return
+    copyWordingToActions(sqlite)
+    const renamed = sqlite.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'action_notification_channels'`).get()
+    // A build that created the new table before this step ran leaves both; the rows of the old one are moved over.
+    if (renamed) {
+      sqlite.exec(`
+INSERT OR IGNORE INTO action_notification_channels (action_id, channel_id) SELECT action_id, channel_id FROM action_failure_channels;
+DROP TABLE action_failure_channels;
+`)
+      return
+    }
+    sqlite.exec(`
+DROP INDEX IF EXISTS idx_action_failure_channels_link;
+ALTER TABLE action_failure_channels RENAME TO action_notification_channels;
+`)
+  } },
   { kind: 'exec', sql: `
-CREATE TABLE IF NOT EXISTS action_failure_channels (
+CREATE TABLE IF NOT EXISTS action_notification_channels (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   action_id INTEGER NOT NULL,
   channel_id INTEGER NOT NULL
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_action_failure_channels_link ON action_failure_channels(action_id, channel_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_action_notification_channels_link ON action_notification_channels(action_id, channel_id);
 ` },
   { kind: 'exec', sql: `
 CREATE TABLE IF NOT EXISTS action_runs (
@@ -307,6 +359,7 @@ CREATE TABLE IF NOT EXISTS status_page_access (
   { kind: 'column', sql: `ALTER TABLE monitors ADD COLUMN auto_incident_mode TEXT NOT NULL DEFAULT 'draft'`, desc: 'monitors.auto_incident_mode' },
   { kind: 'column', sql: `ALTER TABLE monitors ADD COLUMN auto_incident_template_id INTEGER`, desc: 'monitors.auto_incident_template_id' },
   { kind: 'column', sql: `ALTER TABLE monitors ADD COLUMN failing_since INTEGER`, desc: 'monitors.failing_since' },
+  { kind: 'column', sql: `ALTER TABLE monitors ADD COLUMN auto_created_by_token_id INTEGER`, desc: 'monitors.auto_created_by_token_id' },
   { kind: 'column', sql: `ALTER TABLE incidents ADD COLUMN draft INTEGER NOT NULL DEFAULT 0`, desc: 'incidents.draft' },
   { kind: 'column', sql: `ALTER TABLE incidents ADD COLUMN auto_monitor_id INTEGER`, desc: 'incidents.auto_monitor_id' },
   { kind: 'column', sql: `ALTER TABLE maintenance_windows ADD COLUMN recurrence TEXT NOT NULL DEFAULT 'none'`, desc: 'maintenance_windows.recurrence' },
@@ -414,4 +467,28 @@ CREATE TABLE IF NOT EXISTS static_mirror_runs (
   error TEXT
 );
 ` },
+  // Counted from every result that exists, in one transaction with the triggers that keep it current, so no result is
+  // written between the count and the triggers. On a large database the first start after the upgrade takes a few seconds.
+  // Anything that rebuilds monitor_results later must call rebuildDailyResults again (see db/dailyResults.ts).
+  { kind: 'data', name: 'monitor-daily-results-v1', run(sqlite) {
+    console.log('… Building daily uptime totals')
+    rebuildDailyResults(sqlite)
+  } },
+  // A copy of the database alone must not carry working manage links: the token is stored encrypted and looked up by its hash.
+  { kind: 'column', sql: `ALTER TABLE subscribers ADD COLUMN manage_token_hash TEXT`, desc: 'subscribers.manage_token_hash' },
+  { kind: 'data', name: 'subscriber-manage-token-hash-v1', run(sqlite) {
+    const rows = sqlite.prepare('SELECT id, manage_token FROM subscribers WHERE manage_token_hash IS NULL').all() as { id: number; manage_token: string }[]
+    // Without the key the box falls back to a public one, and tokens encrypted with it could never be read again with the real key.
+    if (rows.length && !process.env['VAULT_ENCRYPTION_KEY'] && !['test', 'development'].includes(process.env['NODE_ENV'] ?? '')) {
+      throw new Error('VAULT_ENCRYPTION_KEY must be set to upgrade the stored subscriber links; set it to the key of this installation and start again')
+    }
+    const { encrypt } = createSecretBox()
+    const update = sqlite.prepare('UPDATE subscribers SET manage_token = ?, manage_token_hash = ? WHERE id = ?')
+    for (const row of rows) update.run(encrypt(row.manage_token), createHash('sha256').update(row.manage_token).digest('hex'), row.id)
+  } },
+  { kind: 'exec', sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_subscribers_manage_token_hash ON subscribers(manage_token_hash)` },
+  // Credentials entered straight into a monitor, action or channel (and the SMTP password) were stored in the clear.
+  { kind: 'data', name: 'sealed-inline-secrets-v1', run: sealStoredSecrets },
+  { kind: 'column', sql: `ALTER TABLE actions ADD COLUMN requires_approval INTEGER NOT NULL DEFAULT 0`, desc: 'actions.requires_approval' },
+  { kind: 'column', sql: `ALTER TABLE actions ADD COLUMN approval_timeout_minutes INTEGER NOT NULL DEFAULT 60`, desc: 'actions.approval_timeout_minutes' },
 ]

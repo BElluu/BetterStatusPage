@@ -939,6 +939,50 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /actions/runs/{id}/approve:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      tags: [Actions]
+      summary: Approve an action run
+      description: Queues a run that waits for approval; its delay counts from now. The usual checks still apply before it is sent. Only a signed-in admin can decide, in the admin panel; an API token is always refused.
+      x-scope: actions:write
+      responses:
+        '200':
+          description: The run after the decision.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActionRun' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The run is not waiting for approval any more.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /actions/runs/{id}/reject:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      tags: [Actions]
+      summary: Reject an action run
+      description: Cancels a run that waits for approval. Only a signed-in admin can decide, in the admin panel; an API token is always refused.
+      x-scope: actions:write
+      responses:
+        '200':
+          description: The run after the decision.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActionRun' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The run is not waiting for approval any more.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /actions/runs:
     get:
       tags: [Actions]
@@ -947,7 +991,7 @@ paths:
       parameters:
         - { name: page, in: query, schema: { type: integer, minimum: 1 } }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
-        - { name: status, in: query, schema: { type: string, enum: [pending, succeeded, failed, cancelled] } }
+        - { name: status, in: query, schema: { type: string, enum: [pending, awaiting_approval, succeeded, failed, cancelled] } }
         - { name: actionId, in: query, schema: { type: integer } }
         - { name: monitorId, in: query, schema: { type: integer } }
         - { name: from, in: query, description: Earliest creation time in milliseconds since the epoch., schema: { type: integer } }
@@ -1130,7 +1174,7 @@ components:
 
     MonitorType:
       type: string
-      enum: [https, ping, dns, sqlserver, postgresql, mysql, mongodb, docker, webhook]
+      enum: [https, ping, dns, sqlserver, postgresql, mysql, mongodb, oracle, redis, mail, ssh, tls, domain, docker, webhook]
     MonitorTag:
       type: object
       required: [label, color]
@@ -1156,6 +1200,11 @@ components:
         - $ref: '#/components/schemas/PingConfig'
         - $ref: '#/components/schemas/DnsConfig'
         - $ref: '#/components/schemas/DatabaseConfig'
+        - $ref: '#/components/schemas/RedisConfig'
+        - $ref: '#/components/schemas/MailConfig'
+        - $ref: '#/components/schemas/SshConfig'
+        - $ref: '#/components/schemas/TlsCertConfig'
+        - $ref: '#/components/schemas/DomainConfig'
         - $ref: '#/components/schemas/DockerConfig'
         - type: object
           maxProperties: 0
@@ -1224,6 +1273,7 @@ components:
                 username: { type: string }
                 password: { type: string }
                 vault: { $ref: '#/components/schemas/VaultRef' }
+        cacheBuster: { type: boolean, description: 'Adds a random bsp_cachebuster query parameter to the request of every check (GET and HEAD, first request only, not with CAS), so a CDN or proxy cache cannot answer it.' }
         ignoreTls:
           type: boolean
           default: false
@@ -1250,7 +1300,7 @@ components:
         resolver: { type: string }
     DatabaseConfig:
       type: object
-      description: Used by the `sqlserver`, `postgresql`, `mysql` and `mongodb` monitor types.
+      description: Used by the `sqlserver`, `postgresql`, `mysql`, `mongodb` and `oracle` monitor types. For `oracle`, `database` is the service name.
       required: [query]
       properties:
         host: { type: string }
@@ -1261,7 +1311,62 @@ components:
         query: { type: string, description: A SQL statement, or a JSON command for MongoDB. }
         expectedResult: { type: string }
         mode: { type: string, enum: [fields, connectionString], default: fields }
+        tls: { type: string, enum: [prefer, require, verify], default: prefer, description: 'Fields mode only. verify checks the certificate and host name, require encrypts without a plain fallback, prefer is the earlier behaviour. The admin form starts new monitors at verify.' }
+        tlsCa: { type: string, description: 'Fields mode, tls verify: PEM of the authority that signed the server certificate. Empty = the public CAs bundled with Node.js plus NODE_EXTRA_CA_CERTS.' }
         vault: { $ref: '#/components/schemas/VaultRef' }
+    RedisConfig:
+      type: object
+      description: Used by the `redis` monitor type. Sends PING, after AUTH when a password is set.
+      required: [host, port]
+      properties:
+        host: { type: string }
+        port: { type: integer, minimum: 1, maximum: 65535 }
+        tls: { type: boolean, description: Connect over TLS from the first byte. }
+        verifyTls: { type: boolean, default: true, description: Check the certificate chain and host name. }
+        tlsCa: { type: string, description: 'PEM of the authority that signed the server certificate. Empty = the public CAs bundled with Node.js plus NODE_EXTRA_CA_CERTS.' }
+        username: { type: string, description: For Redis ACL users. }
+        password: { type: string }
+        vault: { $ref: '#/components/schemas/VaultRef' }
+    MailConfig:
+      type: object
+      description: Used by the `mail` monitor type. Reads the greeting, upgrades to TLS when asked and signs in when a user name is set.
+      required: [protocol, host, port, security]
+      properties:
+        protocol: { type: string, enum: [smtp, imap, pop3] }
+        host: { type: string }
+        port: { type: integer, minimum: 1, maximum: 65535 }
+        security: { type: string, enum: [none, starttls, tls], description: 'starttls upgrades after the greeting, tls is encrypted from the first byte.' }
+        verifyTls: { type: boolean, default: true }
+        tlsCa: { type: string }
+        username: { type: string }
+        password: { type: string }
+        vault: { $ref: '#/components/schemas/VaultRef' }
+    SshConfig:
+      type: object
+      description: Used by the `ssh` monitor type. Reads the server's identification string; no login.
+      required: [host, port]
+      properties:
+        host: { type: string }
+        port: { type: integer, minimum: 1, maximum: 65535 }
+        expectedBanner: { type: string, maxLength: 255, description: Text the identification string must contain. }
+    TlsCertConfig:
+      type: object
+      description: Used by the `tls` monitor type. Down when the handshake fails, the certificate is untrusted or expired; Degraded inside the warning window.
+      required: [host, port, warnDays]
+      properties:
+        host: { type: string }
+        port: { type: integer, minimum: 1, maximum: 65535 }
+        servername: { type: string, description: Host name for SNI and the host name check; defaults to host. }
+        warnDays: { type: integer, minimum: 1, maximum: 365 }
+        verifyTls: { type: boolean, default: true }
+        tlsCa: { type: string }
+    DomainConfig:
+      type: object
+      description: Used by the `domain` monitor type. The end of the registration comes from RDAP, or WHOIS where the registry has no RDAP.
+      required: [domain, warnDays]
+      properties:
+        domain: { type: string, description: 'The registered domain, for example example.com.' }
+        warnDays: { type: integer, minimum: 1, maximum: 365 }
     DockerConfig:
       type: object
       required: [endpoint, container]
@@ -1590,8 +1695,10 @@ components:
         key: { $ref: '#/components/schemas/Key' }
         name: { type: string }
         config: { $ref: '#/components/schemas/ActionHttpConfig' }
+        requiresApproval: { type: integer, enum: [0, 1], description: '1: a run of this action waits for an admin to approve it in the admin panel before it is sent.' }
+        approvalTimeoutMinutes: { type: integer, minimum: 1, maximum: 10080, default: 60, description: How long a run waits for approval before it is cancelled. }
         enabled: { type: integer, enum: [0, 1] }
-        failureChannelIds: { type: array, items: { type: integer }, description: The notification channels told once a run has failed after its last attempt. }
+        notificationChannelIds: { type: array, items: { type: integer }, description: The notification channels told once a run has failed after its last attempt, and, for a channel that asks for it (`notifyOnActionSuccess` in its config), about a run that succeeded. }
         createdAt: { type: integer }
         updatedAt: { type: integer }
     ActionCreate:
@@ -1600,16 +1707,20 @@ components:
       properties:
         name: { type: string }
         key: { $ref: '#/components/schemas/Key' }
-        failureChannelIds: { type: array, items: { type: integer }, description: Needs the "channels:write" permission for a token. }
+        notificationChannelIds: { type: array, items: { type: integer }, description: Needs the "channels:write" permission for a token. }
         config: { $ref: '#/components/schemas/ActionHttpConfig' }
         enabled: { type: integer, enum: [0, 1] }
+        requiresApproval: { type: integer, enum: [0, 1], description: '1: a run of this action waits for an admin to approve it in the admin panel before it is sent.' }
+        approvalTimeoutMinutes: { type: integer, minimum: 1, maximum: 10080, default: 60, description: How long a run waits for approval before it is cancelled. }
     ActionUpdate:
       type: object
       properties:
         name: { type: string }
-        failureChannelIds: { type: array, items: { type: integer }, description: Replaces the list. Needs the "channels:write" permission for a token. }
+        notificationChannelIds: { type: array, items: { type: integer }, description: Replaces the list. Called failureChannelIds up to 0.6, which is still accepted. Needs the "channels:write" permission for a token. }
         config: { $ref: '#/components/schemas/ActionHttpConfig' }
         enabled: { type: integer, enum: [0, 1] }
+        requiresApproval: { type: integer, enum: [0, 1], description: '1: a run of this action waits for an admin to approve it in the admin panel before it is sent.' }
+        approvalTimeoutMinutes: { type: integer, minimum: 1, maximum: 10080, default: 60, description: How long a run waits for approval before it is cancelled. }
     MonitorAction:
       type: object
       required: [actionId, onStatus]
@@ -1627,7 +1738,7 @@ components:
         monitorId: { type: [integer, 'null'] }
         monitorName: { type: string }
         onStatus: { type: string, enum: [down, up] }
-        status: { type: string, enum: [pending, succeeded, failed, cancelled] }
+        status: { type: string, enum: [pending, awaiting_approval, succeeded, failed, cancelled] }
         attemptCount: { type: integer }
         maxAttempts: { type: integer }
         nextAttemptAt: { type: [integer, 'null'] }

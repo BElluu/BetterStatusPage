@@ -19,6 +19,12 @@ Monitors live under **Admin → Monitors** and can be managed by operators and a
 | **PostgreSQL** | A query against PostgreSQL | Connection or query error, timeout | The first value returned does not match |
 | **MySQL / MariaDB** | A query against MySQL or MariaDB | Connection or query error, timeout | The first value returned does not match |
 | **MongoDB** | A command against MongoDB | Connection or command error, timeout | The first value returned does not match |
+| **Oracle** | A query against Oracle Database | Connection or query error, timeout | The first value returned does not match |
+| **Redis** | PING, after AUTH when a password is set | The connection, the sign-in or the PING fails | — |
+| **Mail server** | SMTP, IMAP or POP3 greeting, STARTTLS and, optionally, sign-in | The connection, the greeting, the encryption or the sign-in fails | — |
+| **SSH** | The identification string of an SSH server | The port does not answer with an SSH banner, or the banner does not match | — |
+| **TLS certificate** | The certificate of any TLS port | Expired, not trusted (with verification on), wrong name or handshake error | It expires within the warning window |
+| **Domain expiry** | When a domain registration ends | The registration has expired or the lookup fails | It ends within the warning window |
 | **Docker** | State and healthcheck of a container | The container does not exist, is stopped or paused, or the Docker API is unreachable | The container is restarting, unhealthy or still starting |
 | **Webhook** | Requests your service sends in | No request arrives within the interval | — |
 
@@ -44,7 +50,7 @@ These fields are in the form for every type. **Name** and **Type** come first, f
 | --- | --- | --- |
 | **Name** | — | Shown in the admin console, in notifications and on the status page. Required, up to 200 characters. A technical [key](api.md#monitors-and-notification-channels-have-keys) is generated from it; it is not shown in the form and never changes. |
 | **Type** | HTTPS | Chosen from a searchable list grouped by area (Web, Network, Data, Infrastructure, Inbound). Switching type resets the type-specific settings. |
-| **Interval (s)** | `60` | How often the check runs. `10`–`86400`. For a webhook monitor, how long silence may last. |
+| **Interval (s)** | `60` | How often the check runs. `10`–`86400`. For a webhook monitor, how long silence may last,. |
 | **Timeout (ms)** | `10000` | How long one attempt may take, authentication and redirects included. `1000`–`300000`. |
 | **Attempts** | `1` | How many times one check is tried before it counts as down. `1–10`. |
 | **Alert after (checks)** | `1` | Consecutive failed checks before an alert is sent. `1–20`. |
@@ -59,7 +65,9 @@ A few details:
 - The **Incident** side tab opens an incident when the monitor stays down
   for the minutes you set. See [Automatic incidents](incidents-and-maintenance.md#automatic-incidents).
 - The scheduler wakes every 10 seconds (`SCHEDULER_TICK_SECONDS`), so a check runs at most that
-  long after its interval has passed.
+  long after its interval has passed. At most `MONITOR_CHECK_CONCURRENCY` scheduled checks (default 20)
+  run at the same time; when more are due, the rest wait their turn, so a few hanging monitors do not
+  hold up the others for long, but enough of them can delay checks. See [Performance](performance.md#checks).
 
 The side tabs of the form hold the rest:
 
@@ -127,18 +135,49 @@ The numbers are calculated from the stored check results, so a range cannot reac
 | **URL** | `https://` | The address to request. Plain `http://` works too. Required. |
 | **Method** | `GET` | `GET`, `POST` or `HEAD`. |
 | **Expected Status** | `200` | The exact status code the final response must have. Anything else is **Down**. |
+| **Bypass caches** | off | Adds a random `bsp_cachebuster` query parameter to the request. See [Bypassing caches](#bypassing-caches). |
 
 The **Checks** tab on the right of the form adds what the response must contain besides its status:
 
 | Field | Default | What it does |
 | --- | --- | --- |
-| **Keyword (optional)** | — | Text the response body must contain. Case-sensitive. Missing → **Degraded**. |
+| **Keyword (optional)** | — | Text the response body must contain. Case-sensitive. Only the first 1 MB of the body is searched. Missing → **Degraded**. |
 | **Degraded when slower than** | — | A response time over this many milliseconds makes the check **Degraded**. |
 | **Response checks** | — | Headers and JSON fields, see [Response checks](#response-checks). |
 
-Redirects are followed, and the expected status is compared with the last response. The
+Redirects are followed, and the expected status is compared with the last response. A redirect to another origin carries only `Accept`, `Accept-Language`, `Accept-Encoding`, `User-Agent` and `Cache-Control` from your headers, and no request body (a `307`/`308` is sent there as a plain `GET`); the upgrade of an `http://` URL to `https://` on the same host and default port is not leaving the monitor, so it keeps them. CAS session cookies go only to the host that set them (and the subdomains of its `Domain`), and `Secure` ones only over HTTPS. The OAuth2 token request is never redirected: set the token URL to its final address. The
 response time is measured until the response headers arrive, before the body is read. It is
 recorded and charted; it only changes the status when **Degraded when slower than** is set.
+
+### Bypassing caches
+
+> [!WARNING]
+> **Not released yet.** **Bypass caches** is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+A CDN or reverse proxy in front of the endpoint may answer a `GET` from its cache, so the check passes while the backend is down. With **Bypass caches** on
+(`cacheBuster: true` in the monitor's `config`), every check adds a query parameter named `bsp_cachebuster` with a new random value (16 hexadecimal characters)
+to the URL of the request, so a cache that keys on the URL has no stored answer for it. The name is fixed, which lets you recognise
+these requests in server logs or leave them out of cache rules.
+
+- It applies to `GET` and `HEAD`; the option is hidden for `POST`, which caches do not store this way.
+- It is added to the first request only. A redirect is followed to the address the server gives, and the **Test** result shows the URL that was requested.
+- It is not used with CAS authentication, which signs the exact address of the endpoint.
+- Leave it off for an endpoint that rejects unknown parameters, such as a signed URL. A cache that ignores the query string is not bypassed; in that case send a `Cache-Control: no-cache` header from the **Request** tab as well.
+
+### Where a monitor may connect
+
+A monitor requests the address you give it, and a failed response check or a test shows something
+of the answer, so a URL must not be able to read the credentials of the host the server runs on.
+HTTPS monitors, the test runner, the certificate reading, HTTP actions, Docker monitors on a TCP endpoint and the Redis, mail server, SSH and TLS certificate monitors therefore refuse to
+connect to cloud metadata services: the link-local range `169.254.0.0/16` (AWS, GCP, Azure and others),
+`fe80::/10`, `fd00:ec2::254`, `fd20:ce::254`, `100.100.100.200` and `metadata.google.internal`. The address that is
+actually connected to is checked, so a redirect, a host name that resolves to such an address or a
+DNS answer that changes between checks does not get around it.
+
+Private networks (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) and `localhost` stay reachable, since
+watching internal services is what a self-hosted status page is for. If the server runs on a host
+where a monitor has to read a metadata service, set `MONITOR_ALLOW_METADATA=true`. Ping / TCP, DNS and the
+database monitors are not affected: they connect to the host you name and show nothing of what it answers.
 
 ### Response checks
 
@@ -318,7 +357,10 @@ A container stuck in a crash loop alternates between restarting (**Degraded**) a
 
 ---
 
-## SQL Server, PostgreSQL, MySQL / MariaDB and MongoDB
+## SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB and Oracle
+
+> [!WARNING]
+> **Not released yet.** The Oracle engine is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 In the monitor form these are one **Database** type: pick the **Engine** inside it. Switching the engine keeps what you typed and changes the port only while it still holds the previous default. The engines share one check; only the driver, the default port and the test query differ.
 
@@ -328,21 +370,36 @@ In the monitor form these are one **Database** type: pick the **Engine** inside 
 | **PostgreSQL** | `5432` | |
 | **MySQL / MariaDB** | `3306` | One type for both servers: they speak the same protocol |
 | **MongoDB** | `27017` | The test is a command, not SQL; see below |
+| **Oracle** | `1521` | **Service name** instead of Database (for example `FREEPDB1`); the test query is `SELECT 1 FROM DUAL`, without a trailing `;` |
 
 Choose how to connect. The sign-in itself (user and password, or the Vault secret with the connection string) is set on the **Credentials** tab at the side of the form, which opens by itself when you choose the Database type; a database monitor cannot be saved without credentials.
 
 
 - **Individual fields** — **Host**, **Port** (default per type, see above), **Database**, and
-  **User** / **Password** typed in or taken from the vault. The connection is encrypted and the
-  server certificate is not verified. PostgreSQL and MySQL / MariaDB fall back to an unencrypted
-  connection when the server has no TLS; SQL Server always encrypts. MongoDB connects without TLS
-  and signs in against the given database (`admin` when empty); use a connection string for TLS or
+  **User** / **Password** typed in or taken from the vault, and **Connection security** (see below).
+  MongoDB signs in against the given database (`admin` when empty); use a connection string for
   another `authSource`.
 - **Connection string** — a full connection string, which must come from the vault: a **value**
   secret, or a **json** secret with the key that holds the string. A **userpass** secret cannot be
   used here. TLS and certificate checks are then governed by the string itself (for MongoDB `tls=true` and `authSource`; for PostgreSQL
   `sslmode`, where `require` verifies the certificate and `no-verify` does not; for MySQL / MariaDB a
-  `mysql://` URI, encrypted only with an `ssl` parameter). Use it when you need a verified certificate.
+  `mysql://` URI, encrypted only with an `ssl` parameter; for Oracle `user/password@host:port/service_name`, a `tcps://` address for TLS, or a full connect descriptor after the `@`, and the password ends at the first `@`). Use it when you need a verified certificate.
+
+### Connection security
+
+In individual-fields mode the **Connection security** setting (`tls` in the monitor's `config`) decides how the password is protected:
+
+| Setting | `tls` | Behaviour |
+| --- | --- | --- |
+| **Encrypted, verify certificate** | `verify` | Encrypted, and the server certificate and host name must be valid. Paste the certificate of your own authority into **CA certificate** (`tlsCa`) when the server uses one; empty means the public CAs bundled with Node.js (plus `NODE_EXTRA_CA_CERTS`); a pasted CA replaces them. The form starts new monitors here. |
+| **Encrypted, certificate not checked** | `require` | Encrypted, no plain-text fallback, but anyone on the network path can pose as the server. |
+| **Encrypted if available, certificate not checked** | `prefer` | The behaviour of monitors created before the setting existed: PostgreSQL and MySQL / MariaDB fall back to plain text when the server answers that it has no TLS, so a party on the network path can read the password. SQL Server encrypts without checking the certificate. MongoDB is not encrypted at all. Monitors without `tls` use it. |
+
+Oracle is connected with the pure JavaScript driver, which always verifies the certificate: there is no **Encrypted, certificate not checked** choice for it (a monitor with `require` fails with a message saying so), `prefer` connects without encryption, and `verify` uses TLS (`tcps`) with the CA you paste, or the CAs bundled with Node.js. The server needs a TCPS listener for that.
+
+Monitors created through the API or a configuration file without `tls` use `prefer`. `verify` matches the host name against the certificate, so connect by DNS name: MySQL / MariaDB and SQL Server cannot verify a server addressed by IP. Change existing monitors to `verify` (or at least `require`). A connection string keeps its own TLS settings, as described above.
+
+The monitor runs the query or command as written, so give it an account that can only read.
 
 **Test Query** (default `SELECT 1`) runs on every check. A connection error, query error or timeout
 makes the check **Down**.
@@ -372,6 +429,148 @@ PATCH /api/v1/admin/monitors/:id
 ```
 
 `config` is replaced as a whole, so send the complete object.
+
+---
+
+## Redis
+
+> [!WARNING]
+> **Not released yet.** The Redis monitor is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+Connects to a Redis server (or a compatible one such as Valkey or KeyDB), signs in when a password is set and sends `PING`. It reads and writes no data.
+
+| Field | Default | What it does |
+| --- | --- | --- |
+| **Host** | — | Name or address of the server. Required. |
+| **Port** | `6379` | |
+| **Connect over TLS** | off | Encrypts the connection from the first byte. |
+| **Verify the server certificate and host name** | on | With TLS on. Turn it off only for servers you trust. |
+| **CA certificate (PEM, optional)** | — | For a certificate signed by your own authority. Empty uses the CAs bundled with Node.js. |
+
+The **Credentials** tab holds the account. A password alone signs in as the default user; a user name and password
+sign in as a Redis ACL user. Either can come from a [Vault](vault.md) secret (its `username` or `user`
+and `password` or `value` keys). A server without a password needs no credentials.
+
+Once saved, the password is shown as `••••••••`. Changing the host, the port, the CA certificate or turning TLS or certificate verification off
+makes the server refuse to keep it, so a stored password can never be redirected or sent with weaker protection: type it again to confirm the change.
+
+The monitor is **Down** when the connection, the sign-in or the `PING` fails; the message is the one Redis sent, for
+example `WRONGPASS invalid username-password pair` or `NOAUTH Authentication required.`. It is never **Degraded**.
+
+---
+
+## Mail server
+
+> [!WARNING]
+> **Not released yet.** The mail server monitor is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+Checks an SMTP, IMAP or POP3 server. Without an account it proves the server answers with its greeting; with one it
+also proves that signing in works. No mail is sent, listed or read.
+
+| Field | Default | What it does |
+| --- | --- | --- |
+| **Protocol** | SMTP | SMTP, IMAP or POP3. |
+| **Encryption** | STARTTLS | **TLS from the start** (SMTPS, IMAPS, POP3S), **STARTTLS** (upgrade after the greeting) or **None**. |
+| **Host** | — | Name or address of the server. Required. |
+| **Port** | follows the choices above | Until you type your own, the port changes with the protocol and encryption. |
+| **Verify the server certificate and host name** | on | Unless encryption is **None**. |
+| **CA certificate (PEM, optional)** | — | For a certificate signed by your own authority. Empty uses the CAs bundled with Node.js. |
+
+| | None | STARTTLS | TLS from the start |
+| --- | --- | --- | --- |
+| **SMTP** | 25 | 587 | 465 |
+| **IMAP** | 143 | 143 | 993 |
+| **POP3** | 110 | 110 | 995 |
+
+What the check does:
+
+- **SMTP**: reads the `220` greeting and says `EHLO`; with STARTTLS it requires the server to offer it, upgrades and says `EHLO` again; with an account it signs in with `AUTH PLAIN` and expects `235`; then `QUIT`.
+- **IMAP**: reads the `* OK` greeting; with STARTTLS it upgrades; with an account it runs `LOGIN` and then `LOGOUT`.
+- **POP3**: reads the `+OK` greeting; with STARTTLS it sends `STLS`; with an account it sends `USER` and `PASS`, then `QUIT`.
+
+The account is set in the **Credentials** tab, typed or from a [Vault](vault.md) secret, like for Redis (and with the same rule for a saved password: changing the host, port, CA certificate or encryption needs it typed again). With **None** the account is sent unencrypted, and the form warns about it. A user name or
+password that contains a line break is refused, so it can never add commands to the conversation. SMTP sign-in needs
+`AUTH PLAIN`, so use it over TLS or STARTTLS; a server that offers only other methods fails with `does not offer AUTH PLAIN`.
+For an account with two-step verification, use an app password.
+
+The monitor is **Down** when the connection, the greeting, the encryption or the sign-in fails; the message is the server's
+reply. It is never **Degraded**.
+
+> [!NOTE]
+> Many servers slow down or block an address after repeated failed sign-ins. A wrong password checked every minute can get the status page's address
+> blocked. Use the account's real password and run **Test** once before saving.
+
+---
+
+## SSH
+
+> [!WARNING]
+> **Not released yet.** The SSH monitor is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+Connects to an SSH port and reads the identification string the server sends first, for example `SSH-2.0-OpenSSH_9.6`.
+No login is attempted, so no key or password is needed and nothing shows up in the server's authentication log.
+
+| Field | Default | What it does |
+| --- | --- | --- |
+| **Host** | — | Name or address of the server. Required. |
+| **Port** | `22` | |
+| **Expected identification text (optional)** | — | Text the identification string must contain, for example `OpenSSH`. A different one → **Down**. |
+
+The monitor answers with its own identification string, `SSH-2.0-BetterStatusPage`, and closes the connection, so the server does not log
+a dropped handshake on every check. A service that does not send an `SSH-` line (up to 20 lines before it are tolerated) within the timeout is **Down**.
+
+---
+
+## TLS certificate
+
+> [!WARNING]
+> **Not released yet.** The TLS certificate monitor is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+Connects to any service that speaks TLS from the first byte (HTTPS, IMAPS, SMTPS, LDAPS, a database with TLS) and judges the certificate it presents.
+Unlike the [certificate warnings of an HTTPS monitor](#tls-certificate-expiry-warnings), which send notifications and leave the status alone, this monitor
+has a status: it turns **Degraded** before the certificate expires, so the warning also shows on the status page and alerts like any other degraded monitor.
+
+| Field | Default | What it does |
+| --- | --- | --- |
+| **Host** | — | Name or address of the server. Required. |
+| **Port** | `443` | |
+| **Host name for SNI (optional)** | the host | The name sent to the server to choose a certificate, and matched against it. Use it when you connect by address. |
+| **Degraded within (days)** | `14` | 1 to 365. |
+| **Verify the server certificate and host name** | on | Requires a trusted chain and a matching name. |
+| **CA certificate (PEM, optional)** | — | For a certificate signed by your own authority. Empty uses the CAs bundled with Node.js. |
+
+| Result | When |
+| --- | --- |
+| **Operational** | The certificate is trusted, matches the name and expires later than the warning window. The test shows the date and the days left. |
+| **Degraded** | It expires within the number of days you set. |
+| **Down** | It has expired; with verification on, it is not trusted, is self-signed or does not match the name; or the connection or handshake fails. |
+
+With verification off, an untrusted or mismatched certificate is accepted, but an expired one is still **Down**. Services that upgrade
+with STARTTLS are not covered here; the [mail server monitor](#mail-server) verifies the certificate during the upgrade.
+
+---
+
+## Domain expiry
+
+> [!WARNING]
+> **Not released yet.** The domain expiry monitor is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+Looks up when the registration of a domain ends and turns **Degraded** before it does, so a forgotten renewal does not take the site down.
+
+| Field | Default | What it does |
+| --- | --- | --- |
+| **Domain** | — | The registered domain, such as `example.com` or `example.co.uk`. A subdomain is not found. Required. |
+| **Degraded within (days)** | `30` | 1 to 365. |
+
+The end date comes from [RDAP](https://about.rdap.org/), found through the IANA bootstrap file (`data.iana.org`). For a
+top-level domain without RDAP, such as `.pl`, the monitor asks the WHOIS server that IANA names for it (port 43) and reads the expiry line. The server
+therefore needs outbound access to `data.iana.org` on port 443 and, for these domains, to the registry's WHOIS server on port 43.
+
+A domain is looked up at most once every six hours; the answer is kept in memory, so a restart looks it up again. A lookup that failed is not repeated for 30 minutes, so a registry that refuses requests is not asked at every interval. The whole lookup, including the IANA file and the WHOIS referral, shares the monitor's timeout. Registrations change rarely, so an
+interval of an hour or more is plenty.
+
+The monitor is **Down** when the registration has expired, when the domain is not registered, or when the lookup fails (no RDAP or WHOIS answer, or no expiry
+date in it); the message says which. Some registries hide the expiry date from public WHOIS; for those the monitor can only report that the lookup failed.
 
 ---
 
@@ -432,6 +631,45 @@ Without parameters the call records `up`, as before. A `down` or `degraded` call
 check: **Alert after (checks)**, **Recover after (checks)** and maintenance windows apply as they do
 to scheduled checks. If a dependency of the monitor is down, a failing heartbeat is recorded as
 **Affected**, as for a scheduled check. A heartbeat that reports `up` is always recorded as up.
+
+### Sending by key (created on the first heartbeat)
+
+The URL above is made when the monitor is saved, so a sender that can only be given one URL for many jobs (a backup server that notifies per datastore, say) would need a monitor created by hand for each. Heartbeats by key remove that step: the monitor is named in the URL and is created by the first heartbeat.
+
+```
+https://<your-bsp-host>/api/v1/hook/key/<key>
+```
+
+The request must carry an [API token](api.md) with the `monitors:write` permission in an `Authorization: Bearer bsp_…` header. The token goes in the header only, never in the URL. A session cookie is not accepted. A token without the permission gets `403`, whether the key exists or not.
+
+| Answer | Meaning |
+|---|---|
+| `200` `{"ok":true}` | The monitor with this key exists; the heartbeat was recorded. |
+| `201` `{"ok":true,"created":true}` | There was no monitor with this key; one was created and the heartbeat recorded. |
+| `400` | The key cannot be used, or `status`/`msg` are wrong (as for the secret URL). Nothing is created. |
+| `401` | No bearer token, or an unknown or revoked one. |
+| `403` | The token lacks `monitors:write`, or it has reached its limit of created monitors (`"code":"AUTO_CREATE_LIMIT"`). |
+| `429` | More than 60 requests a minute for this token and key, or more than 300 a minute for the token. |
+| `409` | A monitor with this key exists but is not a webhook monitor; nothing is recorded. |
+
+`status` and `msg` work as in [Reporting a failure](#reporting-a-failure), and are read from the query string only. Two more parameters matter only to the heartbeat that creates the monitor, and are ignored for a monitor that exists: `interval` (seconds of silence allowed, `10`–`86400`, default `86400`) and `name` (up to 200 characters, cleaned like `msg`; default the key). A wrong `interval` answers `400` on every request, creating nothing, and neither parameter may be given twice. A request body is never read, so a sender may add one of any type or size up to 64 KB. Only `GET` and `POST` are answered.
+
+- **The key** is lower-cased and every run of characters other than letters, digits, `_` and `-` becomes `-`, so `PBS.Store1` is `pbs-store1`. A result that is empty, longer than 64 characters, or does not start with a letter or digit (`.hidden` becomes `-hidden`) is refused with `400`. Different spellings reach the same monitor: `a.b`, `a b` and `A-B` are all `a-b`. It is also the monitor's [key](configuration-as-code.md) in the API and in configuration files.
+- **The new monitor** is a webhook monitor named after its key, with the interval and name you sent (24 hours and the key otherwise), and has its own secret URL like any other. It is not on the status page until you place it in the layout. It has no notification channels: link one in the admin before you rely on it to alert. Change the name, interval and thresholds there as for any monitor.
+- **A limit** protects against a mistaken template creating monitors without end: one token may create 50 monitors an hour this way, counted over the last 60 minutes, so a token can set up hundreds in a few hours. Set `HEARTBEAT_AUTO_CREATE_LIMIT` to change it; `0` removes the limit. A request over the limit answers `403` and creates nothing; the sender can repeat it later. Heartbeats to existing keys are never limited by it.
+- **The audit log** records each monitor created this way, with the token as the actor and its id in the entry. Heartbeats are not logged.
+- **Pruning** a [configuration import](configuration-as-code.md) deletes these monitors like any other the file does not mention; the next heartbeat creates them again, without history.
+
+#### Example: Proxmox Backup Server
+
+In **Configuration → Notifications**, add a **Webhook** target and a matcher that sends the jobs you want to watch to it:
+
+- **Method:** `POST`
+- **URL:** `https://status.example.com/api/v1/hook/key/pbs_{{ fields.datastore }}_{{ fields.type }}`
+- **Header:** `Authorization` = `Bearer {{ secrets.bsp_token }}`
+- **Secret:** `bsp_token` = an API token with `monitors:write`
+
+A heartbeat without `status` records the monitor as up, and PBS also notifies about failed jobs, so the two kinds must go to different targets. Give the first target a matcher on severity `info` and `notice` only, and a second target with the URL ending in `?status=down` a matcher on severity `error`. If the first target also received failures it would send an `up` next to the `down`, in no fixed order, and the failure could be lost. Match on the job `type` (`gc`, `prune`, `sync`, `verification`) so that notifications without a datastore do not create monitors. Check the field names against the documentation of your PBS version.
 
 ### How silence is detected
 
@@ -552,19 +790,19 @@ interval passes without one.
 
 ## Saved secrets
 
-A saved password, OAuth2 client secret, database password and credential header are never shown again, in the form or in the API.
+A saved password, OAuth2 client secret, database, Redis or mail account password and credential header are never shown again, in the form or in the API.
 A header counts as a credential when its name contains `auth`, `token`, `secret`, `key`, `pass`, `pwd`, `credential`, `cookie`, `session` or `signature` (so `Authorization`, `Cookie` and `X-Api-Key` do).
 A secret reads back as `••••••••`. Leave the field untouched to keep the stored value, or type a new one to replace it.
 A secret read from a [vault](vault.md) is a reference, not a secret, and is shown as such.
 
-A stored secret is only kept while it is sent to the same place. If you change the **URL**, the OAuth2 token URL, the CAS server, or a database **host** or **port** while a secret still shows as `••••••••`, saving is refused with a message asking you to enter the secrets again, so a saved password cannot be redirected to a new address. A **Test** run with such a change is refused the same way. Do not write credentials into a URL or request body: only the authentication fields and headers are masked.
+A stored secret is only kept while it is sent to the same place. If you change the **URL**, the OAuth2 token URL, the CAS server, a database, Redis or mail **host** or **port**, the **CA certificate**, the mail **Encryption**, or switch on **Ignore TLS certificate errors**, or turn off TLS or certificate verification of a Redis or mail monitor, while a secret still shows as `••••••••`, saving is refused with a message asking you to enter the secrets again, so a saved password cannot be redirected to a new address. A **Test** run with such a change is refused the same way. Do not write credentials into a URL or request body: only the authentication fields and headers are masked.
 
 ---
 
 ## Testing a monitor
 
 The **Test** button in the form runs the check once with the settings in the form, without saving
-them. It is available for HTTPS, Ping / TCP, DNS, the SQL databases and Docker; a webhook can only be tested by
+them. It is available for every type except webhook, which can only be tested by
 calling its URL.
 
 The result lists each step with its duration — authentication, every redirect, the response status,
@@ -574,7 +812,9 @@ full log as a text file, including the informational steps hidden in the panel, 
 probe hop.
 
 Secrets stay out of the result: the response body is reported by size only, and cookie values are
-replaced with `[redacted]`.
+replaced with `[redacted]`. A failed response check names the value the endpoint answered
+(`it is "2"`) only to administrators signed in with a session; for operators, API tokens and in the
+messages of scheduled checks, which are stored and sent in notifications, it says `the value is not shown`.
 
 When you edit a saved monitor, a password, client secret or credential header that you did not change
 is tested as stored, even though the form only shows it as `••••••••`.

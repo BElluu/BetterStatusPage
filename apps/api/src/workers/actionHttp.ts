@@ -6,6 +6,7 @@ import { db } from '../db/client.js'
 import { vaultSecrets } from '../db/schema.js'
 import { and, eq } from 'drizzle-orm'
 import type { ActionHttpConfig } from '@bsp/shared'
+import { guardedFetch, unwrapRefusal } from '../services/ssrfGuard.js'
 
 const REQUEST_TIMEOUT_MS = 15_000
 /** What is read of an answer, and how much of it is kept for the history and the test panel. */
@@ -101,6 +102,8 @@ async function readBody(response: Response): Promise<string> {
 
 /** Fixed texts only: the message of a failed fetch can hold the whole URL, and the URL can hold a secret. */
 function networkError(error: unknown): string {
+  const refusal = unwrapRefusal(error)
+  if (refusal !== error && refusal instanceof Error) return refusal.message
   if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) return `Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`
   const cause = error instanceof Error ? (error.cause as { code?: unknown } | undefined) : undefined
   return `Request failed: ${typeof cause?.code === 'string' ? cause.code : 'network error'}`
@@ -129,7 +132,7 @@ export async function executeAction(config: ActionHttpConfig, variables: Record<
   const { url, init } = buildWebhookRequest(config, { ...variables, ...secrets })
 
   try {
-    const response = await fetch(url, { ...init, redirect: 'manual', signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
+    const response = await guardedFetch(url, { ...init, redirect: 'manual', signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
     const snippet = oneLine(redact(await readBody(response), secrets))
     if (response.status >= 300 && response.status < 400) {
       return { ok: false, status: response.status, snippet, error: `HTTP ${response.status} (redirect not followed)` }

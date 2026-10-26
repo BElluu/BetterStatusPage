@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { DEFAULT_CERT_WARN_DAYS } from '@bsp/shared'
 import type { HttpsConfig, Monitor, MonitorStatus, MonitorType, MonitorWithActivity } from '@bsp/shared'
-import { ActivityBadges, StatusBadge } from '../components/monitors/StatusBadge'
+import { ActivityBadges, MonitorStatusBadge, effectiveStatus } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
 import { YamlViewModal } from '../components/YamlViewModal'
 import { MONITOR_TYPES } from '../components/monitors/monitorTypes'
@@ -41,9 +41,11 @@ export default function MonitorsPage() {
     let es: EventSource | null = null
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let closed = false
+    let retryMs = 2000
     function connect() {
       if (closed) return
       es = new EventSource('/api/v1/admin/monitors/events')
+      es.onopen = () => { retryMs = 2000 }
       es.addEventListener('monitor.status', (e) => {
         const data = JSON.parse(e.data) as { monitorId: number; status: MonitorStatus; responseMs: number | null; checkedAt: number }
         qc.setQueryData<Monitor[]>(['monitors'], (old) =>
@@ -61,7 +63,8 @@ export default function MonitorsPage() {
         if (closed) return
         retryTimer = setTimeout(() => {
           api.get('/auth/session').then(connect, () => { /* redirected to login */ })
-        }, 2000)
+        }, retryMs)
+        retryMs = Math.min(retryMs * 2, 60_000)
       }
     }
     connect()
@@ -114,7 +117,7 @@ export default function MonitorsPage() {
     name: (m) => m.name,
     type: (m) => m.type,
     intervalSecs: (m) => m.intervalSecs,
-    currentStatus: (m) => m.currentStatus,
+    currentStatus: (m) => effectiveStatus(m),
     lastCheckedAt: (m) => m.lastCheckedAt,
   }, { key: 'name' })
 
@@ -239,7 +242,7 @@ export default function MonitorsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <StatusBadge status={monitor.currentStatus} />
+                      <MonitorStatusBadge monitor={monitor} />
                       <ActivityBadges activity={monitor.activity} />
                     </div>
                   </td>

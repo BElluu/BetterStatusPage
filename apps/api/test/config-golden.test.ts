@@ -55,7 +55,7 @@ const channels: Doc[] = [
     alertPolicy: { quietHours: { enabled: true, start: '22:00', end: '07:00', timezone: 'Europe/Warsaw', mode: 'suppress' }, throttle: { enabled: true, maxAlerts: 3, windowMinutes: 30 } } },
 ]
 const actions: Doc[] = [
-  { kind: 'Action', key: 'start-vm2', name: 'Start VM2', failureNotifications: ['ops-slack'],
+  { kind: 'Action', key: 'start-vm2', name: 'Start VM2', notifications: ['ops-slack'],
     config: { url: 'https://jenkins.test/job/vm2/build', method: 'POST', headers: { Authorization: 'Bearer {{secret_jenkins}}', 'X-Note': 'plain' }, secrets: [{ name: 'jenkins', vault: { vault: 'Jenkins', secret: 'api-token' } }] } },
 ]
 const monitors: Doc[] = [

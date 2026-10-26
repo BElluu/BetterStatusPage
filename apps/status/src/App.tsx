@@ -6,7 +6,7 @@ import { SnapshotBanner } from './components/SnapshotBanner'
 import { useSSE } from './hooks/useSSE'
 import { useDarkMode } from './hooks/useDarkMode'
 import { useLocale } from './i18n/LocaleContext'
-import { STATUS_PAGE_PRIVATE, incidentTitle } from '@bsp/shared'
+import { STATUS_PAGE_PRIVATE, applyIncidentStatus, incidentTitle } from '@bsp/shared'
 import type { Branding, Incident, PublicMonitor, PublicMaintenanceWindow, LayoutTree, LayoutNode, GroupNode, MonitorNode, PublicStatusPageAccess } from '@bsp/shared'
 import { PageRenderer } from './components/PageRenderer'
 import { IncidentCard } from './components/IncidentCard'
@@ -14,7 +14,6 @@ import { LanguageSwitcher } from './components/LanguageSwitcher'
 import { AccountMenu } from './components/AccountMenu'
 import { SignIn } from './components/SignIn'
 import { FEED_URL, SubscribeDialog, SubscriptionLinkDialog, clearSubscriptionLink, readSubscriptionLink, useSubscriptionOptions } from './components/Subscriptions'
-import { applyIncidentStatus } from './utils/incidentStatus'
 import { resolveBrandingCssVariables, resolveBrandingCustomCss, resolveBrandingLogoUrl } from './branding'
 
 interface MonitorDependency {
@@ -48,6 +47,20 @@ function collectLayoutMonitorIds(nodes: LayoutNode[]): Set<number> {
     }
   }
   return ids
+}
+
+/** The name a monitor goes by on the page: the display name of its first card that has one. */
+function collectDisplayNames(nodes: LayoutNode[], names = new Map<number, string>()): Map<number, string> {
+  for (const node of nodes) {
+    if (node.type === 'monitor') {
+      const { monitorId, displayName } = node as MonitorNode
+      const name = displayName?.trim()
+      if (name && !names.has(monitorId)) names.set(monitorId, name)
+    } else if (node.type === 'group') {
+      collectDisplayNames((node as GroupNode).children, names)
+    }
+  }
+  return names
 }
 
 function hasIncidentsBlock(nodes: LayoutNode[]): boolean {
@@ -184,8 +197,10 @@ function StatusPage({ account }: { account: { email: string; role: string | null
     return map
   }, [monitorDependencies])
 
+  const displayNames = tree ? collectDisplayNames(tree.children) : new Map<number, string>()
   const liveMonitors = monitors.map((m) => ({
     ...m,
+    name: displayNames.get(m.id) ?? m.name,
     currentStatus: applyIncidentStatus(statusMap[m.id]?.status ?? m.currentStatus, m.id, activeIncidents),
   }))
 

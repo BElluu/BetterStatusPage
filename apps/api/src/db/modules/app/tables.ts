@@ -1,6 +1,7 @@
 import { sqliteTable, integer, text, real, primaryKey } from 'drizzle-orm/sqlite-core'
 import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 import { randomEntityKey } from '@better-kit/config-as-code'
+import { actionConfigColumn, monitorConfigColumn } from '../../../services/sealedColumns.js'
 
 export const monitors = sqliteTable('monitors', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -8,7 +9,7 @@ export const monitors = sqliteTable('monitors', {
   type: text('type').notNull(), // 'https'|'ping'|'dns'|'sqlserver'|'postgresql'|'mysql'|'mongodb'
   intervalSecs: integer('interval_secs').notNull().default(60),
   timeoutMs: integer('timeout_ms').notNull().default(10000),
-  config: text('config').notNull(), // JSON
+  config: monitorConfigColumn('config').notNull(), // JSON, secrets encrypted
   currentStatus: text('current_status').notNull().default('pending'),
   lastCheckedAt: integer('last_checked_at'),
   createdAt: integer('created_at').notNull(),
@@ -39,6 +40,8 @@ export const monitors = sqliteTable('monitors', {
   autoIncidentTemplateId: integer('auto_incident_template_id'),
   /** When the currently confirmed outage began; null while the monitor is not confirmed failing. */
   failingSince: integer('failing_since'),
+  /** api_tokens.id of the token whose first heartbeat by key created the monitor; null for a monitor made any other way. */
+  autoCreatedByTokenId: integer('auto_created_by_token_id'),
 })
 
 export const monitorResults = sqliteTable('monitor_results', {
@@ -52,6 +55,20 @@ export const monitorResults = sqliteTable('monitor_results', {
   /** 0 counted, 1 failure not (yet) confirmed by the failure threshold, 2 failure inside a maintenance window; see resultMarks.ts. */
   unconfirmed: integer('unconfirmed').notNull().default(0),
 })
+
+/** Checks per monitor and UTC day, kept by triggers on monitor_results; see db/dailyResults.ts. */
+export const monitorDailyResults = sqliteTable('monitor_daily_results', {
+  monitorId: integer('monitor_id').notNull(),
+  /** UTC day number: checked_at / 86400000. */
+  day: integer('day').notNull(),
+  checksTotal: integer('checks_total').notNull().default(0),
+  checksUp: integer('checks_up').notNull().default(0),
+  maintenanceChecks: integer('maintenance_checks').notNull().default(0),
+  responseSum: integer('response_sum').notNull().default(0),
+  responseCount: integer('response_count').notNull().default(0),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.monitorId, t.day] }),
+}))
 
 export const incidents = sqliteTable('incidents', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -128,13 +145,15 @@ export const monitorNotificationChannels = sqliteTable('monitor_notification_cha
 export const actions = sqliteTable('actions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
-  config: text('config').notNull().default('{}'), // JSON ActionHttpConfig
+  config: actionConfigColumn('config').notNull().default('{}'), // JSON ActionHttpConfig, secrets encrypted
   enabled: integer('enabled').notNull().default(1),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   // Additive column (added via ALTER TABLE, must stay at end for sqlite-proxy position mapping)
   /** Stable identifier for config-as-code and API clients; unlike `id` it survives export/import. */
   key: text('key').notNull().unique().$defaultFn(randomEntityKey),
+  requiresApproval: integer('requires_approval').notNull().default(0),
+  approvalTimeoutMinutes: integer('approval_timeout_minutes').notNull().default(60),
 })
 
 export const monitorActions = sqliteTable('monitor_actions', {
@@ -147,7 +166,7 @@ export const monitorActions = sqliteTable('monitor_actions', {
 })
 
 /** The notification channels told when a run of the action fails for good. */
-export const actionFailureChannels = sqliteTable('action_failure_channels', {
+export const actionNotificationChannels = sqliteTable('action_notification_channels', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   actionId: integer('action_id').notNull(),
   channelId: integer('channel_id').notNull(),
@@ -160,7 +179,7 @@ export const actionRuns = sqliteTable('action_runs', {
   monitorId: integer('monitor_id'),
   monitorName: text('monitor_name').notNull(),
   onStatus: text('on_status').notNull(),
-  status: text('status').notNull().default('pending'), // 'pending' | 'succeeded' | 'failed' | 'cancelled'
+  status: text('status').notNull().default('pending'), // 'pending' | 'awaiting_approval' | 'succeeded' | 'failed' | 'cancelled'
   variables: text('variables').notNull(),
   attemptCount: integer('attempt_count').notNull().default(0),
   maxAttempts: integer('max_attempts').notNull().default(3),
@@ -268,7 +287,7 @@ export const subscribers = sqliteTable('subscribers', {
   confirmTokenHash: text('confirm_token_hash'),
   confirmExpiresAt: integer('confirm_expires_at'),
   confirmationSentAt: integer('confirmation_sent_at'),
-  /** Long-lived capability behind the manage and unsubscribe links, so it must stay readable. */
+  /** Long-lived capability behind the manage and unsubscribe links. Encrypted, because every notification carries the link again; looked up by `manageTokenHash`. */
   manageToken: text('manage_token').notNull().unique(),
   createdAt: integer('created_at').notNull(),
   confirmedAt: integer('confirmed_at'),
@@ -284,6 +303,8 @@ export const subscribers = sqliteTable('subscribers', {
   consecutiveFailures: integer('consecutive_failures').notNull().default(0),
   failureNotifiedAt: integer('failure_notified_at'),
   disabledAt: integer('disabled_at'),
+  /** SHA-256 of the manage token, which is how a link from an email finds its row. */
+  manageTokenHash: text('manage_token_hash'),
 })
 
 export const subscriberDeliveries = sqliteTable('subscriber_deliveries', {

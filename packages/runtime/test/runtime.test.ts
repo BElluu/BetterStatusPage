@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
@@ -7,11 +7,22 @@ import Fastify from 'fastify'
 import { openDatabase } from '@better-kit/db'
 import {
   createAppLock, createHealthRoutes, createPublicUrlResolver, createSystemHealth, createUpdateCheck, dataDir, databasePath,
-  isNewerVersion, isSetupComplete, resolveAppVersion, resolveTrustProxy, writeSetupComplete,
+  isNewerVersion, isSetupComplete, rateLimitKey, resolveAppVersion, resolveTrustProxy, writeSetupComplete,
 } from '@better-kit/runtime'
 
 const dir = mkdtempSync(join(tmpdir(), 'kit-runtime-'))
 after(() => rmSync(dir, { recursive: true, force: true }))
+
+describe('rate limit key', () => {
+  it('keeps IPv4 addresses and groups IPv6 addresses by /64', () => {
+    assert.equal(rateLimitKey('203.0.113.7'), '203.0.113.7')
+    assert.equal(rateLimitKey('::ffff:203.0.113.7'), '203.0.113.7')
+    assert.equal(rateLimitKey('2001:db8:1:2:aaaa:bbbb:cccc:dddd'), '2001:db8:1:2::/64')
+    assert.equal(rateLimitKey('2001:0db8:0001:0002::1'), '2001:db8:1:2::/64')
+    assert.equal(rateLimitKey('2001:db8::5'), '2001:db8:0:0::/64')
+    assert.equal(rateLimitKey('::1'), '0:0:0:0::/64')
+  })
+})
 
 describe('data paths', () => {
   it('derive from DATA_DIR unless a path is set explicitly', () => {
@@ -24,6 +35,13 @@ describe('data paths', () => {
     const env = { DATA_DIR: join(dir, 'setup') }
     assert.equal(isSetupComplete(env), false)
     writeSetupComplete('sqlite', env)
+    assert.equal(isSetupComplete(env), true)
+  })
+
+  it('treat a marker that cannot be parsed as completed setup', () => {
+    const env = { DATA_DIR: join(dir, 'broken') }
+    mkdirSync(env.DATA_DIR)
+    writeFileSync(join(env.DATA_DIR, 'setup.json'), '{"setupComp')
     assert.equal(isSetupComplete(env), true)
   })
 })

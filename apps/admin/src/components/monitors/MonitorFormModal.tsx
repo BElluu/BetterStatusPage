@@ -5,7 +5,7 @@ import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
 import { YamlViewModal } from '../YamlViewModal'
 import { AuthSection, readAuth } from './AuthSection'
 import { SidePanelFrame, SideTabStrip, type SideTab } from '@better-kit/ui'
-import { ActionsSection, ChannelsSection, CredentialsSection, DependenciesSection, PANEL_META, RequestSection, hasDatabaseCredentials, type SidePanelKey } from './MonitorSidePanel'
+import { ActionsSection, ChannelsSection, CredentialsSection, DependenciesSection, PANEL_META, RequestSection, hasAccountCredentials, hasDatabaseCredentials, usesCredentials, type SidePanelKey } from './MonitorSidePanel'
 import { HttpAssertionsFields } from './HttpAssertionsFields'
 import { MonitorTypeConfigFields } from './MonitorTypeConfigFields'
 import { Field, type SecretSummary, type VaultSummary } from '@better-kit/ui'
@@ -30,10 +30,16 @@ const defaultConfigs: Record<MonitorType, Record<string, unknown>> = {
   https:     { url: 'https://', method: 'GET', expectedStatus: 200 },
   ping:      { host: '', mode: 'tcp', port: 80 },
   dns:       { hostname: '', recordType: 'A' },
-  sqlserver: { host: '', port: 1433, database: '', user: '', password: '', query: 'SELECT 1' },
-  postgresql: { host: '', port: 5432, database: '', user: '', password: '', query: 'SELECT 1' },
-  mysql:     { host: '', port: 3306, database: '', user: '', password: '', query: 'SELECT 1' },
-  mongodb:   { host: '', port: 27017, database: '', user: '', password: '', query: '{"ping":1}' },
+  sqlserver: { host: '', port: 1433, database: '', user: '', password: '', tls: 'verify', query: 'SELECT 1' },
+  postgresql: { host: '', port: 5432, database: '', user: '', password: '', tls: 'verify', query: 'SELECT 1' },
+  mysql:     { host: '', port: 3306, database: '', user: '', password: '', tls: 'verify', query: 'SELECT 1' },
+  mongodb:   { host: '', port: 27017, database: '', user: '', password: '', tls: 'verify', query: '{"ping":1}' },
+  oracle:    { host: '', port: 1521, database: '', user: '', password: '', tls: 'verify', query: 'SELECT 1 FROM DUAL' },
+  redis:     { host: '', port: 6379 },
+  mail:      { protocol: 'smtp', host: '', port: 587, security: 'starttls' },
+  ssh:       { host: '', port: 22 },
+  tls:       { host: '', port: 443, warnDays: 14 },
+  domain:    { domain: '', warnDays: 30 },
   docker:    { endpoint: 'unix:///var/run/docker.sock', container: '' },
   webhook:   {},
 }
@@ -138,7 +144,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     setType(newType)
     setConfig(defaultConfigs[newType] as Record<string, unknown>)
     if (isDatabaseType(newType)) setSidePanel('credentials')
-    else if (sidePanel === 'credentials' || (newType !== 'https' && (sidePanel === 'auth' || sidePanel === 'request' || sidePanel === 'checks'))) setSidePanel(null)
+    else if ((sidePanel === 'credentials' && !usesCredentials(newType)) || (newType !== 'https' && (sidePanel === 'auth' || sidePanel === 'request' || sidePanel === 'checks'))) setSidePanel(null)
   }
 
   /** Switches the engine of a Database monitor, keeping what was typed; only a default port and test query follow the engine. */
@@ -170,7 +176,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
   }
 
   async function handleTest() {
-    if (type !== 'https' && !isDatabaseType(type) && type !== 'ping' && type !== 'dns' && type !== 'docker') return
+    if (!isTestable) return
     setTesting(true)
     setTestResult(null)
     try {
@@ -244,12 +250,12 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
   const keyword = (config['keyword'] as string | undefined) ?? ''
   const checkCount = assertions.length + (degradedAboveMs !== undefined ? 1 : 0) + (keyword ? 1 : 0)
   const vaultPicker = { vaults, secretsByVault, onLoadSecrets: loadSecrets }
-  const isTestable = type === 'https' || isDatabaseType(type) || type === 'ping' || type === 'dns' || type === 'docker'
+  const isTestable = type !== 'webhook'
   const webhookCreated = type === 'webhook' && !isEdit && !!webhookToken
 
   const sideTabs: SideTab<SidePanelKey>[] = [
-    ...(isDatabaseType(type) ? [
-      { key: 'credentials' as const, badge: hasDatabaseCredentials(config) ? '✓' : '!' },
+    ...(usesCredentials(type) ? [
+      { key: 'credentials' as const, badge: isDatabaseType(type) ? (hasDatabaseCredentials(config) ? '✓' : '!') : (hasAccountCredentials(config) ? '✓' : null) },
     ] : []),
     ...(type === 'https' ? [
       { key: 'auth' as const,    badge: authType !== 'none' ? authType.slice(0, 1).toUpperCase() : null },
@@ -357,7 +363,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
               onDegradedAboveMsChange={(ms) => updateConfig('degradedAboveMs', ms)}
             />
           )}
-          {sidePanel === 'credentials' && <CredentialsSection config={config} updateConfig={updateConfig} vaultPicker={vaultPicker} />}
+          {sidePanel === 'credentials' && <CredentialsSection config={config} updateConfig={updateConfig} vaultPicker={vaultPicker} userKey={isDatabaseType(type) ? 'user' : 'username'} />}
           {sidePanel === 'auth' && <AuthSection auth={auth} onChange={(next) => updateConfig('auth', next)} vaultPicker={vaultPicker} />}
           {sidePanel === 'tags' && <TagsSection tags={tags} allTags={allTags} onChange={setTags} />}
           {sidePanel === 'channels' && <ChannelsSection channels={channels} selected={selectedChannelIds} onChange={setSelectedChannelIds} />}

@@ -12,6 +12,8 @@
  * extra keys), and those must not read back in the clear.
  */
 
+import type { Sealer } from './sealed.js'
+
 export const SECRET_MASK = '••••••••'
 
 /** Three bullets in a row are never part of a real secret; they are a mask, or a mask somebody edited by hand. */
@@ -24,7 +26,7 @@ export type SecretField =
   | { mapAt: readonly string[] }
 
 /** Credential-looking header names. Wide on purpose: masking `X-Idempotency-Key` costs nothing, leaking `X-Auth` does. */
-const SENSITIVE_HEADER = /auth|token|secret|key|pass|pwd|credential|cookie|session|signature/i
+export const SENSITIVE_HEADER = /auth|token|secret|key|pass|pwd|credential|cookie|session|signature/i
 
 export const uniqueSecretFields = (fields: readonly SecretField[]): SecretField[] => {
   const seen = new Set<string>()
@@ -57,7 +59,15 @@ function mask(value: string, tail: boolean): string {
 
 export type RestoreResult = { config: unknown } | { error: string }
 
-export function createSecretFields<Kind extends string>(kinds: Readonly<Record<Kind, { fields: readonly SecretField[]; destinations: readonly (readonly string[])[] }>>) {
+/** A switch that makes a destination less safe: a path whose value is `true`, or a path with the value that is the unsafe one (`verifyTls` off is `false`). */
+export type LooseningSwitch = readonly string[] | { path: readonly string[]; value: unknown }
+
+export function createSecretFields<Kind extends string>(kinds: Readonly<Record<Kind, {
+  fields: readonly SecretField[]
+  destinations: readonly (readonly string[])[]
+  /** Switches that make a destination less safe (certificate checks off): turning one on counts as a changed destination, turning it off does not. */
+  loosening?: readonly LooseningSwitch[]
+}>>) {
   function slotsIn(config: unknown, kind: Kind): Slot[] {
     const slots: Slot[] = []
     for (const field of kinds[kind].fields) {
@@ -126,8 +136,42 @@ export function createSecretFields<Kind extends string>(kinds: Readonly<Record<K
       const normalised = (config: unknown) => valueAt(config, path) || null
       if (JSON.stringify(normalised(incoming)) !== JSON.stringify(normalised(stored))) return path.join('.')
     }
+    for (const entry of kinds[kind].loosening ?? []) {
+      const { path, value } = Array.isArray(entry) ? { path: entry as readonly string[], value: true } : entry as { path: readonly string[]; value: unknown }
+      if (valueAt(incoming, path) === value && valueAt(stored, path) !== value) return path.join('.')
+    }
     return null
   }
 
-  return { maskSecrets, restoreSecrets, changedDestination }
+  /** A copy of `config` with every secret that is text passed through `convert` (a vault reference or a number is not text and stays). */
+  function convertSecrets<T>(kind: Kind, config: T, convert: (value: string) => string): T {
+    const copy = structuredClone(config)
+    for (const { holder, key } of slotsIn(copy, kind)) {
+      const value = holder[key]
+      if (typeof value === 'string') holder[key] = convert(value)
+    }
+    return copy
+  }
+
+  /**
+   * The codec of a column that stores a configuration as JSON text: the secrets are encrypted on the way in and opened
+   * on the way out, so a copy of the database alone does not carry them. Text that is not JSON is passed through.
+   */
+  function configCodec(kind: Kind, sealer: Pick<Sealer, 'seal' | 'open'>): Pick<Sealer, 'seal' | 'open'> {
+    const through = (convert: (value: string) => string) => (json: string): string => {
+      let parsed: unknown
+      try { parsed = JSON.parse(json) } catch { return json }
+      // A config without a secret is returned as it was written, not as JSON.stringify would write it.
+      let changed = false
+      const converted = convertSecrets(kind, parsed, (value) => {
+        const result = convert(value)
+        if (result !== value) changed = true
+        return result
+      })
+      return changed ? JSON.stringify(converted) : json
+    }
+    return { seal: through(sealer.seal), open: through(sealer.open) }
+  }
+
+  return { maskSecrets, restoreSecrets, changedDestination, configCodec }
 }

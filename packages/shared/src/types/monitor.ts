@@ -1,7 +1,7 @@
 import type { VaultRef } from '@better-kit/contracts'
 import type { IncidentImpact } from './incident.js'
 import type { MaintenanceRecurrence } from './maintenance.js'
-export type MonitorType = 'https' | 'ping' | 'dns' | 'sqlserver' | 'postgresql' | 'mysql' | 'mongodb' | 'docker' | 'webhook'
+export type MonitorType = 'https' | 'ping' | 'dns' | 'sqlserver' | 'postgresql' | 'mysql' | 'mongodb' | 'oracle' | 'redis' | 'mail' | 'ssh' | 'tls' | 'domain' | 'docker' | 'webhook'
 export type MonitorStatus = 'up' | 'down' | 'degraded' | 'pending' | 'affected'
 export type HttpsAuthType = 'none' | 'basic' | 'oauth2' | 'cas'
 
@@ -52,7 +52,11 @@ export interface HttpsConfig {
   ignoreTls?: boolean
   /** Warns through the monitor's channels before the endpoint's TLS certificate expires. */
   certExpiry?: CertExpiryConfig
+  /** Adds a random `bsp_cachebuster` query parameter to the request, so a CDN or proxy cache cannot answer it. GET and HEAD only; not used with CAS. */
+  cacheBuster?: boolean
 }
+
+export const CACHE_BUSTER_PARAM = 'bsp_cachebuster'
 
 export const HEADER_ASSERTION_OPS = ['exists', 'not-exists', 'equals', 'not-equals', 'contains'] as const
 export const JSON_ASSERTION_OPS = ['exists', 'equals', 'not-equals', 'lt', 'gt', 'contains'] as const
@@ -94,6 +98,17 @@ export interface DnsConfig {
   resolver?: string
 }
 
+export const DATABASE_MONITOR_TYPES: readonly MonitorType[] = ['sqlserver', 'postgresql', 'mysql', 'mongodb', 'oracle']
+export const isDatabaseType = (type: MonitorType): boolean => DATABASE_MONITOR_TYPES.includes(type)
+
+/**
+ * How a database monitor in fields mode secures its connection. `prefer` is what monitors did before the
+ * setting existed (encrypted, certificate unchecked, plain when the server has no TLS; MongoDB: no TLS).
+ * `require` encrypts without a plain fallback, `verify` also checks the certificate and host name.
+ */
+export const DATABASE_TLS_MODES = ['prefer', 'require', 'verify'] as const
+export type DatabaseTlsMode = (typeof DATABASE_TLS_MODES)[number]
+
 /**
  * Shared by every database monitor type; only the default port differs. `query` is a SQL statement,
  * or for MongoDB a JSON command.
@@ -108,6 +123,10 @@ export interface DatabaseConfig {
   expectedResult?: string
   /** 'fields' (default) = individual host/port/database/credentials; 'connectionString' = full connection string from vault */
   mode?: 'fields' | 'connectionString'
+  /** fields mode only: a connection string carries its own TLS settings. Absent = `prefer`; the form starts new monitors at `verify`. */
+  tls?: DatabaseTlsMode
+  /** fields mode, `verify`: PEM certificate(s) of the authority that signed the server certificate; empty = the system's trusted CAs. */
+  tlsCa?: string
   /** fields mode: overrides user/password from vault. connectionString mode: provides the full connection string */
   vault?: VaultRef
 }
@@ -116,6 +135,74 @@ export type SqlServerConfig = DatabaseConfig
 export type PostgresConfig = DatabaseConfig
 export type MySqlConfig = DatabaseConfig
 export type MongoConfig = DatabaseConfig
+export type OracleConfig = DatabaseConfig
+
+/** TLS settings shared by the monitors that open a socket to a service. */
+export interface SocketTlsConfig {
+  /** Checks the certificate chain and host name. On unless set to false. */
+  verifyTls?: boolean
+  /** PEM certificate(s) of the authority that signed the server certificate; empty = the CAs bundled with Node.js. */
+  tlsCa?: string
+}
+
+export interface RedisConfig extends SocketTlsConfig {
+  host: string
+  port: number
+  /** Connects over TLS from the first byte. */
+  tls?: boolean
+  username?: string
+  password?: string
+  /** If set, username/password are sourced from vault (overrides direct values) */
+  vault?: VaultRef
+}
+
+export const MAIL_PROTOCOLS = ['smtp', 'imap', 'pop3'] as const
+export type MailProtocol = (typeof MAIL_PROTOCOLS)[number]
+/** `starttls` upgrades a plain connection after the greeting; `tls` is encrypted from the first byte. */
+export const MAIL_SECURITY_MODES = ['none', 'starttls', 'tls'] as const
+export type MailSecurity = (typeof MAIL_SECURITY_MODES)[number]
+
+export interface MailConfig extends SocketTlsConfig {
+  protocol: MailProtocol
+  host: string
+  port: number
+  security: MailSecurity
+  /** Signs in when set, so the check proves the account works and not only that the server answers. */
+  username?: string
+  password?: string
+  /** If set, username/password are sourced from vault (overrides direct values) */
+  vault?: VaultRef
+}
+
+export interface SshConfig {
+  host: string
+  port: number
+  /** The server's identification string must contain this text. */
+  expectedBanner?: string
+}
+
+export interface TlsCertConfig extends SocketTlsConfig {
+  host: string
+  port: number
+  /** Host name sent for SNI and matched against the certificate; defaults to `host`. */
+  servername?: string
+  /** The check turns Degraded this many days before the certificate expires. */
+  warnDays: number
+}
+
+export interface DomainConfig {
+  domain: string
+  /** The check turns Degraded this many days before the registration expires. */
+  warnDays: number
+}
+
+export const MAIL_DEFAULT_PORTS: Record<MailProtocol, Record<MailSecurity, number>> = {
+  smtp: { none: 25, starttls: 587, tls: 465 },
+  imap: { none: 143, starttls: 143, tls: 993 },
+  pop3: { none: 110, starttls: 110, tls: 995 },
+}
+export const DEFAULT_EXPIRY_WARN_DAYS = 30
+export const MAX_EXPIRY_WARN_DAYS = 365
 
 export interface DockerConfig {
   /** Docker Engine API: unix:///var/run/docker.sock, npipe:////./pipe/docker_engine, or http(s)://host:port */
@@ -127,7 +214,9 @@ export interface DockerConfig {
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface WebhookConfig {}
 
-export type MonitorConfig = HttpsConfig | PingConfig | DnsConfig | DatabaseConfig | DockerConfig | WebhookConfig
+export type MonitorConfig =
+  | HttpsConfig | PingConfig | DnsConfig | DatabaseConfig | RedisConfig | MailConfig | SshConfig | TlsCertConfig | DomainConfig
+  | DockerConfig | WebhookConfig
 
 export interface MonitorTag {
   label: string

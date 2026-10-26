@@ -34,8 +34,12 @@ export interface Action {
   name: string
   config: ActionHttpConfig
   enabled: number
-  /** Notification channels told when a run of this action fails after its last attempt. */
-  failureChannelIds: number[]
+  /** 1: a run waits for an admin to approve it in the panel before it is sent. */
+  requiresApproval: number
+  /** How long a run waits for that approval before it is cancelled. */
+  approvalTimeoutMinutes: number
+  /** Notification channels told when a run of this action fails after its last attempt, and when one succeeds if the channel is set to. */
+  notificationChannelIds: number[]
   createdAt: number
   updatedAt: number
 }
@@ -48,8 +52,13 @@ export interface MonitorAction {
   cooldownMinutes: number
 }
 
-/** `cancelled`: the monitor left `onStatus` before the run was due. */
-export type ActionRunStatus = 'pending' | 'succeeded' | 'failed' | 'cancelled'
+export const DEFAULT_APPROVAL_TIMEOUT_MINUTES = 60
+
+/**
+ * `awaiting_approval`: waiting for an admin to approve or reject it; `nextAttemptAt` is when it expires.
+ * `cancelled`: the monitor left `onStatus` before the run was due, or the run was rejected or expired.
+ */
+export type ActionRunStatus = 'pending' | 'awaiting_approval' | 'succeeded' | 'failed' | 'cancelled'
 
 export interface ActionRun {
   id: number

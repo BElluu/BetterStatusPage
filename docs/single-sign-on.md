@@ -27,7 +27,7 @@ No restart or `.env` change is needed.
    | Field | Notes |
    |-------|-------|
    | Issuer URL | The provider's issuer, for example `https://login.microsoftonline.com/<tenant-id>/v2.0` or `https://keycloak.example.com/realms/main`. `/.well-known/openid-configuration` must be reachable from the server. Use `https`; plain `http` works only for a provider that is itself served over http, such as a local test Keycloak. |
-   | Client ID / Client secret | The secret is stored encrypted with `VAULT_ENCRYPTION_KEY` and is never shown again. Leave the field empty to keep the stored one. |
+   | Client ID / Client secret | The secret is stored encrypted with `VAULT_ENCRYPTION_KEY` and is never shown again. Leave the field empty to keep the stored one, except when you change the issuer URL or client ID: the secret would be sent to the new issuer, so it must be entered again. |
    | Redirect URI | Optional. Defaults to `PUBLIC_URL` + `/api/v1/auth/oidc/callback`. Set it when the admin panel is served from another origin. |
    | Scopes | Defaults to `openid email profile`. |
    | Button label | Text of the button on the sign-in page. |
@@ -82,7 +82,7 @@ BetterStatusPage accepts the email when `xms_edov` is `true`. When it is `false`
 
 ## Confirming sensitive actions
 
-Changing the sign-in settings, resetting another user's 2FA, turning your own 2FA on or off and changing your password all ask you to confirm who you are, the way you signed in:
+Changing the sign-in settings, creating a user, changing a role, resetting another user's password or 2FA, creating an API token, turning your own 2FA on or off and changing your password all ask you to confirm who you are, the way you signed in:
 
 - **Signed in with a password:** enter your current password.
 - **Signed in with SSO:** no password is asked for. If you signed in, or last confirmed, less than 10 minutes ago, the action goes through. Otherwise clicking **Save** (or the action's button) opens a pop-up window at the identity provider, which asks you to sign in again (`prompt=login`). The ID token must report a sign-in (`auth_time`) from the last 5 minutes and belong to the same user; then the window closes and the action completes, keeping what you entered. While the window is open, **Cancel** abandons the action. If the browser blocks the pop-up, the form says so: allow pop-ups for the site and click the button again. A provider that sends no `auth_time` cannot confirm, and the attempt is logged as `token_exchange_failed`.

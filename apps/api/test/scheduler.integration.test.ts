@@ -3,11 +3,14 @@ import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { createServer as createHttpsServer } from 'node:https'
 import { after, before, beforeEach, describe, it } from 'node:test'
+import Fastify from 'fastify'
 import type { FastifyReply } from 'fastify'
+import { webhookRoutes } from '../src/routes/webhook.js'
 import { eq } from 'drizzle-orm'
-import { db } from '../src/db/client.js'
+import { db, sqlite } from '../src/db/client.js'
+import { findDailyResultsMismatches } from '../src/db/dailyResults.js'
 import {
-  maintenanceWindowMonitors, maintenanceWindows, monitorDependencies, monitorResults, monitors,
+  maintenanceWindowMonitors, maintenanceWindows, monitorDailyResults, monitorDependencies, monitorResults, monitors,
 } from '../src/db/schema.js'
 import { sseService } from '../src/kit/sse.js'
 import {
@@ -43,6 +46,12 @@ function monitorValues(name: string, overrides: Partial<typeof monitors.$inferIn
     ...overrides,
   }
 }
+
+const config = (resultRetentionDays: number): SchedulerConfig =>
+  ({ tickCron: '*/10 * * * * *', resultPurgeCron: '0 2 * * *', resultRetentionDays, checkConcurrency: 20 })
+const poolConfig = (checkConcurrency: number): SchedulerConfig =>
+  ({ tickCron: '*/10 * * * * *', resultPurgeCron: '0 2 * * *', resultRetentionDays: 90, checkConcurrency })
+const tick = () => new Promise((resolve) => setImmediate(resolve))
 
 before(async () => {
   initTestDb()
@@ -89,6 +98,20 @@ describe('scheduler checks', () => {
     assert.match(messages[0] ?? '', /"status":"up"/)
   })
 
+  it('records a broken config as a down result instead of leaving the old status', async () => {
+    const [monitor] = await db.insert(monitors).values(monitorValues('Broken config', {
+      type: 'https', config: '{not json', currentStatus: 'up',
+    })).returning()
+
+    await runCheck(monitor!)
+
+    const stored = (await db.select().from(monitors).where(eq(monitors.id, monitor!.id)))[0]!
+    assert.equal(stored.currentStatus, 'down')
+    const result = (await db.select().from(monitorResults))[0]!
+    assert.equal(result.status, 'down')
+    assert.ok(result.errorMessage)
+  })
+
   it('marks a monitor affected when its dependency is unavailable', async () => {
     requestCount = 1
     const [dependency, dependent] = await db.insert(monitors).values([
@@ -128,6 +151,30 @@ describe('scheduler checks', () => {
     assert.deepEqual(rows.map((row) => row.unconfirmed), [1, 0, 0, 0, 0])
     assert.equal((await db.select().from(monitors).where(eq(monitors.id, created!.id)))[0]!.alertConfirmedStatus, 'down')
   })
+
+  it('judges an observation against the current alert state, not the row its check started from', async () => {
+    const [created] = await db.insert(monitors).values(monitorValues('Raced', {
+      failureThreshold: 2, currentStatus: 'up', alertConfirmedStatus: 'up',
+    })).returning()
+    const stale = created! // read before another observation (a heartbeat, say) counted a failure
+    const down = { status: 'down' as const, responseMs: null, error: 'boom' }
+
+    await recordObservation(stale, down)
+    await recordObservation(stale, down) // still holding the old row, yet it is the second failure in a row
+
+    const row = (await db.select().from(monitors).where(eq(monitors.id, created!.id)))[0]!
+    assert.equal(row.alertConfirmedStatus, 'down')
+    assert.deepEqual((await db.select().from(monitorResults).orderBy(monitorResults.id)).map((r) => r.unconfirmed), [0, 0])
+  })
+
+  it('drops the observation of a monitor deleted while its check ran', async () => {
+    const [created] = await db.insert(monitors).values(monitorValues('Gone')).returning()
+    await db.delete(monitors).where(eq(monitors.id, created!.id))
+
+    await recordObservation(created!, { status: 'up', responseMs: 5, error: null })
+
+    assert.equal((await db.select().from(monitorResults)).length, 0)
+  })
 })
 
 describe('scheduler orchestration', () => {
@@ -153,7 +200,7 @@ describe('scheduler orchestration', () => {
     assert.deepEqual(due.map((monitor) => monitor.id), [2, 3])
   })
 
-  it('processes checks in configurable chunks', async () => {
+  it('runs checks through a pool of the configured size', async () => {
     const now = Date.now()
     await db.insert(monitors).values([
       ...Array.from({ length: 25 }, (_, index) => monitorValues(`Due ${index}`, { type: 'https' })),
@@ -180,6 +227,145 @@ describe('scheduler orchestration', () => {
     assert.ok(health.lastStartedAt)
     assert.ok(health.lastCompletedAt)
     assert.ok(health.lastDurationMs !== null)
+  })
+
+  it('records every overdue heartbeat monitor of a tick, though their checks do no I/O', async () => {
+    const overdue = Date.now() - 10 * 60_000
+    await db.insert(monitors).values(Array.from({ length: 5 }, (_, i) => monitorValues('Heartbeat ' + i, { createdAt: overdue })))
+
+    await runSchedulerTick(undefined, poolConfig(10)) // the real check: a missed heartbeat is down at once
+
+    const results = await db.select().from(monitorResults)
+    assert.equal(results.length, 5)
+    assert.ok(results.every((row) => row.status === 'down'))
+    assert.equal(getSchedulerHealth().lastFailedChecks, 0)
+  })
+
+  it('records heartbeats that arrive together, and the tick that follows skips them', async () => {
+    const tokens = Array.from({ length: 6 }, (_, i) => String(i + 1).repeat(48).slice(0, 48))
+    await db.insert(monitors).values(tokens.map((token, i) => monitorValues('Beat ' + i, {
+      webhookToken: token, currentStatus: 'up', alertConfirmedStatus: 'up', createdAt: Date.now() - 10 * 60_000,
+    })))
+    const app = Fastify()
+    await app.register(webhookRoutes, { prefix: '/hook' })
+    try {
+      const responses = await Promise.all(tokens.map((token) => app.inject({ method: 'GET', url: '/hook/' + token })))
+      assert.ok(responses.every((response) => response.statusCode === 200))
+      await runSchedulerTick(undefined, poolConfig(10))
+    } finally {
+      await app.close()
+    }
+    // One observation per monitor, from its heartbeat: the tick found them observed just now and left them alone.
+    const counts = await db.select().from(monitorResults)
+    assert.equal(new Set(counts.map((row) => row.monitorId)).size, 6)
+    assert.equal(counts.length, 6)
+    assert.equal(getSchedulerHealth().lastFailedChecks, 0)
+  })
+
+  it('skips a queued monitor that was observed or deleted while it waited', async () => {
+    const [first, observed, deleted] = await db.insert(monitors).values([
+      monitorValues('First', { type: 'https' }),
+      monitorValues('Observed', { type: 'https' }),
+      monitorValues('Deleted', { type: 'https' }),
+    ]).returning()
+    const checked: string[] = []
+
+    // One slot, so the other two wait in the queue while the first runs.
+    await runSchedulerTick(async (monitor) => {
+      checked.push(monitor.name)
+      await db.update(monitors).set({ lastCheckedAt: Date.now() }).where(eq(monitors.id, observed!.id)) // a heartbeat arrives
+      await db.delete(monitors).where(eq(monitors.id, deleted!.id))
+    }, { tickCron: '*/10 * * * * *', resultPurgeCron: '0 2 * * *', resultRetentionDays: 90, checkConcurrency: 1 })
+
+    assert.deepEqual(checked, [first!.name])
+    assert.equal(isCheckInFlight(observed!.id), false)
+    assert.equal(isCheckInFlight(deleted!.id), false)
+  })
+
+  it('keeps the limit across ticks that overlap', async () => {
+    await db.insert(monitors).values(Array.from({ length: 5 }, (_, i) => monitorValues('First ' + i, { type: 'https' })))
+    let active = 0
+    let maxActive = 0
+    let started = 0
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const run = async () => {
+      active++; started++
+      maxActive = Math.max(maxActive, active)
+      await gate
+      active--
+    }
+
+    const firstTick = runSchedulerTick(run, poolConfig(3))
+    while (started < 3) await tick()
+    // The first tick's checks hang; the monitors that become due meanwhile are picked up by the next tick.
+    await db.insert(monitors).values(Array.from({ length: 5 }, (_, i) => monitorValues('Second ' + i, { type: 'https' })))
+    const secondTick = runSchedulerTick(run, poolConfig(3))
+    for (let i = 0; i < 20; i++) await tick()
+    assert.equal(started, 3, 'the second tick must wait for a free slot')
+
+    release()
+    await Promise.all([firstTick, secondTick])
+    assert.equal(started, 10)
+    assert.equal(maxActive, 3)
+    assert.equal(getSchedulerHealth().lastDueMonitors, 5)
+  })
+
+  it('serves queued checks in the order they were queued', async () => {
+    const created = await db.insert(monitors).values(Array.from({ length: 6 }, (_, i) => monitorValues('M' + i, { type: 'https' }))).returning()
+    const order: number[] = []
+    await runSchedulerTick(async (monitor) => {
+      order.push(monitor.id)
+      await new Promise((resolve) => setTimeout(resolve, 2))
+    }, poolConfig(1))
+    assert.deepEqual(order, created.map((monitor) => monitor.id))
+  })
+
+  it('checks every monitor exactly once and frees its claim, whatever its check does', async () => {
+    const created = await db.insert(monitors).values(Array.from({ length: 60 }, (_, i) => monitorValues('S' + i, { type: 'https' }))).returning()
+    const runs = new Map<number, number>()
+    let active = 0
+    let maxActive = 0
+
+    await runSchedulerTick(async (monitor) => {
+      runs.set(monitor.id, (runs.get(monitor.id) ?? 0) + 1)
+      active++
+      maxActive = Math.max(maxActive, active)
+      try {
+        await new Promise((resolve) => setTimeout(resolve, monitor.id % 7))
+        if (monitor.id % 5 === 0) throw new Error('boom')
+      } finally {
+        active--
+      }
+    }, poolConfig(8))
+
+    assert.equal(runs.size, 60)
+    assert.ok([...runs.values()].every((count) => count === 1))
+    assert.ok(maxActive <= 8 && maxActive > 1)
+    assert.equal(getSchedulerHealth().lastFailedChecks, 12)
+    assert.ok(created.every((monitor) => !isCheckInFlight(monitor.id)))
+
+    // No slot leaked: a following tick with a limit of one still runs everything.
+    let again = 0
+    await runSchedulerTick(async () => { again++ }, poolConfig(1))
+    assert.equal(again, 60)
+  })
+
+  it('lets checks waiting from an earlier tick start when a later tick raises the limit', async () => {
+    await db.insert(monitors).values(Array.from({ length: 4 }, (_, i) => monitorValues('R' + i, { type: 'https' })))
+    let started = 0
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const run = async () => { started++; await gate }
+
+    const firstTick = runSchedulerTick(run, poolConfig(1))
+    while (started < 1) await tick()
+    await runSchedulerTick(run, poolConfig(4)) // nothing new is due, but the limit is now four
+    while (started < 4) await tick()
+    assert.equal(started, 4)
+
+    release()
+    await firstTick
   })
 
   it('never starts a second check for a monitor whose check is still running', async () => {
@@ -219,6 +405,49 @@ describe('scheduler orchestration', () => {
     const remaining = await db.select().from(monitorResults)
     assert.equal(remaining.length, 1)
     assert.equal(remaining[0]!.checkedAt, now - 89 * 86_400_000)
+  })
+
+  it('purges exactly one full batch, and the empty batch after it ends the loop', async () => {
+    const [full] = await db.insert(monitors).values([monitorValues('Full')]).returning()
+    const now = Date.now()
+    const insert = sqlite.prepare('INSERT INTO monitor_results (monitor_id, status, response_ms, checked_at) VALUES (?, ?, ?, ?)')
+    sqlite.exec('BEGIN')
+    for (let i = 0; i < 5_000; i++) insert.run(full!.id, 'up', 5, now - 100 * 86_400_000 + i)
+    sqlite.exec('COMMIT')
+
+    await purgeOldResults(now, config(90))
+
+    assert.equal((await db.select().from(monitorResults)).length, 0)
+    assert.equal((await db.select().from(monitorDailyResults)).length, 0)
+    assert.deepEqual(findDailyResultsMismatches(sqlite), [])
+  })
+
+  it('purges many results in batches, leaves the event loop free between them, and touches nothing else', async () => {
+    const [busy, quiet] = await db.insert(monitors).values([monitorValues('Busy'), monitorValues('Quiet')]).returning()
+    const now = Date.now()
+    const insert = sqlite.prepare('INSERT INTO monitor_results (monitor_id, status, response_ms, checked_at) VALUES (?, ?, ?, ?)')
+    sqlite.exec('BEGIN')
+    for (let i = 0; i < 12_000; i++) insert.run(busy!.id, 'up', 5, now - 100 * 86_400_000 + i) // two and a half batches, all expired
+    for (let i = 0; i < 30; i++) insert.run(busy!.id, 'up', 5, now - 1000 - i) // current
+    for (let i = 0; i < 40; i++) insert.run(quiet!.id, 'up', 5, now - 100 * 86_400_000 + i) // expired, another monitor
+    insert.run(quiet!.id, 'up', 5, now - 1000)
+    sqlite.exec('COMMIT')
+    // Every turn of the event loop that something else gets while the purge runs.
+    let turns = 0
+    let purging = true
+    const spin = () => { turns++; if (purging) setImmediate(spin) }
+    setImmediate(spin)
+
+    await purgeOldResults(now, config(90))
+    purging = false
+
+    assert.deepEqual(
+      (sqlite.prepare('SELECT monitor_id AS id, count(*) AS n FROM monitor_results GROUP BY monitor_id ORDER BY monitor_id').all() as Array<{ id: number; n: number }>).map((r) => [r.id, r.n]),
+      [[busy!.id, 30], [quiet!.id, 1]],
+    )
+    assert.ok(turns >= 3, `the event loop was given back after every batch (${turns} turns)`) // 5,000 + 5,000 + 2,000, then the other monitor
+    assert.deepEqual(findDailyResultsMismatches(sqlite), [])
+    assert.equal((await db.select().from(monitorDailyResults)).every((row) => row.checksTotal + row.maintenanceChecks > 0), true)
   })
 })
 

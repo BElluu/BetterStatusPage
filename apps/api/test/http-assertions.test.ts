@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { after, before, describe, it } from 'node:test'
-import type { HttpAssertion, HttpsConfig } from '@bsp/shared'
+import { MAX_JSON_ASSERTION_BODY_BYTES, type HttpAssertion, type HttpsConfig } from '@bsp/shared'
+import { readBodyText, type HttpResponse } from '../src/workers/httpAuth.js'
 import { parseJsonPath, validateHttpAssertions } from '../src/workers/assertions.js'
 import { checkHttps } from '../src/workers/https.js'
 import { testHttps } from '../src/workers/testRunner.js'
@@ -61,7 +62,8 @@ describe('header assertions', () => {
 
     const different = await check([{ type: 'header', name: 'X-Replicas', op: 'equals', value: '3', onFail: 'down' }])
     assert.equal(different.status, 'down')
-    assert.match(different.error ?? '', /it is "2"/)
+    assert.match(different.error ?? '', /failed: the value is not shown/)
+    assert.doesNotMatch(different.error ?? '', /"2"/)
   })
 
   it('never shows what a credential header held', async () => {
@@ -88,10 +90,10 @@ describe('JSON assertions', () => {
     assert.equal(result.status, 'up', result.error ?? '')
   })
 
-  it('reports the actual value of a failed comparison', async () => {
+  it('names the failed comparison without quoting the value', async () => {
     const result = await check([{ type: 'json', path: '$.queue.length', op: 'lt', value: 100 }])
     assert.equal(result.status, 'degraded')
-    assert.match(result.error ?? '', /\$\.queue\.length is less than 100 failed: it is 150/)
+    assert.match(result.error ?? '', /\$\.queue\.length is less than 100 failed: the value is not shown/)
   })
 
   it('fails a missing field, a non-number for lt/gt and a path through a scalar', async () => {
@@ -160,6 +162,14 @@ describe('test run', () => {
     assert.ok(steps.some((s) => s.startsWith('error: $.queue.length is less than 100') && s.includes('would be Down')), steps.join('\n'))
   })
 
+  it('quotes the answered value only when asked to, so only administrators read it', async () => {
+    const assertions: HttpAssertion[] = [{ type: 'json', path: '$.name', op: 'equals', value: 'x' }]
+    const detail = async (showActual: boolean) =>
+      (await testHttps(config('/api', { assertions }), 3_000, { showActual })).steps.find((s) => s.status === 'error')?.detail ?? ''
+    assert.match(await detail(true), /it is "api"/)
+    assert.doesNotMatch(await detail(false), /api"/)
+  })
+
   it('passes when all assertions hold and rejects an invalid assertion without a request', async () => {
     const ok = await testHttps(config('/api', { assertions: [{ type: 'header', name: 'X-Replicas', op: 'exists' }] }), 3_000)
     assert.equal(ok.overall, 'ok')
@@ -210,5 +220,26 @@ describe('validateHttpAssertions', () => {
     for (const [input, expected] of problems) {
       assert.match(validateHttpAssertions(input as Partial<HttpsConfig>) ?? '', expected, JSON.stringify(input).slice(0, 80))
     }
+  })
+})
+
+describe('reading a response body', () => {
+  it('stops and cancels an endless chunked stream instead of buffering it', async () => {
+    let cancelled = false
+    let pulled = 0
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) { pulled++; controller.enqueue(new Uint8Array(64 * 1024).fill(97)) },
+      cancel() { cancelled = true },
+    })
+    const res = { status: 200, ok: true, headers: { get: () => null }, body } as HttpResponse
+    const text = await readBodyText(res)
+    assert.equal(Buffer.byteLength(text, 'utf8'), MAX_JSON_ASSERTION_BODY_BYTES + 1)
+    assert.ok(cancelled)
+    assert.ok(pulled < 40)
+  })
+
+  it('reads a small body whole', async () => {
+    const res = new Response('hello') as unknown as HttpResponse
+    assert.equal(await readBodyText(res), 'hello')
   })
 })

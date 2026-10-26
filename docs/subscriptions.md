@@ -61,7 +61,7 @@ Each time you create an incident, post an update or schedule maintenance, a **No
 
 ## The subscriber side
 
-1. The visitor fills in the form. A hidden honeypot field, a 5-per-15-minutes limit per IP, and a 10-minute per-destination cooldown on confirmations keep the form from being used to spam people.
+1. The visitor fills in the form. A hidden honeypot field, a 5-per-15-minutes limit per IP (an IPv6 client counts per /64, as for every public limit), a 10-minute cooldown per email address on confirmations (whatever the destination), and at most 5 unconfirmed subscriptions per address keep the form from being used to spam people.
 2. A confirmation link (valid 48 hours) goes to the email address they entered. Opening it confirms the subscription straight away — the page just says so, with nothing else to click. The token sits in the URL fragment, which link scanners that merely fetch the URL never see; a scanner that runs the page in a full browser could still confirm on someone's behalf, which is the accepted trade-off for a one-click flow.
 3. Right after confirming, a second email — **You are subscribed** — summarises what they will receive and carries the single **Manage or unsubscribe** link. The page that confirmed never receives that link.
 4. Every notification carries the same **Manage or unsubscribe** link — the page behind it changes event types or components, unsubscribes, and subscribes again — plus a standard `List-Unsubscribe` header with RFC 8058 one-click support, so Gmail's and Outlook's own unsubscribe buttons work.
@@ -75,6 +75,8 @@ The layout lives in `apps/api/src/services/emailTemplate.ts`: every message is d
 The form answers the same way whether the address is new, pending or already subscribed. An already-subscribed address receives a reminder with its manage link instead, so nobody can change someone else's preferences.
 
 Tokens in links sit in the URL fragment (`/#subscription=…`), which browsers never send to the server. The one-click unsubscribe URL has to carry its token in the query string, and the API redacts `token=` from request logs.
+
+The database does not hold a usable manage link either. The manage token is stored encrypted with `VAULT_ENCRYPTION_KEY` (every notification carries the link again, so it has to be readable) and a link finds its subscriber by the SHA-256 of the token. A copy of the database or a backup without the key cannot change or cancel a subscription; with the key it can, so keep the key apart from the backups.
 
 ## Webhook subscribers
 

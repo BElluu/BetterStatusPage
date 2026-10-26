@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm'
 import { cancelRunsOfAction } from '../../workers/actionRunner.js'
 import { ENTITY_KEY_ERROR, isValidEntityKey, byKey, canonical, documentKey, isObject, keyList, nestedDeeperThan, unknownFields, type AuditEntry, type ConfigChange, type ConfigKind, type Json, type Problems } from '@better-kit/config-as-code'
-import { ACTION_TRIGGER_STATUSES, type ActionTriggerStatus } from '@bsp/shared'
+import { ACTION_TRIGGER_STATUSES, DEFAULT_APPROVAL_TIMEOUT_MINUTES, type ActionTriggerStatus } from '@bsp/shared'
 import { db } from '../../db/client.js'
-import { actionFailureChannels, actions, monitorActions } from '../../db/schema.js'
+import { actionNotificationChannels, actions, monitorActions } from '../../db/schema.js'
 import { actionConfigError, actionSecretTypeProblem } from '../../services/actionInput.js'
 import { maskSecrets, restoreSecrets } from '../../services/secretFields.js'
 import { vaultUseProblem } from '../vaultUse.js'
@@ -12,7 +12,7 @@ import { mayLinkChannels } from './channel.js'
 import type { ExportState, State } from './state.js'
 import { entityKeys, exportByKey, MAX_CONFIG_DEPTH, MAX_NAME_LENGTH, missingLink } from './shared.js'
 
-const ACTION_FIELDS = ['kind', 'key', 'name', 'enabled', 'config', 'failureNotifications']
+const ACTION_FIELDS = ['kind', 'key', 'name', 'enabled', 'requiresApproval', 'approvalTimeoutMinutes', 'config', 'notifications', 'failureNotifications']
 const ACTION_LINK_FIELDS = ['action', 'onStatus', 'delayMinutes', 'cooldownMinutes']
 const MAX_ACTION_MINUTES = 7 * 24 * 60
 
@@ -21,8 +21,10 @@ export interface DesiredAction {
   key: string
   name: string
   enabled: boolean
+  requiresApproval: boolean
+  approvalTimeoutMinutes: number
   config: Json
-  failureNotifications: string[]
+  notifications: string[]
 }
 
 export interface DesiredActionLink { action: string; onStatus: ActionTriggerStatus; delayMinutes: number; cooldownMinutes: number }
@@ -74,13 +76,18 @@ export const actionKind: ConfigKind<State, ExportState, DesiredAction, PlannedAc
     if (typeof name !== 'string' || !name.trim()) problems.add(`${path}.name`, 'is required')
     else if (name.length > MAX_NAME_LENGTH) problems.add(`${path}.name`, `must be at most ${MAX_NAME_LENGTH} characters`)
     if (entry['enabled'] !== undefined && typeof entry['enabled'] !== 'boolean') problems.add(`${path}.enabled`, 'must be true or false')
+    if (entry['requiresApproval'] !== undefined && typeof entry['requiresApproval'] !== 'boolean') problems.add(`${path}.requiresApproval`, 'must be true or false')
+    const timeout = entry['approvalTimeoutMinutes'] ?? DEFAULT_APPROVAL_TIMEOUT_MINUTES
+    if (!(typeof timeout === 'number' && Number.isInteger(timeout) && timeout >= 1 && timeout <= MAX_ACTION_MINUTES)) problems.add(`${path}.approvalTimeoutMinutes`, `must be a whole number of minutes from 1 to ${MAX_ACTION_MINUTES}`)
     const config = entry['config']
     if (!isObject(config)) problems.add(`${path}.config`, 'is required and must be an object')
     else if (nestedDeeperThan(config, MAX_CONFIG_DEPTH)) problems.add(`${path}.config`, `is nested deeper than ${MAX_CONFIG_DEPTH} levels`)
-    const failureNotifications = keysOf(entry['failureNotifications'], `${path}.failureNotifications`, problems)
+    // `failureNotifications` is the name this field had up to 0.6; it is still read, but not together with the new one.
+    if (entry['notifications'] !== undefined && entry['failureNotifications'] !== undefined) problems.add(path, 'has both notifications and failureNotifications; use notifications')
+    const notifications = keysOf(entry['notifications'] !== undefined ? entry['notifications'] : entry['failureNotifications'], `${path}.notifications`, problems)
 
     if (!key || typeof name !== 'string' || !isObject(config)) return null
-    return { path, key, name, config, enabled: entry['enabled'] !== false, failureNotifications }
+    return { path, key, name, config, enabled: entry['enabled'] !== false, requiresApproval: entry['requiresApproval'] === true, approvalTimeoutMinutes: typeof timeout === 'number' ? timeout : DEFAULT_APPROVAL_TIMEOUT_MINUTES, notifications }
   },
 
   plan(desired, ctx) {
@@ -89,8 +96,8 @@ export const actionKind: ConfigKind<State, ExportState, DesiredAction, PlannedAc
     const channelKeyById = new Map(state.channelRows.map((row) => [row.id, row.key]))
     const removedChannels = ctx.removed('NotificationChannel')
     const finalChannelKeys = new Set([...state.channelRows.map((row) => row.key).filter((key) => !removedChannels.has(key)), ...(ctx.desired('NotificationChannel') as DesiredChannel[]).map((channel) => channel.key)])
-    const currentFailureKeys = (actionId: number) =>
-      state.failureRows.filter((link) => link.actionId === actionId).flatMap((link) => channelKeyById.get(link.channelId) ?? []).sort()
+    const currentChannelKeys = (actionId: number) =>
+      state.notificationRows.filter((link) => link.actionId === actionId).flatMap((link) => channelKeyById.get(link.channelId) ?? []).sort()
     const mayLink = mayLinkChannels(token)
 
     const changes: ConfigChange[] = []
@@ -113,18 +120,18 @@ export const actionKind: ConfigKind<State, ExportState, DesiredAction, PlannedAc
           if (typeProblem) problems.add(`${action.path}.config`, typeProblem)
         }
       }
-      for (const key of action.failureNotifications) if (!finalChannelKeys.has(key)) problems.add(`${action.path}.failureNotifications`, missingLink('channel', key, removedChannels))
-      const refuseChannels = () => problems.add(`${action.path}.failureNotifications`, 'a token needs the "channels:write" permission to choose which channels are told when an action fails')
+      for (const key of action.notifications) if (!finalChannelKeys.has(key)) problems.add(`${action.path}.notifications`, missingLink('channel', key, removedChannels))
+      const refuseChannels = () => problems.add(`${action.path}.notifications`, 'a token needs the "channels:write" permission to choose which channels are told about the runs of an action')
       if (!existing) {
-        if (action.failureNotifications.length && !mayLink) refuseChannels()
+        if (action.notifications.length && !mayLink) refuseChannels()
         planned.push({ desired: action, config, existing, fields: [] })
         changes.push({ kind: 'Action', key: action.key, action: 'create' })
         continue
       }
-      const current: Json = { name: existing.name, enabled: existing.enabled === 1, config: JSON.parse(existing.config), failureNotifications: currentFailureKeys(existing.id) }
-      const wanted: Json = { name: action.name, enabled: action.enabled, config, failureNotifications: [...action.failureNotifications].sort() }
+      const current: Json = { name: existing.name, enabled: existing.enabled === 1, requiresApproval: existing.requiresApproval === 1, approvalTimeoutMinutes: existing.approvalTimeoutMinutes, config: JSON.parse(existing.config), notifications: currentChannelKeys(existing.id) }
+      const wanted: Json = { name: action.name, enabled: action.enabled, requiresApproval: action.requiresApproval, approvalTimeoutMinutes: action.approvalTimeoutMinutes, config, notifications: [...action.notifications].sort() }
       const fields = Object.keys(wanted).filter((field) => canonical(current[field]) !== canonical(wanted[field]))
-      if (fields.includes('failureNotifications') && !mayLink) refuseChannels()
+      if (fields.includes('notifications') && !mayLink) refuseChannels()
       if (fields.length) planned.push({ desired: action, config, existing, fields })
       changes.push({ kind: 'Action', key: action.key, action: fields.length ? 'update' : 'unchanged', ...(fields.length ? { fields } : {}) })
     }
@@ -140,7 +147,7 @@ export const actionKind: ConfigKind<State, ExportState, DesiredAction, PlannedAc
       const row = state.actionRows.find((each) => each.id === id)!
       await cancelRunsOfAction(id)
       await db.delete(monitorActions).where(eq(monitorActions.actionId, id))
-      await db.delete(actionFailureChannels).where(eq(actionFailureChannels.actionId, id))
+      await db.delete(actionNotificationChannels).where(eq(actionNotificationChannels.actionId, id))
       await db.delete(actions).where(eq(actions.id, id))
       audit.push({ action: 'delete', entity: 'action', id, name: row.name, diff: { key, source: 'configuration import' } })
     }
@@ -152,7 +159,7 @@ export const actionKind: ConfigKind<State, ExportState, DesiredAction, PlannedAc
     const source = 'configuration import'
     const channelId = ids('NotificationChannel')
     for (const { desired: action, config, existing, fields } of planned) {
-      const values = { name: action.name, config: JSON.stringify(config), enabled: action.enabled ? 1 : 0 }
+      const values = { name: action.name, config: JSON.stringify(config), enabled: action.enabled ? 1 : 0, requiresApproval: action.requiresApproval ? 1 : 0, approvalTimeoutMinutes: action.approvalTimeoutMinutes }
       let id: number
       if (existing) {
         id = existing.id
@@ -164,10 +171,10 @@ export const actionKind: ConfigKind<State, ExportState, DesiredAction, PlannedAc
         ids('Action').set(action.key, id)
         audit.push({ action: 'create', entity: 'action', id, name: action.name, diff: { key: action.key, source } })
       }
-      if (!existing || fields.includes('failureNotifications')) {
-        await db.delete(actionFailureChannels).where(eq(actionFailureChannels.actionId, id))
-        if (action.failureNotifications.length) {
-          await db.insert(actionFailureChannels).values(action.failureNotifications.map((key) => ({ actionId: id, channelId: channelId.get(key)! })))
+      if (!existing || fields.includes('notifications')) {
+        await db.delete(actionNotificationChannels).where(eq(actionNotificationChannels.actionId, id))
+        if (action.notifications.length) {
+          await db.insert(actionNotificationChannels).values(action.notifications.map((key) => ({ actionId: id, channelId: channelId.get(key)! })))
         }
       }
     }
@@ -182,8 +189,10 @@ export const actionKind: ConfigKind<State, ExportState, DesiredAction, PlannedAc
       key: row.key,
       name: row.name,
       enabled: row.enabled === 1,
+      ...(row.requiresApproval === 1 ? { requiresApproval: true } : {}),
+      ...(row.approvalTimeoutMinutes !== DEFAULT_APPROVAL_TIMEOUT_MINUTES ? { approvalTimeoutMinutes: row.approvalTimeoutMinutes } : {}),
       config: ctx.exportVaultRefs(maskSecrets('channel', JSON.parse(row.config))) as Json,
-      failureNotifications: keysOfIds(state.failureRows.filter((link) => link.actionId === row.id).map((link) => link.channelId)),
+      notifications: keysOfIds(state.notificationRows.filter((link) => link.actionId === row.id).map((link) => link.channelId)),
     })).sort(exportByKey)
   },
 }

@@ -4,9 +4,9 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { DEFAULT_UPTIME_THRESHOLDS, classifyUptimeDay } from '@bsp/shared'
-import type { DnsConfig, DockerConfig, HttpsConfig, Monitor, MonitorStats, MonitorWithActivity, PingConfig, UptimeDayStatus } from '@bsp/shared'
+import type { DnsConfig, DockerConfig, DomainConfig, HttpsConfig, Monitor, MonitorStats, MonitorWithActivity, PingConfig, UptimeDayStatus } from '@bsp/shared'
 import { describeRecurrence } from '../components/maintenance/recurrence'
-import { ActivityBadges, StatusBadge } from '../components/monitors/StatusBadge'
+import { ActivityBadges, MonitorStatusBadge, StatusBadge } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
 import { YamlViewModal } from '../components/YamlViewModal'
 import { CopyButton } from '@better-kit/ui'
@@ -205,6 +205,7 @@ function monitorTarget(monitor: Monitor): string | null {
     case 'ping': return (monitor.config as PingConfig).host
     case 'dns': return (monitor.config as DnsConfig).hostname
     case 'docker': return (monitor.config as DockerConfig).container
+    case 'domain': return (monitor.config as DomainConfig).domain
     case 'webhook': return null
     default: return (monitor.config as { host?: string }).host ?? null
   }
@@ -280,7 +281,7 @@ export default function MonitorDetailPage() {
         Monitors
       </Link>
       <PageHeader
-        title={<span className="inline-flex flex-wrap items-center gap-3">{monitor.name} <StatusBadge status={monitor.currentStatus} /> <ActivityBadges activity={monitor.activity} /></span>}
+        title={<span className="inline-flex flex-wrap items-center gap-3">{monitor.name} <MonitorStatusBadge monitor={monitor} /> <ActivityBadges activity={monitor.activity} /></span>}
         subtitle={`${typeLabel} · every ${monitor.intervalSecs}s · last check ${monitor.lastCheckedAt ? dateTime(monitor.lastCheckedAt) : 'never'}`}
         actions={<>
           <SegmentedControl label="Time range" options={RANGES.map((r) => ({ label: r.label, value: r.hours }))} value={hours} onChange={setHours} />
@@ -371,6 +372,7 @@ export default function MonitorDetailPage() {
           <aside className="flex-[0_1_320px] min-w-[260px] flex flex-col gap-5">
             <Card title="Summary">
               <Rows rows={[
+                ['Check result', <StatusBadge status={monitor.currentStatus} />],
                 ['Uptime', formatPct(stats.uptimePct)],
                 ['Checks', `${stats.checksUp} / ${stats.checksTotal}`],
                 ['Failed checks', stats.failures],

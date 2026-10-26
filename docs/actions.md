@@ -25,6 +25,7 @@ Actions live under *Admin → Alerts → **Actions*** and are managed by adminis
 | **Headers** | Optional. Values of headers that look like credentials (`Authorization`, `X-Api-Key`, ...) are shown masked once saved |
 | **Body (JSON)** | Optional JSON, for `POST`, `PUT` and `PATCH`. It is sent with `Content-Type: application/json`, and the variables go inside string values, for example `{"monitor": "{{monitor_name}}"}`. A body that is not valid JSON is refused when you save |
 | **Enabled** | A disabled action is never run |
+| **Require approval** | A run waits for an administrator to approve it before the request is sent, see [Actions that need approval](#actions-that-need-approval) |
 
 **Where variables work.** The [template variables](#template-variables) below, and the [secret placeholders](#secrets-from-the-vault), can be used in the **URL**, in the **values of headers** (not in header names) and in the **body**. The *Available variables* box in the form is shared with webhook channels, so it also lists names an action never fills in (`{{monitor_list}}`, `{{affected_count}}` and the certificate ones); use the ones in the table below.
 
@@ -65,7 +66,7 @@ The same action can be linked once per status, so one action can serve both `dow
 - **The monitor's confirmed status counts**, the same as for notifications: it is the status after **Alert after (checks)** and **Recover after (checks)** are met. Raise the thresholds to keep a flapping check from triggering an action. During a [maintenance window](incidents-and-maintenance.md) the confirmed status is not updated, and a run that comes due inside the window is cancelled, so an action never starts while you are working on the service.
 - **A `down` action waits for its delay and is dropped if the monitor recovers first.** The status, the maintenance windows and the link are checked again just before every attempt.
 - **A `back up` action runs after an outage**, that is when the monitor was down, degraded or affected by a dependency. It does not run for a monitor's first successful check.
-- **Waiting runs survive a restart.** They are stored in the database and sent by the same background worker as notification retries, which runs every 30 seconds, so a run can start up to about 30 seconds after it is due.
+- **Waiting runs survive a restart.** A run is stored in the same step that confirms the status change, even when it starts at once, and is sent by the same background worker as notification retries, which runs every 30 seconds, so a run can start up to about 30 seconds after it is due.
 - Removing the link, deleting the action or deleting the monitor cancels the runs that are still waiting.
 
 ---
@@ -93,15 +94,20 @@ A failed run is tried **3 times** in total: the second attempt a minute after th
 | Status | Meaning |
 | --- | --- |
 | `pending` | Waiting for its delay, or for the next attempt after a failure |
+| `awaiting_approval` | Waiting for an administrator to approve or reject it, see [Actions that need approval](#actions-that-need-approval) |
 | `succeeded` | The request was answered with a `2xx` status |
 | `failed` | All three attempts failed; the last error is shown |
-| `cancelled` | The monitor left the status first, or the action, its link or the monitor was removed. The reason is shown |
+| `cancelled` | The monitor left the status first, the action, its link or the monitor was removed, or the run was rejected or not approved in time. The reason is shown |
 
 Finished runs are kept for 180 days. The run history is in *Admin → Alerts → **Delivery history** → **Actions*** (administrators only), with filters by status and action, and **Run history** on the Actions page opens it.
 
 ### When a run fails
 
-In the action's form, the **Notify when a run fails** tab at the right edge lists your [notification channels](notification-channels.md). Each one you tick is told **once**, after the last attempt has failed: nothing is sent for a success, a cancelled run or **Run now**. Disabled channels are skipped. The message names the action, the monitor, the status that triggered it and the error of the last attempt, never the request. See the [Action failed event](notification-channels.md#action-failures-only).
+In the action's form, the **Notifications** tab at the right edge lists your [notification channels](notification-channels.md). Each one you tick is told **once**, after the last attempt has failed: nothing is sent for a cancelled run or **Run now**. Disabled channels are skipped. The message names the action, the monitor, the status that triggered it and the error of the last attempt, never the request. See the [Action failed event](notification-channels.md#action-runs-only).
+
+### When a run succeeds
+
+A channel can also be told when a run **succeeds**, so you know the action really ran: turn on **Notify when an action run succeeds** on the **Action** tab of the [channel](notification-channels.md#wording-for-monitors-and-for-actions). It is off by default and decided per channel, for every action the channel is ticked on. Only the action's own runs are reported, not **Run now**, and the message names the action, the monitor and the status that triggered it.
 
 ---
 
@@ -117,9 +123,23 @@ If `VM1` is down for five minutes without recovering, the job starts `VM2`. If i
 
 ---
 
+## Actions that need approval
+
+Some actions are too significant to start on their own, for example one that fails over a database or shuts a server down. Turn on **Require approval** in the action's form and a run of that action is not sent when the monitor reaches the status. It waits as `awaiting_approval` until an administrator decides:
+
+- **Approve** queues the run like any other. The delay set on the monitor's link counts from the approval, not from the moment the monitor went down, and a run without a delay is sent at once. The usual checks still apply before the request goes out: a run whose monitor has recovered since, that lies in a maintenance window or whose link is gone is cancelled with the reason.
+- **Reject** cancels the run; nothing is sent.
+- **Nobody decides** within **Approval expires after (minutes)** (60 by default, from 1 minute to 7 days, set per action): the run is cancelled as *Not approved in time*, because the outage has likely changed by then. The same happens when the monitor changes status, or the action, its link or the monitor is removed, while the run waits.
+
+Approve and Reject are buttons on the run in *Admin → Alerts → **Delivery history** → **Actions*** (the filter *Awaiting approval* lists only those runs). Any administrator can decide, including the one who changed the action. The decision, and who made it, is written to the audit log (*Administration → **Audit Log***). It is only possible in the admin panel: an [API token](api.md#permissions) is refused, whatever its permissions.
+
+The channels you ticked on the action's **Notifications** tab are told when a run starts waiting, so the right person knows to look; see the [Action needs approval event](notification-channels.md#action-runs-only). **Run now** is not held for approval: pressing it is a deliberate act of the administrator. The cooldown of a link counts a waiting run, so one outage does not queue more requests for approval.
+
+---
+
 ## Security
 
-- Only administrators can create, change, test, retry or link actions, and see the run history. The **Action failed** entries of the notification history are hidden from everyone else for the same reason: they quote what the target answered. An [API token](api.md#permissions) needs the `actions` permission, `channels:write` to choose the failure channels, and `vault:use` to add or change a vault reference.
+- Only administrators can create, change, test, retry, approve, reject or link actions, and see the run history. The **Action** entries of the notification history are hidden from everyone else for the same reason: they quote what the target answered. An [API token](api.md#permissions) needs the `actions` permission, `channels:write` to choose the notification channels, and `vault:use` to add or change a vault reference.
 - Credential-looking headers are masked in the panel and the API. Sending the mask back keeps the stored value. A save that changes the URL but keeps a masked secret is refused, so a stored secret cannot be sent to another address: enter it again.
 - **Keep credentials in a [vault secret](#secrets-from-the-vault).** Whatever you type into a header, the URL or the body is stored in the database as plain JSON, like the headers of a webhook channel, and the URL is shown in clear text to every administrator and returned by the API. The form warns when a header or the URL looks like it holds a credential.
 - A request can go to any address the server can reach, internal ones included. That is what makes an action useful for a Jenkins on a private network, so give the permission only to people who may start those jobs. Redirects are not followed.

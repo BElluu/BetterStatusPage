@@ -81,7 +81,7 @@ function calcTextH(markdown: string): number {
   return Math.max(1, Math.ceil(estimatedPx / ROW_H))
 }
 
-const CHART_TYPES = ['https', 'ping', 'sqlserver', 'postgresql', 'mysql', 'mongodb', 'docker']
+const CHART_TYPES = ['https', 'ping', 'sqlserver', 'postgresql', 'mysql', 'mongodb', 'oracle', 'redis', 'mail', 'ssh', 'tls', 'docker']
 
 /** A new root node of the given toolbox type, or null when the type needs a monitor that was not given. */
 function createToolboxNode(type: string, options: { monitorId?: number; label?: string } = {}): Omit<LayoutNode, 'id'> | null {
@@ -734,7 +734,7 @@ function NodeCard(props: NodeCardProps) {
         <DeleteBtn onDelete={onDelete} label={label} />
         <span className="drag-handle cursor-grab text-secondary hover:text-on-surface-variant shrink-0" aria-hidden="true">⠿</span>
         <span className="text-[9px] uppercase bg-surface-container-high text-on-surface-variant px-1 py-0.5 rounded shrink-0">{monitor?.type ?? '?'}</span>
-        <span className="flex-1 text-sm text-on-surface truncate pr-5">{monitor?.name ?? `#${n.monitorId}`}</span>
+        <span className="flex-1 text-sm text-on-surface truncate pr-5">{n.displayName?.trim() || monitor?.name || `#${n.monitorId}`}</span>
         {(n.cardVariant === 'compact') && (
           <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 py-0.5 rounded shrink-0">compact</span>
         )}
@@ -1029,6 +1029,16 @@ function PropertiesPanel({
         <select id="builder-prop-monitor" value={n.monitorId} onChange={(e) => onUpdate({ monitorId: Number(e.target.value) } as Partial<MonitorNode>)} className={cls}>
           {monitors.map((m) => <option key={m.id} value={m.id}>[{m.type.toUpperCase()}] {m.name}</option>)}
         </select>
+
+        <Label htmlFor="builder-prop-display-name">Display name (optional)</Label>
+        <input
+          id="builder-prop-display-name"
+          value={n.displayName ?? ''}
+          onChange={(e) => onUpdate({ displayName: e.target.value || undefined } as Partial<MonitorNode>)}
+          onBlur={(e) => onUpdate({ displayName: e.target.value.trim() || undefined } as Partial<MonitorNode>)}
+          className={cls}
+          placeholder="Leave empty to use monitor name"
+        />
 
         <div role="group" aria-labelledby="builder-prop-card-type">
           <Label id="builder-prop-card-type">Card type</Label>

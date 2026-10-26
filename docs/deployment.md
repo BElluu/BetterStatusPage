@@ -57,7 +57,7 @@ openssl rand -hex 32   # VAULT_ENCRYPTION_KEY
 Edit `.env` and set at least:
 
 ```env
-BSP_IMAGE=ghcr.io/belluu/better-status-page:0.6.0
+BSP_IMAGE=ghcr.io/belluu/better-status-page:0.7.0
 BSP_BIND_ADDRESS=127.0.0.1
 JWT_SECRET=<first generated value>
 VAULT_ENCRYPTION_KEY=<second generated value>
@@ -99,7 +99,7 @@ The wizard has three steps:
 2. **Admin Account** — email and password (8 to 128 characters). This account gets the `admin` role.
 3. **Done** — the database is created, default branding (site name *My Status Page*) and an empty page layout are added, monitoring starts, and you are signed in.
 
-Setup runs only once. When it finishes, `setup.json` is written to the data directory and the wizard closes. Until then `/ready` returns 503. Further administrators and the other roles are added later under **Users**, see [users and roles](users-and-roles.md).
+Setup runs only once. When it finishes, `setup.json` is written to the data directory and the wizard closes. If `setup.json` is lost while the database remains, setup stays refused as long as the database has any user; restore the file from a backup or recreate it as `{"setupComplete": true, "dbType": "sqlite"}`. Until then `/ready` returns 503. Further administrators and the other roles are added later under **Users**, see [users and roles](users-and-roles.md).
 
 The status page is at `http://your-server:3000`.
 
@@ -434,7 +434,7 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ### Docker Compose
 
-Set the new version in `.env`, for example `BSP_IMAGE=ghcr.io/belluu/better-status-page:0.6.0`, then:
+Set the new version in `.env`, for example `BSP_IMAGE=ghcr.io/belluu/better-status-page:0.7.0`, then:
 
 ```bash
 docker compose pull
@@ -484,7 +484,7 @@ Before exposing an instance publicly:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `BSP_IMAGE` | Docker Compose | Container image used by `docker-compose.yml`, for example `ghcr.io/belluu/better-status-page:0.6.0`. |
+| `BSP_IMAGE` | Docker Compose | Container image used by `docker-compose.yml`, for example `ghcr.io/belluu/better-status-page:0.7.0`. |
 | `BSP_BIND_ADDRESS` | Docker Compose | Host address for published port. Default/recommended behind Nginx: `127.0.0.1`. Use `0.0.0.0` only for direct testing. |
 | `PORT` | No | Port to listen on. Default: `3000` |
 | `NODE_ENV` | Yes (prod) | Set to `production`. Enables security headers, HSTS, enforces secrets. |
@@ -507,7 +507,9 @@ Before exposing an instance publicly:
 | `OIDC_DISABLE_PASSWORD_LOGIN`, `OIDC_ALLOW_UNVERIFIED_EMAIL` | No | `true` hides and rejects password sign-in while OIDC is active / accepts IdPs that send neither `email_verified` nor `xms_edov` (for Entra ID add the `xms_edov` optional claim instead). |
 | `OIDC_FORCE_PASSWORD_LOGIN` | No | Break-glass: `true` re-enables password sign-in even if it was disabled, for when the identity provider is down. Restart required. |
 | `SCHEDULER_TICK_SECONDS` | No | How often the scheduler scans for due monitors. Default: `10`. Must be 1-59 seconds. |
-| `MONITOR_CHECK_CONCURRENCY` | No | Maximum number of due monitors checked concurrently. Default: `20`. |
+| `SSE_MAX_CLIENTS` / `SSE_MAX_CLIENTS_PER_IP` | No | Most live event streams (status page and admin) open at the same time, in total and from one address (an IPv6 `/64` counts as one). Only anonymous streams are counted. Streams over the limit get `429`; the status page then falls back to refreshing every 30 seconds. Defaults: `1000` and `10`. Behind a reverse proxy or CDN, set `TRUST_PROXY` so the address is the visitor's: otherwise every visitor shares the proxy's address and the per-address limit applies to all of them. Each stream holds a file descriptor, so keep the total below the process limit (`ulimit -n`). |
+| `MONITOR_CHECK_CONCURRENCY` | No | Maximum number of scheduled checks running at the same time, across all ticks. Default: `20`. "Check now" is not counted. |
+| `HEARTBEAT_AUTO_CREATE_LIMIT` | No | How many monitors one API token may create an hour by [sending a heartbeat to a key](monitors.md#sending-by-key-created-on-the-first-heartbeat) that has no monitor yet. Default: `50`. `0` means no limit. |
 | `MONITOR_RESULT_RETENTION_DAYS` | No | Monitor result retention period. Default: `90`. |
 | `MONITOR_RESULT_PURGE_CRON` | No | Cron expression for purging old monitor results. Default: `0 2 * * *` (daily at 02:00). |
 

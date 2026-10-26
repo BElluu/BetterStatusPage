@@ -1,5 +1,5 @@
 import type { DatabaseConfig } from '@bsp/shared'
-import { checkDatabase, type DatabaseCheckResult, type DatabaseConnection, type DatabaseDriver } from './database.js'
+import { checkDatabase, type DatabaseCheckResult, type DatabaseConnection, type DatabaseDriver, type FieldsConnection } from './database.js'
 
 const NO_SSL_MESSAGE = 'The server does not support SSL connections'
 
@@ -23,13 +23,13 @@ export const postgresDriver: DatabaseDriver = {
       return client
     }
 
-    // Discrete fields prefer an encrypted connection (certificate unchecked) and fall back to plain
-    // when the server answers that it has no TLS. A connection string carries its own sslmode.
+    // Only 'prefer' falls back to plain when the server answers that it has no TLS; a plain retry would hand
+    // the password to whoever answered "no SSL". A connection string carries its own sslmode.
     let client: Awaited<ReturnType<typeof open>>
     try {
       client = await open(true)
     } catch (err) {
-      if (!(err instanceof Error) || err.message !== NO_SSL_MESSAGE || 'connectionString' in connection) throw err
+      if (!(err instanceof Error) || err.message !== NO_SSL_MESSAGE || 'connectionString' in connection || connection.tls !== 'prefer') throw err
       client = await open(false)
     }
     return {
@@ -44,6 +44,10 @@ export const postgresDriver: DatabaseDriver = {
   },
 }
 
+/** The `ssl` option of pg for an encrypted attempt. */
+export const postgresSsl = (c: FieldsConnection) =>
+  c.tls === 'verify' ? { rejectUnauthorized: true, ...(c.ca ? { ca: c.ca } : {}) } : { rejectUnauthorized: false }
+
 function clientTarget(connection: DatabaseConnection, ssl: boolean) {
   if ('connectionString' in connection) return { connectionString: connection.connectionString }
   return {
@@ -52,7 +56,7 @@ function clientTarget(connection: DatabaseConnection, ssl: boolean) {
     database: connection.database,
     user: connection.user,
     password: connection.password,
-    ssl: ssl ? { rejectUnauthorized: false } : false,
+    ssl: ssl ? postgresSsl(connection) : false,
   }
 }
 

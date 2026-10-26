@@ -121,6 +121,21 @@ describe('public status API', () => {
     assert.doesNotMatch(response.body, /Internal DB/)
   })
 
+  it('keys the cache on the host when links come from the request', async () => {
+    const configured = await app.inject({ url: '/api/v1/public/summary.json' })
+    assert.equal(configured.headers['vary'], undefined)
+
+    delete process.env['PUBLIC_URL']
+    try {
+      const response = await app.inject({ url: '/api/v1/public/summary.json', headers: { host: 'status.local' } })
+      assert.match(String(response.headers['vary']), /Host/i)
+      assert.match(String(response.headers['vary']), /X-Forwarded-Host/i)
+      assert.equal(response.json().page.url, 'http://status.local/')
+    } finally {
+      process.env['PUBLIC_URL'] = 'https://status.example.test'
+    }
+  })
+
   it('can be switched off by operators', async () => {
     await saveSubscriptionSettings(normalizeSubscriptionSettings({ apiEnabled: false }, await getSubscriptionSettings()))
     assert.equal((await app.inject({ url: '/api/v1/public/summary.json' })).statusCode, 404)

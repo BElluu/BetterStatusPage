@@ -115,6 +115,24 @@ describe('MonitorsPage', () => {
     expect(screen.getAllByText(/^Maintenance$|^Incident ·/)).toHaveLength(2)
   })
 
+  it('shows the status visitors see when an open incident is worse than the checks', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/admin/monitors') {
+        return [
+          { ...monitors[0], activity: { maintenance: false, windows: [], incident: 'major' } },
+          { ...monitors[1], activity: { maintenance: false, windows: [], incident: 'minor' } },
+        ]
+      }
+      if (path === '/auth/session') return {}
+      throw new Error(`Unexpected GET ${path}`)
+    })
+    renderPage()
+    expect(await screen.findByText('Down · incident')).toBeInTheDocument()
+    // The incident never hides a worse check result.
+    expect(screen.getByText('Down')).toBeInTheDocument()
+    expect(screen.queryByText('Operational')).not.toBeInTheDocument()
+  })
+
   it('filters by tag and clears the filter', async () => {
     const user = userEvent.setup()
     renderPage()
@@ -209,8 +227,9 @@ describe('MonitorsPage', () => {
 
     const panel = await screen.findByRole('region', { name: 'What should we check first?' })
     expect(within(panel).getAllByRole('button').map((tile) => tile.textContent)).toEqual([
-      expect.stringContaining('HTTPS'), expect.stringContaining('Ping / TCP'), expect.stringContaining('DNS'),
-      expect.stringContaining('Database'), expect.stringContaining('Docker'), expect.stringContaining('Webhook'),
+      expect.stringContaining('HTTPS'), expect.stringContaining('TLS certificate'), expect.stringContaining('Domain expiry'),
+      expect.stringContaining('Ping / TCP'), expect.stringContaining('DNS'), expect.stringContaining('Mail server'), expect.stringContaining('SSH'),
+      expect.stringContaining('Database'), expect.stringContaining('Redis'), expect.stringContaining('Docker'), expect.stringContaining('Webhook'),
     ])
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
 

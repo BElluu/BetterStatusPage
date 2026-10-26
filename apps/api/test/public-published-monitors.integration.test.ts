@@ -37,7 +37,7 @@ before(async () => {
     ] }),
   })
 
-  const [incident] = await db.insert(incidents).values({ title: 'Mixed impact', status: 'investigating', impact: 'major', startedAt: now, createdAt: now, updatedAt: now }).returning()
+  const [incident] = await db.insert(incidents).values({ title: 'Mixed impact', autoMonitorId: ids['Internal DB'], status: 'investigating', impact: 'major', startedAt: now, createdAt: now, updatedAt: now }).returning()
   await db.insert(incidentMonitors).values([
     { incidentId: incident!.id, monitorId: ids['Website']! },
     { incidentId: incident!.id, monitorId: ids['Internal DB']! },
@@ -94,15 +94,19 @@ describe('public API exposes only published monitors', () => {
     assert.deepEqual(list[0].monitorIds, [ids['Website']])
     const detail = (await app.inject({ url: `/public/incidents/${ids['incident']}` })).json()
     assert.deepEqual(detail.monitorIds, [ids['Website']])
+    assert.equal(list[0].autoMonitorId, null)
+    assert.equal(detail.autoMonitorId, null)
   })
 
-  it('serves history only for published monitors, charts included', async () => {
+  it('serves history only for the charts of published monitors', async () => {
     for (const name of ['Website', 'Charted API']) {
       assert.equal((await app.inject({ url: `/public/monitor/${ids[name]}/uptime?days=7` })).statusCode, 200, name)
-      assert.equal((await app.inject({ url: `/public/monitor/${ids[name]}/history` })).statusCode, 200, name)
     }
+    assert.equal((await app.inject({ url: `/public/monitor/${ids['Charted API']}/history?hours=24&buckets=30` })).statusCode, 200)
+    assert.equal((await app.inject({ url: `/public/monitor/${ids['Charted API']}/history?hours=48&buckets=30` })).statusCode, 404, 'a range no chart asks for')
+    assert.equal((await app.inject({ url: `/public/monitor/${ids['Website']}/history` })).statusCode, 404, 'a status card has no chart')
     assert.equal((await app.inject({ url: `/public/monitor/${ids['Internal DB']}/uptime` })).statusCode, 404)
-    assert.equal((await app.inject({ url: `/public/monitor/${ids['Internal DB']}/history` })).statusCode, 404)
+    assert.equal((await app.inject({ url: `/public/monitor/${ids['Internal DB']}/history?hours=24&buckets=30` })).statusCode, 404)
   })
 
   it('streams status changes of published monitors only and strips internal incident links', async () => {
@@ -122,13 +126,14 @@ describe('public API exposes only published monitors', () => {
 
     sseService.broadcast('monitor.status', { monitorId: ids['Internal DB'], status: 'down' })
     sseService.broadcast('monitor.status', { monitorId: ids['Website'], status: 'down' })
-    sseService.broadcast('incident.updated', { id: ids['incident'], title: 'Mixed impact', monitorIds: [ids['Website'], ids['Internal DB']] })
+    sseService.broadcast('incident.updated', { id: ids['incident'], title: 'Mixed impact', autoMonitorId: ids['Internal DB'], monitorIds: [ids['Website'], ids['Internal DB']] })
     await readUntil('event: incident.updated')
     controller.abort()
 
     assert.doesNotMatch(received, new RegExp(`"monitorId":${ids['Internal DB']}\\b`))
     assert.match(received, new RegExp(`"monitorId":${ids['Website']}\\b`))
     assert.match(received, new RegExp(`"monitorIds":\\[${ids['Website']}\\]`))
+    assert.match(received, /"autoMonitorId":null/)
   })
 
   it('publishes a monitor as soon as the layout includes it', async () => {

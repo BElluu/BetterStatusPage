@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
 import fs from 'fs'
 import path from 'path'
-import { closeDb, sqlite } from '../src/db/client.js'
+import { closeDb, initDb, sqlite } from '../src/db/client.js'
+import { findDailyResultsMismatches } from '../src/db/dailyResults.js'
 import { spawnSync } from 'child_process'
 import { createBackup, currentVaultKeyMatches, INTERRUPTED_BACKUP_ERROR, isBackupLockHeld, listBackups, readBackupStatus, validateBackup, type BackupManifest } from '../src/kit/backupService.js'
 import { spawnBackupWorker } from '@better-kit/backup'
@@ -86,6 +87,30 @@ describe('backup and restore', () => {
     assert.equal((restored.prepare('SELECT email FROM users').get() as { email: string }).email, 'original@example.test')
     restored.close()
     assert.equal(fs.readFileSync(path.join(process.env['UPLOAD_DIR']!, 'logo.png'), 'utf8'), 'original')
+  })
+
+  it('restores the daily uptime totals with the results, from a backup made before they existed too', async () => {
+    setupPaths()
+    const monitorId = Number(sqlite.prepare("INSERT INTO monitors (name, type, config, created_at, updated_at, key) VALUES ('M', 'https', '{}', 1, 1, 'm')").run().lastInsertRowid)
+    const insert = sqlite.prepare('INSERT INTO monitor_results (monitor_id, status, response_ms, checked_at) VALUES (?, ?, ?, ?)')
+    for (let i = 0; i < 30; i++) insert.run(monitorId, i % 5 === 0 ? 'down' : 'up', 100 + i, 1_800_000_000_000 + i * 20_000_000)
+    const current = await createBackup()
+
+    // The same data as a release without the daily totals kept it: no table, no triggers, no record of the step.
+    sqlite.exec('DROP TRIGGER monitor_results_daily_insert; DROP TRIGGER monitor_results_daily_update; DROP TRIGGER monitor_results_daily_delete')
+    sqlite.exec("DROP TABLE monitor_daily_results; DELETE FROM schema_migrations WHERE name = 'monitor-daily-results-v1'")
+    const old = await createBackup()
+
+    for (const backupFile of [current, old]) {
+      closeDb()
+      await restoreBackup(path.join(process.env['BACKUP_DIR']!, backupFile.filename), { vaultEncryptionKey: VAULT_KEY })
+      initDb()
+      assert.deepEqual(findDailyResultsMismatches(sqlite), [])
+      assert.equal((sqlite.prepare('SELECT sum(checks_total) AS n FROM monitor_daily_results').get() as { n: number }).n, 30)
+      sqlite.prepare('INSERT INTO monitor_results (monitor_id, status, response_ms, checked_at) VALUES (?, ?, ?, ?)').run(monitorId, 'up', 1, 1_800_000_000_000) // still counted after the restore
+      assert.deepEqual(findDailyResultsMismatches(sqlite), [])
+      sqlite.prepare('DELETE FROM monitor_results WHERE response_ms = 1').run()
+    }
   })
 
   it('rejects a backup when the vault key differs', async () => {

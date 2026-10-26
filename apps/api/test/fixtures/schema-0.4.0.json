@@ -2,9 +2,9 @@
   "objects": [
     {
       "type": "index",
-      "name": "idx_action_failure_channels_link",
-      "table": "action_failure_channels",
-      "sql": "CREATE UNIQUE INDEX idx_action_failure_channels_link ON action_failure_channels(action_id, channel_id)"
+      "name": "idx_action_notification_channels_link",
+      "table": "action_notification_channels",
+      "sql": "CREATE UNIQUE INDEX idx_action_notification_channels_link ON action_notification_channels(action_id, channel_id)"
     },
     {
       "type": "index",
@@ -140,6 +140,12 @@
     },
     {
       "type": "index",
+      "name": "idx_subscribers_manage_token_hash",
+      "table": "subscribers",
+      "sql": "CREATE UNIQUE INDEX idx_subscribers_manage_token_hash ON subscribers(manage_token_hash)"
+    },
+    {
+      "type": "index",
       "name": "idx_subscribers_status",
       "table": "subscribers",
       "sql": "CREATE INDEX idx_subscribers_status ON subscribers(status)"
@@ -152,9 +158,9 @@
     },
     {
       "type": "table",
-      "name": "action_failure_channels",
-      "table": "action_failure_channels",
-      "sql": "CREATE TABLE action_failure_channels (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  action_id INTEGER NOT NULL,\n  channel_id INTEGER NOT NULL\n)"
+      "name": "action_notification_channels",
+      "table": "action_notification_channels",
+      "sql": "CREATE TABLE action_notification_channels (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  action_id INTEGER NOT NULL,\n  channel_id INTEGER NOT NULL\n)"
     },
     {
       "type": "table",
@@ -166,7 +172,7 @@
       "type": "table",
       "name": "actions",
       "table": "actions",
-      "sql": "CREATE TABLE actions (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  config TEXT NOT NULL DEFAULT '{}',\n  enabled INTEGER NOT NULL DEFAULT 1,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, key TEXT NOT NULL DEFAULT '')"
+      "sql": "CREATE TABLE actions (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  config TEXT NOT NULL DEFAULT '{}',\n  enabled INTEGER NOT NULL DEFAULT 1,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, key TEXT NOT NULL DEFAULT '', requires_approval INTEGER NOT NULL DEFAULT 0, approval_timeout_minutes INTEGER NOT NULL DEFAULT 60)"
     },
     {
       "type": "table",
@@ -248,6 +254,12 @@
     },
     {
       "type": "table",
+      "name": "monitor_daily_results",
+      "table": "monitor_daily_results",
+      "sql": "CREATE TABLE monitor_daily_results (\n  monitor_id INTEGER NOT NULL REFERENCES monitors(id) ON DELETE CASCADE,\n  day INTEGER NOT NULL,\n  checks_total INTEGER NOT NULL DEFAULT 0,\n  checks_up INTEGER NOT NULL DEFAULT 0,\n  maintenance_checks INTEGER NOT NULL DEFAULT 0,\n  response_sum INTEGER NOT NULL DEFAULT 0,\n  response_count INTEGER NOT NULL DEFAULT 0,\n  PRIMARY KEY (monitor_id, day)\n) WITHOUT ROWID"
+    },
+    {
+      "type": "table",
       "name": "monitor_dependencies",
       "table": "monitor_dependencies",
       "sql": "CREATE TABLE monitor_dependencies (\n  dependent_id  INTEGER NOT NULL,\n  depends_on_id INTEGER NOT NULL,\n  PRIMARY KEY (dependent_id, depends_on_id),\n  FOREIGN KEY (dependent_id)  REFERENCES monitors(id) ON DELETE CASCADE,\n  FOREIGN KEY (depends_on_id) REFERENCES monitors(id) ON DELETE CASCADE\n)"
@@ -268,7 +280,7 @@
       "type": "table",
       "name": "monitors",
       "table": "monitors",
-      "sql": "CREATE TABLE monitors (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  type TEXT NOT NULL,\n  interval_secs INTEGER NOT NULL DEFAULT 60,\n  timeout_ms INTEGER NOT NULL DEFAULT 10000,\n  config TEXT NOT NULL,\n  current_status TEXT NOT NULL DEFAULT 'pending',\n  last_checked_at INTEGER,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, retries INTEGER NOT NULL DEFAULT 1, webhook_token TEXT, tags TEXT NOT NULL DEFAULT '[]', failure_threshold INTEGER NOT NULL DEFAULT 1, recovery_threshold INTEGER NOT NULL DEFAULT 1, alert_confirmed_status TEXT NOT NULL DEFAULT 'pending', alert_pending_status TEXT, alert_pending_count INTEGER NOT NULL DEFAULT 0, cert_expires_at INTEGER, cert_checked_at INTEGER, cert_warned_days INTEGER, key TEXT NOT NULL DEFAULT '', auto_incident_minutes INTEGER, auto_incident_mode TEXT NOT NULL DEFAULT 'draft', auto_incident_template_id INTEGER, failing_since INTEGER)"
+      "sql": "CREATE TABLE monitors (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  type TEXT NOT NULL,\n  interval_secs INTEGER NOT NULL DEFAULT 60,\n  timeout_ms INTEGER NOT NULL DEFAULT 10000,\n  config TEXT NOT NULL,\n  current_status TEXT NOT NULL DEFAULT 'pending',\n  last_checked_at INTEGER,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, retries INTEGER NOT NULL DEFAULT 1, webhook_token TEXT, tags TEXT NOT NULL DEFAULT '[]', failure_threshold INTEGER NOT NULL DEFAULT 1, recovery_threshold INTEGER NOT NULL DEFAULT 1, alert_confirmed_status TEXT NOT NULL DEFAULT 'pending', alert_pending_status TEXT, alert_pending_count INTEGER NOT NULL DEFAULT 0, cert_expires_at INTEGER, cert_checked_at INTEGER, cert_warned_days INTEGER, key TEXT NOT NULL DEFAULT '', auto_incident_minutes INTEGER, auto_incident_mode TEXT NOT NULL DEFAULT 'draft', auto_incident_template_id INTEGER, failing_since INTEGER, auto_created_by_token_id INTEGER)"
     },
     {
       "type": "table",
@@ -340,7 +352,7 @@
       "type": "table",
       "name": "subscribers",
       "table": "subscribers",
-      "sql": "CREATE TABLE subscribers (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  type TEXT NOT NULL,\n  target_key TEXT NOT NULL UNIQUE,\n  email TEXT NOT NULL,\n  webhook_url TEXT,\n  status TEXT NOT NULL DEFAULT 'pending',\n  events TEXT NOT NULL DEFAULT '[]',\n  monitor_ids TEXT NOT NULL DEFAULT '[]',\n  tags TEXT NOT NULL DEFAULT '[]',\n  confirm_token_hash TEXT,\n  confirm_expires_at INTEGER,\n  confirmation_sent_at INTEGER,\n  manage_token TEXT NOT NULL UNIQUE,\n  created_at INTEGER NOT NULL,\n  confirmed_at INTEGER,\n  unsubscribed_at INTEGER,\n  last_notified_at INTEGER,\n  last_error TEXT,\n  updated_at INTEGER NOT NULL\n, webhook_method TEXT NOT NULL DEFAULT 'POST', webhook_headers TEXT, notify_on_failure INTEGER NOT NULL DEFAULT 0, consecutive_failures INTEGER NOT NULL DEFAULT 0, failure_notified_at INTEGER, disabled_at INTEGER)"
+      "sql": "CREATE TABLE subscribers (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  type TEXT NOT NULL,\n  target_key TEXT NOT NULL UNIQUE,\n  email TEXT NOT NULL,\n  webhook_url TEXT,\n  status TEXT NOT NULL DEFAULT 'pending',\n  events TEXT NOT NULL DEFAULT '[]',\n  monitor_ids TEXT NOT NULL DEFAULT '[]',\n  tags TEXT NOT NULL DEFAULT '[]',\n  confirm_token_hash TEXT,\n  confirm_expires_at INTEGER,\n  confirmation_sent_at INTEGER,\n  manage_token TEXT NOT NULL UNIQUE,\n  created_at INTEGER NOT NULL,\n  confirmed_at INTEGER,\n  unsubscribed_at INTEGER,\n  last_notified_at INTEGER,\n  last_error TEXT,\n  updated_at INTEGER NOT NULL\n, webhook_method TEXT NOT NULL DEFAULT 'POST', webhook_headers TEXT, notify_on_failure INTEGER NOT NULL DEFAULT 0, consecutive_failures INTEGER NOT NULL DEFAULT 0, failure_notified_at INTEGER, disabled_at INTEGER, manage_token_hash TEXT)"
     },
     {
       "type": "table",
@@ -365,15 +377,37 @@
       "name": "vaults",
       "table": "vaults",
       "sql": "CREATE TABLE vaults (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  type TEXT NOT NULL DEFAULT 'local',\n  description TEXT,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, connection_config TEXT)"
+    },
+    {
+      "type": "trigger",
+      "name": "monitor_results_daily_delete",
+      "table": "monitor_results",
+      "sql": "CREATE TRIGGER monitor_results_daily_delete AFTER DELETE ON monitor_results BEGIN UPDATE monitor_daily_results SET\n      checks_total = checks_total - (CASE WHEN OLD.unconfirmed = 2 THEN 0 ELSE 1 END),\n      checks_up = checks_up - (CASE WHEN OLD.unconfirmed = 2 THEN 0 WHEN OLD.status = 'up' OR OLD.unconfirmed = 1 THEN 1 ELSE 0 END),\n      maintenance_checks = maintenance_checks - (CASE WHEN OLD.unconfirmed = 2 THEN 1 ELSE 0 END),\n      response_sum = response_sum - (coalesce(OLD.response_ms, 0)),\n      response_count = response_count - (CASE WHEN OLD.response_ms IS NULL THEN 0 ELSE 1 END)\n    WHERE monitor_id = OLD.monitor_id AND day = OLD.checked_at / 86400000; END"
+    },
+    {
+      "type": "trigger",
+      "name": "monitor_results_daily_insert",
+      "table": "monitor_results",
+      "sql": "CREATE TRIGGER monitor_results_daily_insert AFTER INSERT ON monitor_results BEGIN INSERT INTO monitor_daily_results (monitor_id, day, checks_total, checks_up, maintenance_checks, response_sum, response_count)\n    VALUES (NEW.monitor_id, NEW.checked_at / 86400000, CASE WHEN NEW.unconfirmed = 2 THEN 0 ELSE 1 END, CASE WHEN NEW.unconfirmed = 2 THEN 0 WHEN NEW.status = 'up' OR NEW.unconfirmed = 1 THEN 1 ELSE 0 END, CASE WHEN NEW.unconfirmed = 2 THEN 1 ELSE 0 END, coalesce(NEW.response_ms, 0), CASE WHEN NEW.response_ms IS NULL THEN 0 ELSE 1 END)\n    ON CONFLICT (monitor_id, day) DO UPDATE SET\n      checks_total = checks_total + excluded.checks_total,\n      checks_up = checks_up + excluded.checks_up,\n      maintenance_checks = maintenance_checks + excluded.maintenance_checks,\n      response_sum = response_sum + excluded.response_sum,\n      response_count = response_count + excluded.response_count; END"
+    },
+    {
+      "type": "trigger",
+      "name": "monitor_results_daily_update",
+      "table": "monitor_results",
+      "sql": "CREATE TRIGGER monitor_results_daily_update AFTER UPDATE OF monitor_id, checked_at, status, unconfirmed, response_ms ON monitor_results\n   BEGIN UPDATE monitor_daily_results SET\n      checks_total = checks_total - (CASE WHEN OLD.unconfirmed = 2 THEN 0 ELSE 1 END),\n      checks_up = checks_up - (CASE WHEN OLD.unconfirmed = 2 THEN 0 WHEN OLD.status = 'up' OR OLD.unconfirmed = 1 THEN 1 ELSE 0 END),\n      maintenance_checks = maintenance_checks - (CASE WHEN OLD.unconfirmed = 2 THEN 1 ELSE 0 END),\n      response_sum = response_sum - (coalesce(OLD.response_ms, 0)),\n      response_count = response_count - (CASE WHEN OLD.response_ms IS NULL THEN 0 ELSE 1 END)\n    WHERE monitor_id = OLD.monitor_id AND day = OLD.checked_at / 86400000; INSERT INTO monitor_daily_results (monitor_id, day, checks_total, checks_up, maintenance_checks, response_sum, response_count)\n    VALUES (NEW.monitor_id, NEW.checked_at / 86400000, CASE WHEN NEW.unconfirmed = 2 THEN 0 ELSE 1 END, CASE WHEN NEW.unconfirmed = 2 THEN 0 WHEN NEW.status = 'up' OR NEW.unconfirmed = 1 THEN 1 ELSE 0 END, CASE WHEN NEW.unconfirmed = 2 THEN 1 ELSE 0 END, coalesce(NEW.response_ms, 0), CASE WHEN NEW.response_ms IS NULL THEN 0 ELSE 1 END)\n    ON CONFLICT (monitor_id, day) DO UPDATE SET\n      checks_total = checks_total + excluded.checks_total,\n      checks_up = checks_up + excluded.checks_up,\n      maintenance_checks = maintenance_checks + excluded.maintenance_checks,\n      response_sum = response_sum + excluded.response_sum,\n      response_count = response_count + excluded.response_count; END"
     }
   ],
   "migrations": [
+    "action-failure-channels-renamed-v1",
     "action-keys-backfill-v1",
     "branding-defaults-match-light-mode-v2",
     "branding-legacy-logo-variants-v1",
     "default-incident-template-v1",
     "entity-keys-backfill-v1",
+    "monitor-daily-results-v1",
     "monitors-seed-alert-confirmed-status-v1",
-    "sso-users-temporary-password-revoked-v1"
+    "sealed-inline-secrets-v1",
+    "sso-users-temporary-password-revoked-v1",
+    "subscriber-manage-token-hash-v1"
   ]
 }

@@ -1,4 +1,5 @@
 import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core'
+import { sealedText, type SealedText } from '@better-kit/vault'
 
 /**
  * How the application names what the notification tables store about it. The tables of an existing installation keep
@@ -13,14 +14,23 @@ export interface NotifyTableOptions {
   smtpFromName: string
   /** Creates the stable `key` of a channel that is inserted without one. */
   newKey: () => string
+  /**
+   * The text columns that hold credentials: a channel's configuration (JSON) and the SMTP password. Build them with
+   * `sealedText` from the codecs that encrypt the secrets; without them the values are stored as they are.
+   */
+  sealed?: { channelConfig: SealedText; smtpPassword: SealedText }
 }
 
+const plain = sealedText({ seal: (value) => value, open: (value) => value })
+
 export function defineNotifyTables(options: NotifyTableOptions) {
+  const sealed = options.sealed ?? { channelConfig: plain, smtpPassword: plain }
+
   const notificationChannels = sqliteTable('notification_channels', {
     id: integer('id').primaryKey({ autoIncrement: true }),
     name: text('name').notNull(),
     type: text('type').notNull(), // 'email' | 'webhook'
-    config: text('config').notNull().default('{}'), // JSON
+    config: sealed.channelConfig('config').notNull().default('{}'), // JSON
     enabled: integer('enabled').notNull().default(1),
     notifyOnRecovery: integer('notify_on_recovery').notNull().default(0),
     createdAt: integer('created_at').notNull(),
@@ -72,7 +82,7 @@ export function defineNotifyTables(options: NotifyTableOptions) {
     port: integer('port').notNull().default(587),
     secure: integer('secure').notNull().default(0),
     user: text('user').notNull().default(''),
-    password: text('password').notNull().default(''),
+    password: sealed.smtpPassword('password').notNull().default(''),
     fromAddress: text('from_address').notNull().default(''),
     fromName: text('from_name').notNull().default(options.smtpFromName),
     updatedAt: integer('updated_at').notNull(),

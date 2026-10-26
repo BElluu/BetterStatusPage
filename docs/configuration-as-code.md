@@ -84,7 +84,7 @@ autoIncident:
 | `kind` | Contents |
 |---|---|
 | `NotificationChannel` | One channel: its settings, its alert policy (quiet hours, rate cap, grouping) and whether it is enabled. |
-| `Action` | One [action](actions.md): its HTTP request (the vault secret it reads is named, see [Secrets](#secrets)), whether it is enabled, and the **keys** of the notification channels told when a run fails (`failureNotifications`). |
+| `Action` | One [action](actions.md): its HTTP request (the vault secret it reads is named, see [Secrets](#secrets)), whether it is enabled, whether its runs [need approval](actions.md#actions-that-need-approval) (`requiresApproval`, and `approvalTimeoutMinutes` for how long they wait, 60 by default; both are left out of an export while they have their default), the **keys** of the notification channels told about its runs (`notifications`, called `failureNotifications` up to 0.6, which is still read). |
 | `Monitor` | One monitor: its schedule and thresholds, its configuration and tags, the **keys** of the channels it alerts through (`notifications`) and of the monitors it depends on (`dependsOn`), the [actions](actions.md) it runs (`actions`), and optionally its [automatic incident](#automatic-incidents). |
 
 ```yaml
@@ -98,7 +98,7 @@ config:
     Authorization: Basic {{secret_jenkins_basic}}
   secrets:
     - { name: jenkins, vault: { vault: Production, secret: jenkins-login } }
-failureNotifications: [ops-slack]
+notifications: [ops-slack]
 ---
 kind: Monitor
 key: vm1-sql
@@ -107,6 +107,29 @@ type: sqlserver
 config: { host: vm1.internal, port: 1433, database: app, user: sa, vault: { vault: Production, secret: sql-login }, query: SELECT 1, mode: fields }
 actions:
   - { action: start-vm2, onStatus: down, delayMinutes: 5, cooldownMinutes: 60 }
+```
+
+Every [monitor type](monitors.md#monitor-types) is a `type` of a `Monitor` document, with the `config` that its section of the monitors guide lists; the secrets of a config (`password`) are masked in an export like the others:
+
+```yaml
+kind: Monitor
+key: cache
+name: Cache
+type: redis
+config: { host: cache.internal, port: 6379, tls: true, username: monitor, vault: { vault: Production, secret: redis-login } }
+---
+kind: Monitor
+key: mail-certificate
+name: Mail certificate
+type: tls
+config: { host: mail.example.com, port: 993, warnDays: 21 }
+---
+kind: Monitor
+key: example-domain
+name: Domain registration
+type: domain
+intervalSecs: 3600
+config: { domain: example.com, warnDays: 30 }
 ```
 
 The `actions` list of a monitor is optional. **A monitor document without it leaves the links of the monitor as they are**, so a file written before actions existed does not remove them; `actions: []` removes them all. A link needs the `action` key, `onStatus` (`down` or `up`) and optionally `delayMinutes` and `cooldownMinutes` (0 to 10080, 0 by default); an action can be linked once per status. Runs that wait for a link the file removed are cancelled.

@@ -36,11 +36,11 @@ setup('provision operator and branding accounts', async () => {
   for (const role of ['operator', 'branding'] as const satisfies readonly Role[]) {
     const email = `e2e-${role}@example.test`
     const password = `e2e-${role}-password`
-    const created = await admin.post('admin/users', { data: { email } })
+    const created = await admin.post('admin/users', { data: { email, currentPassword: ADMIN.password } })
     expect(created.ok(), await created.text()).toBeTruthy()
     const { id, temporaryPassword } = await created.json() as { id: number; temporaryPassword: string }
     if (role !== 'branding') {
-      const promoted = await admin.patch(`admin/users/${id}/role`, { data: { role } })
+      const promoted = await admin.patch(`admin/users/${id}/role`, { data: { role, currentPassword: ADMIN.password } })
       expect(promoted.ok(), await promoted.text()).toBeTruthy()
     }
 

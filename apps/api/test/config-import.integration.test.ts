@@ -5,7 +5,8 @@ import { parseAllDocuments, stringify } from 'yaml'
 import { db, sqlite } from '../src/db/client.js'
 import { vaultSecrets, vaults } from '../src/db/schema.js'
 import { configRoutes } from '../src/kit/configRoutes.js'
-import { SECRET_MASK } from '../src/services/secretFields.js'
+import { sealer } from '../src/kit/sealer.js'
+import { configCodec, SECRET_MASK } from '../src/services/secretFields.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const testDb = createTestDb('bsp-config-import-')
@@ -70,7 +71,8 @@ async function applied(documents: unknown): Promise<Doc> {
 }
 
 const rows = (table: string) => sqlite.prepare(`SELECT * FROM ${table} ORDER BY 1, 2`).all() as Array<Record<string, any>> // eslint-disable-line @typescript-eslint/no-explicit-any
-const stored = (key: string) => JSON.parse((sqlite.prepare('SELECT config FROM monitors WHERE key = ?').get(key) as { config: string }).config)
+const openMonitorConfig = configCodec('monitor', sealer).open
+const stored = (key: string) => JSON.parse(openMonitorConfig((sqlite.prepare('SELECT config FROM monitors WHERE key = ?').get(key) as { config: string }).config))
 const everything = () => JSON.stringify(['monitors', 'notification_channels', 'monitor_notification_channels', 'monitor_dependencies'].map(rows))
 const change = (result: Doc, kind: string, key?: string) => result['changes'].find((c: Doc) => c['kind'] === kind && c['key'] === key)
 
@@ -180,6 +182,53 @@ describe('importing what is already there', () => {
     assert.deepEqual(result['summary'], { create: 0, update: 0, unchanged: 5 })
     assert.equal(everything(), before)
     assert.equal(rows('audit_log').length, auditCount)
+  })
+
+  it('imports, exports and re-reads the monitors of every service type, keeping their passwords', async () => {
+    const service = (key: string, type: string, config: Doc): Doc => ({ kind: 'Monitor', key, name: key, type, config })
+    const documents = [
+      service('cache', 'redis', { host: 'cache.test', port: 6379, tls: true, username: 'alice', password: 'redis-secret' }),
+      service('mailbox', 'mail', { protocol: 'imap', host: 'mail.test', port: 993, security: 'tls', username: 'me', password: 'mail-secret' }),
+      service('shell', 'ssh', { host: 'ssh.test', port: 22, expectedBanner: 'OpenSSH' }),
+      service('certificate', 'tls', { host: 'example.test', port: 443, warnDays: 21 }),
+      service('registration', 'domain', { domain: 'example.test', warnDays: 30 }),
+      service('ledger', 'oracle', { host: 'db.test', port: 1521, database: 'FREEPDB1', user: 'mon', password: 'oracle-secret', query: 'SELECT 1 FROM DUAL', tls: 'verify' }),
+    ]
+    assert.deepEqual((await applied(documents))['summary'], { create: 6, update: 0, unchanged: 0 })
+    assert.equal(stored('cache').password, 'redis-secret')
+    assert.equal(stored('mailbox').password, 'mail-secret')
+    assert.equal(stored('ledger').password, 'oracle-secret')
+
+    const file = await exported()
+    for (const [key, secret] of [['cache', 'redis-secret'], ['mailbox', 'mail-secret'], ['ledger', 'oracle-secret']] as const) {
+      const doc = file.find((d) => d['key'] === key)!
+      assert.equal(doc['config'].password, SECRET_MASK, key)
+      assert.equal(JSON.stringify(file).includes(secret), false, key)
+    }
+    assert.equal(file.find((d) => d['key'] === 'shell')!['config'].expectedBanner, 'OpenSSH')
+    assert.deepEqual((await applied(file))['summary'], { create: 0, update: 0, unchanged: 6 })
+    assert.equal(stored('mailbox').password, 'mail-secret')
+  })
+
+  it('refuses a service monitor whose configuration its checker could not use', async () => {
+    for (const bad of [
+      { type: 'redis', config: { host: 'cache.test' } },
+      { type: 'mail', config: { protocol: 'gopher', host: 'mail.test', port: 25, security: 'none' } },
+      { type: 'tls', config: { host: 'example.test', port: 443, warnDays: 0 } },
+      { type: 'domain', config: { domain: 'not a domain', warnDays: 30 } },
+    ]) {
+      const response = await validate({ kind: 'Monitor', key: 'bad', name: 'Bad', ...bad })
+      assert.equal(response.statusCode, 400, JSON.stringify(bad))
+    }
+  })
+
+  it('does not keep a stored mail password when a document loosens the connection', async () => {
+    const mail = (config: Doc): Doc => ({ kind: 'Monitor', key: 'mailbox', name: 'Mailbox', type: 'mail', config: { protocol: 'imap', host: 'mail.test', port: 993, security: 'tls', username: 'me', ...config } })
+    await applied([mail({ password: 'mail-secret' })])
+    for (const weaker of [{ verifyTls: false }, { security: 'none' }, { tlsCa: 'my own authority' }]) {
+      assert.equal((await apply(mail({ ...weaker, password: SECRET_MASK }))).statusCode, 400, JSON.stringify(weaker))
+    }
+    assert.equal(stored('mailbox').password, 'mail-secret')
   })
 
   it('reads its own export back as no change, keeping every secret', async () => {

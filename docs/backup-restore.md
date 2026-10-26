@@ -24,7 +24,7 @@ It does not contain:
 - `JWT_SECRET`,
 - `VAULT_ENCRYPTION_KEY`.
 
-Keep `VAULT_ENCRYPTION_KEY` separately. Restore requires it explicitly because encrypted vault records cannot be validated or used without the original key.
+Keep `VAULT_ENCRYPTION_KEY` separately. Restore requires it explicitly because encrypted vault records cannot be validated or used without the original key. The credentials typed into monitors, actions and channels and the SMTP password are encrypted with the same key (see [Vault](vault.md#credentials-typed-into-a-monitor-action-or-channel)), so the backup file alone does not reveal them either.
 
 ## Create a backup
 
@@ -41,7 +41,7 @@ Docker Compose:
 docker compose exec app node apps/api/dist/cli/backup.js
 ```
 
-The admin Backups page can also create and download backups.
+The admin Backups page can also create and download backups. A download is recorded in the audit log with who took it.
 
 ## Verify a backup
 

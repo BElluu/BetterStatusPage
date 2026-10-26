@@ -25,6 +25,7 @@ const SECTIONS: { label: string; items: { slug: string; label?: string }[] }[] =
       { slug: 'alert-hygiene' },
       { slug: 'actions', label: 'Actions' },
       { slug: 'reports', label: 'Uptime reports' },
+      { slug: 'performance', label: 'Performance' },
     ],
   },
   {
@@ -62,6 +63,10 @@ const SECTIONS: { label: string; items: { slug: string; label?: string }[] }[] =
       { slug: 'configuration-as-code', label: 'Configuration as code' },
       { slug: 'backup-restore', label: 'Backup and restore' },
     ],
+  },
+  {
+    label: 'Contribute',
+    items: [{ slug: 'development', label: 'Development' }],
   },
   {
     label: 'Releases',

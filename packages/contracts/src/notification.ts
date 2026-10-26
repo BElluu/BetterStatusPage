@@ -62,7 +62,12 @@ export interface PushoverNotificationConfig {
   text?: string
 }
 
-export type NotificationChannelConfig = EmailNotificationConfig | WebhookNotificationConfig | DiscordNotificationConfig | TeamsNotificationConfig | SlackNotificationConfig | TelegramNotificationConfig | NtfyNotificationConfig | PushoverNotificationConfig
+/** The wording a channel has for one kind of event, by event type: only the message fields of its type (subject, body, text...). */
+export interface ChannelEventOverrides {
+  eventOverrides?: Record<string, Record<string, string>>
+}
+
+export type NotificationChannelConfig = (EmailNotificationConfig | WebhookNotificationConfig | DiscordNotificationConfig | TeamsNotificationConfig | SlackNotificationConfig | TelegramNotificationConfig | NtfyNotificationConfig | PushoverNotificationConfig) & ChannelEventOverrides
 
 /** Quiet hours silence a channel during a recurring local-time window. */
 export interface QuietHoursPolicy {

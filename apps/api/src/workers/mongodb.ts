@@ -1,5 +1,12 @@
 import type { DatabaseConfig } from '@bsp/shared'
-import { checkDatabase, type DatabaseCheckResult, type DatabaseDriver } from './database.js'
+import { checkDatabase, type DatabaseCheckResult, type DatabaseDriver, type FieldsConnection } from './database.js'
+
+/** The TLS options of the MongoDB client: none for `prefer`, which is how these monitors always connected. */
+export const mongoTls = (c: FieldsConnection) => c.tls === 'prefer' ? {} : {
+  tls: true,
+  tlsAllowInvalidCertificates: c.tls === 'require',
+  ...(c.ca ? { ca: c.ca } : {}),
+}
 
 /** A MongoDB "query" is a database command written as a JSON object, e.g. `{"ping":1}`. */
 function parseCommand(text: string): Record<string, unknown> {
@@ -21,12 +28,13 @@ export const mongoDriver: DatabaseDriver = {
   async connect(connection, timeoutMs) {
     const { MongoClient } = await import('mongodb')
     const timeouts = { serverSelectionTimeoutMS: timeoutMs, connectTimeoutMS: timeoutMs, socketTimeoutMS: timeoutMs }
-    // Discrete fields connect without TLS and authenticate against the database (admin when empty), like
+    // Discrete fields connect without TLS ('prefer') or with it, and authenticate against the database (admin when empty), like
     // the driver's own default. A connection string carries its own tls and authSource settings.
     const client = 'connectionString' in connection
       ? new MongoClient(connection.connectionString, timeouts)
       : new MongoClient(`mongodb://${connection.host}:${connection.port}`, {
           ...timeouts,
+          ...mongoTls(connection),
           ...(connection.user ? { auth: { username: connection.user, password: connection.password }, authSource: connection.database || 'admin' } : {}),
         })
     try {

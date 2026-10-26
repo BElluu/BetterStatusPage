@@ -1,17 +1,25 @@
-import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig } from '@bsp/shared'
+import { MAX_JSON_ASSERTION_BODY_BYTES, type HttpsConfig, type DatabaseConfig, type PingConfig, type DnsConfig, type DockerConfig, type RedisConfig, type MailConfig, type SshConfig, type TlsCertConfig, type DomainConfig } from '@bsp/shared'
 import { evaluateAssertions, validateHttpAssertions } from './assertions.js'
 import { evaluateContainer, inspectContainer, validateDockerConfig } from './docker.js'
-import { discardBody, errMsg, followRedirects, insecureForOrigin, redactedCookies, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type ResolvedHttpAuth } from './httpAuth.js'
-import { firstValue, resolveConnectionString, resolveFieldCredentials, type DatabaseConnection, type DatabaseDriver, type DatabaseSession } from './database.js'
+import { discardBody, errMsg, followRedirects, insecureForOrigin, requestUrl, readBodyText, redactedCookies, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type ResolvedHttpAuth } from './httpAuth.js'
+import { fieldsConnection, firstValue, resolveConnectionString, resolveFieldCredentials, type DatabaseConnection, type DatabaseDriver, type DatabaseSession } from './database.js'
 import { sqlServerDriver } from './sqlserver.js'
 import { postgresDriver } from './postgres.js'
 import { mysqlDriver } from './mysql.js'
 import { mongoDriver } from './mongodb.js'
+import { oracleDriver } from './oracle.js'
 import { certificateTarget, certMilestone, normalizeCertExpiry, readCertificate } from './certificate.js'
 import { expiresInPhrase } from './notifier.js'
 import { checkPing } from './ping.js'
+import { checkRedis } from './redis.js'
+import { checkMail } from './mail.js'
+import { checkSsh } from './ssh.js'
+import { checkTlsCert } from './tlsCert.js'
+import { checkDomainExpiry } from './domainExpiry.js'
+import type { CheckOutcome } from './probe.js'
 import { Resolver } from 'dns/promises'
 import { Agent, fetch as undiciFetch } from 'undici'
+import { guardedConnector, guardedFetch } from '../services/ssrfGuard.js'
 
 export interface TestStep {
   label: string
@@ -31,7 +39,8 @@ export interface TestResult {
 
 // ── HTTPS ─────────────────────────────────────────────────────────────────────
 
-export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise<TestResult> {
+/** `showActual`: the failure messages may quote what the endpoint answered (administrators only). */
+export async function testHttps(config: HttpsConfig, timeoutMs: number, { showActual = false }: { showActual?: boolean } = {}): Promise<TestResult> {
   const steps: TestStep[] = []
   const totalStart = Date.now()
   const fail = (): TestResult => ({ overall: 'error', steps, totalMs: Date.now() - totalStart })
@@ -63,10 +72,11 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
     const t = Date.now()
     try {
       const method = (config.method ?? 'GET').toUpperCase()
-      steps.push({ label: `${method} ${config.url}`, status: 'info' })
+      const target = auth.cas ? config.url : requestUrl(config, config.url)
+      steps.push({ label: `${method} ${target}`, status: 'info' })
       const res = auth.cas
         ? await requestWithCas(config, { ...auth, cas: auth.cas }, opts)
-        : await followRedirects(config, auth.headers, controller.signal, doFetch, ({ status, next, cookies }) => {
+        : await followRedirects({ ...config, url: target }, auth.headers, controller.signal, doFetch, ({ status, next, cookies }) => {
           const cookieNote = cookies.length ? ` [Set-Cookie: ${cookies.join(', ')}]` : ''
           steps.push({ label: `→ ${status} ${next}${cookieNote}`, status: 'info', cookies: redactedCookies(cookies) })
         })
@@ -82,8 +92,10 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
       steps.push({ label: `Response: HTTP ${res.status}`, status: 'ok', durationMs: responseMs })
 
       // Keep the body in memory for validation, but never expose it in diagnostics.
-      const responseBody = await res.text()
-      steps.push({ label: 'Response body', status: 'info', detail: `${Buffer.byteLength(responseBody, 'utf8')} bytes (content omitted)` })
+      const responseBody = await readBodyText(res)
+      const bodyBytes = Buffer.byteLength(responseBody, 'utf8')
+      const bodySize = bodyBytes > MAX_JSON_ASSERTION_BODY_BYTES ? 'more than 1 MB' : `${bodyBytes} bytes`
+      steps.push({ label: 'Response body', status: 'info', detail: `${bodySize} (content omitted)` })
 
       // ── Keyword check ───────────────────────────────────────────────────
       if (config.keyword) {
@@ -97,7 +109,7 @@ export async function testHttps(config: HttpsConfig, timeoutMs: number): Promise
 
       // ── Assertions and response time ──────────────────────────────────────
       // A failure here fails the test whatever its severity; the step says what the scheduled check would report.
-      const outcomes = await evaluateAssertions(config.assertions ?? [], res.headers, async () => responseBody)
+      const outcomes = await evaluateAssertions(config.assertions ?? [], res.headers, async () => responseBody, { showActual })
       for (const o of outcomes) {
         steps.push(o.ok
           ? { label: o.label, status: 'ok' }
@@ -144,11 +156,11 @@ export async function certificateStep(config: HttpsConfig, timeoutMs: number): P
   }
 }
 
-const globalFetch: HttpFetch = (url, init) => fetch(url, init)
-const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } })
+const globalFetch: HttpFetch = (url, init) => guardedFetch(url, init)
+const insecureAgent = new Agent({ connect: guardedConnector({ rejectUnauthorized: false }) })
 const insecureFetch: HttpFetch = (url, init) => undiciFetch(url, { ...init, dispatcher: insecureAgent })
 
-// ── Databases (SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB) ───────────────────
+// ── Databases (SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB, Oracle) ───────────────────
 
 async function testDatabase(driver: DatabaseDriver, config: DatabaseConfig, timeoutMs: number): Promise<TestResult> {
   const steps: TestStep[] = []
@@ -188,7 +200,12 @@ async function testDatabase(driver: DatabaseDriver, config: DatabaseConfig, time
       steps.push(config.vault
         ? { label: 'Credentials resolved from Vault', status: 'ok', detail: `User: ${user}`, durationMs: Date.now() - t }
         : { label: 'Using direct credentials', status: 'info', detail: `User: ${user}` })
-      connection = { host: config.host, port: config.port, database: config.database, user, password }
+      try {
+        connection = fieldsConnection(config, { user, password })
+      } catch (err) {
+        steps.push({ label: 'Invalid connection security', status: 'error', detail: errMsg(err) })
+        return fail()
+      }
       connectedLabel = `Connected to ${config.host}:${config.port} / ${config.database}`
       failedLabel = `Connection to ${config.host}:${config.port} failed`
     }
@@ -241,6 +258,7 @@ export const testSqlServer = (config: DatabaseConfig, timeoutMs: number) => test
 export const testPostgres = (config: DatabaseConfig, timeoutMs: number) => testDatabase(postgresDriver, config, timeoutMs)
 export const testMysql = (config: DatabaseConfig, timeoutMs: number) => testDatabase(mysqlDriver, config, timeoutMs)
 export const testMongo = (config: DatabaseConfig, timeoutMs: number) => testDatabase(mongoDriver, config, timeoutMs)
+export const testOracle = (config: DatabaseConfig, timeoutMs: number) => testDatabase(oracleDriver, config, timeoutMs)
 
 // ── Docker ────────────────────────────────────────────────────────────────────
 
@@ -337,3 +355,26 @@ export async function testDns(config: DnsConfig, timeoutMs: number): Promise<Tes
   }
 }
 
+
+// ── Redis, mail, SSH, TLS certificate, domain expiry ──────────────────────────
+
+/** Runs one of the single-step checkers and reports its outcome as a test result. */
+async function testOutcome(label: string, run: () => Promise<CheckOutcome>): Promise<TestResult> {
+  const totalStart = Date.now()
+  const outcome = await run()
+  const step: TestStep = outcome.status === 'up'
+    ? { label, status: 'ok', detail: outcome.detail, durationMs: outcome.responseMs ?? 0 }
+    : { label: `${label} failed`, status: 'error', detail: outcome.error ?? undefined, durationMs: outcome.responseMs ?? Date.now() - totalStart }
+  return { overall: outcome.status === 'up' ? 'ok' : 'error', steps: [step], totalMs: Date.now() - totalStart }
+}
+
+export const testRedis = (config: RedisConfig, timeoutMs: number) =>
+  testOutcome(`Redis ${config.host}:${config.port}`, () => checkRedis(config, timeoutMs))
+export const testMail = (config: MailConfig, timeoutMs: number) =>
+  testOutcome(`${config.protocol.toUpperCase()} ${config.host}:${config.port}`, () => checkMail(config, timeoutMs))
+export const testSsh = (config: SshConfig, timeoutMs: number) =>
+  testOutcome(`SSH ${config.host}:${config.port}`, () => checkSsh(config, timeoutMs))
+export const testTlsCert = (config: TlsCertConfig, timeoutMs: number) =>
+  testOutcome(`TLS certificate of ${config.host}:${config.port}`, () => checkTlsCert(config, timeoutMs))
+export const testDomain = (config: DomainConfig, timeoutMs: number) =>
+  testOutcome(`Domain ${config.domain}`, () => checkDomainExpiry(config, timeoutMs))

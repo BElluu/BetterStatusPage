@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import type { Action, MonitorAction, NotificationChannel } from '@bsp/shared'
+import { isDatabaseType } from '@bsp/shared'
+import type { Action, MonitorAction, MonitorType, NotificationChannel } from '@bsp/shared'
 import type { VaultRef } from '@better-kit/contracts'
 import type { SidePanelMeta } from '@better-kit/ui'
 import { ConnectionStringSection, CredentialSection } from '@better-kit/ui'
@@ -73,11 +74,24 @@ export function hasDatabaseCredentials(config: Record<string, unknown>): boolean
   return !!config['user'] && !!config['password']
 }
 
-/** How a database monitor signs in: a connection string held in Vault, or a user and password (typed or from Vault). */
-export function CredentialsSection({ config, updateConfig, vaultPicker }: {
+/** True when a Redis or mail monitor has an account to sign in with: a Vault secret, or a password typed in. */
+export function hasAccountCredentials(config: Record<string, unknown>): boolean {
+  const vault = config['vault'] as VaultRef | undefined
+  return vault ? vault.secretId > 0 : !!config['password']
+}
+
+/** The monitor types that have a Credentials tab; only the database ones cannot work without them. */
+export const usesCredentials = (type: MonitorType): boolean => isDatabaseType(type) || type === 'redis' || type === 'mail'
+
+/**
+ * How a monitor signs in: a connection string held in Vault, or a user and password (typed or from Vault).
+ * Redis and mail call the user `username` and may be checked without any account.
+ */
+export function CredentialsSection({ config, updateConfig, vaultPicker, userKey = 'user' }: {
   config: Record<string, unknown>
   updateConfig: (key: string, value: unknown) => void
   vaultPicker: VaultPickerProps
+  userKey?: 'user' | 'username'
 }) {
   const vault = config['vault'] as VaultRef | undefined
   if (config['mode'] === 'connectionString') {
@@ -90,13 +104,13 @@ export function CredentialsSection({ config, updateConfig, vaultPicker }: {
       onVaultChange={(v) => {
         updateConfig('vault', v)
         // Switching to a vault drops what was typed in directly, so the two never exist together.
-        if (v) { updateConfig('user', undefined); updateConfig('password', undefined) }
+        if (v) { updateConfig(userKey, undefined); updateConfig('password', undefined) }
       }}
       mappingFields={JSON_MAPPING_FIELDS.database}
     >
       <div className="grid grid-cols-2 gap-3">
         <Field label="User">
-          <input value={(config['user'] as string) ?? ''} onChange={(e) => updateConfig('user', e.target.value)} className="input-sig" autoComplete="off" />
+          <input value={(config[userKey] as string) ?? ''} onChange={(e) => updateConfig(userKey, e.target.value)} className="input-sig" autoComplete="off" />
         </Field>
         <Field label="Password">
           <input type="password" value={(config['password'] as string) ?? ''} onChange={(e) => updateConfig('password', e.target.value)} onFocus={(e) => e.target.select()} className="input-sig" autoComplete="new-password" />

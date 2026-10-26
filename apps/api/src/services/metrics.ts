@@ -1,12 +1,12 @@
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '../db/client.js'
-import { incidents, monitorResults, monitors } from '../db/schema.js'
+import { incidents, monitors } from '../db/schema.js'
 
 const escapeLabel = (value: string) => value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')
 
 /** The current state of the instance in the Prometheus text exposition format (version 0.0.4). */
 export async function renderMetrics(): Promise<string> {
-  const [monitorRows, results, [open]] = await Promise.all([
+  const [rows, [open]] = await Promise.all([
     db.select({
       id: monitors.id,
       name: monitors.name,
@@ -15,14 +15,11 @@ export async function renderMetrics(): Promise<string> {
       status: monitors.currentStatus,
       lastCheckedAt: monitors.lastCheckedAt,
       certExpiresAt: monitors.certExpiresAt,
+      // One index seek per monitor on (monitor_id, checked_at), instead of a scan of every result.
+      responseMs: sql<number | null>`(select r.response_ms from monitor_results r where r.monitor_id = monitors.id order by r.checked_at desc, r.id desc limit 1)`,
     }).from(monitors).orderBy(monitors.id),
-    db.select({ monitorId: monitorResults.monitorId, responseMs: monitorResults.responseMs }).from(monitorResults)
-      .where(inArray(monitorResults.id, db.select({ id: sql<number>`max(${monitorResults.id})` }).from(monitorResults).groupBy(monitorResults.monitorId))),
     db.select({ count: sql<number>`count(*)` }).from(incidents).where(and(isNull(incidents.resolvedAt), eq(incidents.draft, 0))),
   ])
-  const responseById = new Map(results.map((result) => [result.monitorId, result.responseMs]))
-  const rows = monitorRows.map((row) => ({ ...row, responseMs: responseById.get(row.id) ?? null }))
-
   const lines: string[] = []
   const family = (name: string, help: string, samples: Array<[monitor: typeof rows[number], value: number]>) => {
     lines.push(`# HELP ${name} ${help}`, `# TYPE ${name} gauge`)

@@ -1,7 +1,7 @@
-import { and, eq, gt, inArray, lt, lte, ne, sql, type SQL } from 'drizzle-orm'
+import { and, eq, gt, inArray, lt, lte, ne, notInArray, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db/client.js'
 import { actionRuns, actions, monitorActions, monitors } from '../db/schema.js'
-import { MAX_DELIVERY_ATTEMPTS, RETRY_DELAYS_MS, sendActionFailureNotifications } from './notifier.js'
+import { MAX_DELIVERY_ATTEMPTS, RETRY_DELAYS_MS, sendActionApprovalNotifications, sendActionFailureNotifications, sendActionSuccessNotifications } from './notifier.js'
 import { executeAction, type ActionHttpResult } from './actionHttp.js'
 import { isInMaintenance } from './scheduler.js'
 import type { ActionHttpConfig } from '@bsp/shared'
@@ -10,6 +10,9 @@ const MINUTE_MS = 60_000
 /** How long a run is held by the attempt that claimed it; a crash mid-send makes it due again after this. */
 const CLAIM_LEASE_MS = 30_000
 const activeRuns = new Set<number>()
+
+/** A run in one of these has not been sent yet and is dropped when it stops applying. */
+const WAITING_STATUSES = ['pending', 'awaiting_approval']
 
 /** A monitor that was in one of these before it came back up had an outage the 'up' actions are meant to undo. */
 const OUTAGE_STATUSES = ['down', 'degraded', 'affected']
@@ -20,7 +23,7 @@ async function cancelPendingRuns(where: SQL, reason: string): Promise<void> {
   const now = Date.now()
   await db.update(actionRuns)
     .set({ status: 'cancelled', nextAttemptAt: null, completedAt: now, lastError: reason, updatedAt: now })
-    .where(and(eq(actionRuns.status, 'pending'), where))
+    .where(and(inArray(actionRuns.status, WAITING_STATUSES), where))
 }
 
 /** A monitor or action that is deleted takes its waiting runs with it; the history rows stay. */
@@ -35,7 +38,7 @@ export function cancelRunsOfAction(actionId: number): Promise<void> {
 /** Queued runs of a monitor whose action link was removed no longer have a reason to run. */
 export async function cancelUnlinkedRuns(monitorId: number, links: { actionId: number; onStatus: string }[]): Promise<void> {
   const pending = await db.select({ id: actionRuns.id, actionId: actionRuns.actionId, onStatus: actionRuns.onStatus })
-    .from(actionRuns).where(and(eq(actionRuns.monitorId, monitorId), eq(actionRuns.status, 'pending')))
+    .from(actionRuns).where(and(eq(actionRuns.monitorId, monitorId), inArray(actionRuns.status, WAITING_STATUSES)))
   const stale = pending.filter((run) => !links.some((l) => l.actionId === run.actionId && l.onStatus === run.onStatus))
   if (stale.length === 0) return
   await cancelPendingRuns(inArray(actionRuns.id, stale.map((run) => run.id)), 'Action was unlinked from the monitor')
@@ -43,25 +46,28 @@ export async function cancelUnlinkedRuns(monitorId: number, links: { actionId: n
 
 /**
  * Called when a monitor's alert state changes. Runs still waiting for the old status are cancelled, then every
- * action linked to the new status is queued for `delayMinutes` from now (an action without a delay runs at once).
+ * action linked to the new status is queued for `delayMinutes` from now. Resolves to the runs to start at once (an
+ * action without a delay) and to the runs that wait for approval, whose channels are told; both are left to the caller
+ * so the queueing can share the transaction that confirmed the change. A queued run that was never started is picked up
+ * by `processDueActionRuns`. A run of an action that requires approval does not count its delay until it is approved.
  */
-export async function scheduleActionRuns(
+export async function planActionRuns(
   monitor: MonitorRow,
   status: string,
   previousStatus: string,
   errorMessage: string | null,
-): Promise<void> {
+): Promise<PlannedRuns> {
   const now = Date.now()
   await db.update(actionRuns)
     .set({ status: 'cancelled', nextAttemptAt: null, completedAt: now, lastError: `Monitor changed to ${status}`, updatedAt: now })
-    .where(and(eq(actionRuns.monitorId, monitor.id), eq(actionRuns.status, 'pending'), ne(actionRuns.onStatus, status)))
+    .where(and(eq(actionRuns.monitorId, monitor.id), inArray(actionRuns.status, WAITING_STATUSES), ne(actionRuns.onStatus, status)))
 
-  if (status !== 'down' && !(status === 'up' && OUTAGE_STATUSES.includes(previousStatus))) return
+  if (status !== 'down' && !(status === 'up' && OUTAGE_STATUSES.includes(previousStatus))) return NO_RUNS
 
   // Two queries, not a join: both tables have an id column, which the driver would map by position.
   const links = await db.select().from(monitorActions)
     .where(and(eq(monitorActions.monitorId, monitor.id), eq(monitorActions.onStatus, status)))
-  if (links.length === 0) return
+  if (links.length === 0) return NO_RUNS
   const actionRows = await db.select().from(actions).where(inArray(actions.id, links.map((link) => link.actionId)))
   const actionById = new Map(actionRows.map((action) => [action.id, action]))
 
@@ -75,6 +81,8 @@ export async function scheduleActionRuns(
     event_type: status === 'down' ? 'alert' : 'recovery',
   })
 
+  const startNow: number[] = []
+  const awaitingApproval: number[] = []
   for (const link of links) {
     const action = actionById.get(link.actionId)
     if (!action || action.enabled !== 1) continue
@@ -96,14 +104,70 @@ export async function scheduleActionRuns(
       onStatus: status,
       variables,
       maxAttempts: MAX_DELIVERY_ATTEMPTS,
-      nextAttemptAt: now + link.delayMinutes * MINUTE_MS,
+      ...(action.requiresApproval === 1
+        // While it waits, nextAttemptAt is when the request for approval expires.
+        ? { status: 'awaiting_approval', nextAttemptAt: now + action.approvalTimeoutMinutes * MINUTE_MS }
+        : { nextAttemptAt: now + link.delayMinutes * MINUTE_MS }),
       createdAt: now,
       updatedAt: now,
     }).returning({ id: actionRuns.id })
-    if (link.delayMinutes === 0) {
-      attemptActionRun(run!.id).catch((err) => console.error('[actions] Run failed:', err))
-    }
+    if (action.requiresApproval === 1) awaitingApproval.push(run!.id)
+    else if (link.delayMinutes === 0) startNow.push(run!.id)
   }
+  return { startNow, awaitingApproval }
+}
+
+export interface PlannedRuns { startNow: number[]; awaitingApproval: number[] }
+const NO_RUNS: PlannedRuns = { startNow: [], awaitingApproval: [] }
+
+/** Tells the channels of an action that runs are waiting for an admin to approve them. */
+export async function announceApprovals(runIds: number[]): Promise<void> {
+  if (runIds.length === 0) return
+  const runs = await db.select().from(actionRuns).where(inArray(actionRuns.id, runIds))
+  await Promise.allSettled(runs.map((run) => sendActionApprovalNotifications(run)))
+}
+
+/** Queues the runs of a status change and starts those without a delay. */
+export async function scheduleActionRuns(
+  monitor: MonitorRow,
+  status: string,
+  previousStatus: string,
+  errorMessage: string | null,
+): Promise<void> {
+  const { startNow, awaitingApproval } = await planActionRuns(monitor, status, previousStatus, errorMessage)
+  for (const runId of startNow) attemptActionRun(runId).catch((err) => console.error('[actions] Run failed:', err))
+  announceApprovals(awaitingApproval).catch((err) => console.error('[actions] Approval notification failed:', err))
+}
+
+/**
+ * An admin approved a run that was waiting: it is queued as a normal run, its delay counting from now, and started
+ * at once when it has none. Returns false when the run is not waiting (decided already, or expired), which also
+ * makes a double click harmless.
+ */
+export async function approveActionRun(runId: number, now = Date.now()): Promise<boolean> {
+  const run = (await db.select().from(actionRuns).where(eq(actionRuns.id, runId)))[0]
+  if (!run || run.status !== 'awaiting_approval' || (run.nextAttemptAt ?? 0) <= now) return false
+  const link = run.monitorId === null ? undefined : (await db.select({ delayMinutes: monitorActions.delayMinutes }).from(monitorActions).where(and(
+    eq(monitorActions.monitorId, run.monitorId), eq(monitorActions.actionId, run.actionId), eq(monitorActions.onStatus, run.onStatus),
+  )).limit(1))[0]
+  const dueAt = now + (link?.delayMinutes ?? 0) * MINUTE_MS
+  const updated = await db.update(actionRuns)
+    .set({ status: 'pending', nextAttemptAt: dueAt, updatedAt: now })
+    .where(and(eq(actionRuns.id, runId), eq(actionRuns.status, 'awaiting_approval')))
+    .returning({ id: actionRuns.id })
+  if (updated.length === 0) return false
+  // The guards of a normal attempt (the monitor's state, maintenance, the link) still run before anything is sent.
+  if (dueAt <= now) attemptActionRun(runId, now).catch((err) => console.error('[actions] Run failed:', err))
+  return true
+}
+
+/** An admin refused a run that was waiting. Returns false when it is not waiting any more. */
+export async function rejectActionRun(runId: number, now = Date.now()): Promise<boolean> {
+  const updated = await db.update(actionRuns)
+    .set({ status: 'cancelled', nextAttemptAt: null, completedAt: now, lastError: 'Rejected by an admin', updatedAt: now })
+    .where(and(eq(actionRuns.id, runId), eq(actionRuns.status, 'awaiting_approval')))
+    .returning({ id: actionRuns.id })
+  return updated.length > 0
 }
 
 /**
@@ -147,10 +211,16 @@ export async function attemptActionRun(runId: number, now = Date.now()): Promise
       const result = await executeAction(JSON.parse(action.config) as ActionHttpConfig, JSON.parse(run.variables) as Record<string, string>)
       if (!result.ok) throw new Error(result.error)
       const completedAt = Date.now()
-      await db.update(actionRuns).set({
+      const updated = await db.update(actionRuns).set({
         status: 'succeeded', attemptCount: attemptNumber, nextAttemptAt: null,
         lastAttemptAt: completedAt, completedAt, lastError: null, updatedAt: completedAt,
-      }).where(and(eq(actionRuns.id, runId), eq(actionRuns.status, 'pending')))
+      }).where(and(eq(actionRuns.id, runId), eq(actionRuns.status, 'pending'))).returning({ id: actionRuns.id })
+      // A run that was cancelled while it was sending is not a success to report. Of the rest, only the channels set to
+      // hear about successes are told; the notifier decides which.
+      if (updated.length > 0) {
+        sendActionSuccessNotifications({ ...run, actionName: action.name, attemptCount: attemptNumber }).catch((err) =>
+          console.error('[actions] Success notification failed:', err instanceof Error ? err.message : err))
+      }
     } catch (error) {
       const completedAt = Date.now()
       const message = error instanceof Error ? error.message : String(error)
@@ -192,6 +262,9 @@ export async function retryActionRun(runId: number): Promise<boolean> {
 }
 
 export async function processDueActionRuns(now = Date.now()): Promise<number> {
+  await db.update(actionRuns)
+    .set({ status: 'cancelled', nextAttemptAt: null, completedAt: now, lastError: 'Not approved in time', updatedAt: now })
+    .where(and(eq(actionRuns.status, 'awaiting_approval'), lte(actionRuns.nextAttemptAt, now)))
   const due = await db.select({ id: actionRuns.id }).from(actionRuns)
     .where(and(eq(actionRuns.status, 'pending'), lte(actionRuns.nextAttemptAt, now)))
   await Promise.allSettled(due.map((run) => attemptActionRun(run.id, now)))
@@ -200,7 +273,7 @@ export async function processDueActionRuns(now = Date.now()): Promise<number> {
 
 export async function purgeOldActionRuns(now = Date.now()): Promise<void> {
   const cutoff = now - 180 * 24 * 60 * MINUTE_MS
-  await db.delete(actionRuns).where(and(lt(actionRuns.createdAt, cutoff), ne(actionRuns.status, 'pending')))
+  await db.delete(actionRuns).where(and(lt(actionRuns.createdAt, cutoff), notInArray(actionRuns.status, WAITING_STATUSES)))
 }
 
 /** Sends the action once with sample values, whatever any monitor is doing. This is the real request. */

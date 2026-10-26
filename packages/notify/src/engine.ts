@@ -328,21 +328,30 @@ export function createNotifyEngine(options: NotifyEngineOptions) {
     return last?.eventType === options.events.alert
   }
 
-  /** Plans one event for one channel under its lock, records it, and sends it right away when nothing holds it back. */
-  async function dispatch(channel: ChannelRow, vars: Record<string, string>, details: DeliveryDetails): Promise<void> {
-    const sendNow = await withChannelLock(channel.id, async () => {
+  /**
+   * Plans one event for one channel under its lock and records it. Resolves to the delivery to send right away, or
+   * null when nothing is to be sent now (suppressed, or held for quiet hours or a digest window). Recording is
+   * separate from sending so a caller can record every channel's delivery in its own transaction and send afterwards:
+   * a recorded delivery that was never sent is picked up by `processDue`.
+   */
+  async function plan(channel: ChannelRow, vars: Record<string, string>, details: DeliveryDetails): Promise<number | null> {
+    return withChannelLock(channel.id, async () => {
       const now = Date.now()
-      const plan = await planDelivery(channel, parseAlertPolicy(channel.alertPolicy), details, now)
+      const delivery = await planDelivery(channel, parseAlertPolicy(channel.alertPolicy), details, now)
 
-      if (plan.suppressionReason) {
-        await insertDelivery(channel, vars, details, { status: 'suppressed', reason: plan.suppressionReason })
+      if (delivery.suppressionReason) {
+        await insertDelivery(channel, vars, details, { status: 'suppressed', reason: delivery.suppressionReason })
         return null
       }
 
-      const deliveryId = await insertDelivery(channel, vars, details, { status: 'pending', releaseAt: plan.releaseAt, groupKey: plan.groupKey })
-      return plan.releaseAt <= now ? deliveryId : null
+      const deliveryId = await insertDelivery(channel, vars, details, { status: 'pending', releaseAt: delivery.releaseAt, groupKey: delivery.groupKey })
+      return delivery.releaseAt <= now ? deliveryId : null
     })
+  }
 
+  /** Plans one event for one channel and sends it right away when nothing holds it back. */
+  async function dispatch(channel: ChannelRow, vars: Record<string, string>, details: DeliveryDetails): Promise<void> {
+    const sendNow = await plan(channel, vars, details)
     if (sendNow !== null) await attemptDelivery(sendNow)
   }
 
@@ -406,7 +415,7 @@ export function createNotifyEngine(options: NotifyEngineOptions) {
   }
 
   return {
-    dispatch, sendDirect, attemptDelivery, flushGroups, processDue, retryDelivery, purgeOldDeliveries, hasOpenAlert,
+    plan, dispatch, sendDirect, attemptDelivery, flushGroups, processDue, retryDelivery, purgeOldDeliveries, hasOpenAlert,
     isSmtpConfigured, sendSmtpMail,
   }
 }

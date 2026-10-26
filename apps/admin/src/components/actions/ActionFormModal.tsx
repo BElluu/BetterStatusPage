@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import { api } from '../../api/client'
-import type { Action, NotificationChannel } from '@bsp/shared'
+import { DEFAULT_APPROVAL_TIMEOUT_MINUTES, type Action, type NotificationChannel } from '@bsp/shared'
 import { CHANNEL_TYPES } from '../notifications/channelTypes'
 import type { VaultPickerProps } from '@better-kit/ui'
 import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
@@ -22,7 +22,7 @@ type ActionPanelKey = 'secrets' | 'notify'
 
 const PANEL_META: Record<ActionPanelKey, SidePanelMeta> = {
   secrets: { icon: 'key', label: 'Secrets' },
-  notify: { icon: 'notifications', label: 'Notify when a run fails' },
+  notify: { icon: 'notifications', label: 'Notifications' },
 }
 
 /** A vault secret the action reads, as the form edits it: `secretId` 0 means none chosen yet. */
@@ -65,12 +65,14 @@ export default function ActionFormModal({ action, onClose, onSaved }: Props) {
   const testHintId = useId()
   const [name, setName]       = useState(action?.name ?? '')
   const [enabled, setEnabled] = useState((action?.enabled ?? 1) === 1)
+  const [requiresApproval, setRequiresApproval] = useState((action?.requiresApproval ?? 0) === 1)
+  const [approvalTimeoutMinutes, setApprovalTimeoutMinutes] = useState(action?.approvalTimeoutMinutes ?? DEFAULT_APPROVAL_TIMEOUT_MINUTES)
   const [draft, setDraft]     = useState(() => action
     ? { ...http.parse(action.config as unknown as Record<string, unknown>), body: action.config.body ?? '' }
     : { ...http.defaultDraft(), body: '' })
   const [secrets, setSecrets] = useState<SecretRow[]>(() =>
     (action?.config.secrets ?? []).map((s) => ({ name: s.name, vaultId: s.vault.vaultId, secretId: s.vault.secretId })))
-  const [failureChannelIds, setFailureChannelIds] = useState<number[]>(action?.failureChannelIds ?? [])
+  const [notificationChannelIds, setNotificationChannelIds] = useState<number[]>(action?.notificationChannelIds ?? [])
   const [channels, setChannels] = useState<NotificationChannel[]>([])
   const [vaults, setVaults]     = useState<VaultPickerProps['vaults']>([])
   const [secretsByVault, setSecretsByVault] = useState<VaultPickerProps['secretsByVault']>({})
@@ -110,13 +112,13 @@ export default function ActionFormModal({ action, onClose, onSaved }: Props) {
   })
 
   // "Run now" sends the stored action, so it is only meaningful while the form matches it.
-  const snapshot = JSON.stringify({ name, enabled, config: buildConfig(), failureChannelIds })
+  const snapshot = JSON.stringify({ name, enabled, requiresApproval, approvalTimeoutMinutes, config: buildConfig(), notificationChannelIds })
   const [savedSnapshot] = useState(snapshot)
   const dirty = snapshot !== savedSnapshot
 
   const sideTabs: SideTab<ActionPanelKey>[] = [
     { key: 'secrets', badge: secrets.length > 0 ? String(secrets.length) : null },
-    { key: 'notify',  badge: failureChannelIds.length > 0 ? String(failureChannelIds.length) : null },
+    { key: 'notify',  badge: notificationChannelIds.length > 0 ? String(notificationChannelIds.length) : null },
   ]
 
   async function handleSubmit(e: React.FormEvent) {
@@ -136,7 +138,7 @@ export default function ActionFormModal({ action, onClose, onSaved }: Props) {
     }
     setLoading(true)
     try {
-      const body = { name, enabled: enabled ? 1 : 0, config: buildConfig(), failureChannelIds }
+      const body = { name, enabled: enabled ? 1 : 0, requiresApproval: requiresApproval ? 1 : 0, approvalTimeoutMinutes, config: buildConfig(), notificationChannelIds }
       if (isEdit) await api.patch(`/admin/actions/${action.id}`, body)
       else await api.post('/admin/actions', body)
       onSaved()
@@ -164,7 +166,7 @@ export default function ActionFormModal({ action, onClose, onSaved }: Props) {
   }
 
   const toggleChannel = (id: number, on: boolean) =>
-    setFailureChannelIds((prev) => (on ? [...new Set([...prev, id])] : prev.filter((existing) => existing !== id)))
+    setNotificationChannelIds((prev) => (on ? [...new Set([...prev, id])] : prev.filter((existing) => existing !== id)))
 
   return (
     <ModalShell align="top" onClose={loading ? undefined : onClose} labelledBy={titleId}>
@@ -184,7 +186,7 @@ export default function ActionFormModal({ action, onClose, onSaved }: Props) {
               {error && <Alert tone="error">{error}</Alert>}
 
               <Field label="Name">
-                <input value={name} onChange={(e) => setName(e.target.value)} required className="input-sig" placeholder="Start VM2" />
+                <input value={name} onChange={(e) => setName(e.target.value)} required className="input-sig" placeholder="My action" />
               </Field>
 
               <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
@@ -200,6 +202,17 @@ export default function ActionFormModal({ action, onClose, onSaved }: Props) {
               <div style={{ borderTop: '1px solid var(--m3-outline-variant)' }} />
 
               <Switch label="Enabled" checked={enabled} onChange={setEnabled} />
+
+              <Switch label="Require approval" checked={requiresApproval} onChange={setRequiresApproval} />
+              {requiresApproval && <>
+                <Field label="Approval expires after (minutes)">
+                  <input type="number" min={1} max={10080} step={1} required className="input-sig"
+                    value={approvalTimeoutMinutes} onChange={(e) => setApprovalTimeoutMinutes(Number(e.target.value))} />
+                </Field>
+                <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
+                  A run waits in the Actions tab of the delivery history until an admin approves or rejects it. It is cancelled if nobody does within this time, and the delay set on the monitor starts counting when it is approved.
+                </p>
+              </>}
 
               {testMsg && (
                 <Alert tone={testMsg.ok ? 'success' : 'error'}>
@@ -295,12 +308,12 @@ export default function ActionFormModal({ action, onClose, onSaved }: Props) {
         {sidePanel === 'notify' && (
           <SidePanelFrame meta={PANEL_META.notify} layout="responsive">
             <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
-              Each channel you tick is told once, after the last attempt of a run has failed. Nothing is sent for a success or a cancelled run.
+              Each channel you tick is told once, after the last attempt of a run has failed. Nothing is sent for a cancelled run. A channel that is set to also hear about successes (its Action tab) is told about those too.
             </p>
             {channels.length === 0 && <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>No notification channels configured. Create one in the Notifications section.</p>}
             {channels.map((channel) => (
               <label key={channel.id} className="flex items-center gap-3 cursor-pointer select-none rounded-lg px-3 py-2" style={{ border: '1px solid var(--m3-outline-variant)' }}>
-                <input type="checkbox" className="w-4 h-4 rounded" checked={failureChannelIds.includes(channel.id)} onChange={(e) => toggleChannel(channel.id, e.target.checked)} />
+                <input type="checkbox" className="w-4 h-4 rounded" checked={notificationChannelIds.includes(channel.id)} onChange={(e) => toggleChannel(channel.id, e.target.checked)} />
                 <span className="text-sm flex-1" style={{ color: 'var(--m3-on-surface)' }}>{channel.name}</span>
                 {!channel.enabled && <span className="text-xs" style={{ color: 'var(--m3-secondary)' }}>disabled</span>}
               </label>

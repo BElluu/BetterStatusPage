@@ -1,6 +1,7 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useId, useState, type ComponentProps, type ReactNode } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, getCurrentUser } from '../api/client'
+import { ConfirmIdentityModal } from '../components/ConfirmIdentityModal'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { CopyButton } from '../components/CopyButton'
 import { ResetTwoFactorModal } from '../components/ResetTwoFactorModal'
@@ -52,11 +53,9 @@ export default function UsersPage({ roles: ROLES, roleRank: ROLE_RANK, defaultRo
   const [newRole, setNewRole] = useState(defaultRole)
   const [createdUser, setCreatedUser] = useState<{ email: string; temporaryPassword: string } | null>(null)
   const [resetResult, setResetResult] = useState<{ email: string; temporaryPassword: string } | null>(null)
-  const [resetTarget, setResetTarget] = useState<User | null>(null)
+  const [identityPrompt, setIdentityPrompt] = useState<Omit<ComponentProps<typeof ConfirmIdentityModal>, 'onClose'> | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null)
-  const [demotion, setDemotion] = useState<{ user: User; role: string } | null>(null)
   const [twoFactorResetTarget, setTwoFactorResetTarget] = useState<User | null>(null)
-  const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
   const { data: users = [], isLoading, isError, refetch } = useQuery<User[]>({
@@ -70,46 +69,37 @@ export default function UsersPage({ roles: ROLES, roleRank: ROLE_RANK, defaultRo
     created: (u) => u.createdAt,
   })
 
-  const createMutation = useMutation({
-    mutationFn: (email: string) => api.post<{ email: string; temporaryPassword: string }>('/admin/users', { email, role: newRole }),
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ['users'] })
-      setCreatedUser(data)
-      setShowCreate(false)
-      setNewEmail('')
-      setError('')
-    },
-    onError: (err) => setError(errorMessage(err, 'Failed to create user')),
-  })
+  function confirmCreateUser() {
+    const email = newEmail
+    setIdentityPrompt({
+      title: 'Create user',
+      message: `Create ${email} as ${roleLabel(newRole)}? They will be able to sign in with a temporary password.`,
+      confirmLabel: 'Create user',
+      pendingLabel: 'Creating…',
+      action: async (currentPassword) => {
+        const created = await api.post<{ email: string; temporaryPassword: string }>('/admin/users', { email, role: newRole, currentPassword })
+        qc.invalidateQueries({ queryKey: ['users'] })
+        setCreatedUser(created)
+        setShowCreate(false)
+        setNewEmail('')
+      },
+    })
+  }
 
-  const resetMutation = useMutation({
-    mutationFn: (id: number) => api.post<{ temporaryPassword: string }>(`/admin/users/${id}/reset-password`, {}),
-    onSuccess: (data, id) => {
-      const user = users.find((u) => u.id === id)
-      if (user) setResetResult({ email: user.email, temporaryPassword: data.temporaryPassword })
-      setResetTarget(null)
-      qc.invalidateQueries({ queryKey: ['users'] })
-    },
-    onError: (err) => {
-      setResetTarget(null)
-      toast.error(errorMessage(err, 'Failed to reset password'))
-    },
-  })
-
-  const roleMutation = useMutation({
-    mutationFn: ({ id, role }: { id: number; role: string }) =>
-      api.patch(`/admin/users/${id}/role`, { role }),
-    onSuccess: (_data, { id, role }) => {
-      const user = users.find((u) => u.id === id)
-      toast.success(user ? `${user.email} is now ${roleLabel(role)}.` : `Role changed to ${roleLabel(role)}.`)
-      setDemotion(null)
-      qc.invalidateQueries({ queryKey: ['users'] })
-    },
-    onError: (err) => {
-      setDemotion(null)
-      toast.error(errorMessage(err, 'Failed to change role'))
-    },
-  })
+  function confirmResetPassword(user: User) {
+    setIdentityPrompt({
+      title: 'Reset password',
+      message: `Reset password for ${user.email}? Their current password will stop working.`,
+      confirmLabel: 'Reset password',
+      pendingLabel: 'Resetting…',
+      danger: true,
+      action: async (currentPassword) => {
+        const reset = await api.post<{ temporaryPassword: string }>(`/admin/users/${user.id}/reset-password`, { currentPassword })
+        setResetResult({ email: user.email, temporaryPassword: reset.temporaryPassword })
+        qc.invalidateQueries({ queryKey: ['users'] })
+      },
+    })
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/admin/users/${id}`),
@@ -137,12 +127,20 @@ export default function UsersPage({ roles: ROLES, roleRank: ROLE_RANK, defaultRo
   })
 
   function changeRole(user: User, role: string) {
-    if (user.role === role || roleMutation.isPending) return
-    if ((ROLE_RANK[role] ?? 0) < (ROLE_RANK[user.role] ?? 0)) {
-      setDemotion({ user, role })
-      return
-    }
-    roleMutation.mutate({ id: user.id, role })
+    if (user.role === role) return
+    const demotion = (ROLE_RANK[role] ?? 0) < (ROLE_RANK[user.role] ?? 0)
+    setIdentityPrompt({
+      title: 'Change role',
+      message: `Change ${user.email} from ${roleLabel(user.role)} to ${roleLabel(role)}?${demotion ? ' They will lose access to some areas immediately.' : ''}`,
+      confirmLabel: `Make ${roleLabel(role)}`,
+      pendingLabel: 'Saving…',
+      danger: demotion,
+      action: async (currentPassword) => {
+        await api.patch(`/admin/users/${user.id}/role`, { role, currentPassword })
+        toast.success(`${user.email} is now ${roleLabel(role)}.`)
+        qc.invalidateQueries({ queryKey: ['users'] })
+      },
+    })
   }
 
   const currentUser = getCurrentUser()
@@ -164,7 +162,7 @@ export default function UsersPage({ roles: ROLES, roleRank: ROLE_RANK, defaultRo
               <span className="material-symbols-outlined" aria-hidden="true">passkey</span>
               Single sign-on
             </button>
-            <button type="button" onClick={() => { setShowCreate(true); setError('') }} className="btn btn-primary">
+            <button type="button" onClick={() => setShowCreate(true)} className="btn btn-primary">
               <span className="material-symbols-outlined" aria-hidden="true">person_add</span>
               New User
             </button>
@@ -183,7 +181,6 @@ export default function UsersPage({ roles: ROLES, roleRank: ROLE_RANK, defaultRo
       {showCreate && (
         <div className="rounded-2xl p-5" style={{ background: 'var(--m3-surface-container-low)', border: '1px solid var(--m3-outline-variant)' }}>
           <p className="font-headline font-semibold text-sm mb-3" style={{ color: 'var(--m3-on-surface)' }}>New User</p>
-          {error && <Alert tone="error" className="mb-3">{error}</Alert>}
           <label htmlFor={emailInputId} className="block text-xs mb-1.5" style={{ color: 'var(--m3-secondary)' }}>Email</label>
           <div className="flex flex-wrap gap-3">
             <input
@@ -193,18 +190,18 @@ export default function UsersPage({ roles: ROLES, roleRank: ROLE_RANK, defaultRo
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="user@example.com"
               className="input-sig flex-1 min-w-[200px]"
-              onKeyDown={(e) => e.key === 'Enter' && newEmail && createMutation.mutate(newEmail)}
+              onKeyDown={(e) => e.key === 'Enter' && newEmail && confirmCreateUser()}
             />
             <select aria-label="Role" value={newRole} onChange={(e) => setNewRole(e.target.value)} className="input-sig w-auto">
               {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
             <button
               type="button"
-              onClick={() => newEmail && createMutation.mutate(newEmail)}
-              disabled={!newEmail || createMutation.isPending}
+              onClick={() => newEmail && confirmCreateUser()}
+              disabled={!newEmail}
               className="btn btn-primary"
             >
-              {createMutation.isPending ? 'Creating…' : 'Create'}
+              Create
             </button>
             <button type="button" onClick={() => setShowCreate(false)} className="btn btn-ghost">
               Cancel
@@ -362,7 +359,7 @@ export default function UsersPage({ roles: ROLES, roleRank: ROLE_RANK, defaultRo
                       )}
                       <button
                         type="button"
-                        onClick={() => setResetTarget(user)}
+                        onClick={() => confirmResetPassword(user)}
                         title="Reset password"
                         aria-label={`Reset password for ${user.email}`}
                         className={ROW_ACTION}
@@ -395,35 +392,14 @@ export default function UsersPage({ roles: ROLES, roleRank: ROLE_RANK, defaultRo
                   colSpan={5}
                   icon="group"
                   title="No users yet."
-                  description={<><EmptyStateLink onClick={() => { setShowCreate(true); setError('') }}>Add a user</EmptyStateLink> to share access to the admin panel.</>}
+                  description={<><EmptyStateLink onClick={() => setShowCreate(true)}>Add a user</EmptyStateLink> to share access to the admin panel.</>}
                 />
               )}
             </tbody>
           </DataTable>
         </div>
       )}
-      {resetTarget && (
-        <ConfirmModal
-          title="Reset password"
-          message={`Reset password for ${resetTarget.email}? Their current password will stop working.`}
-          confirmLabel="Reset password"
-          pending={resetMutation.isPending}
-          pendingLabel="Resetting…"
-          onConfirm={() => resetMutation.mutate(resetTarget.id)}
-          onCancel={() => setResetTarget(null)}
-        />
-      )}
-      {demotion && (
-        <ConfirmModal
-          title="Change role"
-          message={`Change ${demotion.user.email} from ${roleLabel(demotion.user.role)} to ${roleLabel(demotion.role)}? They will lose access to some areas immediately.`}
-          confirmLabel={`Make ${roleLabel(demotion.role)}`}
-          pending={roleMutation.isPending}
-          pendingLabel="Saving…"
-          onConfirm={() => roleMutation.mutate({ id: demotion.user.id, role: demotion.role })}
-          onCancel={() => setDemotion(null)}
-        />
-      )}
+      {identityPrompt && <ConfirmIdentityModal {...identityPrompt} onClose={() => setIdentityPrompt(null)} />}
       {deleteTarget && (
         <ConfirmModal
           title="Delete user"

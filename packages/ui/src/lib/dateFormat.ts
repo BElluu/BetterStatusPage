@@ -1,3 +1,4 @@
+import { safeLocalStorage } from '@better-kit/contracts'
 import { useSyncExternalStore } from 'react'
 import { storageKey } from '../config'
 
@@ -26,7 +27,7 @@ const DEFAULTS: DatePrefs = { date: 'dmy', time: '24h' }
 
 function load(): DatePrefs {
   try {
-    const raw = JSON.parse(localStorage.getItem(storageKey('date-format')) ?? 'null') as Partial<DatePrefs> | null
+    const raw = JSON.parse(safeLocalStorage.get(storageKey('date-format')) ?? 'null') as Partial<DatePrefs> | null
     return {
       date: DATE_FORMATS.some((f) => f.value === raw?.date) ? raw!.date! : DEFAULTS.date,
       time: TIME_FORMATS.some((f) => f.value === raw?.time) ? raw!.time! : DEFAULTS.time,
@@ -43,7 +44,7 @@ export function getDatePrefs(): DatePrefs { return (prefs ??= load()) }
 
 export function setDatePrefs(next: DatePrefs): void {
   prefs = next
-  try { localStorage.setItem(storageKey('date-format'), JSON.stringify(next)) } catch { /* storage unavailable: applies to this tab only */ }
+  safeLocalStorage.set(storageKey('date-format'), JSON.stringify(next))
   listeners.forEach((listener) => listener())
 }
 

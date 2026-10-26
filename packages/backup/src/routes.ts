@@ -80,6 +80,7 @@ export function createBackupRoutes<Manifest extends BackupManifest>(options: Bac
       try {
         const file = service.backupFile(req.params.filename)
         if (!fs.existsSync(file)) return reply.code(404).send({ error: 'Backup not found' })
+        await audit.write(actor(req), 'allow', 'backup', req.params.filename, req.params.filename, { access: 'downloaded' })
         reply.header('Content-Type', 'application/octet-stream')
         reply.header('Content-Disposition', `attachment; filename="${path.basename(file)}"`)
         return reply.send(fs.createReadStream(file))

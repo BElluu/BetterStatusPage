@@ -101,7 +101,7 @@ describe('the template, built from the shared modules only', () => {
   })
 
   it('manages users: creates a member and lists both', async () => {
-    const created = await call('POST', '/api/v1/admin/users', { email: 'member@example.test', role: 'member' })
+    const created = await call('POST', '/api/v1/admin/users', { email: 'member@example.test', role: 'member', currentPassword: 'a-long-password' })
     assert.equal(created.status, 200, JSON.stringify(created.json))
     assert.ok(created.json['temporaryPassword'])
     const users = (await call('GET', '/api/v1/admin/users')).json as unknown as Array<{ email: string; role: string }>
@@ -109,10 +109,10 @@ describe('the template, built from the shared modules only', () => {
   })
 
   it('creates an API token for the parts of the API the template has, and refuses one for a part it does not', async () => {
-    const created = await call('POST', '/api/v1/admin/api-tokens', { name: 'CI', scopes: ['audit:read'], expiresInDays: 30 })
+    const created = await call('POST', '/api/v1/admin/api-tokens', { name: 'CI', scopes: ['audit:read'], expiresInDays: 30, currentPassword: 'a-long-password' })
     assert.equal(created.status, 200, JSON.stringify(created.json))
     assert.match(created.json['token'], /^tpl_/)
-    assert.equal((await call('POST', '/api/v1/admin/api-tokens', { name: 'Bad', scopes: ['monitors:read'], expiresInDays: 30 })).status, 400)
+    assert.equal((await call('POST', '/api/v1/admin/api-tokens', { name: 'Bad', scopes: ['monitors:read'], expiresInDays: 30, currentPassword: 'a-long-password' })).status, 400)
     // The token reads the audit log and nothing else.
     const bearer = { authorization: `Bearer ${created.json['token']}` }
     assert.equal((await fetch(`${base}/api/v1/admin/audit`, { headers: bearer })).status, 200)

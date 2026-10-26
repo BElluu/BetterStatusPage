@@ -50,7 +50,7 @@ Hosted services (Statuspage, Instatus, Better Stack) mean nothing to run and a p
 
 [Gatus](https://github.com/TwiN/gatus) is a health dashboard configured entirely by a YAML file: you list endpoints and the conditions that make them healthy, and it shows the results on one page.
 
-**Gatus is stronger at** conditions (status, response time, body fields and certificate expiry in one check), more protocols (UDP, SSH, gRPC and others), more notification providers, and weight: one small Go binary, no database, and it reloads the file on the fly.
+**Gatus is stronger at** conditions (status, response time, body fields and certificate expiry in one check), more protocols (UDP, gRPC and others), more notification providers, and weight: one small Go binary, no database, and it reloads the file on the fly.
 
 **BetterStatusPage is stronger at**
 
@@ -68,7 +68,7 @@ Hosted services (Statuspage, Instatus, Better Stack) mean nothing to run and a p
 
 [Uptime Kuma](https://github.com/louislam/uptime-kuma) is the most popular self-hosted uptime monitor: a polished web UI, many monitor types and a very long list of notification providers.
 
-**Uptime Kuma is stronger at** breadth (more monitor types, for example gRPC, MQTT, Redis and game servers, and many more notification providers), a large community, and several status pages each mapped to its own domain.
+**Uptime Kuma is stronger at** breadth (more monitor types, for example gRPC, MQTT and game servers, and many more notification providers), a large community, and several status pages each mapped to its own domain.
 
 **BetterStatusPage is stronger at**
 

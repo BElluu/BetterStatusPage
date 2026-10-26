@@ -67,6 +67,7 @@ GET /api/v1/auth/oidc/confirm | auth=yes | token=no | scope=- | roles=none
 GET /api/v1/auth/oidc/login | auth=no | token=no | scope=- | roles=none
 GET /api/v1/auth/session | auth=yes | token=no | scope=- | roles=none
 GET /api/v1/hook/:token | auth=no | token=no | scope=- | roles=none
+GET /api/v1/hook/key/:key | auth=yes | token=yes | scope=custom | roles=none
 GET /api/v1/public/access | auth=no | token=no | scope=- | roles=none
 GET /api/v1/public/components.json | auth=no | token=no | scope=- | roles=none
 GET /api/v1/public/events | auth=no | token=no | scope=- | roles=none
@@ -194,6 +195,8 @@ PATCH /api/v1/admin/vaults/:id | auth=yes | token=no | scope=- | roles=admin
 PATCH /api/v1/admin/vaults/:id/secrets/:secretId | auth=yes | token=no | scope=- | roles=admin
 POST /api/v1/admin/actions/ | auth=yes | token=yes | scope=actions | roles=admin
 POST /api/v1/admin/actions/:id/test | auth=yes | token=yes | scope=actions | roles=admin
+POST /api/v1/admin/actions/runs/:id/approve | auth=yes | token=yes | scope=actions | roles=admin
+POST /api/v1/admin/actions/runs/:id/reject | auth=yes | token=yes | scope=actions | roles=admin
 POST /api/v1/admin/actions/runs/:id/retry | auth=yes | token=yes | scope=actions | roles=admin
 POST /api/v1/admin/api-tokens/ | auth=yes | token=no | scope=- | roles=admin
 POST /api/v1/admin/backups/ | auth=yes | token=no | scope=- | roles=admin
@@ -239,6 +242,7 @@ POST /api/v1/auth/login | auth=no | token=no | scope=- | roles=none
 POST /api/v1/auth/logout | auth=yes | token=no | scope=- | roles=none
 POST /api/v1/auth/logout-all | auth=yes | token=no | scope=- | roles=none
 POST /api/v1/hook/:token | auth=no | token=no | scope=- | roles=none
+POST /api/v1/hook/key/:key | auth=yes | token=yes | scope=custom | roles=none
 POST /api/v1/public/subscriptions/ | auth=no | token=no | scope=- | roles=none
 POST /api/v1/public/subscriptions/confirm | auth=no | token=no | scope=- | roles=none
 POST /api/v1/public/subscriptions/preferences | auth=no | token=no | scope=- | roles=none

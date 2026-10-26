@@ -148,11 +148,15 @@ function compare(op: HttpAssertion['op'], actual: unknown, expected: string | nu
   }
 }
 
-/** What the response had at the checked place, for the failure message. */
-function describeActual(a: HttpAssertion, actual: unknown): string {
+/**
+ * What the response had at the checked place, for the failure message. The value is shown only when
+ * the reader may see what the monitored endpoint answers: a failed assertion otherwise reads
+ * whatever the URL points at back to whoever typed it.
+ */
+function describeActual(a: HttpAssertion, actual: unknown, showActual: boolean): string {
   if (actual === undefined) return a.type === 'header' ? 'the header is missing' : 'the field is missing'
   if (a.type === 'header' && SENSITIVE_HEADERS.has(a.name.toLowerCase())) return 'the header is present'
-  return `it is ${quote(actual)}`
+  return showActual ? `it is ${quote(actual)}` : 'the value is not shown'
 }
 
 /**
@@ -163,6 +167,7 @@ export async function evaluateAssertions(
   assertions: HttpAssertion[],
   headers: { get(name: string): string | null },
   readBody: () => Promise<string>,
+  { showActual = false }: { showActual?: boolean } = {},
 ): Promise<AssertionOutcome[]> {
   let json: { value: unknown } | { error: string } | undefined
   const parseBody = async (): Promise<{ value: unknown } | { error: string }> => {
@@ -198,7 +203,7 @@ export async function evaluateAssertions(
     if (compare(a.op, actual, a.value)) {
       outcomes.push({ ok: true, label, onFail })
     } else {
-      outcomes.push({ ok: false, label, detail: `${label} failed: ${describeActual(a, actual)}`, onFail })
+      outcomes.push({ ok: false, label, detail: `${label} failed: ${describeActual(a, actual, showActual)}`, onFail })
     }
   }
   return outcomes

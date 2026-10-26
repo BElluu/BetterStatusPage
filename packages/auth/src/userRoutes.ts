@@ -22,6 +22,9 @@ export function createUserRoutes(ctx: AuthOptions, parts: { sessions: Sessions; 
   const { resetTwoFactor } = parts.twoFactor
   const { confirmIdentity } = parts.identityConfirmation
 
+  // These routes act on accounts and sign-ins, so a hijacked session alone must not be enough.
+  const sensitive = { config: { rateLimit: ctx.rateLimits.sensitiveAction } }
+
   async function userRoutes(app: FastifyInstance) {
     app.get('/', async () => {
       const all = await db.select({
@@ -42,10 +45,12 @@ export function createUserRoutes(ctx: AuthOptions, parts: { sessions: Sessions; 
       }))
     })
 
-    app.post<{ Body: { email: string; role?: string } }>('/', async (req, reply) => {
+    app.post<{ Body: { email: string; role?: string; currentPassword?: string } }>('/', sensitive, async (req, reply) => {
       const { email, role = roles.defaultForNewUsers } = req.body
       if (!email) return reply.code(400).send({ error: 'Email is required' })
       if (!roles.isValid(role)) return reply.code(400).send({ error: 'Invalid role' })
+      const actor = requestIdentity(req)
+      if (!await confirmIdentity(actor, req.body.currentPassword, reply)) return reply
       const existing = await db.select().from(users).where(eq(users.email, email))
       if (existing.length > 0) return reply.code(409).send({ error: 'User with this email already exists' })
       const temporaryPassword = generateTempPassword()
@@ -53,19 +58,19 @@ export function createUserRoutes(ctx: AuthOptions, parts: { sessions: Sessions; 
       const result = await db.insert(users).values({
         email, passwordHash: hash, role, mustChangePassword: 1, createdAt: Date.now(),
       }).returning({ id: users.id, email: users.email, role: users.role, createdAt: users.createdAt })
-      const actor = requestIdentity(req)
       audit.write(audit.actor(actor), 'create', 'user', result[0]!.id, email,
         audit.snapshot({ email, role }))
       return { ...result[0], temporaryPassword }
     })
 
-    app.patch<{ Params: { id: string }; Body: { role: string } }>('/:id/role', async (req, reply) => {
+    app.patch<{ Params: { id: string }; Body: { role: string; currentPassword?: string } }>('/:id/role', sensitive, async (req, reply) => {
       const id = Number(req.params.id)
       const jwt = requestIdentity(req)
       if (jwt.userId === id) return reply.code(400).send({ error: 'Cannot change your own role' })
       if (!roles.isValid(req.body.role)) {
         return reply.code(400).send({ error: 'Invalid role' })
       }
+      if (!await confirmIdentity(jwt, req.body.currentPassword, reply)) return reply
       const existing = (await db.select().from(users).where(eq(users.id, id)))[0]
       const result = await db.update(users).set({ role: req.body.role }).where(eq(users.id, id))
         .returning({ id: users.id, role: users.role })
@@ -79,8 +84,10 @@ export function createUserRoutes(ctx: AuthOptions, parts: { sessions: Sessions; 
       return result[0]
     })
 
-    app.post<{ Params: { id: string } }>('/:id/reset-password', async (req, reply) => {
+    app.post<{ Params: { id: string }; Body: { currentPassword?: string } }>('/:id/reset-password', sensitive, async (req, reply) => {
       const id = Number(req.params.id)
+      const actor = requestIdentity(req)
+      if (!await confirmIdentity(actor, req.body?.currentPassword, reply)) return reply
       const user = (await db.select().from(users).where(eq(users.id, id)))[0]
       if (!user) return reply.code(404).send({ error: 'User not found' })
       const temporaryPassword = generateTempPassword()
@@ -90,15 +97,12 @@ export function createUserRoutes(ctx: AuthOptions, parts: { sessions: Sessions; 
         mustChangePassword: 1,
       }).where(eq(users.id, id))
       await revokeUserSessions(id)
-      const actor = requestIdentity(req)
       audit.write(audit.actor(actor), 'update', 'user', id, user.email,
         { action: 'password_reset' })
       return { temporaryPassword }
     })
 
-    app.post<{ Params: { id: string }; Body: { currentPassword: string } }>('/:id/reset-2fa', {
-      config: { rateLimit: ctx.rateLimits.sensitiveAction },
-    }, async (req, reply) => {
+    app.post<{ Params: { id: string }; Body: { currentPassword: string } }>('/:id/reset-2fa', sensitive, async (req, reply) => {
       const id = Number(req.params.id)
       const actor = requestIdentity(req)
       if (!Number.isInteger(id)) return reply.code(400).send({ error: 'Invalid user ID' })

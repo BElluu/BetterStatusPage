@@ -142,3 +142,23 @@ describe('layout input', () => {
     assert.deepEqual((await app.inject({ method: 'PUT', url: '/layout', payload: { tree } })).json(), tree)
   })
 })
+describe('ignoreTls guards stored secrets', () => {
+  const create = async (name: string, ignoreTls: boolean) => {
+    const body = httpsBody(name)
+    return (await app.inject({ method: 'POST', url: '/monitors', payload: { ...body, config: { ...body.config, ignoreTls } } })).json()
+  }
+  const patch = (id: number, config: unknown) => app.inject({ method: 'PATCH', url: `/monitors/${id}`, payload: { config } })
+
+  it('refuses to keep a stored secret when certificate verification is switched off', async () => {
+    const created = await create('Tls off', false)
+    const refused = await patch(created.id, { ...created.config, ignoreTls: true })
+    assert.equal(refused.statusCode, 400)
+    assert.match(refused.json().error, /^ignoreTls changed, so the stored secrets cannot be kept/)
+  })
+
+  it('keeps it when verification is switched back on', async () => {
+    const created = await create('Tls on', true)
+    assert.equal((await patch(created.id, { ...created.config, ignoreTls: false })).statusCode, 200)
+    assert.equal((await storedConfig(created.id)).auth.basic.password, 'p4ss')
+  })
+})

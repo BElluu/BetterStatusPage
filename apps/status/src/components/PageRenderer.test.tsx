@@ -78,6 +78,29 @@ describe('PageRenderer', () => {
     expect(screen.getByText(/status.affectedBy/)).toHaveTextContent('Database')
   })
 
+  it('shows the display name of a monitor node instead of the monitor name', () => {
+    const tree: LayoutTree = {
+      id: 'root', type: 'page', children: [
+        { id: 'monitor', type: 'monitor', monitorId: 1, displayName: 'Customer portal', showUptimeBar: false },
+      ],
+    }
+    render(<PageRenderer tree={tree} monitors={monitors} statusMap={{}} />)
+    expect(screen.getByText('Customer portal')).toBeInTheDocument()
+    expect(screen.queryByText('Public API')).not.toBeInTheDocument()
+  })
+
+  it('shows the display name of a monitor node inside a group', () => {
+    const tree: LayoutTree = {
+      id: 'root', type: 'page', children: [{
+        id: 'group', type: 'group', label: 'Core systems', collapsible: false,
+        children: [{ id: 'monitor', type: 'monitor', monitorId: 1, displayName: 'Customer portal', showUptimeBar: false }],
+      }],
+    }
+    render(<PageRenderer tree={tree} monitors={monitors} statusMap={{}} />)
+    expect(screen.getByText('Customer portal')).toBeInTheDocument()
+    expect(screen.queryByText('Public API')).not.toBeInTheDocument()
+  })
+
   it('renders group children and ignores missing monitors', () => {
     const tree: LayoutTree = {
       id: 'root', type: 'page', children: [{

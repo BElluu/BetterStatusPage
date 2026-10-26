@@ -1,21 +1,21 @@
 import { configureUi } from '../config'
 
-/** The configuration the page tests run under: the admin console's, so their expectations read as the product's. */
+/** The configuration the page tests run under. */
 export function configureForTests(): void {
   configureUi({
-    storagePrefix: 'bsp',
+    storagePrefix: 'test',
     apiBase: '/api/v1',
-    csrfCookie: 'bsp_csrf',
+    csrfCookie: 'test_csrf',
     basePath: '/admin',
-    brand: { name: 'BetterStatusPage', logoLight: '/admin/logo_light.png', logoDark: '/admin/logo_dark.png' },
+    brand: { name: 'Test App', logoLight: '/admin/logo_light.png', logoDark: '/admin/logo_dark.png' },
     texts: {
-      ssoNewAccount: 'Creates the Viewer account {user} for the private status page and links this identity-provider account to it.',
+      ssoNewAccount: 'Creates the Viewer account {user} and links this identity-provider account to it.',
       ssoSignInHint: '',
-      appName: 'BetterStatusPage',
-      tokenCannotManage: 'users, single sign-on, status page access, vaults, backups or other tokens',
-      tokenVaultTargets: 'a monitor or channel',
-      secretConsumers: 'monitors',
-      vaultPathExample: 'bsp/database',
+      appName: 'Test App',
+      tokenCannotManage: 'users, single sign-on, vaults or other tokens',
+      tokenVaultTargets: 'an object',
+      secretConsumers: 'the application',
+      vaultPathExample: 'app/database',
     },
   })
 }

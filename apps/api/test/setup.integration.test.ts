@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { after, before, describe, it, mock } from 'node:test'
 import Fastify from 'fastify'
@@ -35,8 +35,11 @@ describe('first-run setup', () => {
   })
 
   it('rolls back the admin when the setup marker cannot be written, so the same email can retry', async () => {
-    // A directory at the marker path makes writeSetupComplete fail while isSetupComplete stays false.
-    mkdirSync(process.env['SETUP_CONFIG_PATH']!)
+    // A file where the marker's directory should be makes writeSetupComplete fail while isSetupComplete stays false.
+    const markerPath = process.env['SETUP_CONFIG_PATH']!
+    const blocker = join(testDb.dir, 'blocker')
+    writeFileSync(blocker, '')
+    process.env['SETUP_CONFIG_PATH'] = join(blocker, 'setup.json')
     try {
       const failed = await app.inject({
         method: 'POST', url: '/setup/complete',
@@ -46,10 +49,46 @@ describe('first-run setup', () => {
       assert.equal((sqlite.prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number }).n, 0)
       assert.equal(schedulerStart.mock.callCount(), 0)
     } finally {
-      rmSync(process.env['SETUP_CONFIG_PATH']!, { recursive: true, force: true })
+      process.env['SETUP_CONFIG_PATH'] = markerPath
+      rmSync(blocker, { force: true })
     }
-    // A row left behind by an interrupted attempt must not block setup either.
-    sqlite.exec("INSERT INTO users(email,password_hash,role,created_at) VALUES ('owner@example.test','stale','viewer',1)")
+  })
+
+  it('refuses setup over an existing database whose marker is missing, and keeps the account untouched', async () => {
+    sqlite.exec("INSERT INTO users(email,password_hash,role,created_at) VALUES ('owner@example.test','existing','viewer',1)")
+    try {
+      for (const payload of [{ email: 'owner@example.test', password: 'secure-password' }, { email: 'new@example.test', password: 'secure-password' }]) {
+        assert.equal((await app.inject({ method: 'POST', url: '/setup/complete', payload })).statusCode, 409)
+      }
+      assert.equal((sqlite.prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number }).n, 1)
+      assert.deepEqual({ ...(sqlite.prepare("SELECT role, password_hash AS hash FROM users WHERE email = 'owner@example.test'").get() as object) }, { role: 'viewer', hash: 'existing' })
+      assert.equal(existsSync(process.env['SETUP_CONFIG_PATH']!), false)
+      assert.equal(schedulerStart.mock.callCount(), 0)
+    } finally {
+      sqlite.exec('DELETE FROM users')
+    }
+  })
+
+  it('sets up beside seeded accounts when BSP_DEMO_MODE is true', async () => {
+    sqlite.exec("INSERT INTO users(email,password_hash,role,created_at) VALUES ('seeded@example.test','existing','operator',1)")
+    process.env['BSP_DEMO_MODE'] = 'true'
+    try {
+      const response = await app.inject({ method: 'POST', url: '/setup/complete', payload: { email: 'owner@example.test', password: 'secure-password' } })
+      assert.equal(response.statusCode, 200)
+      const rows = sqlite.prepare('SELECT email, role FROM users ORDER BY id').all() as { email: string; role: string }[]
+      assert.deepEqual(rows.map((row) => ({ ...row })), [{ email: 'seeded@example.test', role: 'operator' }, { email: 'owner@example.test', role: 'admin' }])
+    } finally {
+      delete process.env['BSP_DEMO_MODE']
+      rmSync(process.env['SETUP_CONFIG_PATH']!, { force: true })
+      sqlite.exec('DELETE FROM users; DELETE FROM branding; DELETE FROM layout')
+      schedulerStart.mock.resetCalls()
+    }
+  })
+
+  it('rejects a body that is not made of strings', async () => {
+    for (const payload of [{ email: 'a@example.test', password: 12345678 }, { email: ['a@example.test'], password: 'secure-password' }]) {
+      assert.equal((await app.inject({ method: 'POST', url: '/setup/complete', payload })).statusCode, 400)
+    }
   })
 
   it('initializes storage, seeds defaults, signs in, and starts scheduling once', async () => {
@@ -65,7 +104,7 @@ describe('first-run setup', () => {
     assert.equal(schedulerStart.mock.callCount(), 1)
     const admin = sqlite.prepare("SELECT role, password_hash AS hash FROM users WHERE email = 'owner@example.test'").get() as { role: string; hash: string }
     assert.equal(admin.role, 'admin')
-    assert.notEqual(admin.hash, 'stale')
+    assert.notEqual(admin.hash, 'existing')
     assert.deepEqual((await app.inject({ url: '/setup/status' })).json(), { needsSetup: false })
     assert.equal((await app.inject({ method: 'POST', url: '/setup/complete', payload: { email: 'other@example.test', password: 'secure-password' } })).statusCode, 409)
     assert.equal(schedulerStart.mock.callCount(), 1)

@@ -55,6 +55,19 @@ describe('delivery engine', () => {
     assert.equal((await store.db.select().from(notificationDeliveryAttempts)).length, 1)
   })
 
+  it('records a delivery without sending it, so the retry worker can send it after a restart', async () => {
+    const sent: Record<string, string>[] = []
+    const engine = engineWith({ deliver: async (_channel, v) => { sent.push(v) } })
+    const dueNow = await engine.plan(await addChannel(), vars, alert(1))
+    assert.equal(sent.length, 0)
+    const [row] = await deliveries()
+    assert.equal(row!.id, dueNow)
+    assert.equal(row!.status, 'pending')
+
+    assert.equal(await engine.processDue(), 1)
+    assert.deepEqual(sent, [vars])
+  })
+
   it('retries a failing delivery on a schedule, then gives up, and retries it again on request', async () => {
     let fail = true
     const engine = engineWith({ deliver: async () => { if (fail) throw new Error('boom') } })

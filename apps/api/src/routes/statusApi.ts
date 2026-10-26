@@ -8,9 +8,10 @@ import type {
   ApiActiveIncident, ApiActiveMaintenance, ApiComponent, ApiComponentRef, ApiComponentStatus, ApiComponents,
   ApiPageStatus, ApiSummary, LayoutNode, LayoutTree,
 } from '@bsp/shared'
+import { incidentImpactStatus, type IncidentImpact } from '@bsp/shared'
 import { PUBLIC_API_RATE_LIMIT } from '../config/rateLimits.js'
 import { feedMethodAvailable } from '../services/subscriptions.js'
-import { resolvePublicUrl } from '../kit/runtime.js'
+import { requestBase } from '../services/requestBase.js'
 
 const SEVERITY: Record<Exclude<ApiComponentStatus, 'under_maintenance'>, number> = {
   operational: 0,
@@ -25,13 +26,6 @@ const worse = (a: Issue, b: Issue): Issue => (SEVERITY[b] > SEVERITY[a] ? b : a)
 function monitorIssue(status: string): Issue {
   if (status === 'down') return 'major_outage'
   if (status === 'degraded' || status === 'affected') return 'degraded_performance'
-  return 'operational'
-}
-
-/** Same rule as the status page: minor incidents degrade, major and critical ones take components down. */
-function incidentIssue(impact: string): Issue {
-  if (impact === 'minor') return 'degraded_performance'
-  if (impact === 'major' || impact === 'critical') return 'major_outage'
   return 'operational'
 }
 
@@ -81,7 +75,7 @@ async function loadState(baseUrl: string) {
     let status = monitorIssue(monitorById.get(monitorId)?.currentStatus ?? 'pending')
     for (const incident of activeIncidents) {
       if (incidentLinks.some((link) => link.incidentId === incident.id && link.monitorId === monitorId)) {
-        status = worse(status, incidentIssue(incident.impact))
+        status = worse(status, monitorIssue(incidentImpactStatus(incident.impact as IncidentImpact)))
       }
     }
     return status
@@ -161,13 +155,9 @@ function apiHeaders(reply: FastifyReply): FastifyReply {
 export async function statusApiRoutes(app: FastifyInstance) {
   const route = { config: { rateLimit: PUBLIC_API_RATE_LIMIT } }
 
-  async function baseUrl(req: { protocol: string; host: string }) {
-    return resolvePublicUrl() || `${req.protocol}://${req.host}`
-  }
-
   app.get('/summary.json', route, async (req, reply): Promise<ApiSummary | void> => {
     if (!await feedMethodAvailable('api')) return reply.code(404).send({ error: 'Not found' })
-    const state = await loadState(await baseUrl(req))
+    const state = await loadState(requestBase(req, reply))
     const name = (await db.select({ siteName: branding.siteName }).from(branding))[0]?.siteName || 'Status Page'
     apiHeaders(reply)
     return {
@@ -179,7 +169,7 @@ export async function statusApiRoutes(app: FastifyInstance) {
 
   app.get('/components.json', route, async (req, reply): Promise<ApiComponents | void> => {
     if (!await feedMethodAvailable('api')) return reply.code(404).send({ error: 'Not found' })
-    const state = await loadState(await baseUrl(req))
+    const state = await loadState(requestBase(req, reply))
     apiHeaders(reply)
     return { components: state.components }
   })

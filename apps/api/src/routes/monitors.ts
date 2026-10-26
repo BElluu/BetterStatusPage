@@ -5,7 +5,7 @@ import { eq, desc, gte, and, inArray } from 'drizzle-orm'
 import { withImmediateTransaction } from '../db/transaction.js'
 import { runCheck } from '../workers/scheduler.js'
 import { cancelRunsOfMonitor } from '../workers/actionRunner.js'
-import { testHttps, testSqlServer, testPostgres, testMysql, testMongo, testPing, testDns, testDocker } from '../workers/testRunner.js'
+import { testHttps, testSqlServer, testPostgres, testMysql, testMongo, testOracle, testPing, testDns, testDocker, testRedis, testMail, testSsh, testTlsCert, testDomain } from '../workers/testRunner.js'
 import { auditActor, writeAudit, diffObjects, snapshot } from '../kit/audit.js'
 import { requestIdentity } from '../kit/authMiddleware.js'
 import { refreshPublishedMonitorIds } from '../services/publishedMonitors.js'
@@ -16,10 +16,11 @@ import { authenticateRequest } from '../kit/authSession.js'
 import { tokenAllows } from '@better-kit/contracts'
 import { keyForNew, type KeyOwner } from '@better-kit/config-as-code'
 import { vaultUseProblem } from '../kit/vaultUse.js'
+import { validateServiceConfig } from '../workers/serviceConfig.js'
 import { certResetsFor, generateWebhookToken, parseMonitorPatch, parseNewMonitor } from '../services/monitorInput.js'
 import { loadMonitorActivity } from '../services/monitorActivity.js'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
-import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig, MonitorActivity } from '@bsp/shared'
+import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig, RedisConfig, MailConfig, SshConfig, TlsCertConfig, DomainConfig, MonitorActivity, MonitorType } from '@bsp/shared'
 
 const MIN_TEST_TIMEOUT_MS = 500
 const MAX_TEST_TIMEOUT_MS = 60_000
@@ -251,18 +252,29 @@ export async function monitorRoutes(app: FastifyInstance) {
     const vaultProblem = vaultUseProblem(requestIdentity(req).apiToken, secrets.config, stored?.type === type ? JSON.parse(stored.config) : undefined)
     if (vaultProblem) return reply.code(403).send({ error: vaultProblem })
     const config = secrets.config
+    const invalid = validateServiceConfig(type as MonitorType, config as Record<string, unknown>)
+    if (invalid) return reply.code(400).send({ error: invalid })
     if (requestedTimeout !== undefined && !Number.isFinite(requestedTimeout)) {
       return reply.code(400).send({ error: 'timeoutMs must be a number' })
     }
     const timeoutMs = Math.min(MAX_TEST_TIMEOUT_MS, Math.max(MIN_TEST_TIMEOUT_MS, requestedTimeout ?? 10000))
-    if (type === 'https') return testHttps(config as HttpsConfig, timeoutMs)
+    if (type === 'https') {
+      const identity = requestIdentity(req)
+      return testHttps(config as HttpsConfig, timeoutMs, { showActual: identity.role === 'admin' && !identity.apiToken })
+    }
     if (type === 'sqlserver') return testSqlServer(config as DatabaseConfig, timeoutMs)
     if (type === 'postgresql') return testPostgres(config as DatabaseConfig, timeoutMs)
     if (type === 'mysql') return testMysql(config as DatabaseConfig, timeoutMs)
     if (type === 'mongodb') return testMongo(config as DatabaseConfig, timeoutMs)
+    if (type === 'oracle') return testOracle(config as DatabaseConfig, timeoutMs)
     if (type === 'docker') return testDocker(config as DockerConfig, timeoutMs)
     if (type === 'ping') return testPing(config as PingConfig, timeoutMs)
     if (type === 'dns') return testDns(config as DnsConfig, timeoutMs)
+    if (type === 'redis') return testRedis(config as RedisConfig, timeoutMs)
+    if (type === 'mail') return testMail(config as MailConfig, timeoutMs)
+    if (type === 'ssh') return testSsh(config as SshConfig, timeoutMs)
+    if (type === 'tls') return testTlsCert(config as TlsCertConfig, timeoutMs)
+    if (type === 'domain') return testDomain(config as DomainConfig, timeoutMs)
     return reply.code(400).send({ error: `Test not supported for monitor type: ${type}` })
   })
 

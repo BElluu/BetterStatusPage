@@ -33,6 +33,9 @@ check:  down   down   up     down   down   down
 streak: 1      2      reset  1      2      3  → alert
 ```
 
+`down` and `degraded` count as one failing streak: a monitor that alternates between timeouts and
+slow responses still reaches the threshold, and the alert carries the last status observed.
+
 The two thresholds are independent: `failureThreshold` gates the alert, `recoveryThreshold` gates
 the all-clear. Both default to `1`, which means "notify on every status change" — the behaviour
 before this feature existed.

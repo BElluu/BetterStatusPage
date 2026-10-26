@@ -1,4 +1,4 @@
-export { CHANNEL_TYPES, channelConfigError, ntfyConfigError, pushoverConfigError, telegramConfigError } from './channelInput.js'
+export { CHANNEL_TYPES, TEMPLATE_KEYS, channelConfigError, configForEvent, eventOverridesError, type DefaultWording, type EventWording, ntfyConfigError, pushoverConfigError, telegramConfigError } from './channelInput.js'
 export { CHANNEL_DESTINATIONS, CHANNEL_SECRETS } from './channelSecrets.js'
 export {
   createAlertPolicy, DEFAULT_ALERT_POLICY, isValidTimezone, isWithinQuietHours, localMinutes, quietHoursEndAt,

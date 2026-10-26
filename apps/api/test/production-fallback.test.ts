@@ -62,6 +62,33 @@ describe('production SPA fallback', () => {
     }
   })
 
+  it('answers 404, not the app page, for a built file that is missing', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'bsp-production-frontends-'))
+    const adminDist = path.join(root, 'admin')
+    const statusDist = path.join(root, 'status')
+    const app = Fastify({ logger: false })
+
+    try {
+      await Promise.all([mkdir(path.join(adminDist, 'assets'), { recursive: true }), mkdir(path.join(statusDist, 'assets'), { recursive: true })])
+      await Promise.all([
+        writeFile(path.join(adminDist, 'index.html'), '<h1>Admin app</h1>'),
+        writeFile(path.join(adminDist, 'assets', 'index-new.js'), 'export {}'),
+        writeFile(path.join(statusDist, 'index.html'), '<h1>Status app</h1>'),
+      ])
+      await registerProductionFrontends(app, adminDist, statusDist, () => true)
+
+      for (const url of ['/admin/assets/Monitors-old.js', '/assets/ResponseTimeChart-old.js']) {
+        const res = await app.inject({ method: 'GET', url })
+        assert.equal(res.statusCode, 404, url)
+        assert.doesNotMatch(res.headers['content-type'] ?? '', /html/, url)
+      }
+      assert.equal((await app.inject({ method: 'GET', url: '/admin/assets/index-new.js' })).statusCode, 200)
+    } finally {
+      await app.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('sends status app requests to the setup wizard until the setup is done', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'bsp-production-frontends-'))
     const adminDist = path.join(root, 'admin')

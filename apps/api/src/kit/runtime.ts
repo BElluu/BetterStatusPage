@@ -1,4 +1,5 @@
 import { createAppLock, createPublicUrlResolver, createSse, createUpdateCheck, dataDir } from '@better-kit/runtime'
+import { getSseLimits } from '../config/sse.js'
 import { resolveAppVersion } from '../version.js'
 
 const NAME = 'BetterStatusPage'
@@ -7,7 +8,7 @@ const NAME = 'BetterStatusPage'
 export const resolvePublicUrl = createPublicUrlResolver()
 
 /** Live event streams to the admin console and the status page. */
-export const sse = createSse()
+export const sse = createSse(getSseLimits())
 
 /** Points out a newer release of this project on GitHub. */
 export const updates = createUpdateCheck({ name: NAME, repository: 'BElluu/BetterStatusPage', version: () => resolveAppVersion() })

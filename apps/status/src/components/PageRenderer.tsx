@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { applyIncidentStatus } from '@bsp/shared'
 import type {
   LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode,
   IncidentsNode, ChartNode, PublicMonitor, MonitorStatus, Incident,
@@ -8,7 +9,6 @@ import Markdown from 'react-markdown'
 import { IncidentCard } from './IncidentCard'
 import { useLocale } from '../i18n/LocaleContext'
 const ResponseTimeChart = lazy(() => import('./ResponseTimeChart').then((m) => ({ default: m.ResponseTimeChart })))
-import { applyIncidentStatus } from '../utils/incidentStatus'
 import { useMonitorUptime, type UptimeDay } from '../hooks/useMonitorUptime'
 
 interface StatusInfo {
@@ -122,6 +122,7 @@ function NodeRenderer({
     const live = statusMap[monitor.id]
     const liveMonitor = {
       ...monitor,
+      name: monNode.displayName?.trim() || monitor.name,
       currentStatus: applyIncidentStatus(live?.status ?? monitor.currentStatus, monitor.id, activeIncidents),
     }
     const inMaintenance = maintenanceMonitorIds.has(monitor.id)
@@ -679,6 +680,7 @@ function GroupBlock({ groupNode, monitors, statusMap, activeIncidents, maintenan
               const live = statusMap[m.id]
               const liveMonitor = {
                 ...m,
+                name: monNode.displayName?.trim() || m.name,
                 currentStatus: applyIncidentStatus(live?.status ?? m.currentStatus, m.id, activeIncidents),
               }
               const isFullCard = (monNode.cardVariant ?? 'compact') === 'default'
