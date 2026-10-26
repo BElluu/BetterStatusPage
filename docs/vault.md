@@ -61,7 +61,7 @@ Secrets live in **vaults**. A vault is a named group with an optional descriptio
 
 | Type | Label in the UI | Stored fields | Use it for |
 | --- | --- | --- | --- |
-| `userpass` | **User / Password** | `username`, `password` | Basic auth, CAS, database monitors, SMTP sign-in |
+| `userpass` | **User / Password** | `username`, `password` | Basic auth, CAS, database, Redis and mail server monitors, SMTP sign-in |
 | `value` | **Secure Value** | `value` (one string) | An API token, a client secret, a full connection string |
 | `json` | **JSON** | Any JSON object | Several related values in one secret, such as an OAuth2 client ID and secret |
 
@@ -162,7 +162,9 @@ Wherever a credential can come from the vault, the form has a **Direct input** /
 | HTTPS monitor, **Auth** panel, **OAuth2** | Client ID, Client Secret |
 | HTTPS monitor, **Auth** panel, **CAS** | Username, Password |
 | Database monitor, **Individual fields** | User, Password (under **Credentials**) |
-| Database monitor, **Connection string** | The whole connection string (vault only, there is no direct input) |
+| Database monitor, **Connection string** | The whole connection string (vault only, there is no direct input); for Oracle `user/password@host:port/service_name` |
+| Redis monitor, **Credentials** | Password, or user name and password (an ACL user) |
+| Mail server monitor, **Credentials** | User name and password |
 | **Notifications → SMTP Settings** | SMTP user, SMTP password (under **Credentials**) |
 
 Custom request headers on an HTTPS monitor and the other monitor fields cannot use the vault.

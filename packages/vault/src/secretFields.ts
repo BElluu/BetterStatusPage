@@ -59,11 +59,14 @@ function mask(value: string, tail: boolean): string {
 
 export type RestoreResult = { config: unknown } | { error: string }
 
+/** A switch that makes a destination less safe: a path whose value is `true`, or a path with the value that is the unsafe one (`verifyTls` off is `false`). */
+export type LooseningSwitch = readonly string[] | { path: readonly string[]; value: unknown }
+
 export function createSecretFields<Kind extends string>(kinds: Readonly<Record<Kind, {
   fields: readonly SecretField[]
   destinations: readonly (readonly string[])[]
   /** Switches that make a destination less safe (certificate checks off): turning one on counts as a changed destination, turning it off does not. */
-  loosening?: readonly (readonly string[])[]
+  loosening?: readonly LooseningSwitch[]
 }>>) {
   function slotsIn(config: unknown, kind: Kind): Slot[] {
     const slots: Slot[] = []
@@ -133,8 +136,9 @@ export function createSecretFields<Kind extends string>(kinds: Readonly<Record<K
       const normalised = (config: unknown) => valueAt(config, path) || null
       if (JSON.stringify(normalised(incoming)) !== JSON.stringify(normalised(stored))) return path.join('.')
     }
-    for (const path of kinds[kind].loosening ?? []) {
-      if (valueAt(incoming, path) === true && valueAt(stored, path) !== true) return path.join('.')
+    for (const entry of kinds[kind].loosening ?? []) {
+      const { path, value } = Array.isArray(entry) ? { path: entry as readonly string[], value: true } : entry as { path: readonly string[]; value: unknown }
+      if (valueAt(incoming, path) === value && valueAt(stored, path) !== value) return path.join('.')
     }
     return null
   }

@@ -11,7 +11,13 @@ import { checkSqlServer } from './sqlserver.js'
 import { checkPostgres } from './postgres.js'
 import { checkMysql } from './mysql.js'
 import { checkMongo } from './mongodb.js'
+import { checkOracle } from './oracle.js'
 import { checkDocker } from './docker.js'
+import { checkRedis } from './redis.js'
+import { checkMail } from './mail.js'
+import { checkSsh } from './ssh.js'
+import { checkTlsCert } from './tlsCert.js'
+import { checkDomainExpiry } from './domainExpiry.js'
 import { attemptNotificationDelivery, planNotifications } from './notifier.js'
 import { announceApprovals, attemptActionRun, planActionRuns } from './actionRunner.js'
 import { checkCertificateExpiry } from './certificate.js'
@@ -22,7 +28,7 @@ import { evaluateAlertTransition, isFailureStatus } from '../services/alertThres
 import { openIncidentForOutage, resolveIncidentForRecovery } from '../services/autoIncident.js'
 import { withImmediateTransaction } from '../db/transaction.js'
 import { gt, eq, and, inArray, sql } from 'drizzle-orm'
-import type { HttpsConfig, PingConfig, DnsConfig, DatabaseConfig, DockerConfig, MonitorStatus } from '@bsp/shared'
+import type { HttpsConfig, PingConfig, DnsConfig, DatabaseConfig, RedisConfig, MailConfig, SshConfig, TlsCertConfig, DomainConfig, DockerConfig, MonitorConfig, MonitorStatus } from '@bsp/shared'
 import { getSchedulerConfig, type SchedulerConfig } from '../config/scheduler.js'
 
 export async function isInMaintenance(monitorId: number, now = Date.now()): Promise<boolean> {
@@ -120,7 +126,7 @@ export async function runCheck(monitor: MonitorRow): Promise<boolean> {
 }
 
 async function performCheck(monitor: MonitorRow): Promise<void> {
-  let config: HttpsConfig | PingConfig | DnsConfig | DatabaseConfig | DockerConfig | undefined
+  let config: MonitorConfig | undefined
   let result: CheckResult = {
     status: 'down',
     responseMs: null,
@@ -129,7 +135,7 @@ async function performCheck(monitor: MonitorRow): Promise<void> {
 
   const maxAttempts = (monitor.retries ?? 1)
   try {
-    config = JSON.parse(monitor.config) as HttpsConfig | PingConfig | DnsConfig | DatabaseConfig | DockerConfig
+    config = JSON.parse(monitor.config) as MonitorConfig
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       switch (monitor.type) {
         case 'https': result = await checkHttps(config as HttpsConfig, monitor.timeoutMs); break
@@ -139,6 +145,12 @@ async function performCheck(monitor: MonitorRow): Promise<void> {
         case 'postgresql': result = await checkPostgres(config as DatabaseConfig, monitor.timeoutMs); break
         case 'mysql': result = await checkMysql(config as DatabaseConfig, monitor.timeoutMs); break
         case 'mongodb': result = await checkMongo(config as DatabaseConfig, monitor.timeoutMs); break
+        case 'oracle': result = await checkOracle(config as DatabaseConfig, monitor.timeoutMs); break
+        case 'redis': result = await checkRedis(config as RedisConfig, monitor.timeoutMs); break
+        case 'mail': result = await checkMail(config as MailConfig, monitor.timeoutMs); break
+        case 'ssh': result = await checkSsh(config as SshConfig, monitor.timeoutMs); break
+        case 'tls': result = await checkTlsCert(config as TlsCertConfig, monitor.timeoutMs); break
+        case 'domain': result = await checkDomainExpiry(config as DomainConfig, monitor.timeoutMs); break
         case 'docker': result = await checkDocker(config as DockerConfig, monitor.timeoutMs); break
         case 'webhook': result = { status: 'down', responseMs: null, error: 'No webhook received within interval' }; break
         default: result = { status: 'down', responseMs: null, error: `Unknown type: ${monitor.type}` }

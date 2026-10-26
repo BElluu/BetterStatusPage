@@ -1,7 +1,7 @@
 import type { HttpsConfig } from '@bsp/shared'
 import type { MonitorStatus } from '@bsp/shared'
 import { evaluateAssertions, hasJsonAssertions } from './assertions.js'
-import { discardBody, followRedirects, insecureForOrigin, readBodyText, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type HttpResponse } from './httpAuth.js'
+import { discardBody, followRedirects, insecureForOrigin, requestUrl, readBodyText, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type HttpResponse } from './httpAuth.js'
 import { Agent, fetch as httpFetch } from 'undici'
 import { lookup as dnsLookup } from 'dns'
 import type { LookupFunction } from 'net'
@@ -72,7 +72,7 @@ export async function checkHttps(
     } else {
       // Redirects are followed by hand: a redirect to another origin is checked with certificate verification and
       // carries no credential headers, which fetch itself would not guarantee.
-      res = await followRedirects({ ...config, url: auth.url }, auth.headers, controller.signal, fetchWith)
+      res = await followRedirects({ ...config, url: requestUrl(config, auth.url) }, auth.headers, controller.signal, fetchWith)
     }
 
     const responseMs = Date.now() - start

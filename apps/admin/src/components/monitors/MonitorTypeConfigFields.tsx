@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { CERT_REMINDER_DAYS, DEFAULT_CERT_WARN_DAYS, MAX_CERT_WARN_DAYS } from '@bsp/shared'
+import { CACHE_BUSTER_PARAM, CERT_REMINDER_DAYS, DEFAULT_CERT_WARN_DAYS, MAX_CERT_WARN_DAYS } from '@bsp/shared'
 import type { CertExpiryConfig, DatabaseTlsMode, MonitorType } from '@bsp/shared'
 import { ConfirmModal } from '@better-kit/ui'
 import { CopyButton } from '@better-kit/ui'
 import { Alert } from '@better-kit/ui'
 import { Field, Note } from '@better-kit/ui'
 import { DATABASE_ENGINES, DATABASE_DEFAULT_PORTS, DATABASE_DEFAULT_QUERIES } from './monitorTypes'
+import { DomainFields, MailFields, RedisFields, SshFields, TlsCertFields } from './ServiceFields'
 
 type Config = Record<string, unknown>
 
@@ -32,7 +33,13 @@ export function MonitorTypeConfigFields({ type, config, updateConfig, onEngineCh
     case 'sqlserver':
     case 'postgresql':
     case 'mysql':
-    case 'mongodb':   return <DatabaseFields type={type} config={config} updateConfig={updateConfig} onEngineChange={onEngineChange} />
+    case 'mongodb':
+    case 'oracle':    return <DatabaseFields type={type} config={config} updateConfig={updateConfig} onEngineChange={onEngineChange} />
+    case 'redis':     return <RedisFields config={config} updateConfig={updateConfig} />
+    case 'mail':      return <MailFields config={config} updateConfig={updateConfig} />
+    case 'ssh':       return <SshFields config={config} updateConfig={updateConfig} />
+    case 'tls':       return <TlsCertFields config={config} updateConfig={updateConfig} />
+    case 'domain':    return <DomainFields config={config} updateConfig={updateConfig} />
     case 'docker':    return <DockerFields config={config} updateConfig={updateConfig} />
     case 'webhook':   return <WebhookSection {...webhook} />
     default:          return null
@@ -60,9 +67,27 @@ function HttpsFields({ config, updateConfig }: ConfigProps) {
           <input type="number" value={(config['expectedStatus'] as number) ?? 200} onChange={(e) => updateConfig('expectedStatus', Number(e.target.value))} className="input-sig" />
         </Field>
       </div>
+      {config['method'] !== 'POST' && <CacheBusterField config={config} updateConfig={updateConfig} />}
       {/^https:\/\//i.test((config['url'] as string) ?? '') && <IgnoreTlsField config={config} updateConfig={updateConfig} />}
       {/^https:\/\//i.test((config['url'] as string) ?? '') && config['ignoreTls'] !== true && <CertExpiryFields config={config} updateConfig={updateConfig} />}
     </>
+  )
+}
+
+function CacheBusterField({ config, updateConfig }: ConfigProps) {
+  const on = config['cacheBuster'] === true
+  return (
+    <div className="space-y-2">
+      <label className="flex items-center gap-2 text-sm cursor-pointer select-none" style={{ color: 'var(--m3-on-surface-variant)' }}>
+        <input type="checkbox" checked={on} onChange={(e) => updateConfig('cacheBuster', e.target.checked || undefined)} />
+        Bypass caches
+      </label>
+      {on && (
+        <p className="text-xs" style={{ color: 'var(--m3-secondary)' }}>
+          Adds a random <code>{CACHE_BUSTER_PARAM}</code> parameter to the first request, so a CDN or proxy cannot answer from its cache. Not used with CAS authentication.
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -222,17 +247,17 @@ function DatabaseFields({ type, config, updateConfig, onEngineChange }: ConfigPr
               <input type="number" value={(config['port'] as number) ?? DATABASE_DEFAULT_PORTS[type]} onChange={(e) => updateConfig('port', Number(e.target.value))} className="input-sig" />
             </Field>
           </div>
-          <Field label="Database">
+          <Field label={type === 'oracle' ? 'Service name' : 'Database'}>
             <input value={(config['database'] as string) ?? ''} onChange={(e) => updateConfig('database', e.target.value)} required className="input-sig" />
           </Field>
           <Field label="Connection security">
             <select value={tls} onChange={(e) => updateConfig('tls', e.target.value)} className="input-sig">
-              {DATABASE_TLS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {DATABASE_TLS_OPTIONS.filter((o) => type !== 'oracle' || o.value !== 'require').map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </Field>
           {tls === 'prefer' && (
             <Note tone="warning">
-              The certificate is not checked{type === 'mongodb' ? ' and MongoDB is not encrypted at all' : type === 'sqlserver' ? '' : ', and the connection falls back to plain text when the server has no TLS'}.
+              The certificate is not checked{type === 'mongodb' ? ' and MongoDB is not encrypted at all' : type === 'oracle' ? ' and Oracle is not encrypted at all' : type === 'sqlserver' ? '' : ', and the connection falls back to plain text when the server has no TLS'}.
               Anyone on the network path can {type === 'sqlserver' ? 'impersonate the server and read the password' : 'read the password'}. Choose <strong>Encrypted, verify certificate</strong>.
             </Note>
           )}
@@ -249,7 +274,10 @@ function DatabaseFields({ type, config, updateConfig, onEngineChange }: ConfigPr
       )}
 
       {sqlMode === 'connectionString' && (
-        <Note tone="info">The connection string lives in Vault. Choose it under <strong>Credentials</strong>.</Note>
+        <Note tone="info">
+          The connection string lives in Vault. Choose it under <strong>Credentials</strong>.
+          {type === 'oracle' && <> For Oracle it reads <code>user/password@host:port/service_name</code>, or a full connect descriptor after the <code>@</code>.</>}
+        </Note>
       )}
 
       <Field label={type === 'mongodb' ? 'Test Command (JSON)' : 'Test Query'}>

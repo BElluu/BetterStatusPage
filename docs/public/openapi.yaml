@@ -1174,7 +1174,7 @@ components:
 
     MonitorType:
       type: string
-      enum: [https, ping, dns, sqlserver, postgresql, mysql, mongodb, docker, webhook]
+      enum: [https, ping, dns, sqlserver, postgresql, mysql, mongodb, oracle, redis, mail, ssh, tls, domain, docker, webhook]
     MonitorTag:
       type: object
       required: [label, color]
@@ -1200,6 +1200,11 @@ components:
         - $ref: '#/components/schemas/PingConfig'
         - $ref: '#/components/schemas/DnsConfig'
         - $ref: '#/components/schemas/DatabaseConfig'
+        - $ref: '#/components/schemas/RedisConfig'
+        - $ref: '#/components/schemas/MailConfig'
+        - $ref: '#/components/schemas/SshConfig'
+        - $ref: '#/components/schemas/TlsCertConfig'
+        - $ref: '#/components/schemas/DomainConfig'
         - $ref: '#/components/schemas/DockerConfig'
         - type: object
           maxProperties: 0
@@ -1268,6 +1273,7 @@ components:
                 username: { type: string }
                 password: { type: string }
                 vault: { $ref: '#/components/schemas/VaultRef' }
+        cacheBuster: { type: boolean, description: 'Adds a random bsp_cachebuster query parameter to the request of every check (GET and HEAD, first request only, not with CAS), so a CDN or proxy cache cannot answer it.' }
         ignoreTls:
           type: boolean
           default: false
@@ -1294,7 +1300,7 @@ components:
         resolver: { type: string }
     DatabaseConfig:
       type: object
-      description: Used by the `sqlserver`, `postgresql`, `mysql` and `mongodb` monitor types.
+      description: Used by the `sqlserver`, `postgresql`, `mysql`, `mongodb` and `oracle` monitor types. For `oracle`, `database` is the service name.
       required: [query]
       properties:
         host: { type: string }
@@ -1308,6 +1314,59 @@ components:
         tls: { type: string, enum: [prefer, require, verify], default: prefer, description: 'Fields mode only. verify checks the certificate and host name, require encrypts without a plain fallback, prefer is the earlier behaviour. The admin form starts new monitors at verify.' }
         tlsCa: { type: string, description: 'Fields mode, tls verify: PEM of the authority that signed the server certificate. Empty = the public CAs bundled with Node.js plus NODE_EXTRA_CA_CERTS.' }
         vault: { $ref: '#/components/schemas/VaultRef' }
+    RedisConfig:
+      type: object
+      description: Used by the `redis` monitor type. Sends PING, after AUTH when a password is set.
+      required: [host, port]
+      properties:
+        host: { type: string }
+        port: { type: integer, minimum: 1, maximum: 65535 }
+        tls: { type: boolean, description: Connect over TLS from the first byte. }
+        verifyTls: { type: boolean, default: true, description: Check the certificate chain and host name. }
+        tlsCa: { type: string, description: 'PEM of the authority that signed the server certificate. Empty = the public CAs bundled with Node.js plus NODE_EXTRA_CA_CERTS.' }
+        username: { type: string, description: For Redis ACL users. }
+        password: { type: string }
+        vault: { $ref: '#/components/schemas/VaultRef' }
+    MailConfig:
+      type: object
+      description: Used by the `mail` monitor type. Reads the greeting, upgrades to TLS when asked and signs in when a user name is set.
+      required: [protocol, host, port, security]
+      properties:
+        protocol: { type: string, enum: [smtp, imap, pop3] }
+        host: { type: string }
+        port: { type: integer, minimum: 1, maximum: 65535 }
+        security: { type: string, enum: [none, starttls, tls], description: 'starttls upgrades after the greeting, tls is encrypted from the first byte.' }
+        verifyTls: { type: boolean, default: true }
+        tlsCa: { type: string }
+        username: { type: string }
+        password: { type: string }
+        vault: { $ref: '#/components/schemas/VaultRef' }
+    SshConfig:
+      type: object
+      description: Used by the `ssh` monitor type. Reads the server's identification string; no login.
+      required: [host, port]
+      properties:
+        host: { type: string }
+        port: { type: integer, minimum: 1, maximum: 65535 }
+        expectedBanner: { type: string, maxLength: 255, description: Text the identification string must contain. }
+    TlsCertConfig:
+      type: object
+      description: Used by the `tls` monitor type. Down when the handshake fails, the certificate is untrusted or expired; Degraded inside the warning window.
+      required: [host, port, warnDays]
+      properties:
+        host: { type: string }
+        port: { type: integer, minimum: 1, maximum: 65535 }
+        servername: { type: string, description: Host name for SNI and the host name check; defaults to host. }
+        warnDays: { type: integer, minimum: 1, maximum: 365 }
+        verifyTls: { type: boolean, default: true }
+        tlsCa: { type: string }
+    DomainConfig:
+      type: object
+      description: Used by the `domain` monitor type. The end of the registration comes from RDAP, or WHOIS where the registry has no RDAP.
+      required: [domain, warnDays]
+      properties:
+        domain: { type: string, description: 'The registered domain, for example example.com.' }
+        warnDays: { type: integer, minimum: 1, maximum: 365 }
     DockerConfig:
       type: object
       required: [endpoint, container]

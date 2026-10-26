@@ -56,7 +56,7 @@ Przed wystawieniem instancji produkcyjnej przeczytaj [przewodnik wdrożeniowy](h
 
 Dokumentacja jest po angielsku *(EN)*.
 
-- 🔍 **[Monitory](https://docs.betterstatuspage.dev/monitors/)** — HTTPS (przepływy uwierzytelniania, ostrzeżenia o wygasaniu certyfikatu TLS), Ping / TCP, DNS, SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB, Docker i pasywne heartbeaty przez webhook, z zależnościami między nimi
+- 🔍 **[Monitory](https://docs.betterstatuspage.dev/monitors/)** — HTTPS (przepływy uwierzytelniania, ostrzeżenia o wygasaniu certyfikatu TLS), Ping / TCP, DNS, SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB, Oracle, Redis, serwery pocztowe (SMTP / IMAP / POP3), SSH, certyfikaty TLS, wygasanie domen, Docker i pasywne heartbeaty przez webhook, z zależnościami między nimi
 - 🔔 **[Powiadomienia](https://docs.betterstatuspage.dev/notification-channels/)** — email, webhook, [Slack](https://docs.betterstatuspage.dev/slack-integration/), [Discord](https://docs.betterstatuspage.dev/discord-integration/), [Microsoft Teams](https://docs.betterstatuspage.dev/teams-integration/), [Telegram](https://docs.betterstatuspage.dev/telegram-integration/), ntfy i Pushover, z szablonami i automatycznymi ponowieniami
 - 🤫 **[Higiena alertów](https://docs.betterstatuspage.dev/alert-hygiene/)** — progi awarii, godziny ciszy, limity i grupowanie, żeby alertów nikt nie wyłączał
 - 🎬 **[Akcje](https://docs.betterstatuspage.dev/actions/)** — wysłanie żądania HTTP, gdy monitor przez dłuższy czas nie działa albo wraca do życia

@@ -85,8 +85,8 @@ The E2E suite starts from an empty instance every run (runtime data lives under 
 │   │  Scheduler                  Notifier                 │  │
 │   │  ├── HTTPS checker          Vault resolver           │  │
 │   │  ├── Ping / TCP             Result purger (daily)    │  │
-│   │  ├── DNS resolver                                    │  │
-│   │  └── DB checkers (SQL, PostgreSQL, MySQL, Mongo)     │  │
+│   │  ├── DNS, SSH, TLS, domain expiry                    │  │
+│   │  └── DB (SQL, PG, MySQL, Mongo, Oracle), Redis, mail │  │
 │   └──────────────────────────────────────────────────────┘  │
 │                                                             │
 │   ┌──────────────────────────────────────────────────────┐  │
@@ -116,7 +116,7 @@ The E2E suite starts from an empty instance every run (runtime data lives under 
 | Drag and drop | dnd-kit 6 |
 | Auth | Server-side sessions, HttpOnly cookies, CSRF, TOTP, bcrypt, OpenID Connect (PKCE) |
 | Email | Nodemailer 9 |
-| Monitors | mssql 11, pg 8, mysql2 3, mongodb 7 |
+| Monitors | mssql 11, pg 8, mysql2 3, mongodb 7, oracledb 26 |
 | Scheduler | node-cron 3 |
 
 ## Project structure

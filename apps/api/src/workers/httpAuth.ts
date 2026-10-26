@@ -1,4 +1,5 @@
-import { MAX_JSON_ASSERTION_BODY_BYTES, type HttpsConfig } from '@bsp/shared'
+import { randomBytes } from 'node:crypto'
+import { CACHE_BUSTER_PARAM, MAX_JSON_ASSERTION_BODY_BYTES, type HttpsConfig } from '@bsp/shared'
 import { resolveVaultSecret } from '../kit/resolveSecret.js'
 import { unwrapRefusal } from '../services/ssrfGuard.js'
 
@@ -504,6 +505,21 @@ function hopHeaders(config: { url: string; headers?: Record<string, string> | un
   const all = { ...(config.headers ?? {}), ...authHeaders }
   if (staysWithEndpoint(config.url, url)) return all
   return Object.fromEntries(Object.entries(all).filter(([name]) => FOREIGN_HOP_HEADERS.has(name.toLowerCase())))
+}
+
+/**
+ * The URL of the first request: with `cacheBuster` on, a GET or HEAD gets a fresh random query parameter, so a cache in front of the
+ * endpoint cannot answer it. A POST is not cached the same way and keeps its URL, and so does a URL that is not valid.
+ */
+export function requestUrl(config: { cacheBuster?: boolean | undefined; method?: string | undefined }, url: string): string {
+  if (config.cacheBuster !== true || !['GET', 'HEAD'].includes((config.method ?? 'GET').toUpperCase())) return url
+  try {
+    const busted = new URL(url)
+    busted.searchParams.set(CACHE_BUSTER_PARAM, randomBytes(8).toString('hex'))
+    return busted.toString()
+  } catch {
+    return url
+  }
 }
 
 /**
