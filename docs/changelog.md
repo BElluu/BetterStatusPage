@@ -5,6 +5,11 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+### Fixed
+
+- **Admin menu no longer disappears while a page loads**: the page of the admin you open is fetched on first use, and while it was loading on a slow or stalled connection the whole interface, menu included, was replaced by a small "Loading…" at the top of an empty screen, so it looked as if the click did nothing until the page was reloaded. The menu now stays and only the page area shows the loading state.
+- **A missing script or stylesheet answers 404**: a file under `/assets/` or `/admin/assets/` that does not exist (typically one of an earlier build, requested by a page that was open during an upgrade) was answered with the application's HTML page and status 200, which the browser reported as a script or MIME error. It now answers 404.
+
 ## [0.7.0] - 2026-10-24
 
 ### Added

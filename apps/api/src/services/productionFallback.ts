@@ -1,11 +1,18 @@
 import staticFiles from '@fastify/static'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 
+/**
+ * A built file that is not there (a script or stylesheet of an earlier build) must not be answered with the app's
+ * page: the browser would take the HTML for the script, and the cause would read as a syntax or MIME error.
+ */
+const MISSING_ASSET = /^(\/admin)?\/assets\//
+
 export function createProductionFallback(statusDist: string) {
   return (request: FastifyRequest, reply: FastifyReply) => {
     if (request.url === '/api' || request.url.startsWith('/api/')) {
       return reply.code(404).send({ error: 'Not found' })
     }
+    if (MISSING_ASSET.test(request.url)) return reply.code(404).type('text/plain').send('Not found')
     return reply.sendFile('index.html', statusDist)
   }
 }
@@ -33,7 +40,10 @@ export async function registerProductionFrontends(
   })
 
   app.get('/admin', (_, reply) => reply.redirect('/admin/'))
-  app.get('/admin/*', (_, reply) => reply.sendFile('index.html', adminDist))
+  app.get('/admin/*', (request, reply) => {
+    if (MISSING_ASSET.test(request.url)) return reply.code(404).type('text/plain').send('Not found')
+    return reply.sendFile('index.html', adminDist)
+  })
 
   await app.register(staticFiles, {
     root: statusDist,
