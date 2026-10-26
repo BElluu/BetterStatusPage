@@ -85,6 +85,33 @@ export const MAX_CERT_WARN_DAYS = 365
 /** Follow-up reminders (days before expiry) sent after the first warning, those below warnDays. */
 export const CERT_REMINDER_DAYS: readonly number[] = [7, 3, 1]
 
+/** The slower-than-usual alert of a monitor: its settings, as stored on the monitor and as written in a configuration file. */
+export interface LatencyAlertSettings {
+  /** Times the p95 must exceed the baseline. */
+  factor: number
+  /** Minutes of recent checks the p95 is taken over. */
+  windowMinutes: number
+  /** The p95 must also be at least this many ms above the baseline. */
+  minDeltaMs: number
+  /** Consecutive checks that must agree before an alert or its recovery is sent. */
+  sustain: number
+}
+
+export const DEFAULT_LATENCY_ALERT: LatencyAlertSettings = { factor: 3, windowMinutes: 30, minDeltaMs: 200, sustain: 3 }
+export const LATENCY_FACTOR_RANGE = [1.5, 10] as const
+export const LATENCY_WINDOW_MINUTES_RANGE = [10, 240] as const
+export const LATENCY_MIN_DELTA_MS_RANGE = [0, 60_000] as const
+export const LATENCY_SUSTAIN_RANGE = [1, 20] as const
+/** Days of history the baseline p95 is taken from. */
+export const LATENCY_BASELINE_DAYS = 7
+/**
+ * The monitor types whose response time is the time the service took to answer. Left out: a domain or certificate
+ * monitor (it times a registry lookup, or the TLS negotiation, which is not what it watches), Docker (it times the local socket
+ * that answers about the container, not the service in it) and webhook (a heartbeat has no response time).
+ */
+export const LATENCY_ALERT_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'postgresql', 'mysql', 'mongodb', 'oracle', 'redis', 'mail', 'ssh']
+export const supportsLatencyAlert = (type: string): boolean => (LATENCY_ALERT_TYPES as readonly string[]).includes(type)
+
 export interface PingConfig {
   host: string
   mode: 'tcp' | 'icmp'
@@ -244,6 +271,18 @@ export interface Monitor {
   autoIncidentMode: AutoIncidentMode
   /** Template used for the automatic incident; null = the default template. */
   autoIncidentTemplateId: number | null
+  /** Times the p95 response time must exceed the baseline to count as slower than usual; null = the alert is off. */
+  latencyAlertFactor: number | null
+  /** Minutes of recent checks compared with the baseline. */
+  latencyAlertWindowMinutes: number
+  /** The p95 must also be at least this many ms above the baseline. */
+  latencyAlertMinDeltaMs: number
+  /** Consecutive checks that must agree before an alert or its recovery is sent. */
+  latencyAlertSustain: number
+  /** p95 of the previous 7 days as last measured for the alert; null until the alert has run once. */
+  latencyBaselineP95: number | null
+  /** When the open slower-than-usual alert was confirmed; null while there is none. */
+  latencyAlertSince: number | null
   config: MonitorConfig
   currentStatus: MonitorStatus
   lastCheckedAt: number | null
@@ -321,6 +360,11 @@ export interface MonitorStats {
   failures: number
   /** Null when no check in the window recorded a response time. */
   response: { avg: number; min: number; max: number; p50: number; p95: number; p99: number } | null
+  /**
+   * The usual p95 of the monitor, from its previous seven days (the one measured before the alert while one is open).
+   * Null while the history is too short or too sparse; the same figure the slower-than-usual alert compares with.
+   */
+  baselineP95Ms: number | null
   /** Evenly sized buckets from `from` to `to`; null response values mean no timed check in the bucket. */
   buckets: Array<{
     ts: number

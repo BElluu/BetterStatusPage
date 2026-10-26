@@ -1,10 +1,11 @@
 import { eq, or } from 'drizzle-orm'
 import { isValidEntityKey, byKey, canonical, clip, documentKey, findCycle, isObject, keyList, nestedDeeperThan, unknownFields, type AuditEntry, type ConfigChange, type ConfigKind, type Json, type Problems } from '@better-kit/config-as-code'
+import { DEFAULT_LATENCY_ALERT, LATENCY_FACTOR_RANGE, LATENCY_MIN_DELTA_MS_RANGE, LATENCY_SUSTAIN_RANGE, LATENCY_WINDOW_MINUTES_RANGE, supportsLatencyAlert } from '@bsp/shared'
 import type { AutoIncidentMode } from '@bsp/shared'
 import { tokenAllows } from '@better-kit/contracts'
 import { db } from '../../db/client.js'
 import { monitorActions, monitorDependencies, monitorNotificationChannels, monitors } from '../../db/schema.js'
-import { AUTO_INCIDENT_MINUTES_RANGE, certResetsFor, generateWebhookToken, parseNewMonitor, THRESHOLD_RANGE, WEBHOOK_TOKEN_PATTERN, type MonitorFields } from '../../services/monitorInput.js'
+import { AUTO_INCIDENT_MINUTES_RANGE, certResetsFor, generateWebhookToken, latencyResetsFor, latencyTypeError, parseNewMonitor, THRESHOLD_RANGE, WEBHOOK_TOKEN_PATTERN, type LatencyFields, type MonitorFields } from '../../services/monitorInput.js'
 import { maskSecrets, restoreSecrets, SECRET_MASK } from '../../services/secretFields.js'
 import { vaultUseProblem } from '../vaultUse.js'
 import { cancelRunsOfMonitor, cancelUnlinkedRuns } from '../../workers/actionRunner.js'
@@ -13,8 +14,9 @@ import { mayLinkChannels, type DesiredChannel } from './channel.js'
 import type { ExportState, State } from './state.js'
 import { entityKeys, exportByKey, linkOrder, MAX_CONFIG_DEPTH, missingLink } from './shared.js'
 
-const MONITOR_FIELDS = ['kind', 'key', 'name', 'type', 'intervalSecs', 'timeoutMs', 'retries', 'failureThreshold', 'recoveryThreshold', 'config', 'tags', 'notifications', 'dependsOn', 'autoIncident', 'actions', 'heartbeatToken']
+const MONITOR_FIELDS = ['kind', 'key', 'name', 'type', 'intervalSecs', 'timeoutMs', 'retries', 'failureThreshold', 'recoveryThreshold', 'config', 'tags', 'notifications', 'dependsOn', 'autoIncident', 'latencyAlert', 'actions', 'heartbeatToken']
 const AUTO_INCIDENT_FIELDS = ['enabled', 'afterMinutes', 'mode', 'template']
+const LATENCY_ALERT_FIELDS = ['enabled', 'factor', 'windowMinutes', 'minDeltaMs', 'sustain']
 
 export interface DesiredMonitor {
   path: string
@@ -74,6 +76,49 @@ function resolveAutoIncident(monitor: DesiredMonitor, state: State, problems: Pr
   return { minutes: wanted.afterMinutes, mode: wanted.mode, templateId: found.isDefault ? null : found.id }
 }
 
+/** The block is on unless `enabled: false`; a setting it leaves out takes the default. A missing block is off. */
+function parseLatencyAlert(value: unknown, path: string, problems: Problems): LatencyFields {
+  const off: LatencyFields = {
+    latencyAlertFactor: null,
+    latencyAlertWindowMinutes: DEFAULT_LATENCY_ALERT.windowMinutes,
+    latencyAlertMinDeltaMs: DEFAULT_LATENCY_ALERT.minDeltaMs,
+    latencyAlertSustain: DEFAULT_LATENCY_ALERT.sustain,
+  }
+  if (value === undefined || value === null) return off
+  const at = `${path}.latencyAlert`
+  if (!isObject(value)) { problems.add(at, 'must be an object: { factor, windowMinutes, minDeltaMs, sustain }'); return off }
+  unknownFields(value, LATENCY_ALERT_FIELDS, at, problems)
+  if (value['enabled'] !== undefined && typeof value['enabled'] !== 'boolean') problems.add(`${at}.enabled`, 'must be true or false')
+  if (value['enabled'] === false) return off
+
+  const factor = value['factor'] ?? DEFAULT_LATENCY_ALERT.factor
+  const [minFactor, maxFactor] = LATENCY_FACTOR_RANGE
+  const validFactor = typeof factor === 'number' && Number.isFinite(factor) && factor >= minFactor && factor <= maxFactor
+  if (!validFactor) problems.add(`${at}.factor`, `must be a number from ${minFactor} to ${maxFactor}`)
+  const whole = (field: 'windowMinutes' | 'minDeltaMs' | 'sustain', [min, max]: readonly [number, number]) => {
+    const wanted = value[field] ?? DEFAULT_LATENCY_ALERT[field]
+    if (typeof wanted === 'number' && Number.isInteger(wanted) && wanted >= min && wanted <= max) return wanted
+    problems.add(`${at}.${field}`, `must be a whole number from ${min} to ${max}`)
+    return DEFAULT_LATENCY_ALERT[field]
+  }
+  return {
+    latencyAlertFactor: validFactor ? Math.round(factor * 10) / 10 : DEFAULT_LATENCY_ALERT.factor,
+    latencyAlertWindowMinutes: whole('windowMinutes', LATENCY_WINDOW_MINUTES_RANGE),
+    latencyAlertMinDeltaMs: whole('minDeltaMs', LATENCY_MIN_DELTA_MS_RANGE),
+    latencyAlertSustain: whole('sustain', LATENCY_SUSTAIN_RANGE),
+  }
+}
+
+/** The comparable form of a monitor's slower-than-usual settings; null = off. */
+function latencyAlertState(fields: LatencyFields): Json | null {
+  return fields.latencyAlertFactor === null ? null : {
+    factor: fields.latencyAlertFactor,
+    windowMinutes: fields.latencyAlertWindowMinutes,
+    minDeltaMs: fields.latencyAlertMinDeltaMs,
+    sustain: fields.latencyAlertSustain,
+  }
+}
+
 function parseHeartbeatToken(value: unknown, type: string | undefined, path: string, problems: Problems): string | null {
   if (value === undefined || value === SECRET_MASK) return null
   if (type !== undefined && type !== 'webhook') problems.add(`${path}.heartbeatToken`, 'only a webhook monitor has a heartbeat token')
@@ -106,9 +151,11 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
     const notifications = keysOf(entry['notifications'], `${path}.notifications`, problems)
     const dependsOn = keysOf(entry['dependsOn'], `${path}.dependsOn`, problems)
     const autoIncident = parseAutoIncident(entry['autoIncident'], path, problems)
+    const latency = parseLatencyAlert(entry['latencyAlert'], path, problems)
+    if (latency.latencyAlertFactor !== null && 'value' in parsed && !supportsLatencyAlert(parsed.value.type)) problems.add(`${path}.latencyAlert`, latencyTypeError(parsed.value.type))
     const actionLinks = parseActionLinks(entry['actions'], path, problems)
     const heartbeatToken = parseHeartbeatToken(entry['heartbeatToken'], 'value' in parsed ? parsed.value.type : undefined, path, problems)
-    return key && 'value' in parsed ? { path, key, fields: parsed.value, notifications, dependsOn, actions: actionLinks, autoIncident, heartbeatToken } : null
+    return key && 'value' in parsed ? { path, key, fields: { ...parsed.value, ...latency }, notifications, dependsOn, actions: actionLinks, autoIncident, heartbeatToken } : null
   },
 
   plan(desired, ctx) {
@@ -187,6 +234,7 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
         notifications: currentChannelKeys(existing.id), dependsOn: currentDependencies(existing.id),
         actions: currentActionLinks(existing.id),
         autoIncident: autoIncidentState(existing.autoIncidentMinutes, existing.autoIncidentMode, existing.autoIncidentTemplateId),
+        latencyAlert: latencyAlertState(existing),
         heartbeatToken: existing.webhookToken,
       }
       const wanted: Json = {
@@ -196,6 +244,7 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
         // A document without an `actions` field leaves the links alone; only an empty list removes them.
         ...(monitor.actions !== null ? { actions: [...monitor.actions].sort(linkOrder) } : {}),
         autoIncident: autoIncidentState(auto.minutes, auto.mode, auto.templateId),
+        latencyAlert: latencyAlertState(values),
         ...(monitor.heartbeatToken ? { heartbeatToken: monitor.heartbeatToken } : {}),
       }
       const fields = Object.keys(wanted).filter((field) => canonical(current[field]) !== canonical(wanted[field]))
@@ -248,6 +297,14 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
           updates.autoIncidentMode = auto.mode
           updates.autoIncidentTemplateId = auto.templateId
         }
+        if (fields.includes('latencyAlert')) {
+          updates.latencyAlertFactor = values.latencyAlertFactor
+          updates.latencyAlertWindowMinutes = values.latencyAlertWindowMinutes
+          updates.latencyAlertMinDeltaMs = values.latencyAlertMinDeltaMs
+          updates.latencyAlertSustain = values.latencyAlertSustain
+        }
+        // Also for a changed interval or type, which the alert was judged by too.
+        Object.assign(updates, latencyResetsFor(existing, values))
         if (fields.includes('config')) {
           updates.config = JSON.stringify(config)
           Object.assign(updates, certResetsFor(JSON.parse(existing.config), config))
@@ -267,6 +324,8 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
           failureThreshold: values.failureThreshold, recoveryThreshold: values.recoveryThreshold,
           config: JSON.stringify(config), tags: JSON.stringify(values.tags),
           autoIncidentMinutes: auto.minutes, autoIncidentMode: auto.mode, autoIncidentTemplateId: auto.templateId,
+          latencyAlertFactor: values.latencyAlertFactor, latencyAlertWindowMinutes: values.latencyAlertWindowMinutes,
+          latencyAlertMinDeltaMs: values.latencyAlertMinDeltaMs, latencyAlertSustain: values.latencyAlertSustain,
           currentStatus: 'pending', alertConfirmedStatus: 'pending',
           webhookToken: values.type === 'webhook' ? monitor.heartbeatToken ?? generateWebhookToken() : null,
           createdAt: now, updatedAt: now,
@@ -343,6 +402,14 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
           afterMinutes: row.autoIncidentMinutes,
           mode: row.autoIncidentMode,
           ...(row.autoIncidentTemplateId !== null && templateName.has(row.autoIncidentTemplateId) ? { template: templateName.get(row.autoIncidentTemplateId)! } : {}),
+        },
+      }),
+      ...(row.latencyAlertFactor === null ? {} : {
+        latencyAlert: {
+          factor: row.latencyAlertFactor,
+          windowMinutes: row.latencyAlertWindowMinutes,
+          minDeltaMs: row.latencyAlertMinDeltaMs,
+          sustain: row.latencyAlertSustain,
         },
       }),
     })).sort(exportByKey)

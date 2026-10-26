@@ -78,6 +78,12 @@ function existingMonitor(patch: Partial<Monitor> = {}): Monitor {
     autoIncidentMinutes: null,
     autoIncidentMode: 'draft',
     autoIncidentTemplateId: null,
+    latencyAlertFactor: null,
+    latencyAlertWindowMinutes: 30,
+    latencyAlertMinDeltaMs: 200,
+    latencyAlertSustain: 3,
+    latencyBaselineP95: null,
+    latencyAlertSince: null,
     config: { url: 'https://edge.example.test/health', method: 'HEAD', expectedStatus: 204, keyword: 'ok' },
     currentStatus: 'up',
     lastCheckedAt: null,
@@ -161,6 +167,10 @@ describe('MonitorFormModal', () => {
       autoIncidentMinutes: null,
       autoIncidentMode: 'draft',
       autoIncidentTemplateId: null,
+      latencyAlertFactor: null,
+      latencyAlertWindowMinutes: 30,
+      latencyAlertMinDeltaMs: 200,
+      latencyAlertSustain: 3,
       config: { url: 'https://api.example.test/health', method: 'POST', expectedStatus: 201, keyword: 'healthy' },
       tags: [],
     })
@@ -625,6 +635,87 @@ describe('MonitorFormModal', () => {
     }))
     expect(api.put).toHaveBeenCalledWith('/admin/notifications/monitor/2/channels', { channelIds: [3] })
     expect(api.put).toHaveBeenCalledWith('/admin/monitors/2/dependencies', { dependsOnIds: [1] })
+  })
+
+  it('turns on the slower-than-usual alert with its defaults and saves the settings typed in', async () => {
+    const user = userEvent.setup()
+    const { onSaved } = renderModal(existingMonitor())
+
+    await user.click(screen.getByTitle('Latency'))
+    expect(screen.queryByLabelText('Slower by (×)')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: /Alert when responses get slower than usual/ }))
+    expect(field('Slower by (×)')).toHaveValue(3)
+    expect(field('Measured over (minutes)')).toHaveValue(30)
+    expect(field('At least slower by (ms)')).toHaveValue(200)
+    expect(field('Confirm after (checks)')).toHaveValue(3)
+    expect(screen.getByText(/The usual p95 is measured once the monitor has a day of results/)).toBeInTheDocument()
+
+    await user.clear(field('Slower by (×)'))
+    await user.type(field('Slower by (×)'), '2.5')
+    await user.clear(field('Confirm after (checks)'))
+    await user.type(field('Confirm after (checks)'), '5')
+    // Leaving the field applies the value, so the next one is typed into a clean form.
+    await user.tab()
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+    expect(api.patch).toHaveBeenCalledWith('/admin/monitors/2', expect.objectContaining({
+      latencyAlertFactor: 2.5, latencyAlertWindowMinutes: 30, latencyAlertMinDeltaMs: 200, latencyAlertSustain: 5,
+    }))
+  })
+
+  it('clamps a setting of the slower-than-usual alert into its range when the field is left', async () => {
+    const user = userEvent.setup()
+    renderModal(existingMonitor({ latencyAlertFactor: 3 }))
+    await user.click(screen.getByTitle('Latency'))
+    await user.clear(field('Slower by (×)'))
+    await user.type(field('Slower by (×)'), '50')
+    await user.tab()
+    expect(field('Slower by (×)')).toHaveValue(10)
+    await user.clear(field('Measured over (minutes)'))
+    await user.tab()
+    expect(field('Measured over (minutes)')).toHaveValue(30)
+  })
+
+  it('shows the usual p95 and where the alert fires once the baseline is known, and turns the alert off', async () => {
+    const user = userEvent.setup()
+    const { onSaved } = renderModal(existingMonitor({ latencyAlertFactor: 3, latencyBaselineP95: 150 }))
+    expect(screen.getByTitle('Latency')).toBeInTheDocument()
+    await user.click(screen.getByTitle('Latency'))
+    expect(screen.getByText('150 ms')).toBeInTheDocument()
+    expect(screen.getByText('450 ms')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: /Alert when responses get slower than usual/ }))
+    expect(screen.queryByLabelText('Slower by (×)')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+    expect(api.patch).toHaveBeenCalledWith('/admin/monitors/2', expect.objectContaining({ latencyAlertFactor: null }))
+  })
+
+  it.each([
+    ['webhook', {}],
+    ['domain', { domain: 'example.com', warnDays: 30 }],
+    ['tls', { host: 'example.com', port: 443, warnDays: 21 }],
+    ['docker', { container: 'web' }],
+  ] as const)('has no latency tab for a %s monitor, whose response time is not the time a service took to answer', (type, config) => {
+    renderModal(existingMonitor({ type, config: config as never }))
+    expect(screen.queryByTitle('Latency')).not.toBeInTheDocument()
+  })
+
+  it.each(['https', 'ping', 'dns', 'postgresql', 'redis', 'mail', 'ssh'] as const)('has a latency tab for a %s monitor', (type) => {
+    renderModal(existingMonitor({ type, config: { host: 'example.test' } as never }))
+    expect(screen.getByTitle('Latency')).toBeInTheDocument()
+  })
+
+  it('turns the alert off in what it sends when the monitor is switched to a type without one', async () => {
+    const user = userEvent.setup()
+    const { onSaved } = renderModal(existingMonitor({ latencyAlertFactor: 3 }))
+    await pickType(user, 'Domain expiry')
+    expect(screen.queryByTitle('Latency')).not.toBeInTheDocument()
+    await user.type(field('Domain'), 'example.com')
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+    expect(api.patch).toHaveBeenCalledWith('/admin/monitors/2', expect.objectContaining({ type: 'domain', latencyAlertFactor: null }))
   })
 
   it('links an action to the monitor for admins and saves the links with it', async () => {

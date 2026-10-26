@@ -243,7 +243,7 @@ export default function MonitorsPage() {
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <MonitorStatusBadge monitor={monitor} />
-                      <ActivityBadges activity={monitor.activity} />
+                      <ActivityBadges activity={monitor.activity} slower={monitor.latencyAlertSince !== null} />
                     </div>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>

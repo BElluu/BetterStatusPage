@@ -102,7 +102,7 @@ hours for the noisy-but-not-urgent monitors and a second channel without them fo
 "No more than X alerts from this monitor per Y minutes." Once the cap is hit, further alerts from
 that monitor to that channel are recorded as suppressed until the window rolls forward.
 
-The cap counts **per monitor**, so a noisy monitor cannot use up another one's budget.
+The cap counts **per monitor**, so a noisy monitor cannot use up another one's budget. It counts alerts about outages only: certificate warnings, [slower-than-usual alerts](monitors.md#slower-than-usual-alert) and action notifications are never capped, but quiet hours and grouping apply to them.
 
 **Recoveries are never capped.** The all-clear always gets through, otherwise you could be left
 believing an outage is still running.

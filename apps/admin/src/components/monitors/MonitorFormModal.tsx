@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../../api/client'
+import { DEFAULT_LATENCY_ALERT, supportsLatencyAlert } from '@bsp/shared'
 import type { Action, HttpAssertion, Monitor, MonitorAction, MonitorType, NotificationChannel, MonitorTag } from '@bsp/shared'
 import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
 import { YamlViewModal } from '../YamlViewModal'
@@ -13,6 +14,7 @@ import { DATABASE_DEFAULT_PORTS, DATABASE_DEFAULT_QUERIES, isDatabaseType } from
 import { MonitorTypePicker } from './MonitorTypePicker'
 import { ScheduleSection } from './ScheduleSection'
 import { AutoIncidentSection, type AutoIncidentValues } from './AutoIncidentSection'
+import { LatencyAlertSection, type LatencyAlertValues } from './LatencyAlertSection'
 import { TagsSection } from './TagsSection'
 import { TestResultPanel, type TestResult } from './TestResultPanel'
 import { Alert } from '@better-kit/ui'
@@ -76,6 +78,12 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     autoIncidentMinutes: monitor?.autoIncidentMinutes ?? null,
     autoIncidentMode: monitor?.autoIncidentMode ?? 'draft',
     autoIncidentTemplateId: monitor?.autoIncidentTemplateId ?? null,
+  })
+  const [latencyAlert, setLatencyAlert] = useState<LatencyAlertValues>({
+    latencyAlertFactor: monitor?.latencyAlertFactor ?? null,
+    latencyAlertWindowMinutes: monitor?.latencyAlertWindowMinutes ?? DEFAULT_LATENCY_ALERT.windowMinutes,
+    latencyAlertMinDeltaMs: monitor?.latencyAlertMinDeltaMs ?? DEFAULT_LATENCY_ALERT.minDeltaMs,
+    latencyAlertSustain: monitor?.latencyAlertSustain ?? DEFAULT_LATENCY_ALERT.sustain,
   })
   const [tags, setTags]                 = useState<MonitorTag[]>(monitor?.tags ?? [])
   // A new database monitor cannot work without credentials, so their panel starts open.
@@ -144,6 +152,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     setType(newType)
     setConfig(defaultConfigs[newType] as Record<string, unknown>)
     if (isDatabaseType(newType)) setSidePanel('credentials')
+    else if (sidePanel === 'latency' && !supportsLatencyAlert(newType)) setSidePanel(null)
     else if ((sidePanel === 'credentials' && !usesCredentials(newType)) || (newType !== 'https' && (sidePanel === 'auth' || sidePanel === 'request' || sidePanel === 'checks'))) setSidePanel(null)
   }
 
@@ -216,7 +225,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     }
     setLoading(true)
     try {
-      const body = { name, type, intervalSecs, timeoutMs, retries, failureThreshold, recoveryThreshold, ...autoIncident, config, tags }
+      const body = { name, type, intervalSecs, timeoutMs, retries, failureThreshold, recoveryThreshold, ...autoIncident, ...latencyAlert, ...(supportsLatencyAlert(type) ? {} : { latencyAlertFactor: null }), config, tags }
       if (isEdit) {
         await api.patch(`/admin/monitors/${monitor.id}`, body)
         await api.put(`/admin/notifications/monitor/${monitor.id}/channels`, { channelIds: [...selectedChannelIds] })
@@ -267,6 +276,8 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     ...(availableActions !== null && actionLinks !== null ? [{ key: 'actions' as const, badge: actionLinks.length > 0 ? String(actionLinks.length) : null }] : []),
     { key: 'dependencies', badge: selectedDependsOnIds.size > 0 ? String(selectedDependsOnIds.size) : null },
     { key: 'incident',     badge: autoIncident.autoIncidentMinutes !== null ? String(autoIncident.autoIncidentMinutes) : null },
+    // Only a type whose response time is the time a service took to answer has something to compare.
+    ...(supportsLatencyAlert(type) ? [{ key: 'latency' as const, badge: latencyAlert.latencyAlertFactor !== null ? `${latencyAlert.latencyAlertFactor}×` : null }] : []),
   ]
 
   return (
@@ -379,6 +390,9 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
           )}
           {sidePanel === 'incident' && (
             <AutoIncidentSection values={autoIncident} onChange={(p) => setAutoIncident((prev) => ({ ...prev, ...p }))} />
+          )}
+          {sidePanel === 'latency' && (
+            <LatencyAlertSection values={latencyAlert} onChange={(p) => setLatencyAlert((prev) => ({ ...prev, ...p }))} baselineMs={monitor?.latencyBaselineP95 ?? null} />
           )}
         </SidePanelFrame>
       )}

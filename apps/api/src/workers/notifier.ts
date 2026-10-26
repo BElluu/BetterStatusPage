@@ -133,6 +133,50 @@ export async function sendCertificateNotifications(monitor: typeof monitors.$inf
   }
 }
 
+export interface LatencyEvent {
+  kind: 'slow' | 'normal'
+  p95Ms: number
+  baselineMs: number
+  windowMinutes: number
+  since: number
+}
+
+/**
+ * Tells the monitor's channels that its responses have become slower than usual, or that they are back to normal.
+ * The monitor's status does not change. The all-clear follows the channel's "notify on recovery" switch; both go
+ * through the channel's alert hygiene like any other event.
+ */
+export async function sendLatencyNotifications(monitor: typeof monitors.$inferSelect, event: LatencyEvent) {
+  const channels = await linkedChannels(monitor.id)
+  if (channels.length === 0) return
+
+  const ratio = (event.p95Ms / Math.max(1, event.baselineMs)).toFixed(1)
+  const vars: Record<string, string> = {
+    monitor_name: monitor.name,
+    monitor_type: monitor.type,
+    status: event.kind === 'slow' ? 'latency-slow' : 'latency-normal',
+    previous_status: monitor.currentStatus,
+    error_message: event.kind === 'slow'
+      ? `p95 response time over the last ${event.windowMinutes} minutes is ${event.p95Ms} ms, ${ratio}× the baseline of ${event.baselineMs} ms`
+      : `p95 response time over the last ${event.windowMinutes} minutes is ${event.p95Ms} ms, back near the baseline of ${event.baselineMs} ms`,
+    checked_at: new Date().toISOString(),
+    event_type: 'latency',
+    latency_p95_ms: String(event.p95Ms),
+    latency_baseline_ms: String(event.baselineMs),
+    latency_ratio: ratio,
+    latency_window_minutes: String(event.windowMinutes),
+    latency_since: new Date(event.since).toISOString(),
+    monitor_list: monitor.name,
+    affected_count: '1',
+  }
+
+  for (const channel of channels) {
+    if (channel.enabled !== 1) continue
+    if (event.kind === 'normal' && channel.notifyOnRecovery !== 1) continue
+    await dispatchToChannel(channel, vars, { monitorId: monitor.id, monitorName: monitor.name, eventType: 'latency' })
+  }
+}
+
 type ActionRunInfo = { actionId: number; actionName: string; monitorId: number | null; monitorName: string; onStatus: string; attemptCount: number }
 
 /**

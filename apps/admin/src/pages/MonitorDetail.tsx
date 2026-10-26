@@ -180,7 +180,7 @@ function UptimeBars({ stats }: { stats: MonitorStats }) {
 
 function Percentiles({ stats }: { stats: MonitorStats }) {
   if (!stats.response) return <p className="text-sm" style={{ color: 'var(--m3-secondary)' }}>No response times in this range.</p>
-  const { response } = stats
+  const { response, baselineP95Ms } = stats
   const rows: Array<[string, number]> = [['Min', response.min], ['p50', response.p50], ['p95', response.p95], ['p99', response.p99], ['Max', response.max]]
   return (
     <div className="flex flex-col gap-2.5 text-xs">
@@ -190,11 +190,23 @@ function Percentiles({ stats }: { stats: MonitorStats }) {
             <span style={{ color: 'var(--m3-secondary)' }}>{label}</span>
             <b style={{ color: 'var(--m3-on-surface)' }}>{formatMs(value)}</b>
           </div>
-          <div className="h-1.5 rounded-full" style={{ background: 'var(--m3-surface-container-high)' }}>
+          <div className="relative h-1.5 rounded-full" style={{ background: 'var(--m3-surface-container-high)' }}>
             <div className="h-full rounded-full" style={{ width: `${Math.max(2, (value / response.max) * 100)}%`, background: 'var(--m3-primary)' }} />
+            {label === 'p95' && baselineP95Ms !== null && baselineP95Ms <= response.max && (
+              <div
+                aria-hidden="true" className="absolute rounded-sm"
+                style={{ left: `${(baselineP95Ms / response.max) * 100}%`, top: -3, width: 2, height: 12, background: 'var(--m3-degraded-bar)' }}
+              />
+            )}
           </div>
         </div>
       ))}
+      {baselineP95Ms !== null && (
+        <div className="flex justify-between pt-2" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
+          <span style={{ color: 'var(--m3-secondary)' }}>Usual p95 · 7 days</span>
+          <b style={{ color: 'var(--m3-on-surface)' }}>{formatMs(baselineP95Ms)}</b>
+        </div>
+      )}
     </div>
   )
 }
@@ -273,6 +285,11 @@ export default function MonitorDetailPage() {
   const certificate = certificateText(monitor)
   const dependencyNames = (dependenciesQuery.data?.dependsOnIds ?? []).map((depId) => monitors.find((m) => m.id === depId)?.name ?? `Monitor ${depId}`)
   const rangeLabel = RANGES.find((r) => r.hours === hours)?.label ?? `${hours}h`
+  // The p95 at which the slower-than-usual alert fires: the factor and the minimum rise both have to be met.
+  const baseline = stats?.baselineP95Ms ?? null
+  const latencyLimitMs = monitor.latencyAlertFactor !== null && baseline !== null
+    ? Math.max(Math.round(baseline * monitor.latencyAlertFactor), baseline + monitor.latencyAlertMinDeltaMs)
+    : null
 
   return (
     <PageContainer>
@@ -281,7 +298,7 @@ export default function MonitorDetailPage() {
         Monitors
       </Link>
       <PageHeader
-        title={<span className="inline-flex flex-wrap items-center gap-3">{monitor.name} <MonitorStatusBadge monitor={monitor} /> <ActivityBadges activity={monitor.activity} /></span>}
+        title={<span className="inline-flex flex-wrap items-center gap-3">{monitor.name} <MonitorStatusBadge monitor={monitor} /> <ActivityBadges activity={monitor.activity} slower={monitor.latencyAlertSince !== null} /></span>}
         subtitle={`${typeLabel} · every ${monitor.intervalSecs}s · last check ${monitor.lastCheckedAt ? dateTime(monitor.lastCheckedAt) : 'never'}`}
         actions={<>
           <SegmentedControl label="Time range" options={RANGES.map((r) => ({ label: r.label, value: r.hours }))} value={hours} onChange={setHours} />
@@ -308,6 +325,14 @@ export default function MonitorDetailPage() {
         </Alert>
       )}
 
+      {monitor.latencyAlertSince !== null && (
+        <Alert tone="warning">
+          Responses have been slower than usual since {dateTime(monitor.latencyAlertSince)}.
+          {baseline !== null && latencyLimitMs !== null && <> The usual p95 is {formatMs(baseline)}; the alert fires at {formatMs(latencyLimitMs)}.</>}
+          {' '}The monitor is still answering, so its status does not change.
+        </Alert>
+      )}
+
       {statsQuery.isError ? (
         <ErrorState message="Couldn't load the statistics." onRetry={() => void statsQuery.refetch()} />
       ) : stats === undefined ? (
@@ -325,7 +350,7 @@ export default function MonitorDetailPage() {
                   {stats.response ? formatMs(stats.response.avg) : '—'}
                 </div>
               </div>
-              <ResponseTimeChart stats={stats} metric={metric} />
+              <ResponseTimeChart stats={stats} metric={metric} limitMs={latencyLimitMs} alertSince={monitor.latencyAlertSince} />
             </Card>
 
             <Card title={STEP_TITLE[stats.uptime.stepHours] ?? 'Uptime'} aside={stats.uptime.stepHours >= 24 ? <span className="text-sm" style={{ color: 'var(--m3-secondary)' }}>UTC days</span> : undefined}>
@@ -399,6 +424,7 @@ export default function MonitorDetailPage() {
                 ['Timeout', `${monitor.timeoutMs / 1000} s`],
                 ['Alert after', `${monitor.failureThreshold} ${monitor.failureThreshold === 1 ? 'failure' : 'failures'}`],
                 ['Recover after', `${monitor.recoveryThreshold} ${monitor.recoveryThreshold === 1 ? 'success' : 'successes'}`],
+                ...(monitor.latencyAlertFactor !== null ? [['Slower alert', `${monitor.latencyAlertFactor}× usual p95, ${monitor.latencyAlertWindowMinutes} min`] as [string, ReactNode]] : []),
                 ...(dependencyNames.length > 0 ? [['Depends on', dependencyNames.join(', ')] as [string, ReactNode]] : []),
                 ...(certificate ? [['Certificate', certificate] as [string, ReactNode]] : []),
               ]} />
