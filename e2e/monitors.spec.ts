@@ -33,7 +33,8 @@ test('operator creates an HTTP monitor, tests it and sees it go up', async ({ ad
 
 test('operator creates an SSH monitor from the form, tests it and sees it go up', async ({ adminPage: page, adminApi }) => {
   // A server that only says what an SSH server says first: the monitor reads that and never logs in.
-  const server = createServer((socket) => { socket.on('error', () => {}); socket.end('SSH-2.0-e2e\r\n') })
+  // resume(): the monitor answers with its own line, and a socket nobody reads from never closes, which would hold up server.close().
+  const server = createServer((socket) => { socket.on('error', () => {}); socket.resume(); socket.end('SSH-2.0-e2e\r\n') })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   try {
     const port = (server.address() as { port: number }).port
@@ -44,8 +45,8 @@ test('operator creates an SSH monitor from the form, tests it and sees it go up'
     await page.getByRole('button', { name: /^Type / }).click()
     await page.getByRole('option', { name: /^SSH/ }).click()
     await page.getByPlaceholder('server.example.com').fill('127.0.0.1')
-    // The port is the first number field of the form; the schedule fields come after it.
-    await page.locator('input[type=number]').first().fill(String(port))
+    // Labels are not linked to their inputs, so the port field is the input next to its label.
+    await page.locator('label', { hasText: /^Port$/ }).locator('xpath=..').locator('input').fill(String(port))
 
     await page.getByRole('button', { name: /Test$/ }).click()
     await expect(page.getByText('All checks passed')).toBeVisible()
