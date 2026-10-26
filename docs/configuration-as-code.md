@@ -109,6 +109,29 @@ actions:
   - { action: start-vm2, onStatus: down, delayMinutes: 5, cooldownMinutes: 60 }
 ```
 
+Every [monitor type](monitors.md#monitor-types) is a `type` of a `Monitor` document, with the `config` that its section of the monitors guide lists; the secrets of a config (`password`) are masked in an export like the others:
+
+```yaml
+kind: Monitor
+key: cache
+name: Cache
+type: redis
+config: { host: cache.internal, port: 6379, tls: true, username: monitor, vault: { vault: Production, secret: redis-login } }
+---
+kind: Monitor
+key: mail-certificate
+name: Mail certificate
+type: tls
+config: { host: mail.example.com, port: 993, warnDays: 21 }
+---
+kind: Monitor
+key: example-domain
+name: Domain registration
+type: domain
+intervalSecs: 3600
+config: { domain: example.com, warnDays: 30 }
+```
+
 The `actions` list of a monitor is optional. **A monitor document without it leaves the links of the monitor as they are**, so a file written before actions existed does not remove them; `actions: []` removes them all. A link needs the `action` key, `onStatus` (`down` or `up`) and optionally `delayMinutes` and `cooldownMinutes` (0 to 10080, 0 by default); an action can be linked once per status. Runs that wait for a link the file removed are cancelled.
 
 Monitors, channels and actions are identified by their [key](api.md#monitors-and-notification-channels-have-keys), a technical name that is generated when the object is created, is not shown in the forms, and never changes.

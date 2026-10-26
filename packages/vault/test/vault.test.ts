@@ -88,4 +88,12 @@ describe('secret fields', () => {
     assert.equal(loose.changedDestination('job', {}, { insecure: true }), null)
     assert.equal(loose.changedDestination('job', { insecure: false }, { insecure: true }), null)
   })
+
+  it('counts a switch whose unsafe value is false', () => {
+    const strict = createSecretFields({ job: { fields: FIELDS, destinations: [], loosening: [{ path: ['verify'], value: false }] } })
+    assert.equal(strict.changedDestination('job', { verify: false }, {}), 'verify')
+    assert.equal(strict.changedDestination('job', { verify: false }, { verify: false }), null)
+    assert.equal(strict.changedDestination('job', {}, { verify: false }), null)
+    assert.equal(strict.changedDestination('job', { verify: true }, {}), null)
+  })
 })

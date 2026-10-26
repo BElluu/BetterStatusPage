@@ -54,7 +54,7 @@ Before exposing a production instance, read the [Deployment](https://docs.better
 
 ## What it does 🚀
 
-- 🔍 **[Monitors](https://docs.betterstatuspage.dev/monitors/)** — HTTPS (auth flows, TLS expiry warnings), Ping / TCP, DNS, SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB, Docker and passive webhook heartbeats, with dependencies between them
+- 🔍 **[Monitors](https://docs.betterstatuspage.dev/monitors/)** — HTTPS (auth flows, TLS expiry warnings), Ping / TCP, DNS, SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB, Oracle, Redis, mail servers (SMTP / IMAP / POP3), SSH, TLS certificates, domain expiry, Docker and passive webhook heartbeats, with dependencies between them
 - 🔔 **[Notifications](https://docs.betterstatuspage.dev/notification-channels/)** — email, webhook, [Slack](https://docs.betterstatuspage.dev/slack-integration/), [Discord](https://docs.betterstatuspage.dev/discord-integration/), [Microsoft Teams](https://docs.betterstatuspage.dev/teams-integration/), [Telegram](https://docs.betterstatuspage.dev/telegram-integration/), ntfy and Pushover, with templates and automatic retries
 - 🤫 **[Alert hygiene](https://docs.betterstatuspage.dev/alert-hygiene/)** — failure thresholds, quiet hours, rate caps and grouping, so alerts stay switched on
 - 🎬 **[Actions](https://docs.betterstatuspage.dev/actions/)** — send an HTTP request when a monitor stays down or comes back up

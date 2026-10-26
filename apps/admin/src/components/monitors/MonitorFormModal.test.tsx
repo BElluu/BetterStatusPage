@@ -111,6 +111,23 @@ describe('MonitorFormModal', () => {
     await waitFor(() => expect(createdBody()).toMatchObject({ type: 'dns', config: { hostname: 'example.test', recordType: 'A' } }))
   })
 
+  it('offers Bypass caches for GET and HEAD, not for POST, and saves it', async () => {
+    const user = userEvent.setup()
+    renderModal()
+    await user.type(field('Name'), 'Cached site')
+    await user.clear(field('URL'))
+    await user.type(field('URL'), 'https://example.test')
+    await user.click(screen.getByLabelText('Bypass caches'))
+    expect(screen.getByText(/bsp_cachebuster/)).toBeInTheDocument()
+    await user.selectOptions(field<HTMLSelectElement>('Method'), 'POST')
+    expect(screen.queryByLabelText('Bypass caches')).not.toBeInTheDocument()
+    await user.selectOptions(field<HTMLSelectElement>('Method'), 'HEAD')
+    expect(screen.getByLabelText('Bypass caches')).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+    await waitFor(() => expect(createdBody()).toBeDefined())
+    expect(createdBody()).toMatchObject({ type: 'https', config: { method: 'HEAD', cacheBuster: true } })
+  })
+
   it('creates an HTTPS monitor and saves its channels and dependencies', async () => {
     const user = userEvent.setup()
     const { onSaved } = renderModal()
@@ -379,6 +396,25 @@ describe('MonitorFormModal', () => {
       type,
       config: { host: 'db.internal', port, database: 'orders', user: 'monitor', query: type === 'mongodb' ? '{"ping":1}' : 'SELECT 1' },
     })
+  })
+
+  it('submits Oracle with a service name, its own default query and no encrypt-without-checking option', async () => {
+    const user = userEvent.setup()
+    renderModal()
+    await user.type(field('Name'), 'Ledger')
+    await pickType(user, 'Database')
+    await user.click(screen.getByRole('button', { name: 'Oracle' }))
+    expect(field('Port')).toHaveValue(1521)
+    expect(field('Test Query')).toHaveValue('SELECT 1 FROM DUAL')
+    expect(screen.queryByText('Database', { selector: 'label' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Encrypted, certificate not checked' })).not.toBeInTheDocument()
+    await user.type(field('Host'), 'db.internal')
+    await user.type(field('Service name'), 'FREEPDB1')
+    await user.type(field('User'), 'monitor')
+    await user.type(field('Password'), 'pw')
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+    await waitFor(() => expect(createdBody()).toBeDefined())
+    expect(createdBody()).toMatchObject({ type: 'oracle', config: { host: 'db.internal', port: 1521, database: 'FREEPDB1', query: 'SELECT 1 FROM DUAL' } })
   })
 
   it('starts a new database monitor on verified TLS and shows the CA field only there', async () => {
@@ -842,5 +878,150 @@ describe('MonitorFormModal YAML view', () => {
   it('has no YAML for a monitor that does not exist yet', () => {
     renderModal(null)
     expect(screen.queryByRole('button', { name: 'YAML' })).not.toBeInTheDocument()
+  })
+})
+
+describe('MonitorFormModal service monitors', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGets()
+    vi.mocked(api.post).mockResolvedValue({ id: 42 })
+    vi.mocked(api.put).mockResolvedValue({})
+  })
+
+  it('creates a Redis monitor with its credentials from the Credentials tab', async () => {
+    const user = userEvent.setup()
+    renderModal()
+
+    await user.type(field('Name'), 'Cache')
+    await pickType(user, 'Redis')
+    expect(field('Port')).toHaveValue(6379)
+    await user.type(field('Host'), 'cache.example.test')
+    await user.click(screen.getByLabelText('Connect over TLS'))
+    expect(screen.getByLabelText('Verify the server certificate and host name')).toBeChecked()
+    await user.click(screen.getByTitle('Credentials'))
+    await user.type(field('User'), 'alice')
+    await user.type(field('Password'), 'pw')
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+
+    await waitFor(() => expect(createdBody()).toBeDefined())
+    expect(createdBody()).toMatchObject({ type: 'redis', config: { host: 'cache.example.test', port: 6379, tls: true, username: 'alice', password: 'pw' } })
+    expect(createdBody()['config']).not.toHaveProperty('user')
+  })
+
+  it('creates a Redis monitor without any account', async () => {
+    const user = userEvent.setup()
+    renderModal()
+    await user.type(field('Name'), 'Open cache')
+    await pickType(user, 'Redis')
+    await user.type(field('Host'), 'cache.example.test')
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+    await waitFor(() => expect(createdBody()).toBeDefined())
+    expect(createdBody()['config']).toEqual({ host: 'cache.example.test', port: 6379 })
+  })
+
+  it('moves the mail port with the protocol and encryption while it holds a default', async () => {
+    const user = userEvent.setup()
+    renderModal()
+    await pickType(user, 'Mail server')
+    expect(field('Port')).toHaveValue(587)
+
+    await user.selectOptions(field<HTMLSelectElement>('Protocol'), 'imap')
+    expect(field('Port')).toHaveValue(143)
+    await user.selectOptions(field<HTMLSelectElement>('Encryption'), 'tls')
+    expect(field('Port')).toHaveValue(993)
+
+    await user.clear(field('Port'))
+    await user.type(field('Port'), '1993')
+    await user.selectOptions(field<HTMLSelectElement>('Protocol'), 'pop3')
+    expect(field('Port')).toHaveValue(1993)
+
+    await user.selectOptions(field<HTMLSelectElement>('Encryption'), 'none')
+    expect(screen.queryByLabelText('Verify the server certificate and host name')).not.toBeInTheDocument()
+  })
+
+  it('warns when a mail account would be sent unencrypted', async () => {
+    const user = userEvent.setup()
+    renderModal()
+    await pickType(user, 'Mail server')
+    await user.selectOptions(field<HTMLSelectElement>('Encryption'), 'none')
+    expect(screen.queryByText(/sent unencrypted/)).not.toBeInTheDocument()
+    await user.click(screen.getByTitle('Credentials'))
+    await user.type(field('Password'), 'pw')
+    expect(screen.getByText(/sent unencrypted/)).toBeInTheDocument()
+  })
+
+  it('submits a mail monitor that signs in and does not verify the certificate', async () => {
+    const user = userEvent.setup()
+    renderModal()
+    await user.type(field('Name'), 'Mailbox')
+    await pickType(user, 'Mail server')
+    await user.type(field('Host'), 'mail.example.test')
+    await user.click(screen.getByLabelText('Verify the server certificate and host name'))
+    expect(screen.getByText(/Any certificate is accepted/)).toBeInTheDocument()
+    await user.click(screen.getByTitle('Credentials'))
+    await user.type(field('User'), 'me')
+    await user.type(field('Password'), 'pw')
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+
+    await waitFor(() => expect(createdBody()).toBeDefined())
+    expect(createdBody()).toMatchObject({
+      type: 'mail',
+      config: { protocol: 'smtp', host: 'mail.example.test', port: 587, security: 'starttls', verifyTls: false, username: 'me', password: 'pw' },
+    })
+  })
+
+  it('submits SSH, TLS certificate and domain expiry monitors', async () => {
+    const user = userEvent.setup()
+    renderModal()
+    await user.type(field('Name'), 'Checks')
+
+    await pickType(user, 'SSH')
+    expect(field('Port')).toHaveValue(22)
+    await user.type(field('Host'), 'ssh.example.test')
+    await user.type(field('Expected identification text (optional)'), 'OpenSSH')
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+    await waitFor(() => expect(createdBody()).toBeDefined())
+    expect(createdBody()).toMatchObject({ type: 'ssh', config: { host: 'ssh.example.test', port: 22, expectedBanner: 'OpenSSH' } })
+
+    vi.mocked(api.post).mockClear()
+    await pickType(user, 'TLS certificate')
+    expect(field('Port')).toHaveValue(443)
+    await user.type(field('Host'), 'example.test')
+    await user.clear(field('Degraded within (days)'))
+    await user.type(field('Degraded within (days)'), '21')
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+    await waitFor(() => expect(createdBody()).toBeDefined())
+    expect(createdBody()).toMatchObject({ type: 'tls', config: { host: 'example.test', port: 443, warnDays: 21 } })
+
+    vi.mocked(api.post).mockClear()
+    await pickType(user, 'Domain expiry')
+    await user.type(field('Domain'), 'example.test')
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+    await waitFor(() => expect(createdBody()).toBeDefined())
+    expect(createdBody()).toMatchObject({ type: 'domain', config: { domain: 'example.test', warnDays: 30 } })
+  })
+
+  it('tests the new types through the test endpoint', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.post).mockResolvedValue({ overall: 'ok', steps: [{ label: 'SSH host:22', status: 'ok', detail: 'SSH-2.0-OpenSSH_9.6' }], totalMs: 5 })
+    renderModal()
+    await pickType(user, 'SSH')
+    await user.type(field('Host'), 'ssh.example.test')
+    await user.click(screen.getByRole('button', { name: /Test$/ }))
+    await waitFor(() => expect(vi.mocked(api.post)).toHaveBeenCalledWith('/admin/monitors/test', expect.objectContaining({ type: 'ssh' })))
+    expect(await screen.findByText('SSH-2.0-OpenSSH_9.6')).toBeInTheDocument()
+  })
+
+  it('keeps the Credentials tab when switching between Redis and mail, and drops it for other types', async () => {
+    const user = userEvent.setup()
+    renderModal()
+    await pickType(user, 'Redis')
+    await user.click(screen.getByTitle('Credentials'))
+    expect(screen.getByText('Credentials', { selector: 'h2, h3, span, div' })).toBeInTheDocument()
+    await pickType(user, 'Mail server')
+    expect(screen.getByTitle('Credentials')).toBeInTheDocument()
+    await pickType(user, 'SSH')
+    expect(screen.queryByTitle('Credentials')).not.toBeInTheDocument()
   })
 })

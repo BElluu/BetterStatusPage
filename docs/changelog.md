@@ -5,6 +5,13 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+### Added
+
+- **New monitor types**: **Redis** (PING, with a password or ACL user), **Mail server** (SMTP, IMAP or POP3 greeting, STARTTLS or TLS from the start, and an optional sign-in that proves the account works), **SSH** (reads the server's identification string, no login), **TLS certificate** (any TLS port: trust, host name, and a status that turns Degraded before the certificate expires) and **Domain expiry** (end of the registration through RDAP, with a WHOIS fallback for domains such as `.pl`). Each has a **Test** button, passwords can come from the vault, they refuse cloud metadata addresses like the other monitors, and Redis, mail, SSH and TLS certificate monitors can be charted on the status page. The API, configuration files and notification variable `monitor_type` use `redis`, `mail`, `ssh`, `tls` and `domain`. See [Monitors](monitors.md#redis).
+- **Bypass caches for HTTPS monitors**: an HTTPS monitor can add a random `bsp_cachebuster` query parameter to the request of every check (`cacheBuster: true`), so a CDN or proxy cache cannot answer for a backend that is down. It applies to `GET` and `HEAD`, only to the first request, and not with CAS authentication. See [Monitors](monitors.md#bypassing-caches).
+- **Oracle Database monitor**: the **Database** type has an **Oracle** engine (`oracle` in the API and configuration files) that runs a query, by default `SELECT 1 FROM DUAL`, against a service name, with the same credentials, vault, expected-result and test-button behaviour as the other engines. It uses the `oracledb` driver in its pure JavaScript mode, so no Oracle Client has to be installed. See [Monitors](monitors.md#sql-server-postgresql-mysql--mariadb-mongodb-and-oracle).
+- **A kept password is not sent with weaker protection**: when you edit a monitor and leave its password as `••••••••`, the server now also refuses to keep it if the CA certificate, the mail encryption, Redis TLS or certificate verification (`verifyTls`) was loosened, not only when the host or port changed. Type the password again to confirm the change.
+
 ### Fixed
 
 - **Admin menu no longer disappears while a page loads**: the page of the admin you open is fetched on first use, and while it was loading on a slow or stalled connection the whole interface, menu included, was replaced by a small "Loading…" at the top of an empty screen, so it looked as if the click did nothing until the page was reloaded. The menu now stays and only the page area shows the loading state.

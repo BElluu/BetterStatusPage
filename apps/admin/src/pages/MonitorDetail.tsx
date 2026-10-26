@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { DEFAULT_UPTIME_THRESHOLDS, classifyUptimeDay } from '@bsp/shared'
-import type { DnsConfig, DockerConfig, HttpsConfig, Monitor, MonitorStats, MonitorWithActivity, PingConfig, UptimeDayStatus } from '@bsp/shared'
+import type { DnsConfig, DockerConfig, DomainConfig, HttpsConfig, Monitor, MonitorStats, MonitorWithActivity, PingConfig, UptimeDayStatus } from '@bsp/shared'
 import { describeRecurrence } from '../components/maintenance/recurrence'
 import { ActivityBadges, MonitorStatusBadge, StatusBadge } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
@@ -205,6 +205,7 @@ function monitorTarget(monitor: Monitor): string | null {
     case 'ping': return (monitor.config as PingConfig).host
     case 'dns': return (monitor.config as DnsConfig).hostname
     case 'docker': return (monitor.config as DockerConfig).container
+    case 'domain': return (monitor.config as DomainConfig).domain
     case 'webhook': return null
     default: return (monitor.config as { host?: string }).host ?? null
   }

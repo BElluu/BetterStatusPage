@@ -3,8 +3,9 @@ import { DATABASE_TLS_MODES, isDatabaseType } from '@bsp/shared'
 import type { AutoIncidentMode, DatabaseTlsMode, MonitorTag, MonitorType } from '@bsp/shared'
 import { validateHttpAssertions } from '../workers/assertions.js'
 import { validateDockerConfig } from '../workers/docker.js'
+import { validateServiceConfig } from '../workers/serviceConfig.js'
 
-export const MONITOR_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'postgresql', 'mysql', 'mongodb', 'docker', 'webhook']
+export const MONITOR_TYPES: readonly MonitorType[] = ['https', 'ping', 'dns', 'sqlserver', 'postgresql', 'mysql', 'mongodb', 'oracle', 'redis', 'mail', 'ssh', 'tls', 'domain', 'docker', 'webhook']
 
 export const INTERVAL_SECS_RANGE = [10, 86_400] as const
 export const TIMEOUT_MS_RANGE = [1_000, 300_000] as const
@@ -132,6 +133,8 @@ function parseConfig(type: MonitorType, value: unknown): Parsed<Record<string, u
     const invalid = validateDockerConfig(value)
     if (invalid) return { error: invalid }
   }
+  const invalidService = validateServiceConfig(type, value)
+  if (invalidService) return { error: invalidService }
   if (isDatabaseType(type)) {
     const invalid = validateDatabaseTls(value)
     if (invalid) return { error: invalid }
@@ -140,6 +143,7 @@ function parseConfig(type: MonitorType, value: unknown): Parsed<Record<string, u
     const invalid = validateHttpAssertions(value)
     if (invalid) return { error: invalid }
     if (value['ignoreTls'] !== undefined && typeof value['ignoreTls'] !== 'boolean') return { error: 'ignoreTls must be true or false' }
+    if (value['cacheBuster'] !== undefined && typeof value['cacheBuster'] !== 'boolean') return { error: 'cacheBuster must be true or false' }
   }
   return { value }
 }

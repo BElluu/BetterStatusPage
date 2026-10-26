@@ -35,7 +35,7 @@ Click a block to select it. Its settings appear under **Properties** in the left
 
 **Monitor cards.** **Display name (optional)** is the name visitors see on the card and in the incidents that list the monitor, instead of the monitor's own name; leave it empty to use the monitor name. With several cards for one monitor, the first one that has a display name sets the name in the incidents. The title and text of an incident are written by you and are not changed. **Card type** is **Full** (default) or **Compact**. A full card has a 30-day uptime bar that you can switch off or place to the **Right** of the name (default) or **Below** it. With the bar below, **Show uptime %** adds the uptime percentage. A compact card is a single row without the uptime bar. **Show monitor type** adds the monitor type to either kind.
 
-**Charts** are only offered for HTTPS, Ping, database (SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB) and Docker monitors, because the other types have no response time. A chart has:
+**Charts** are only offered for HTTPS, Ping, database (SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB, Oracle), Redis, mail server, SSH, TLS certificate and Docker monitors, because the other types have no response time. A chart has:
 
 - **Title (optional)**: leave it empty to use the monitor name.
 - **Time range**: last 1, 3, 6, 12 or 24 hours, 2, 7, 30 or 90 days. Default: 24 hours.

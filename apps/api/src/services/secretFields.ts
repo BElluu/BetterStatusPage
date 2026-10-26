@@ -1,4 +1,4 @@
-import { createSecretFields, uniqueSecretFields, type SecretField } from '@better-kit/vault'
+import { createSecretFields, uniqueSecretFields, type LooseningSwitch, type SecretField } from '@better-kit/vault'
 import { CHANNEL_DESTINATIONS, CHANNEL_SECRETS } from '@better-kit/notify'
 
 export { SECRET_MASK } from '@better-kit/vault'
@@ -31,14 +31,19 @@ const MONITOR_SECRETS: Readonly<Record<string, readonly SecretField[]>> = {
   postgresql: DATABASE_SECRETS,
   mysql: DATABASE_SECRETS,
   mongodb: DATABASE_SECRETS,
+  oracle: DATABASE_SECRETS,
+  redis: DATABASE_SECRETS,
+  mail: DATABASE_SECRETS,
 }
 
 const MONITOR_DESTINATIONS: readonly (readonly string[])[] = [
   ['url'], ['auth', 'oauth2', 'tokenUrl'], ['auth', 'cas', 'casServerUrl'], ['host'], ['port'],
+  // Another authority to trust, or a mail connection that stops being encrypted, sends the kept password where it is not protected.
+  ['tlsCa'], ['security'],
 ]
 
 /** Turning certificate checks off makes the same destination less safe; turning them back on does not. */
-const MONITOR_LOOSENING: readonly (readonly string[])[] = [['ignoreTls']]
+const MONITOR_LOOSENING: readonly LooseningSwitch[] = [['ignoreTls'], { path: ['verifyTls'], value: false }, { path: ['tls'], value: false }]
 
 const secretFields = createSecretFields<ConfigKind>({
   monitor: { fields: uniqueSecretFields(Object.values(MONITOR_SECRETS).flat()), destinations: MONITOR_DESTINATIONS, loosening: MONITOR_LOOSENING },

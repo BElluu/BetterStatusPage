@@ -1,3 +1,4 @@
+import { createServer } from 'node:net'
 import { ADMIN_URL, API_URL, STATUS_URL, checkNow, createHttpMonitor, expect, ok, setPublicLayout, test, unique, waitUntilPublished, type MonitorRow } from './fixtures'
 
 const HEALTHY_URL = `${API_URL}/health`
@@ -28,6 +29,37 @@ test('operator creates an HTTP monitor, tests it and sees it go up', async ({ ad
   const monitors = await ok<MonitorRow[]>(adminApi.get('admin/monitors'))
   const created = monitors.find((monitor) => monitor.name === name)!
   expect(created.currentStatus).toBe('up')
+})
+
+test('operator creates an SSH monitor from the form, tests it and sees it go up', async ({ adminPage: page, adminApi }) => {
+  // A server that only says what an SSH server says first: the monitor reads that and never logs in.
+  const server = createServer((socket) => { socket.on('error', () => {}); socket.end('SSH-2.0-e2e\r\n') })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const port = (server.address() as { port: number }).port
+    const name = unique('Bastion')
+    await page.goto(`${ADMIN_URL}/monitors`)
+    await page.getByRole('button', { name: 'Add Monitor' }).click()
+    await page.getByPlaceholder('My Service').fill(name)
+    await page.getByRole('button', { name: /^Type / }).click()
+    await page.getByRole('option', { name: /^SSH/ }).click()
+    await page.getByPlaceholder('server.example.com').fill('127.0.0.1')
+    // The port is the first number field of the form; the schedule fields come after it.
+    await page.locator('input[type=number]').first().fill(String(port))
+
+    await page.getByRole('button', { name: /Test$/ }).click()
+    await expect(page.getByText('All checks passed')).toBeVisible()
+    await expect(page.getByText('SSH-2.0-e2e')).toBeVisible()
+
+    await page.getByRole('button', { name: 'Create Monitor' }).click()
+    const row = page.getByRole('row').filter({ hasText: name })
+    await row.getByTitle('Check now').click()
+    await expect(row.getByText('Operational')).toBeVisible()
+    const created = (await ok<MonitorRow[]>(adminApi.get('admin/monitors'))).find((monitor) => monitor.name === name)!
+    expect(created).toMatchObject({ type: 'ssh', currentStatus: 'up' })
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
 })
 
 test('the Test button reports a failing endpoint without saving it', async ({ adminPage: page, adminApi }) => {
