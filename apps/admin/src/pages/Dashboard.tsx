@@ -257,7 +257,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-1.5">
                     <MonitorStatusBadge monitor={monitor} />
-                    <ActivityBadges activity={monitor.activity} />
+                    <ActivityBadges activity={monitor.activity} slower={monitor.latencyAlertSince !== null} />
                   </div>
                 </Link>
               )

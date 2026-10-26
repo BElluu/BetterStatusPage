@@ -50,6 +50,28 @@ function certificateNotice(vars: Vars): Notice {
   }
 }
 
+/** A monitor's responses became slower than usual, or are back to normal; the monitor's own status is not part of it. */
+function latencyNotice(vars: Vars): Notice {
+  const normal = vars['status'] === 'latency-normal'
+  const name = { subject: vars['monitor_name'] ?? UNKNOWN_MONITOR }
+  return {
+    severity: normal ? 'ok' : 'warning',
+    // A digest has no single ratio to quote.
+    headline: normal
+      ? vars['monitor_type'] === 'group' ? ['Back to normal speed: ', name] : [name, ' is back to normal speed']
+      : vars['latency_ratio'] ? [name, ` is ${vars['latency_ratio']}× slower than usual`] : ['Slower than usual: ', name],
+    subtitle: previousStatus(vars),
+    facts: [
+      ...(vars['latency_p95_ms'] ? [{ label: 'p95', value: `${vars['latency_p95_ms']} ms`, fullLabel: 'p95 response time' }] : []),
+      ...(vars['latency_baseline_ms'] ? [{ label: 'Baseline', value: `${vars['latency_baseline_ms']} ms`, fullLabel: 'Baseline p95 (7 days)' }] : []),
+      ...monitorFacts(vars),
+    ],
+    ...errorDetail(vars, 'Details'),
+    at: vars['checked_at'] ?? 'unknown',
+    atLabel: 'Checked at',
+  }
+}
+
 /** An action ran for a monitor, failed after its last attempt, or waits for approval. It has no status of its own to show, so it lists what ran. */
 function actionNotice(vars: Vars): Notice {
   const succeeded = vars['status'] === 'action-succeeded'
@@ -75,6 +97,7 @@ export function noticeFromVars(vars: Vars): Notice {
   switch (vars['event_type']) {
     case 'action': return actionNotice(vars)
     case 'certificate': return certificateNotice(vars)
+    case 'latency': return latencyNotice(vars)
     default: return alertNotice(vars)
   }
 }
@@ -82,6 +105,8 @@ export function noticeFromVars(vars: Vars): Notice {
 function worstStatus(rows: DeliveryRow[]): string {
   if (rows.some((row) => row.targetStatus === 'down')) return 'down'
   if (rows.some((row) => row.targetStatus === 'degraded')) return 'degraded'
+  // A digest of speed events that holds one slowdown is about a slowdown, whatever came first.
+  if (rows.some((row) => row.targetStatus === 'latency-slow')) return 'latency-slow'
   return rows[0]?.targetStatus ?? 'unknown'
 }
 

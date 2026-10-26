@@ -17,7 +17,8 @@ import { tokenAllows } from '@better-kit/contracts'
 import { keyForNew, type KeyOwner } from '@better-kit/config-as-code'
 import { vaultUseProblem } from '../kit/vaultUse.js'
 import { validateServiceConfig } from '../workers/serviceConfig.js'
-import { certResetsFor, generateWebhookToken, parseMonitorPatch, parseNewMonitor } from '../services/monitorInput.js'
+import { certResetsFor, generateWebhookToken, latencyResetsFor, parseMonitorPatch, parseNewMonitor } from '../services/monitorInput.js'
+import { baselineOf } from '../workers/latencyAnomaly.js'
 import { loadMonitorActivity } from '../services/monitorActivity.js'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
 import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig, RedisConfig, MailConfig, SshConfig, TlsCertConfig, DomainConfig, MonitorActivity, MonitorType } from '@bsp/shared'
@@ -119,6 +120,7 @@ export async function monitorRoutes(app: FastifyInstance) {
     intervalSecs?: number; timeoutMs?: number; retries?: number; config: unknown
     failureThreshold?: number; recoveryThreshold?: number
     autoIncidentMinutes?: number | null; autoIncidentMode?: string; autoIncidentTemplateId?: number | null
+    latencyAlertFactor?: number | null; latencyAlertWindowMinutes?: number; latencyAlertMinDeltaMs?: number; latencyAlertSustain?: number
     tags?: Array<{ label: string; color: string }>
   } }>('/', async (req, reply) => {
     const parsed = parseNewMonitor(req.body)
@@ -146,6 +148,10 @@ export async function monitorRoutes(app: FastifyInstance) {
       autoIncidentMinutes: fields.autoIncidentMinutes,
       autoIncidentMode: fields.autoIncidentMode,
       autoIncidentTemplateId: fields.autoIncidentTemplateId,
+      latencyAlertFactor: fields.latencyAlertFactor,
+      latencyAlertWindowMinutes: fields.latencyAlertWindowMinutes,
+      latencyAlertMinDeltaMs: fields.latencyAlertMinDeltaMs,
+      latencyAlertSustain: fields.latencyAlertSustain,
       config: JSON.stringify(secrets.config),
       tags: JSON.stringify(fields.tags),
       currentStatus: 'pending',
@@ -160,6 +166,7 @@ export async function monitorRoutes(app: FastifyInstance) {
       snapshot({
         name: m.name, type: m.type, intervalSecs: m.intervalSecs, timeoutMs: m.timeoutMs, retries: m.retries,
         failureThreshold: m.failureThreshold, recoveryThreshold: m.recoveryThreshold,
+        latencyAlertFactor: m.latencyAlertFactor,
       }))
     return m
   })
@@ -175,6 +182,7 @@ export async function monitorRoutes(app: FastifyInstance) {
     intervalSecs: number; timeoutMs: number; retries: number; config: unknown
     failureThreshold: number; recoveryThreshold: number
     autoIncidentMinutes: number | null; autoIncidentMode: string; autoIncidentTemplateId: number | null
+    latencyAlertFactor: number | null; latencyAlertWindowMinutes: number; latencyAlertMinDeltaMs: number; latencyAlertSustain: number
     tags: Array<{ label: string; color: string }>
   }> }>('/:id', async (req, reply) => {
     const id = Number(req.params.id)
@@ -202,6 +210,11 @@ export async function monitorRoutes(app: FastifyInstance) {
       if (!await templateExists(patch.autoIncidentTemplateId)) return reply.code(400).send({ error: 'autoIncidentTemplateId does not match a template' })
       updates.autoIncidentTemplateId = patch.autoIncidentTemplateId
     }
+    if (patch.latencyAlertFactor !== undefined) updates.latencyAlertFactor = patch.latencyAlertFactor
+    if (patch.latencyAlertWindowMinutes !== undefined) updates.latencyAlertWindowMinutes = patch.latencyAlertWindowMinutes
+    if (patch.latencyAlertMinDeltaMs !== undefined) updates.latencyAlertMinDeltaMs = patch.latencyAlertMinDeltaMs
+    if (patch.latencyAlertSustain !== undefined) updates.latencyAlertSustain = patch.latencyAlertSustain
+    Object.assign(updates, latencyResetsFor(existing, patch))
     if (patch.config !== undefined) {
       // A masked secret means "keep the stored one", which only makes sense while the type stays the same.
       const type = patch.type ?? existing.type
@@ -217,8 +230,8 @@ export async function monitorRoutes(app: FastifyInstance) {
     const results = await db.update(monitors).set(updates).where(eq(monitors.id, id)).returning()
     const m = parseMonitor(results[0]!)
     const actor = requestIdentity(req)
-    const before = { name: existing.name, type: existing.type, intervalSecs: existing.intervalSecs, timeoutMs: existing.timeoutMs, retries: existing.retries, failureThreshold: existing.failureThreshold, recoveryThreshold: existing.recoveryThreshold, tags: existing.tags }
-    const after  = { name: m.name, type: m.type, intervalSecs: m.intervalSecs, timeoutMs: m.timeoutMs, retries: m.retries, failureThreshold: m.failureThreshold, recoveryThreshold: m.recoveryThreshold, tags: JSON.stringify(m.tags) }
+    const before = { name: existing.name, type: existing.type, intervalSecs: existing.intervalSecs, timeoutMs: existing.timeoutMs, retries: existing.retries, failureThreshold: existing.failureThreshold, recoveryThreshold: existing.recoveryThreshold, latencyAlertFactor: existing.latencyAlertFactor, latencyAlertWindowMinutes: existing.latencyAlertWindowMinutes, latencyAlertMinDeltaMs: existing.latencyAlertMinDeltaMs, latencyAlertSustain: existing.latencyAlertSustain, tags: existing.tags }
+    const after  = { name: m.name, type: m.type, intervalSecs: m.intervalSecs, timeoutMs: m.timeoutMs, retries: m.retries, failureThreshold: m.failureThreshold, recoveryThreshold: m.recoveryThreshold, latencyAlertFactor: m.latencyAlertFactor, latencyAlertWindowMinutes: m.latencyAlertWindowMinutes, latencyAlertMinDeltaMs: m.latencyAlertMinDeltaMs, latencyAlertSustain: m.latencyAlertSustain, tags: JSON.stringify(m.tags) }
     const diff = diffObjects(before as Record<string, unknown>, after as Record<string, unknown>)
     if (patch.config !== undefined) diff['config'] = { from: '[previous config]', to: '[updated config]' }
     if (Object.keys(diff).length) writeAudit(auditActor(actor), 'update', 'monitor', id, existing.name, diff)
@@ -342,12 +355,15 @@ export async function monitorRoutes(app: FastifyInstance) {
     if (!Number.isInteger(id) || id < 1 || !Number.isInteger(hours) || hours < 1) {
       return reply.code(400).send({ error: 'Invalid monitor id or hours' })
     }
-    if (!(await db.select({ id: monitors.id }).from(monitors).where(eq(monitors.id, id)))[0]) {
-      return reply.code(404).send({ error: 'Not found' })
-    }
+    const monitor = (await db.select().from(monitors).where(eq(monitors.id, id)))[0]
+    if (!monitor) return reply.code(404).send({ error: 'Not found' })
     const { resultRetentionDays } = getSchedulerConfig()
     reply.header('Cache-Control', 'no-store')
-    return loadMonitorStats(id, Math.min(hours, resultRetentionDays * 24), resultRetentionDays)
+    const [stats, baselineP95Ms] = await Promise.all([
+      loadMonitorStats(id, Math.min(hours, resultRetentionDays * 24), resultRetentionDays),
+      baselineOf(monitor),
+    ])
+    return { ...stats, baselineP95Ms }
   })
 
   app.get<{ Params: { id: string }; Querystring: { days?: string } }>('/:id/history', async (req) => {

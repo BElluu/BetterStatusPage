@@ -13,11 +13,12 @@ const RECENT_FAILURES_LIMIT = 10
 const pct = (up: number, total: number) => (up / total) * 100
 
 /** Value at the given percentile of an ascending list; null when empty. */
-function percentileOf(sorted: number[] | undefined, fraction: number): number | null {
+export function percentileOf(sorted: number[] | undefined, fraction: number): number | null {
   return sorted && sorted.length > 0 ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * fraction))]! : null
 }
 
-export async function loadMonitorStats(monitorId: number, hours: number, retentionDays: number): Promise<MonitorStats> {
+/** What the results alone say; the route adds the baseline, which also depends on the monitor's alert state. */
+export async function loadMonitorStats(monitorId: number, hours: number, retentionDays: number): Promise<Omit<MonitorStats, 'baselineP95Ms'>> {
   const to = Date.now()
   const from = to - hours * HOUR_MS
   const bucketMs = Math.ceil(hours / MAX_BUCKETS) * HOUR_MS

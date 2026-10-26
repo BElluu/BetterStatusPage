@@ -30,6 +30,7 @@ const monitor = {
   id: 7, key: 'checkout-api', name: 'Checkout API', type: 'https', intervalSecs: 60, timeoutMs: 10_000, failureThreshold: 2, recoveryThreshold: 1,
   currentStatus: 'up', activity: { maintenance: false, windows: [], incident: null }, lastCheckedAt: 1_700_000_000_000, certExpiresAt: null, tags: [],
   config: { url: 'https://api.shop.example/health' },
+  latencyAlertFactor: null, latencyAlertWindowMinutes: 30, latencyAlertMinDeltaMs: 200, latencyAlertSustain: 3, latencyBaselineP95: null, latencyAlertSince: null,
 } as unknown as Monitor
 
 const now = Date.now()
@@ -37,6 +38,7 @@ const stats: MonitorStats = {
   monitorId: 7, hours: 168, from: now - 168 * 3_600_000, to: now, retentionDays: 90,
   checksTotal: 1000, checksUp: 999, uptimePct: 99.9, failures: 1,
   response: { avg: 120, min: 40, max: 2500, p50: 100, p95: 300, p99: 900 },
+  baselineP95Ms: null,
   buckets: [
     { ts: now - 3_600_000, checksTotal: 10, checksUp: 10, avgMs: 100, minMs: 40, maxMs: 200, p95Ms: 190, down: 0, degraded: 0 },
     { ts: now, checksTotal: 10, checksUp: 9, avgMs: 140, minMs: 50, maxMs: 2500, p95Ms: 900, down: 1, degraded: 0 },
@@ -102,6 +104,45 @@ describe('MonitorDetailPage', () => {
     // The chip beside the status and the title of the maintenance card.
     expect(await screen.findAllByText('Maintenance')).toHaveLength(2)
     expect(screen.getByText('Incident · major')).toBeInTheDocument()
+  })
+
+  it('shows no slower-than-usual notice, chip or usual p95 while there is no alert and no baseline', async () => {
+    renderPage()
+    expect(await screen.findByText('99.900%')).toBeInTheDocument()
+    expect(screen.queryByText('Slower than usual')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Usual p95/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Slower alert')).not.toBeInTheDocument()
+  })
+
+  it('shows the usual p95 and the alert settings once the baseline is known', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.includes('/stats')) return { ...stats, baselineP95Ms: 150 }
+      if (path.includes('/dependencies')) return { dependsOnIds: [] }
+      if (path === '/admin/monitors') return [monitor]
+      return { ...monitor, latencyAlertFactor: 3 }
+    })
+    renderPage()
+    expect(await screen.findByText('Usual p95 · 7 days')).toBeInTheDocument()
+    expect(screen.getByText('150ms')).toBeInTheDocument()
+    expect(screen.getByText('Slower alert')).toBeInTheDocument()
+    expect(screen.getByText('3× usual p95, 30 min')).toBeInTheDocument()
+    // No alert is open, so nothing says the monitor is slow.
+    expect(screen.queryByText('Slower than usual')).not.toBeInTheDocument()
+  })
+
+  it('tells that responses are slower than usual while the alert is open, and where it fires', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.includes('/stats')) return { ...stats, baselineP95Ms: 150 }
+      if (path.includes('/dependencies')) return { dependsOnIds: [] }
+      if (path === '/admin/monitors') return [monitor]
+      return { ...monitor, latencyAlertFactor: 3, latencyAlertSince: Date.now() - 3_600_000 }
+    })
+    renderPage()
+    expect(await screen.findByText('Slower than usual')).toBeInTheDocument()
+    expect(screen.getByText(/Responses have been slower than usual since/)).toBeInTheDocument()
+    expect(screen.getByText(/The usual p95 is 150ms; the alert fires at 450ms/)).toBeInTheDocument()
+    // The status itself is untouched.
+    expect(screen.getByRole('heading', { name: /Checkout API/ })).toHaveTextContent('Operational')
   })
 
   it('shows the effective status in the title and the check result in the summary', async () => {

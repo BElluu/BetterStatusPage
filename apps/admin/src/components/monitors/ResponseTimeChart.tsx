@@ -1,4 +1,4 @@
-import { Area, AreaChart, CartesianGrid, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Area, AreaChart, CartesianGrid, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { MonitorStats } from '@bsp/shared'
 import { formatClock, formatDayMonth } from '@better-kit/ui'
 
@@ -92,17 +92,27 @@ interface Props {
   stats: MonitorStats
   metric: ChartMetric
   height?: number
+  /** Where the slower-than-usual alert fires, in ms; drawn with the baseline on the p95 view only, the one it is about. */
+  limitMs?: number | null
+  /** When the open slower-than-usual alert was confirmed; shaded from there to the end of the chart. */
+  alertSince?: number | null
 }
 
+const REFERENCE_LABEL = { position: 'insideTopLeft', fontSize: 10, fill: 'var(--m3-secondary)' } as const
+
 /** Response time of one monitor, drawn like the chart on the public status page. */
-export function ResponseTimeChart({ stats, metric, height = 300 }: Props) {
+export function ResponseTimeChart({ stats, metric, height = 300, limitMs = null, alertSince = null }: Props) {
   const points = toPoints(stats, metric)
   const values = points.map((p) => p.value).filter((v): v is number => v !== null)
   if (values.length === 0) {
     return <p role="status" className="text-sm py-10 text-center" style={{ color: 'var(--m3-secondary)' }}>No response times in this range.</p>
   }
 
-  const yMax = Math.ceil(Math.max(...values) * 1.15)
+  const baselineMs = metric === 'p95' ? stats.baselineP95Ms : null
+  const limit = metric === 'p95' ? limitMs : null
+  const yMax = Math.ceil(Math.max(...values, baselineMs ?? 0, limit ?? 0) * 1.15)
+  const firstTs = points[0]!.ts
+  const lastTs = points[points.length - 1]!.ts
   const step = Math.max(1, Math.floor(points.length / 5))
   const ticks = points.filter((_, i) => i % step === 0).map((p) => p.ts)
   const gradientId = `monitor-chart-${stats.monitorId}`
@@ -134,6 +144,15 @@ export function ResponseTimeChart({ stats, metric, height = 300 }: Props) {
               fill={`color-mix(in srgb, ${range.type === 'down' ? 'var(--m3-down)' : 'var(--m3-degraded-bar)'} 12%, transparent)`}
             />
           ))}
+          {metric === 'p95' && alertSince !== null && alertSince <= lastTs && (
+            <ReferenceArea x1={Math.max(alertSince, firstTs)} x2={lastTs} stroke="none" fill="color-mix(in srgb, var(--m3-degraded-bar) 12%, transparent)" />
+          )}
+          {baselineMs !== null && (
+            <ReferenceLine y={baselineMs} stroke="var(--m3-outline)" strokeDasharray="2 4" label={{ ...REFERENCE_LABEL, value: `baseline ${formatMs(baselineMs)}` }} />
+          )}
+          {limit !== null && (
+            <ReferenceLine y={limit} stroke="var(--m3-degraded-bar)" strokeDasharray="6 4" label={{ ...REFERENCE_LABEL, value: `alert at ${formatMs(limit)}` }} />
+          )}
           <Area
             type="monotone" dataKey="value" stroke="var(--m3-primary)" strokeWidth={2} fill={`url(#${gradientId})`}
             dot={false} activeDot={{ r: 4, strokeWidth: 0 }} connectNulls={false} isAnimationActive={false}

@@ -12,6 +12,7 @@ export type ChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack' | 
 const VARS = ['{{monitor_name}}', '{{monitor_type}}', '{{status}}', '{{previous_status}}', '{{error_message}}', '{{checked_at}}', '{{monitor_list}}', '{{affected_count}}', '{{event_type}}']
 const VAR_GROUPS: { label: string; vars: string[] }[] = [
   { label: 'Certificate events', vars: ['{{cert_host}}', '{{cert_expires_in}}', '{{cert_expires_at}}', '{{cert_days_left}}'] },
+  { label: 'Slower-than-usual events', vars: ['{{latency_p95_ms}}', '{{latency_baseline_ms}}', '{{latency_ratio}}', '{{latency_window_minutes}}', '{{latency_since}}'] },
   { label: 'Action events', vars: ['{{action_name}}', '{{trigger_status}}', '{{attempts}}'] },
 ]
 

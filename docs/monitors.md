@@ -107,7 +107,9 @@ the list. The page shows the monitor over the last 24 hours, 7 days, 30 days or 
 
 - **Response time** chart, drawn like the one on the status page: average, p95 or maximum per
   period, with down and degraded periods shaded and a tooltip per point. Beside it: average,
-  fastest, slowest, p50, p95 and p99.
+  fastest, slowest, p50, p95 and p99, and the usual p95 of the monitor's previous 7 days once
+  it has a day of history. The p95 view of the chart draws that usual p95 as a dashed line, and
+  the limit of the [slower-than-usual alert](#slower-than-usual-alert) when it is on.
 - **Uptime bars** in the style of the status page, coloured by its uptime thresholds (99.9 / 99 / 95 %).
   One bar per hour for 24 hours, per 6 hours for 7 days and per UTC day for 30 and 90 days.
 - **Summary**: uptime and the checks behind it (a failure not yet confirmed by the monitor's failure
@@ -760,6 +762,77 @@ Certificate notifications add these [template variables](notification-channels.m
 
 `{{error_message}}` carries a one-line summary, for example
 *TLS certificate for example.com expires in 7 days (2026-10-10T12:00:00.000Z)*.
+
+---
+
+## Slower-than-usual alert
+
+> [!WARNING]
+> **Not released yet.** The slower-than-usual alert is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+*Admin → Monitors → edit a monitor → **Latency** tab*
+
+An endpoint can get much slower without failing a single check, so no outage alert fires. This alert compares the **p95 response time** (the time 95 % of checks stay under) of the last few checks with the monitor's own usual p95, and notifies the monitor's channels when it is several times higher. It is **off by default**.
+
+| Field | Default | Range |
+| --- | --- | --- |
+| **Slower by (×)** | `3` | `1.5–10` |
+| **Measured over (minutes)** | `30` | `10–240` |
+| **At least slower by (ms)** | `200` | `0–60000` |
+| **Confirm after (checks)** | `3` | `1–20` |
+
+The alert fires when the p95 of the last **Measured over** minutes is at least the usual p95 times **Slower by**, **and** at least **At least slower by** milliseconds above it, for **Confirm after** checks in a row. The second condition keeps a fast endpoint from alerting on a rise nobody feels: with a usual p95 of 15 ms, 50 ms is more than 3× but only 35 ms slower. A single slow check does not move a p95 taken over a window of 21 or more checks.
+
+The channels get a message when the monitor is back to normal once the p95 stays below the halfway point between the usual p95 and the limit for **Confirm after** checks in a row. The limit is the higher of the usual p95 times **Slower by** and the usual p95 plus **At least slower by**; at 3× with a usual p95 of 200 ms it is 600 ms, so the alert ends below 400 ms. The all-clear is sent only to channels that send recovery notifications.
+
+How the usual p95 is measured:
+
+- It is the p95 of the monitor's previous 7 days of checks, without the window being judged, so a slowdown does not raise its own baseline. It needs a day of history and at least 50 checks; until then nothing is judged. If check results are kept for fewer than 7 days (`MONITOR_RESULT_RETENTION_DAYS`), the history that is kept is used; keep at least 2 days, or the day of history it needs never builds up.
+- It is measured again at most once an hour and **stays as it was for as long as an alert is open**, so a long slowdown does not turn into the new normal and end its own alert.
+- Only checks that answered count: *Operational* and *Degraded* ones. A failed check has no response time to compare, and a monitor that stops answering is handled by [Alert after](alert-hygiene.md#failure-and-recovery-thresholds).
+
+How it behaves:
+
+- The window is judged after every check that answered. A window with fewer than 21 such checks says too little and is not judged, so a monitor that is checked every 15 minutes needs a longer window than 30 minutes.
+- Checks during a [maintenance window](incidents-and-maintenance.md) are not judged, like every other notification.
+- The alert never changes the monitor's status, the public page, [incidents](incidents-and-maintenance.md) or [actions](actions.md). The admin shows a **Slower than usual** chip next to the status (on the monitor list, the dashboard and the monitor's page) and a notice on the monitor's page, and the response time chart marks the limit and the usual p95 on its p95 view. A monitor that has an open alert and then stops answering is judged **Down** by the checks as usual.
+- Changing any of the four settings, the check interval or the monitor type closes an open alert **without a notification** and measures the usual p95 again. Saving the monitor with the same values does not. Changing the target of a monitor (its URL or host) does not: the history of the old target stays in the usual p95 until it ages out (up to 7 days), so a move to a much faster or slower target can alert wrongly, or stay quiet, until then.
+- Checks recorded during a maintenance window still count in the usual p95 and in the first windows after it, so a slow deploy inside a window can raise an alert shortly after the window ends.
+- Notifications go to the monitor's [notification channels](notification-channels.md). [Quiet hours](alert-hygiene.md#quiet-hours) and [grouping](alert-hygiene.md#grouping-bursts-into-one-digest) apply; the [rate cap](alert-hygiene.md#rate-cap-per-monitor) counts outage alerts only, so it does not apply, as with certificate warnings. The delivery history lists them as **Slower than usual**.
+- It is available for the types whose response time is the time the service took to answer: **HTTPS**, **Ping**, **DNS**, the **Database** engines, **Redis**, **Mail server** and **SSH**. **Domain expiry** and **TLS certificate** monitors time a registry lookup or a handshake, not the service, **Docker** times the local socket and **Webhook** has no response time, so they have no **Latency** tab, and the API and configuration files refuse the alert for them. Changing a monitor to one of these types turns the alert off.
+
+The notification adds these [template variables](notification-channels.md):
+
+| Variable | Value |
+| --- | --- |
+| `{{event_type}}` | `latency` |
+| `{{status}}` | `latency-slow` or `latency-normal` |
+| `{{latency_p95_ms}}` | The p95 of the window, in ms |
+| `{{latency_baseline_ms}}` | The usual p95, in ms |
+| `{{latency_ratio}}` | The first divided by the second, with one decimal, for example `3.4` |
+| `{{latency_window_minutes}}` | The size of the window, in minutes |
+| `{{latency_since}}` | When the alert opened, as an ISO 8601 timestamp |
+
+`{{error_message}}` carries a one-line summary, for example *p95 response time over the last 30 minutes is 642 ms, 3.4× the baseline of 188 ms*.
+
+In YAML it is the `latencyAlert` block of a [Monitor](configuration-as-code.md); in the API it is four fields of the monitor:
+
+```yaml
+kind: Monitor
+key: checkout-api
+latencyAlert:
+  factor: 3
+  windowMinutes: 30
+  minDeltaMs: 200
+  sustain: 3
+```
+
+```http
+PATCH /api/v1/admin/monitors/:id
+{ "latencyAlertFactor": 3, "latencyAlertWindowMinutes": 30, "latencyAlertMinDeltaMs": 200, "latencyAlertSustain": 3 }
+```
+
+`latencyAlertFactor: null` turns it off. The monitor and `GET /admin/monitors/:id/stats` also return the usual p95 (`latencyBaselineP95` on the monitor, `baselineP95Ms` in the statistics) and the monitor's `latencyAlertSince`, the time the open alert was confirmed or `null`.
 
 ---
 

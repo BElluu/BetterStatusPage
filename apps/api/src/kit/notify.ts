@@ -28,7 +28,7 @@ export const transports = createTransports({
   // What a channel's own message fields say is about monitors. An action has its own wording (the Action tab of the
   // channel form), and without it a webhook gets this, while the other channels use their standard message.
   wording: {
-    ownEvents: ['alert', 'recovery', 'certificate', 'test'],
+    ownEvents: ['alert', 'recovery', 'certificate', 'latency', 'test'],
     defaults: {
       action: {
         webhook: {

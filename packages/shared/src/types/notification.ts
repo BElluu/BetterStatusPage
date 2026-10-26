@@ -45,7 +45,7 @@ export interface NotificationChannel {
   updatedAt: number
 }
 
-export type NotificationEventType = 'alert' | 'recovery' | 'certificate' | 'action' | 'test'
+export type NotificationEventType = 'alert' | 'recovery' | 'certificate' | 'latency' | 'action' | 'test'
 
 export interface NotificationDelivery {
   id: number
