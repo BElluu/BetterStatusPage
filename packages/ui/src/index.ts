@@ -1,5 +1,6 @@
 export * from './components/ui'
 export { ConfirmModal } from './components/ConfirmModal'
+export { ConfirmIdentityModal } from './components/ConfirmIdentityModal'
 export { ErrorBoundary, isChunkLoadError } from './components/ErrorBoundary'
 export { CopyButton } from './components/CopyButton'
 export { Modal, ModalFooter, ModalHeader, ModalShell, MODAL_BACKDROP, MODAL_Z_INDEX } from './components/ModalShell'

@@ -248,6 +248,12 @@
     },
     {
       "type": "table",
+      "name": "mcp_settings",
+      "table": "mcp_settings",
+      "sql": "CREATE TABLE mcp_settings (\n  id INTEGER PRIMARY KEY,\n  enabled INTEGER NOT NULL DEFAULT 0,\n  allow_changes INTEGER NOT NULL DEFAULT 0,\n  updated_at INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "table",
       "name": "monitor_actions",
       "table": "monitor_actions",
       "sql": "CREATE TABLE monitor_actions (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  monitor_id INTEGER NOT NULL,\n  action_id INTEGER NOT NULL,\n  on_status TEXT NOT NULL,\n  delay_minutes INTEGER NOT NULL DEFAULT 0,\n  cooldown_minutes INTEGER NOT NULL DEFAULT 0\n)"

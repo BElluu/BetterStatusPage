@@ -67,7 +67,7 @@ Dokumentacja jest po angielsku *(EN)*.
 - 📊 **[Raporty dostępności](https://docs.betterstatuspage.dev/reports/)** — dowolny zakres dat, eksport CSV do przeglądów SLA
 - 🔐 **[Sejf sekretów](https://docs.betterstatuspage.dev/vault/)** (AES-256-GCM, opcjonalnie HashiCorp Vault), **[SSO](https://docs.betterstatuspage.dev/single-sign-on/)** przez OpenID Connect, **[użytkownicy, role i 2FA](https://docs.betterstatuspage.dev/users-and-roles/)** oraz dziennik audytu każdej zmiany
 - 🧩 **[Tokeny API](https://docs.betterstatuspage.dev/api/)**, **[konfiguracja jako kod](https://docs.betterstatuspage.dev/configuration-as-code/)** (YAML) i **[kopie zapasowe](https://docs.betterstatuspage.dev/backup-restore/)**
-- 🤖 **[Serwer MCP](https://docs.betterstatuspage.dev/mcp/)** — pozwala agentowi AI, takiemu jak Claude Code, zajrzeć do monitorów, incydentów, dostarczeń i dziennika audytu; tylko odczyt, domyślnie wyłączony
+- 🤖 **[Serwer MCP](https://docs.betterstatuspage.dev/mcp/)** — pozwala agentowi AI, takiemu jak Claude Code, zajrzeć do monitorów, incydentów, dostarczeń i dziennika audytu, a z tokenem do zapisu otworzyć incydent lub zaplanować okno serwisowe; domyślnie wyłączony
 - ⚡ **Czas rzeczywisty** — zmiany statusu trafiają do panelu i na stronę publiczną przez Server-Sent Events, bez odświeżania
 
 ---

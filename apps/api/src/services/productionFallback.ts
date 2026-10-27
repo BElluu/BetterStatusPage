@@ -9,7 +9,7 @@ const MISSING_ASSET = /^(\/admin)?\/assets\//
 
 export function createProductionFallback(statusDist: string) {
   return (request: FastifyRequest, reply: FastifyReply) => {
-    // /mcp is an endpoint when MCP_ENABLED is on; when it is off, it must not turn into the status page.
+    // /mcp is an endpoint while MCP is switched on in the admin console; when it is off, it must not turn into the status page.
     if (/^\/(api|mcp)(\/|\?|$)/.test(request.url)) {
       return reply.code(404).send({ error: 'Not found' })
     }

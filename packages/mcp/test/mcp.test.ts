@@ -79,7 +79,7 @@ describe('the endpoint', () => {
     app.get('/data', async (req) => ({ authorization: req.headers.authorization }))
     registerMcpEndpoint(app, {
       path: '/mcp', name: 'test', version: '1.0.0', instructions: 'Static.', tools: [echo, secret],
-      publicUrl: () => undefined,
+      enabled: () => true, allowChanges: () => true, publicUrl: () => undefined,
       authenticate: async (req) => (req.headers.authorization === 'Bearer good' ? { authorization: 'Bearer good', scopes } : null),
     })
     await app.ready()
@@ -106,6 +106,105 @@ describe('the endpoint', () => {
     assert.equal(response.statusCode, 401)
     assert.equal(response.headers['www-authenticate'], 'Bearer realm="mcp"')
     await app.close()
+  })
+})
+
+describe('what a tool may send', () => {
+  const sender = defineTool({
+    name: 'send', title: 'Send', description: 'Sends what it is told to', scope: 'things:write', access: 'write',
+    input: { method: z.string(), path: z.string() },
+    async handler(args, ctx) { return ctx.send(args.method as never, args.path, { a: 1 }) },
+  })
+
+  async function ask(method: string, path: string) {
+    const app = Fastify({ logger: false })
+    app.post('/data', async () => ({ ok: true }))
+    app.put('/data', async () => ({ ok: true }))
+    app.delete('/data', async () => ({ ok: true }))
+    registerMcpEndpoint(app, {
+      path: '/mcp', name: 'test', version: '1.0.0', instructions: 'Static.', tools: [sender], enabled: () => true, allowChanges: () => true, publicUrl: () => undefined,
+      authenticate: async () => ({ authorization: 'Bearer good', scopes: ['things:write'] }),
+    })
+    await app.ready()
+    const response = await app.inject({
+      method: 'POST', url: '/mcp', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      payload: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'send', arguments: { method, path } } },
+    })
+    await app.close()
+    return (response.json() as { result: { isError?: boolean; content: Array<{ text: string }> } }).result
+  }
+
+  it('lets a read have a query, even one that contains two dots', async () => {
+    const app = Fastify({ logger: false })
+    app.get('/data', async (req) => ({ tag: (req.query as { tag?: string }).tag }))
+    const lookup = defineTool({ name: 'look', title: 'Look', description: 'Reads with a query', scope: 'things:read', input: { tag: z.string() }, async handler(args, ctx) { return ctx.get('/data' + query({ tag: args.tag })) } })
+    registerMcpEndpoint(app, {
+      path: '/mcp', name: 'test', version: '1.0.0', instructions: 'Static.', tools: [lookup], enabled: () => true, allowChanges: () => true, publicUrl: () => undefined,
+      authenticate: async () => ({ authorization: 'Bearer good', scopes: ['things:read'] }),
+    })
+    await app.ready()
+    const response = await app.inject({
+      method: 'POST', url: '/mcp', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      payload: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'look', arguments: { tag: 'v1..2' } } },
+    })
+    const result = (response.json() as { result: { isError?: boolean; content: Array<{ text: string }> } }).result
+    assert.equal(result.isError, undefined)
+    assert.deepEqual(JSON.parse(result.content[0]!.text), { tag: 'v1..2' })
+    await app.close()
+  })
+
+  it('sends POST, PATCH and PUT to a path of the host', async () => {
+    for (const method of ['POST', 'PUT']) assert.equal((await ask(method, '/data')).isError, undefined, method)
+  })
+
+  it('refuses DELETE and other methods, and paths that could leave or change meaning', async () => {
+    const refusedCalls: Array<[string, string]> = [['POST', '/data/%2e%2e/admin'], ['POST', '/data\\admin'], ['POST', '/data?prune=true'], ['PUT', '/data?x=1'], ['DELETE', '/data'], ['GET', '/data'], ['TRACE', '/data'], ['POST', 'http://evil.example/data'], ['POST', '//evil.example/data'], ['POST', '/data/../admin'], ['POST', '/data#frag'], ['POST', '/da ta']]
+    for (const [method, path] of refusedCalls) {
+      const result = await ask(method, path)
+      assert.equal(result.isError, true, `${method} ${path}`)
+      assert.match(result.content[0]!.text, /not allowed/, `${method} ${path}`)
+    }
+  })
+})
+
+describe('the gate', () => {
+  const reader = defineTool({ name: 'look', title: 'Look', description: 'Reads something', scope: 'things:read', input: {}, async handler() { return { seen: true } } })
+  const writer = defineTool({ name: 'touch', title: 'Touch', description: 'Changes something', scope: 'things:write', access: 'write', input: {}, async handler() { return {} } })
+
+  async function build(on: { enabled: boolean | Error; allowChanges: boolean }) {
+    const app = Fastify({ logger: false })
+    let authenticated = 0
+    registerMcpEndpoint(app, {
+      path: '/mcp', name: 'test', version: '1.0.0', instructions: 'Static.', tools: [reader, writer],
+      enabled: () => { if (on.enabled instanceof Error) throw on.enabled; return on.enabled },
+      allowChanges: () => on.allowChanges, publicUrl: () => undefined,
+      authenticate: async () => { authenticated++; return { authorization: 'Bearer good', scopes: ['things:write'] } },
+    })
+    await app.ready()
+    return { app, authenticated: () => authenticated }
+  }
+  const list = (app: Awaited<ReturnType<typeof build>>['app']) => app.inject({
+    method: 'POST', url: '/mcp', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+    payload: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+  })
+
+  it('answers 404 before anything else when off, and also when it cannot tell', async () => {
+    for (const enabled of [false, new Error('database not ready')]) {
+      const { app, authenticated } = await build({ enabled, allowChanges: true })
+      assert.equal((await list(app)).statusCode, 404)
+      assert.equal((await app.inject({ method: 'GET', url: '/mcp' })).statusCode, 404)
+      assert.equal(authenticated(), 0, 'the caller was never looked at')
+      await app.close()
+    }
+  })
+
+  it('offers the tools that change data only while changes are allowed', async () => {
+    for (const [allowChanges, expected] of [[false, ['look']], [true, ['look', 'touch']]] as const) {
+      const { app } = await build({ enabled: true, allowChanges })
+      const tools = ((await list(app)).json() as { result: { tools: Array<{ name: string }> } }).result.tools
+      assert.deepEqual(tools.map((tool) => tool.name), expected)
+      await app.close()
+    }
   })
 })
 

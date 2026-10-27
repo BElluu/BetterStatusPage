@@ -348,6 +348,16 @@ export const statusPageAccess = sqliteTable('status_page_access', {
   updatedAt: integer('updated_at').notNull(),
 })
 
+/** Whether agents may use the MCP endpoint, and whether they may change data; one row. Both are off until an administrator turns them on. */
+export const mcpSettings = sqliteTable('mcp_settings', {
+  id: integer('id').primaryKey(),
+  /** 1 = /mcp answers. 0 = it does not exist. */
+  enabled: integer('enabled').notNull().default(0),
+  /** 1 = tools that change data are offered (to tokens that may write). Only while enabled. */
+  allowChanges: integer('allow_changes').notNull().default(0),
+  updatedAt: integer('updated_at').notNull(),
+})
+
 /** Where and how often the public page is mirrored to static hosting; one row. */
 export const staticMirrorSettings = sqliteTable('static_mirror_settings', {
   id: integer('id').primaryKey(),

@@ -11,6 +11,7 @@ DELETE /api/v1/admin/subscribers/:id | auth=yes | token=yes | scope=subscribers 
 DELETE /api/v1/admin/users/:id | auth=yes | token=no | scope=- | roles=admin
 DELETE /api/v1/admin/vaults/:id | auth=yes | token=no | scope=- | roles=admin
 DELETE /api/v1/admin/vaults/:id/secrets/:secretId | auth=yes | token=no | scope=- | roles=admin
+DELETE /mcp | auth=no | token=no | scope=- | roles=none
 GET /api/v1/admin/actions/ | auth=yes | token=yes | scope=actions | roles=admin
 GET /api/v1/admin/actions/:id | auth=yes | token=yes | scope=actions | roles=admin
 GET /api/v1/admin/actions/monitor/:monitorId | auth=yes | token=yes | scope=actions | roles=admin
@@ -30,6 +31,7 @@ GET /api/v1/admin/locales/:code | auth=yes | token=yes | scope=appearance | role
 GET /api/v1/admin/maintenance/ | auth=yes | token=yes | scope=maintenance | roles=admin,operator
 GET /api/v1/admin/maintenance/:id | auth=yes | token=yes | scope=maintenance | roles=admin,operator
 GET /api/v1/admin/maintenance/active | auth=yes | token=yes | scope=maintenance | roles=admin,operator
+GET /api/v1/admin/mcp/ | auth=yes | token=no | scope=- | roles=admin
 GET /api/v1/admin/metrics/ | auth=yes | token=yes | scope=metrics | roles=admin
 GET /api/v1/admin/monitors/ | auth=yes | token=yes | scope=monitors | roles=admin,operator
 GET /api/v1/admin/monitors/:id | auth=yes | token=yes | scope=monitors | roles=admin,operator
@@ -86,6 +88,7 @@ GET /api/v1/public/subscriptions/options | auth=no | token=no | scope=- | roles=
 GET /api/v1/public/summary.json | auth=no | token=no | scope=- | roles=none
 GET /api/v1/setup/status | auth=no | token=no | scope=- | roles=none
 GET /health | auth=no | token=no | scope=- | roles=none
+GET /mcp | auth=no | token=no | scope=- | roles=none
 GET /ready | auth=no | token=no | scope=- | roles=none
 HEAD /api/v1/admin/actions | auth=yes | token=yes | scope=actions | roles=admin
 HEAD /api/v1/admin/actions/ | auth=yes | token=yes | scope=actions | roles=admin
@@ -116,6 +119,8 @@ HEAD /api/v1/admin/maintenance | auth=yes | token=yes | scope=maintenance | role
 HEAD /api/v1/admin/maintenance/ | auth=yes | token=yes | scope=maintenance | roles=admin,operator
 HEAD /api/v1/admin/maintenance/:id | auth=yes | token=yes | scope=maintenance | roles=admin,operator
 HEAD /api/v1/admin/maintenance/active | auth=yes | token=yes | scope=maintenance | roles=admin,operator
+HEAD /api/v1/admin/mcp | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/mcp/ | auth=yes | token=no | scope=- | roles=admin
 HEAD /api/v1/admin/metrics | auth=yes | token=yes | scope=metrics | roles=admin
 HEAD /api/v1/admin/metrics/ | auth=yes | token=yes | scope=metrics | roles=admin
 HEAD /api/v1/admin/monitors | auth=yes | token=yes | scope=monitors | roles=admin,operator
@@ -181,6 +186,7 @@ HEAD /api/v1/public/subscriptions/options | auth=no | token=no | scope=- | roles
 HEAD /api/v1/public/summary.json | auth=no | token=no | scope=- | roles=none
 HEAD /api/v1/setup/status | auth=no | token=no | scope=- | roles=none
 HEAD /health | auth=no | token=no | scope=- | roles=none
+HEAD /mcp | auth=no | token=no | scope=- | roles=none
 HEAD /ready | auth=no | token=no | scope=- | roles=none
 PATCH /api/v1/admin/actions/:id | auth=yes | token=yes | scope=actions | roles=admin
 PATCH /api/v1/admin/branding/ | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
@@ -248,9 +254,11 @@ POST /api/v1/public/subscriptions/confirm | auth=no | token=no | scope=- | roles
 POST /api/v1/public/subscriptions/preferences | auth=no | token=no | scope=- | roles=none
 POST /api/v1/public/subscriptions/unsubscribe | auth=no | token=no | scope=- | roles=none
 POST /api/v1/setup/complete | auth=no | token=no | scope=- | roles=none
+POST /mcp | auth=no | token=no | scope=- | roles=none
 PUT /api/v1/admin/actions/monitor/:monitorId | auth=yes | token=yes | scope=actions | roles=admin
 PUT /api/v1/admin/backups/config | auth=yes | token=no | scope=- | roles=admin
 PUT /api/v1/admin/layout/ | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
+PUT /api/v1/admin/mcp/ | auth=yes | token=no | scope=- | roles=admin
 PUT /api/v1/admin/monitors/:id/dependencies | auth=yes | token=yes | scope=monitors | roles=admin,operator
 PUT /api/v1/admin/notifications/monitor/:monitorId/channels | auth=yes | token=yes | scope=channels | roles=admin,operator
 PUT /api/v1/admin/notifications/smtp | auth=yes | token=yes | scope=channels | roles=admin,operator

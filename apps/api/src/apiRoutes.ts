@@ -10,7 +10,6 @@ import { feedRoutes } from './routes/feeds.js'
 import { statusApiRoutes } from './routes/statusApi.js'
 import { publicStatusPageAccessRoutes } from './routes/statusPageAccess.js'
 import { healthRoutes } from './kit/healthRoutes.js'
-import { getMcpConfig } from './config/mcp.js'
 import { registerMcp } from './mcp/register.js'
 
 /**
@@ -31,6 +30,6 @@ export async function registerApiRoutes(app: FastifyInstance) {
 
   await app.register(adminApi, { prefix: '/api/v1/admin' })
 
-  // Off unless MCP_ENABLED=true: then there is no route, and the production fallback answers 404.
-  if (getMcpConfig().enabled) registerMcp(app)
+  // Always registered, because the switch is in the admin console; while it is off the route answers like a missing one.
+  registerMcp(app)
 }

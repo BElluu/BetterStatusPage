@@ -16,6 +16,7 @@ import { auditRoutes } from './kit/auditRoutes.js'
 import { adminLocaleRoutes } from './routes/locales.js'
 import { adminSubscriberRoutes } from './routes/subscriptions.js'
 import { adminStatusPageAccessRoutes } from './routes/statusPageAccess.js'
+import { adminMcpSettingsRoutes } from './routes/mcpSettings.js'
 import { adminStaticMirrorRoutes } from './routes/staticMirror.js'
 import { backupRoutes } from './kit/backupRoutes.js'
 import { apiTokenRoutes } from './kit/apiTokenRoutes.js'
@@ -68,7 +69,7 @@ export async function adminApi(adminApp: FastifyInstance) {
       { part: 'metrics', guard: requireRole(), routes: [[metricsRoutes, { prefix: '/metrics' }]] },
       // configuration export and import: the handler checks what the caller may do with each kind of object
       { part: 'custom', guard: requireRole('operator'), routes: [[configRoutes, { prefix: '/config' }]] },
-      // accounts, sign-in, who may view the page, vault management, backups & API tokens: admin only, and only from a
+      // accounts, sign-in, who may view the page, vault management, backups, API tokens & the MCP switch: admin only, and only from a
       // signed-in session. A leaked token must not be able to mint another one, reset a password, let SSO users in,
       // or read a secret or the database.
       {
@@ -81,6 +82,7 @@ export async function adminApi(adminApp: FastifyInstance) {
           [vaultRoutes, { prefix: '/vaults' }],
           [backupRoutes, { prefix: '/backups' }],
           [apiTokenRoutes, { prefix: '/api-tokens' }],
+          [adminMcpSettingsRoutes, { prefix: '/mcp' }],
         ],
       },
     ],
