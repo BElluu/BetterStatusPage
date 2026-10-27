@@ -137,7 +137,7 @@ BetterStatusPage/
 └── packages/
     ├── shared/        # Status-page types (@bsp/shared)
     └── …              # Shared modules (@better-kit/*): contracts, db, audit, auth, vault,
-                       # notify, backup, config-as-code, runtime, ui
+                       # notify, backup, config-as-code, mcp, runtime, ui
 ```
 
 The shared modules hold everything that is not specific to a status page, so another product can be built on the same foundation. `CLAUDE.md` in the repository root describes the layering rules and how to start a new product from `apps/template`.

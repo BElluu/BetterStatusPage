@@ -4,6 +4,7 @@ process.env['UPDATE_CHECK'] = 'false'
 import { join } from 'node:path'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import Fastify from 'fastify'
+import bcrypt from 'bcryptjs'
 import jwt from '@fastify/jwt'
 import cookie from '@fastify/cookie'
 import multipart from '@fastify/multipart'
@@ -16,6 +17,7 @@ import { registerMcp } from '../src/mcp/register.js'
 import { createProductionFallback } from '../src/services/productionFallback.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
+const PASSWORD = 'admin-password'
 const testDb = createTestDb('bsp-mcp-')
 process.env['UPLOAD_DIR'] = join(testDb.dir, 'uploads')
 const app = Fastify({ logger: false })
@@ -31,7 +33,7 @@ before(async () => {
   await app.ready()
 
   const now = Date.now()
-  const [user] = await db.insert(users).values({ email: 'admin@example.test', passwordHash: 'unused', role: 'admin', createdAt: now }).returning()
+  const [user] = await db.insert(users).values({ email: 'admin@example.test', passwordHash: await bcrypt.hash(PASSWORD, 4), role: 'admin', createdAt: now }).returning()
   await db.insert(authSessions).values({ id: 'session-admin', userId: user!.id, csrfTokenHash: 'unused', createdAt: now, lastSeenAt: now, expiresAt: now + 60_000 })
   admin = { authorization: `Bearer ${app.jwt.sign({ userId: user!.id, email: user!.email, role: 'admin', sessionId: 'session-admin' })}` }
 })
@@ -47,7 +49,7 @@ beforeEach(() => {
 })
 
 async function tokenWith(...scopes: string[]): Promise<string> {
-  const response = await app.inject({ method: 'POST', url: '/api/v1/admin/api-tokens', headers: admin, payload: { name: 'Agent', scopes } })
+  const response = await app.inject({ method: 'POST', url: '/api/v1/admin/api-tokens', headers: admin, payload: { name: 'Agent', scopes, currentPassword: PASSWORD } })
   return (response.json() as { token: string }).token
 }
 
@@ -203,6 +205,16 @@ describe('what the tools return', () => {
       const all = await call(token, 'list_monitors')
       assert.ok(!all.content[0]!.text.includes(heartbeat.webhookToken!), scope)
     }
+  })
+
+  it('keeps the passwords of service monitors masked', async () => {
+    const redis = await createMonitor({ name: 'Cache', type: 'redis', config: { host: 'cache.example.test', port: 6379, username: 'alice', password: 'redis-secret-value' } })
+    const token = await tokenWith('monitors:read')
+    for (const [tool, args] of [['get_monitor', { id: redis.id }], ['list_monitors', {}], ['status_overview', {}]] as const) {
+      const text = (await call(token, tool, args)).content[0]!.text
+      assert.ok(!text.includes('redis-secret-value'), tool)
+    }
+    assert.match((await call(token, 'get_monitor', { id: redis.id })).content[0]!.text, /Cache/)
   })
 
   it('hands text from outside over as plain, bounded data', async () => {

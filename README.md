@@ -65,6 +65,7 @@ Before exposing a production instance, read the [Deployment](https://docs.better
 - 📊 **[Uptime reports](https://docs.betterstatuspage.dev/reports/)** — any date range, CSV export for SLA reviews
 - 🔐 **[Secrets vault](https://docs.betterstatuspage.dev/vault/)** (AES-256-GCM, optional HashiCorp Vault), **[single sign-on](https://docs.betterstatuspage.dev/single-sign-on/)** with OpenID Connect, **[users, roles and 2FA](https://docs.betterstatuspage.dev/users-and-roles/)**, and an audit log of every change
 - 🧩 **[API tokens](https://docs.betterstatuspage.dev/api/)**, **[configuration as code](https://docs.betterstatuspage.dev/configuration-as-code/)** (YAML) and **[backup and restore](https://docs.betterstatuspage.dev/backup-restore/)**
+- 🤖 **[MCP server](https://docs.betterstatuspage.dev/mcp/)** — let an AI agent such as Claude Code look into monitors, incidents, deliveries and the audit log, read-only and off by default
 - ⚡ **Real time** — status changes reach the admin console and the public page over Server-Sent Events, with no refresh
 
 ---
