@@ -81,6 +81,23 @@ The side tabs of the form hold the rest:
 | **Depends on** | All | [Dependencies](#dependencies) |
 | **Incident** | All | [Automatic incidents](incidents-and-maintenance.md#automatic-incidents) |
 
+### What is checked when you save
+
+> [!WARNING]
+> **Not released yet.** This is on `main` but not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+The configuration of a monitor is checked when it is created, changed, imported from [YAML](configuration-as-code.md), sent with the [API](api.md) or run with **Test**, and a wrong one is refused with a message that names the field. A monitor that is already saved is checked again only when it is changed or imported again.
+
+| Type | Required | Also checked |
+| --- | --- | --- |
+| HTTPS | `url`: a full `http://` or `https://` address, without spaces or a user name and password, up to 2048 characters | `method` is `GET`, `POST` or `HEAD` (any case); `expectedStatus` is 200 to 599, the final status after redirects; the [response checks](#response-checks) |
+| Ping / TCP | `host` | `mode` is `tcp` or `icmp` (tcp when absent); `port` is 1 to 65535 for tcp (80 when absent) |
+| DNS | `hostname` | `recordType` is `A`, `AAAA`, `MX`, `CNAME` or `TXT` (A when absent) |
+| SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB, Oracle | `host`, unless the connection string comes from a vault secret (`mode: connectionString`) | `port` is 1 to 65535 (the usual one of the engine when absent); `mode`, `tls` and `tlsCa` |
+| Redis, mail, SSH, TLS certificate, domain, Docker | what the form asks for | lengths, ports, choices and `warnDays` |
+
+Fields the table does not name are not checked: the check reports a wrong value when it runs.
+
 ### Tags
 
 Give a tag a label and pick one of ten colours. Labels you have already used elsewhere are

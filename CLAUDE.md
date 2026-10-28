@@ -28,9 +28,9 @@ Touch every layer, using `sqlserver` as the reference implementation:
 1. `packages/shared/src/types/monitor.ts`: extend `MonitorType`, add the `XConfig` interface, add it to `MonitorConfig`.
 2. `apps/api/src/db/schema.ts` / `migrate.ts`: update type constraints if present.
 3. `apps/api/src/workers/<type>.ts`: the checker; wire into `scheduler.ts` and `testRunner.ts`.
-4. `apps/api/src/routes/monitors.ts`: config validation; `apps/api/src/mcp/monitorFields.ts`: describe the new type for agents (`monitor_config_fields`; the build fails until you do), and `docs/public/openapi.yaml`: its `XConfig` schema.
+4. `apps/api/src/services/monitorConfigSchema.ts`: the zod schema of the new type's `config`. It is the one place that says what the API accepts (`validateMonitorConfig`, used when a monitor is created or changed, including the config import) and what an agent is told (`monitor_config_fields` serves its JSON Schema), and the build fails until every key of the `XConfig` interface has an entry. The Test button judges a config with the same schema. Add the type's one-line summary to `MONITOR_TYPE_SUMMARY` in `apps/api/src/mcp/monitorFields.ts`, and its `XConfig` schema to `docs/public/openapi.yaml`.
 5. `apps/admin/src/components/monitors/`: `monitorTypes.ts`, `MonitorTypeConfigFields.tsx`, `MonitorFormModal.tsx` (shared form parts such as `Note` and `SectionDivider` come from `@better-kit/ui`); also `pages/Builder.tsx` if monitor types are listed there.
-6. Tests: worker, test-runner, API route, form modal, `apps/api/test/monitor-fields.test.ts` (catalogue vs. validator); e2e in `e2e/monitors.spec.ts` when the flow changes.
+6. Tests: worker, test-runner, API route, form modal, `apps/api/test/monitor-fields.test.ts` (the schema says what it does: required, unchecked, ranges, secrets); e2e in `e2e/monitors.spec.ts` when the flow changes.
 7. Docs: `docs/monitors.md` and `docs/changelog.md`.
 
 Suggested flow: `architect` (if non-trivial) → `recon` checklist → implement worker and its tests → remaining layers → `quick-ops` for docs/changelog → `reviewer`.

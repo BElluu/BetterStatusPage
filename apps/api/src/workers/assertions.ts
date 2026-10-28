@@ -1,50 +1,13 @@
-import {
-  HEADER_ASSERTION_OPS,
-  JSON_ASSERTION_OPS,
-  MAX_DEGRADED_ABOVE_MS,
-  MAX_HTTP_ASSERTIONS,
-  MAX_JSON_ASSERTION_BODY_BYTES,
-} from '@bsp/shared'
+import { MAX_JSON_ASSERTION_BODY_BYTES } from '@bsp/shared'
 import type { AssertionFailureStatus, HttpAssertion, HttpsConfig } from '@bsp/shared'
+import { firstProblem, HTTPS_CHECKS_SCHEMA } from '../services/monitorConfigSchema.js'
+import { isNumeric, needsValue, parseJsonPath, type Segment } from './assertionRules.js'
 
-const HEADER_NAME = /^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/
-const MAX_VALUE_LENGTH = 1000
-const MAX_PATH_LENGTH = 200
+export { parseJsonPath } from './assertionRules.js'
+
 const MAX_SHOWN_LENGTH = 80
 /** Headers whose value is a credential; a failed assertion names them but never shows what they held. */
 const SENSITIVE_HEADERS = new Set(['set-cookie', 'cookie', 'authorization', 'proxy-authorization'])
-
-type Segment = string | number
-
-/**
- * Reads a JSONPath subset: `$`, then `.name`, `['name']` or `[index]` steps. Returns null when the
- * path is not in that subset.
- */
-export function parseJsonPath(path: string): Segment[] | null {
-  if (path.length > MAX_PATH_LENGTH || !path.startsWith('$')) return null
-  const segments: Segment[] = []
-  let i = 1
-  while (i < path.length) {
-    if (path[i] === '.') {
-      const name = /^[A-Za-z0-9_$-]+/.exec(path.slice(i + 1))?.[0]
-      if (!name) return null
-      segments.push(name)
-      i += 1 + name.length
-    } else if (path[i] === '[') {
-      const end = path.indexOf(']', i)
-      if (end === -1) return null
-      const inner = path.slice(i + 1, end)
-      const quoted = /^'([^']*)'$/.exec(inner) ?? /^"([^"]*)"$/.exec(inner)
-      if (quoted) segments.push(quoted[1] as string)
-      else if (/^\d{1,9}$/.test(inner)) segments.push(Number(inner))
-      else return null
-      i = end + 1
-    } else {
-      return null
-    }
-  }
-  return segments
-}
 
 /** The value at the path, or undefined when any step is missing. A JSON null is a value. */
 function resolvePath(root: unknown, segments: Segment[]): unknown {
@@ -62,45 +25,9 @@ function resolvePath(root: unknown, segments: Segment[]): unknown {
   return current
 }
 
-const needsValue = (op: string): boolean => op !== 'exists' && op !== 'not-exists'
-
-const isNumeric = (value: unknown): boolean =>
-  (typeof value === 'number' && Number.isFinite(value)) || (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value)))
-
 /** Returns a message for the first problem in the assertions or the slow-response threshold, else null. */
 export function validateHttpAssertions(config: Partial<HttpsConfig>): string | null {
-  const { assertions, degradedAboveMs } = config
-  if (degradedAboveMs !== undefined &&
-    (!Number.isInteger(degradedAboveMs) || degradedAboveMs < 1 || degradedAboveMs > MAX_DEGRADED_ABOVE_MS)) {
-    return `degradedAboveMs must be a whole number of milliseconds from 1 to ${MAX_DEGRADED_ABOVE_MS}`
-  }
-  if (assertions === undefined) return null
-  if (!Array.isArray(assertions)) return 'assertions must be a list'
-  if (assertions.length > MAX_HTTP_ASSERTIONS) return `At most ${MAX_HTTP_ASSERTIONS} assertions are allowed`
-  for (const [index, raw] of assertions.entries()) {
-    const where = `Assertion ${index + 1}`
-    if (typeof raw !== 'object' || raw === null) return `${where} must be an object`
-    const a = raw as Record<string, unknown>
-    if (a['onFail'] !== undefined && a['onFail'] !== 'degraded' && a['onFail'] !== 'down') {
-      return `${where}: onFail must be "degraded" or "down"`
-    }
-    const ops: readonly string[] = a['type'] === 'header' ? HEADER_ASSERTION_OPS : JSON_ASSERTION_OPS
-    if (a['type'] !== 'header' && a['type'] !== 'json') return `${where}: type must be "header" or "json"`
-    if (typeof a['op'] !== 'string' || !ops.includes(a['op'])) return `${where}: op must be one of: ${ops.join(', ')}`
-    if (a['type'] === 'header') {
-      if (typeof a['name'] !== 'string' || !HEADER_NAME.test(a['name'])) return `${where}: name is not a valid header name`
-    } else if (typeof a['path'] !== 'string' || !parseJsonPath(a['path'])) {
-      return `${where}: path must look like $.field, $.list[0].field or $['field']`
-    }
-    if (needsValue(a['op'])) {
-      const value = a['value']
-      const typeOk = a['type'] === 'header' ? typeof value === 'string' : typeof value === 'string' || typeof value === 'number'
-      if (!typeOk) return `${where}: value is required for "${a['op']}"`
-      if (String(value).length > MAX_VALUE_LENGTH) return `${where}: value must be at most ${MAX_VALUE_LENGTH} characters`
-      if ((a['op'] === 'lt' || a['op'] === 'gt') && !isNumeric(value)) return `${where}: value must be a number for "${a['op']}"`
-    }
-  }
-  return null
+  return firstProblem(HTTPS_CHECKS_SCHEMA, config)
 }
 
 export interface AssertionOutcome {

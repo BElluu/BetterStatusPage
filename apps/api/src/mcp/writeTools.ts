@@ -184,20 +184,6 @@ const monitorCheckNow = defineTool({
   },
 })
 
-const HTTP_METHODS = ['GET', 'POST', 'HEAD']
-
-/**
- * The API does not check the method of an HTTPS monitor, and the monitor sends it to its URL at every interval, so an
- * agent could make one that sends DELETE. The admin console offers these three, and so does an agent.
- */
-function checkMethod(config: Row | undefined): void {
-  const method = config?.['method']
-  if (method === undefined) return
-  if (typeof method !== 'string' || !HTTP_METHODS.includes(method.toUpperCase())) {
-    throw new McpToolError(`config.method must be one of ${HTTP_METHODS.join(', ')}: a monitor sends it to its address at every check`)
-  }
-}
-
 /** Settings every monitor has; their meaning and ranges are in monitor_config_fields. The API validates them. */
 const monitorSettings = {
   intervalSecs: z.number().int().optional().describe('Seconds between checks'),
@@ -237,7 +223,6 @@ const monitorUpdate = defineTool({
     config: z.record(z.string(), z.unknown()).optional().describe('Only the config fields to change (see monitor_config_fields); a nested object such as auth is replaced whole'),
   },
   async handler({ id: monitorId, config, ...settings }, ctx) {
-    checkMethod(config)
     const patch: Row = { ...settings }
     if (Object.values(patch).every((value) => value === undefined) && !config) throw new McpToolError('Pass at least one setting to change')
     if (config) {
@@ -266,7 +251,6 @@ const monitorCreate = defineTool({
     ...monitorSettings,
   },
   async handler(args, ctx) {
-    checkMethod(args.config)
     const { webhookToken, config: _config, ...monitor } = (await ctx.send('POST', `${ADMIN}/monitors`, args)) as Row
     return webhookToken ? { ...monitor, note: 'This is a heartbeat monitor. Its URL is shown in the admin console; it is not given to the agent.' } : monitor
   },
@@ -297,11 +281,6 @@ function monitorYaml(yaml: string): string {
     kinds = documents.map((document) => (document.toJS() as Row | null)?.['kind'])
   } catch {
     throw new McpToolError('The YAML cannot be read')
-  }
-  // The same rule as monitor_create: an HTTPS monitor sends this method to its address at every check.
-  for (const document of documents) {
-    const config = (document.toJS() as Row | null)?.['config']
-    checkMethod(config && typeof config === 'object' && !Array.isArray(config) ? config as Row : undefined)
   }
   if (kinds.length === 0 || kinds.some((kind) => kind !== 'Monitor')) throw new McpToolError('Only documents with kind: Monitor are accepted here')
   return yaml

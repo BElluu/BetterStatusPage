@@ -34,7 +34,7 @@ The role is checked by the API on every request, not only by the admin panel, so
 | [**Vault**](vault.md): create and edit vaults and secrets | Yes | No | No | No |
 | **Users**, **Single sign-on**, **Status page access** | Yes | No | No | No |
 | **Audit Log** | Yes | No | No | No |
-| [**API tokens**](api.md) | Yes | No | No | No |
+| [**API tokens**](api.md) and the [**MCP** switches](mcp.md#turn-it-on) | Yes | No | No | No |
 | [**Import**](configuration-as-code.md): monitors and notification channels | Yes | Yes | No | No |
 | [**Backups**](backup-restore.md) | Yes | No | No | No |
 | **System Health** | Yes | No | No | No |
@@ -174,7 +174,7 @@ The **Audit Log** (administrators only) records who changed what and when. Each 
 | Import | One entry for each import that changed something, with the counts (created, updated, unchanged). Every monitor and channel it changed also has an entry of its own. |
 | Monitor (heartbeat token) | Resetting the heartbeat token of a webhook monitor is recorded as `heartbeat_token_reset`, never the token. |
 | User Security | Password changed, 2FA turned on or off, 2FA reset by an administrator (`admin_recovery`) or from the command line (`emergency_cli`), SSO account linked, temporary password revoked by an SSO sign-in |
-| SSO Settings, Status Page Access | Settings changes |
+| SSO Settings, Status Page Access, MCP | Settings changes (for [MCP](mcp.md#turn-it-on), the two switches, never the password) |
 | Backup, Backup Schedule | Backup created, downloaded (**Allowed**) or deleted, schedule changes |
 | Sign-in | Every sign-in with a password or SSO: **Allowed** (with the method and whether a 2FA code was used) or **Denied** (with the reason) |
 

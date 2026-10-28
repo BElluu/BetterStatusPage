@@ -16,8 +16,8 @@ import { authenticateRequest } from '../kit/authSession.js'
 import { tokenAllows } from '@better-kit/contracts'
 import { keyForNew, type KeyOwner } from '@better-kit/config-as-code'
 import { vaultUseProblem } from '../kit/vaultUse.js'
-import { validateServiceConfig } from '../workers/serviceConfig.js'
-import { certResetsFor, generateWebhookToken, latencyResetsFor, parseMonitorPatch, parseNewMonitor } from '../services/monitorInput.js'
+import { validateMonitorConfig } from '../services/monitorConfigSchema.js'
+import { MONITOR_TYPES, certResetsFor, generateWebhookToken, latencyResetsFor, parseMonitorPatch, parseNewMonitor } from '../services/monitorInput.js'
 import { baselineOf } from '../workers/latencyAnomaly.js'
 import { loadMonitorActivity } from '../services/monitorActivity.js'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
@@ -265,7 +265,7 @@ export async function monitorRoutes(app: FastifyInstance) {
     const vaultProblem = vaultUseProblem(requestIdentity(req).apiToken, secrets.config, stored?.type === type ? JSON.parse(stored.config) : undefined)
     if (vaultProblem) return reply.code(403).send({ error: vaultProblem })
     const config = secrets.config
-    const invalid = validateServiceConfig(type as MonitorType, config as Record<string, unknown>)
+    const invalid = MONITOR_TYPES.includes(type as MonitorType) ? validateMonitorConfig(type as MonitorType, config) : null
     if (invalid) return reply.code(400).send({ error: invalid })
     if (requestedTimeout !== undefined && !Number.isFinite(requestedTimeout)) {
       return reply.code(400).send({ error: 'timeoutMs must be a number' })

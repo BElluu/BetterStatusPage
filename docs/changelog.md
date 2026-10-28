@@ -14,6 +14,16 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 - **Oracle Database monitor**: the **Database** type has an **Oracle** engine (`oracle` in the API and configuration files) that runs a query, by default `SELECT 1 FROM DUAL`, against a service name, with the same credentials, vault, expected-result and test-button behaviour as the other engines. It uses the `oracledb` driver in its pure JavaScript mode, so no Oracle Client has to be installed. See [Monitors](monitors.md#sql-server-postgresql-mysql--mariadb-mongodb-and-oracle).
 - **A kept password is not sent with weaker protection**: when you edit a monitor and leave its password as `••••••••`, the server now also refuses to keep it if the CA certificate, the mail encryption, Redis TLS or certificate verification (`verifyTls`) was loosened, not only when the host or port changed. Type the password again to confirm the change.
 
+### Changed
+
+- **A monitor's configuration is checked when it is saved or tested**: an HTTPS, ping, DNS or database monitor used to be accepted with a configuration that could never work (an HTTPS monitor without an address) and failed only at its first check. Now a config that is created, changed, imported from YAML, sent with the API or run with **Test** is refused with a message that names the field:
+  - **HTTPS**: `url` is required and must be a full `http://` or `https://` address (no spaces, no user name or password in it, at most 2048 characters; credentials go in the sign-in settings); `method` must be `GET`, `POST` or `HEAD` (in any case), so a monitor can no longer be made to send `DELETE` or `PUT` at every check; `expectedStatus` must be a whole number from 200 to 599.
+  - **Ping**: `host` is required; `mode` must be `tcp` or `icmp` (tcp when absent); `port` is 1 to 65535 for tcp and is not looked at for icmp.
+  - **DNS**: `hostname` is required; `recordType` must be `A`, `AAAA`, `MX`, `CNAME` or `TXT` (A when absent).
+  - **Databases** (SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB, Oracle): `host` is required in fields mode (not with a connection string); `port`, when given, is 1 to 65535 (the usual one of the engine when absent); `mode` must be `fields` or `connectionString`.
+  - The **Test** button now judges the configuration of every type like saving does, so a wrong Docker configuration answers `400` with the message instead of a step in the result.
+  A field that has always had a working default stays optional, so a monitor saved without it can still be edited and imported. What changes for a script, a YAML file or the API is a config without an address, a host or a hostname, a method other than the three, or a value outside a list. Monitors already saved are not checked again until they are changed or imported again. See [Monitors](monitors.md#what-is-checked-when-you-save).
+
 ### Fixed
 
 - **Heartbeat token and read-only API tokens**: `GET /monitors` and `GET /monitors/:id` returned `webhookToken` to a token that could only read monitors, and that token is enough to report a heartbeat monitor up or down. It is now returned to sessions of administrators and operators and to tokens with `monitors:write`, and left out for read-only tokens. See [Webhook](monitors.md#webhook-passive-heartbeat).

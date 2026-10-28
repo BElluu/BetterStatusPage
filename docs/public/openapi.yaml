@@ -1212,9 +1212,9 @@ components:
       type: object
       required: [url]
       properties:
-        url: { type: string }
-        method: { type: string, enum: [GET, POST, HEAD], default: GET }
-        expectedStatus: { type: integer, default: 200 }
+        url: { type: string, format: uri, maxLength: 2048, pattern: '^[Hh][Tt][Tt][Pp][Ss]?://', description: 'A full address starting with http:// or https://, without spaces and without a user name or password.' }
+        method: { type: string, enum: [GET, POST, HEAD], default: GET, description: 'Any case is accepted. Nothing else is: the monitor sends it to its address at every check.' }
+        expectedStatus: { type: integer, minimum: 200, maximum: 599, default: 200, description: 'The final status, after redirects are followed.' }
         keyword: { type: string }
         degradedAboveMs:
           type: integer
@@ -1285,26 +1285,25 @@ components:
             warnDays: { type: integer, minimum: 1, maximum: 365 }
     PingConfig:
       type: object
-      required: [host, mode]
+      required: [host]
       properties:
-        host: { type: string }
-        mode: { type: string, enum: [tcp, icmp] }
-        port: { type: integer }
+        host: { type: string, minLength: 1, maxLength: 253, pattern: '^\S+$' }
+        mode: { type: string, enum: [tcp, icmp], default: tcp }
+        port: { type: integer, minimum: 1, maximum: 65535, default: 80, description: 'Used by tcp; not looked at for icmp.' }
     DnsConfig:
       type: object
-      required: [hostname, recordType]
+      required: [hostname]
       properties:
-        hostname: { type: string }
-        recordType: { type: string, enum: [A, AAAA, MX, CNAME, TXT] }
+        hostname: { type: string, minLength: 1, maxLength: 253, pattern: '^\S+$' }
+        recordType: { type: string, enum: [A, AAAA, MX, CNAME, TXT], default: A }
         expectedValue: { type: string }
         resolver: { type: string }
     DatabaseConfig:
       type: object
-      description: Used by the `sqlserver`, `postgresql`, `mysql`, `mongodb` and `oracle` monitor types. For `oracle`, `database` is the service name.
-      required: [query]
+      description: Used by the `sqlserver`, `postgresql`, `mysql`, `mongodb` and `oracle` monitor types. For `oracle`, `database` is the service name. `host` is required unless `mode` is `connectionString`, where the connection string comes from a vault secret.
       properties:
-        host: { type: string }
-        port: { type: integer }
+        host: { type: string, minLength: 1, maxLength: 253, pattern: '^\S+$' }
+        port: { type: integer, minimum: 1, maximum: 65535, description: 'The usual port of the engine when absent.' }
         database: { type: string }
         user: { type: string }
         password: { type: string }

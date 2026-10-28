@@ -16,7 +16,7 @@ import { checkDomainExpiry, clearDomainCache, lookupExpiry, normalizeDomain, par
 import { checkMail } from '../src/workers/mail.js'
 import { checkOracle, oracleConnectString, parseOracleLogin } from '../src/workers/oracle.js'
 import { checkRedis } from '../src/workers/redis.js'
-import { validateServiceConfig } from '../src/workers/serviceConfig.js'
+import { validateMonitorConfig as validateServiceConfig } from '../src/services/monitorConfigSchema.js'
 import { checkSsh } from '../src/workers/ssh.js'
 import { checkTlsCert, expiryOutcome } from '../src/workers/tlsCert.js'
 import { testDomain, testMail, testRedis, testSsh, testTlsCert } from '../src/workers/testRunner.js'
@@ -688,7 +688,6 @@ describe('configuration of the service monitors', () => {
     assert.equal(validateServiceConfig('ssh', { host: 'h.test', port: 22, expectedBanner: 'OpenSSH' }), null)
     assert.equal(validateServiceConfig('tls', { host: 'h.test', port: 443, warnDays: 14, servername: 'www.h.test' }), null)
     assert.equal(validateServiceConfig('domain', { domain: 'example.com', warnDays: 30 }), null)
-    assert.equal(validateServiceConfig('https', {}), null)
   })
 
   it('rejects what a checker could not use', () => {

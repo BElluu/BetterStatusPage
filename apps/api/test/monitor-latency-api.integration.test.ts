@@ -78,7 +78,7 @@ describe('slower-than-usual alert settings of a monitor', () => {
       // Without the alert the same monitor is fine.
       assert.equal((await app.inject({ method: 'POST', url: '/monitors', payload: body({ type, config }) })).statusCode, 200, type)
     }
-    const ping = await app.inject({ method: 'POST', url: '/monitors', payload: body({ type: 'ping', config: { host: 'example.test' }, latencyAlertFactor: 3 }) })
+    const ping = await app.inject({ method: 'POST', url: '/monitors', payload: body({ type: 'ping', config: { host: 'example.test', mode: 'tcp' }, latencyAlertFactor: 3 }) })
     assert.equal(ping.statusCode, 200)
   })
 
@@ -130,7 +130,7 @@ describe('what else closes an open slower-than-usual alert', () => {
 
   it('closes it when the type changes', async () => {
     const id = await open()
-    await patch(id, { type: 'ping', config: { host: 'example.test' } })
+    await patch(id, { type: 'ping', config: { host: 'example.test', mode: 'tcp' } })
     assert.equal((await row(id)).latencyAlertSince, null)
   })
 })

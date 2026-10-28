@@ -171,7 +171,7 @@ describe('monitor routes', () => {
   it('clamps alert thresholds to 1–20 consecutive checks', async () => {
     const created = (await app.inject({
       method: 'POST', url: '/monitors',
-      payload: { name: 'thresholds', type: 'https', config: {}, failureThreshold: 0, recoveryThreshold: 999 },
+      payload: { name: 'thresholds', type: 'https', config: { url: 'https://example.test' }, failureThreshold: 0, recoveryThreshold: 999 },
     })).json()
     assert.equal(created.failureThreshold, 1)
     assert.equal(created.recoveryThreshold, 20)
@@ -223,6 +223,17 @@ describe('monitor routes', () => {
       assert.equal(response.statusCode, 400)
       assert.equal(response.json().error, `Test not supported for monitor type: ${type}`)
     }
+  })
+
+  it('judges the config of a test run like saving does, for every type', async () => {
+    for (const [type, message] of [['https', /url must be/], ['ping', /host is required/], ['dns', /hostname is required/], ['postgresql', /host is required/], ['redis', /host is required/], ['docker', /Container name or ID is required/]] as const) {
+      const response = await app.inject({ method: 'POST', url: '/monitors/test', payload: { type, config: {} } })
+      assert.equal(response.statusCode, 400, type)
+      assert.match(response.json().error, message, type)
+    }
+    const method = await app.inject({ method: 'POST', url: '/monitors/test', payload: { type: 'https', config: { url: 'https://a.test', method: 'DELETE' } } })
+    assert.equal(method.statusCode, 400)
+    assert.match(method.json().error, /method must be one of/)
   })
 
   it('validates test run input', async () => {

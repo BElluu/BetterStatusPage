@@ -228,7 +228,7 @@ const systemHealth = defineTool({
 const monitorConfigFields = defineTool({
   name: 'monitor_config_fields',
   title: 'Monitor types and their settings',
-  description: 'What a monitor of each type can be configured with. Without a type: every type with a one-line summary. With a type: each `config` field (type, required, allowed values, default, whether it is a secret) and the settings every monitor has (interval, thresholds, tags, automatic incident, slower-than-usual alert). Use it before monitor_create and monitor_update, and whenever you are not sure an option exists: an option that is off does not appear in get_monitor.',
+  description: 'What a monitor of each type can be configured with. Without a type: every type with a one-line summary. With a type: the JSON Schema of its `config` (the type of each field, allowed values, default, range, whether the API checks it, whether it is a secret) and the settings every monitor has (interval, thresholds, tags, automatic incident, slower-than-usual alert). Use it before monitor_create and monitor_update, and whenever you are not sure an option exists: an option that is off does not appear in get_monitor.',
   scope: 'monitors:read',
   input: { type: z.enum(MONITOR_TYPES as [MonitorType, ...MonitorType[]]).optional() },
   async handler(args) {

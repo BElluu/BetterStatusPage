@@ -45,7 +45,11 @@ claude mcp add --transport http bsp https://status.example.com/mcp \
   --header "Authorization: Bearer bsp_your_token"
 ```
 
+In PowerShell, write it on one line (the `\` continuation is for POSIX shells). Check with `claude mcp list`, and in a session with `/mcp`; after a server restart or a change of the token's permissions, start a new session so the client reads the tool list again.
+
 Any other client that speaks MCP over HTTP works the same way: the URL is `https://<your-host>/mcp` and the token goes in an `Authorization: Bearer` header.
+
+When the client connects, the server sends it short instructions: how to work (start with `status_overview`, look up an id instead of guessing it, call `monitor_config_fields` before creating or changing a monitor, read back what was changed, never ask for a password in the chat) and which actions are public or silence alerts, so it should confirm them with you first. They are fixed text; nothing from your data is ever put in them.
 
 ---
 
@@ -65,7 +69,7 @@ Any other client that speaks MCP over HTTP works the same way: the URL is `https
 | `get_notification_delivery` | One delivery with every attempt | `channels:read` |
 | `audit_log` | Who changed what and when, with before and after values | `audit:read` |
 | `system_health` | Database, scheduler, delivery, backups, static fallback, updates | `system:read` |
-| `monitor_config_fields` | Every monitor type with a summary; with a type, each config field (required, whether the API refuses it when missing, allowed values, default, what the console starts with, range, secret) and the settings every monitor has. Call it before creating or changing a monitor, because an option that is off does not appear in `get_monitor` | `monitors:read` |
+| `monitor_config_fields` | Every monitor type with a summary; with a type, the JSON Schema of its `config` (the type of each field, which are required, allowed values, default, range, which the API does not check, which are secrets) and the settings every monitor has. It is the schema the API validates saved monitors with, so what it says is what the API does; the few checks JSON Schema cannot express (that an address starts with http:// or https://, that a method may be written in any case, the shape of a domain name, of a container name and of a Docker endpoint, and the rules of a response check) are described in words. Call it before creating or changing a monitor, because an option that is off does not appear in `get_monitor` | `monitors:read` |
 | `monitor_dependencies` | The monitors a monitor depends on, with names | `monitors:read` |
 | `list_channels` | Notification channels: type, enabled state, recovery and alert-hygiene settings and the host a webhook sends to. Addresses, recipients and secrets are not returned | `channels:read` |
 | `monitor_channels` | Which channels one monitor notifies | `channels:read` |
@@ -98,7 +102,10 @@ Offered only while **Allow agents to make changes** is on, and only to a token w
 Rules built into them:
 
 - `notifySubscribers` has **no default** on `incident_publish`, `incident_post_update` and `maintenance_create`: the agent has to decide, and you see it in the approval.
-- `monitor_create` takes the config as the API does (look at a monitor of the same type with `get_monitor`). **Do not give an agent passwords or tokens**: they would pass through the chat. Create a vault secret in the admin console and let a person add the reference or the credentials there: referencing a vault secret needs `vault:use`, and a token that has it can send any vault secret to an address the agent chooses, so **do not give `vault:use` to an agent token**. The heartbeat URL of a new `webhook` monitor is not given to the agent; copy it from the admin console.
+- `monitor_create` takes the config as the API does. The agent should call `monitor_config_fields` for the type first; a config the API refuses comes back with a message that names the field (see [what is checked when you save](monitors.md#what-is-checked-when-you-save)). **Do not give an agent passwords or tokens**: they would pass through the chat. Create a vault secret in the admin console and let a person add the reference or the credentials there: referencing a vault secret needs `vault:use`, and a token that has it can send any vault secret to an address the agent chooses, so **do not give `vault:use` to an agent token**. The heartbeat URL of a new `webhook` monitor is not given to the agent; copy it from the admin console.
+- A **resolved** incident cannot be changed, given an update or have its monitors replaced from here: that would reopen or rewrite public history. Do it in the admin console.
+- A maintenance window made from here must end in the future, lasts at most 7 days from its start to its end, and names the monitors it covers. Repeating windows are edited in the admin console.
+- A tool refuses an argument it does not have, so a typo is an error the agent sees, not a change that silently did not happen.
 - Times you send are ISO 8601 with an offset (`2026-11-02T22:00:00+01:00` or `...Z`); a time without one is refused.
 - `monitors_apply` accepts only `kind: Monitor` documents. Channels and actions make requests to addresses someone writes down, so they stay out. It never prunes. A document **replaces the whole monitor**: notification channels, dependencies and automatic incidents it does not list are removed from it. So `monitors_validate` reports `updatesExisting`, and `monitors_apply` refuses such a plan until the agent passes `allowUpdates: true`, which it should do only after you agreed. The plan lists changed field names, not old and new values, so read the YAML in the approval.
 - `planDigest` ties the apply to the YAML that was validated and catches drift between the two calls. It is not an approval: the approval is your client asking before it runs a destructive tool.

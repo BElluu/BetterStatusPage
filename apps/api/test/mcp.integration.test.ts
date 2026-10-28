@@ -12,7 +12,8 @@ import cookie from '@fastify/cookie'
 import multipart from '@fastify/multipart'
 import { TOKEN_RESOURCES } from '@bsp/shared'
 import { adminApi } from '../src/adminApi.js'
-import { MONITOR_FIELDS, MONITOR_SETTINGS } from '../src/mcp/monitorFields.js'
+import { MONITOR_SETTINGS } from '../src/mcp/monitorFields.js'
+import { MONITOR_CONFIG_SCHEMAS } from '../src/services/monitorConfigSchema.js'
 import { MONITOR_TYPES } from '../src/services/monitorInput.js'
 import { MCP_INSTRUCTIONS } from '../src/mcp/tools.js'
 import { db } from '../src/db/client.js'
@@ -597,21 +598,27 @@ describe('what the agent is told', () => {
   })
 
   it('lists the options of every monitor type, so an option that is off can still be found', async () => {
-    assert.deepEqual(Object.keys(MONITOR_FIELDS).sort(), [...MONITOR_TYPES].sort())
+    assert.deepEqual(Object.keys(MONITOR_CONFIG_SCHEMAS).sort(), [...MONITOR_TYPES].sort())
     const token = await tokenWith('monitors:read')
     const overview = parsed(await call(token, 'monitor_config_fields')) as { types: Array<{ type: string; summary: string }> }
     assert.deepEqual(overview.types.map((entry) => entry.type), [...MONITOR_TYPES])
     assert.ok(overview.types.every((entry) => entry.summary.length > 10))
 
     for (const type of MONITOR_TYPES) {
-      const described = parsed(await call(token, 'monitor_config_fields', { type })) as { config: Array<{ name: string; secret?: boolean }>; settings: Array<{ name: string }> }
-      assert.equal(described.config.length, Object.keys(MONITOR_FIELDS[type]).length, type)
+      const described = parsed(await call(token, 'monitor_config_fields', { type })) as { configSchema: { type: string; properties: Record<string, unknown> }; settings: Array<{ name: string }> }
+      assert.equal(described.configSchema.type, 'object', type)
       assert.deepEqual(described.settings.map((setting) => setting.name), Object.keys(MONITOR_SETTINGS), type)
     }
-    const https = parsed(await call(token, 'monitor_config_fields', { type: 'https' })) as { config: Array<{ name: string; description: string }> }
-    assert.match(https.config.find((field) => field.name === 'cacheBuster')!.description, /bypass cache/i)
-    const database = parsed(await call(token, 'monitor_config_fields', { type: 'postgresql' })) as { config: Array<{ name: string; secret?: boolean }> }
-    assert.equal(database.config.find((field) => field.name === 'password')!.secret, true)
+    type Described = { configSchema: { required?: string[]; properties: Record<string, { description?: string; secret?: boolean; unchecked?: boolean; default?: unknown }> } }
+    const https = parsed(await call(token, 'monitor_config_fields', { type: 'https' })) as Described
+    assert.match(https.configSchema.properties['cacheBuster']!.description!, /bypass cache/i)
+    assert.equal(https.configSchema.properties['cacheBuster']!.default, false)
+    assert.deepEqual(https.configSchema.required, ['url'], 'the agent is told the address is required')
+    assert.equal(https.configSchema.properties['keyword']!.unchecked, true, 'and which fields the API does not check')
+    const database = parsed(await call(token, 'monitor_config_fields', { type: 'postgresql' })) as Described
+    assert.equal(database.configSchema.properties['password']!.secret, true)
+    const redis = parsed(await call(token, 'monitor_config_fields', { type: 'redis' })) as Described
+    assert.deepEqual(redis.configSchema.required, ['host', 'port'])
   })
 
   it('lets an agent turn on an option that get_monitor does not show, and leaves the rest alone', async () => {
