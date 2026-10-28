@@ -15,6 +15,7 @@ COPY packages/notify/package*.json ./packages/notify/
 COPY packages/backup/package*.json ./packages/backup/
 COPY packages/mirror/package*.json ./packages/mirror/
 COPY packages/config-as-code/package*.json ./packages/config-as-code/
+COPY packages/mcp/package*.json ./packages/mcp/
 COPY packages/runtime/package*.json ./packages/runtime/
 COPY packages/ui/package*.json ./packages/ui/
 COPY apps/api/package*.json        ./apps/api/
@@ -60,6 +61,7 @@ COPY packages/notify/package*.json ./packages/notify/
 COPY packages/backup/package*.json ./packages/backup/
 COPY packages/mirror/package*.json ./packages/mirror/
 COPY packages/config-as-code/package*.json ./packages/config-as-code/
+COPY packages/mcp/package*.json ./packages/mcp/
 COPY packages/runtime/package*.json ./packages/runtime/
 COPY packages/ui/package*.json ./packages/ui/
 COPY apps/api/package*.json        ./apps/api/
@@ -82,6 +84,7 @@ COPY --from=builder /app/packages/notify/dist ./packages/notify/dist
 COPY --from=builder /app/packages/backup/dist ./packages/backup/dist
 COPY --from=builder /app/packages/mirror/dist ./packages/mirror/dist
 COPY --from=builder /app/packages/config-as-code/dist ./packages/config-as-code/dist
+COPY --from=builder /app/packages/mcp/dist ./packages/mcp/dist
 COPY --from=builder /app/packages/runtime/dist ./packages/runtime/dist
 COPY --from=builder /app/apps/api/dist    ./apps/api/dist
 COPY --from=builder /app/apps/admin/dist  ./apps/admin/dist
