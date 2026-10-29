@@ -1,0 +1,4 @@
+/* The Material Symbols font cut down to the icons the shared interface (and the template) use. A product that draws
+   icons of its own builds a font that also holds the names listed in `@better-forge/ui/icons.json` and declares it
+   instead of importing this file. */
+@font-face { font-family: 'Material Symbols Outlined'; font-style: normal; font-weight: 400; font-display: block; src: url('./fonts/material-symbols-outlined-fill.woff2') format('woff2'); }

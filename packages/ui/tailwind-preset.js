@@ -4,6 +4,8 @@
  * <alpha-value> placeholder keeps opacity modifiers such as `bg-primary/10` working; without a modifier the mix is
  * 100% and renders the variable unchanged.
  */
+import { fileURLToPath, URL } from 'node:url'
+
 const token = (name) => `color-mix(in srgb, var(${name}) calc(<alpha-value> * 100%), transparent)`
 
 /** @type {import('tailwindcss').Config} */
@@ -72,3 +74,6 @@ export default {
     },
   },
 }
+
+/** Where the classes of the shared components are written, to add to a product's `content`. */
+export const uiContent = `${fileURLToPath(new URL('./dist', import.meta.url)).replaceAll('\\', '/')}/**/*.js`

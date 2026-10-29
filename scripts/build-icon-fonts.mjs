@@ -1,5 +1,8 @@
 // Cuts the Material Symbols font down to the icons the sources use, one file per product surface.
 //
+// The shared interface (packages/ui) lists the icons its own sources use in packages/ui/icons.json. A product builds
+// its font from its sources plus that list, so an update of the package never drops an icon of the shared pages.
+//
 // The icons are written as names in the markup (`<span class="material-symbols-outlined">check_circle</span>`) and the
 // font turns each name into one glyph (a ligature). The full font has thousands of icons; this keeps the ones whose
 // name appears as a word in the surface's sources, and pins the axes the styles never vary (weight 400, grade 0,
@@ -22,8 +25,11 @@ const source = path.join(root, 'node_modules', 'material-symbols', 'material-sym
 // fills the active one, so its font keeps the axis and the filled glyph of every icon.
 const surfaces = [
   { file: 'apps/status/src/fonts/material-symbols-outlined.woff2', dirs: ['apps/status'], fill: 0 },
-  { file: 'packages/ui/styles/fonts/material-symbols-outlined-fill.woff2', dirs: ['apps/admin', 'apps/template', 'packages'], fill: undefined },
+  { file: 'apps/admin/src/fonts/material-symbols-outlined-fill.woff2', dirs: ['apps/admin'], fill: undefined, withUiIcons: true },
+  { file: 'packages/ui/styles/fonts/material-symbols-outlined-fill.woff2', dirs: ['packages/ui/src', 'apps/template'], fill: undefined },
 ]
+const uiIconList = 'packages/ui/icons.json'
+const uiSources = ['packages/ui/src']
 
 const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
   const file = path.join(dir, entry.name)
@@ -107,8 +113,22 @@ const full = shaperOf(fullSfnt)
 const letters = [...'abcdefghijklmnopqrstuvwxyz0123456789_'].map((letter) => full.nominalGlyph(letter.codePointAt(0)))
 let failed = false
 
+// The icons the shared interface uses, written next to the package so that products can add them to their fonts.
+const uiIcons = JSON.stringify([...iconsIn(full, wordsIn(uiSources)).keys()].sort(), null, 2) + '\n'
+const uiIconFile = path.join(root, uiIconList)
+if (check) {
+  if (!fs.existsSync(uiIconFile) || fs.readFileSync(uiIconFile, 'utf8').replace(/\r\n/g, '\n') !== uiIcons) {
+    failed = true
+    console.error(`${uiIconList} is out of date; run: node scripts/build-icon-fonts.mjs`)
+  }
+} else {
+  fs.writeFileSync(uiIconFile, uiIcons)
+}
+
 for (const surface of surfaces) {
-  const icons = iconsIn(full, wordsIn(surface.dirs))
+  const words = wordsIn(surface.dirs)
+  if (surface.withUiIcons) words.push(...JSON.parse(uiIcons))
+  const icons = iconsIn(full, words)
   const target = path.join(root, surface.file)
   if (check) {
     const cut = shaperOf(await toSfnt(fs.readFileSync(target)))

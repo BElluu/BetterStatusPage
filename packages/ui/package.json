@@ -24,6 +24,8 @@
       "import": "./dist/index.js"
     },
     "./styles.css": "./styles/base.css",
+    "./icons.css": "./styles/icons.css",
+    "./icons.json": "./icons.json",
     "./tailwind-preset": "./tailwind-preset.js",
     "./package.json": "./package.json"
   },
@@ -33,7 +35,8 @@
     "!src/**/*.test.*",
     "!src/testing",
     "styles",
-    "tailwind-preset.js"
+    "tailwind-preset.js",
+    "icons.json"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
