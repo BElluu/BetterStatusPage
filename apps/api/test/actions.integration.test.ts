@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import Fastify from 'fastify'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { db } from '../src/db/client.js'
 import { actionNotificationChannels, actionRuns, actions, auditLog, maintenanceWindows, monitorActions, monitors, notificationChannels, notificationDeliveries, notificationDeliveryAttempts } from '../src/db/schema.js'
 import { actionRoutes } from '../src/routes/actions.js'
@@ -47,7 +47,22 @@ before(async () => {
   await app.ready()
 })
 
+/**
+ * A failure notification is sent without anyone waiting for it, and its delivery records the attempt only after the
+ * request went out. Clearing the tables while one is still on its way would drop its rows and let its request land in
+ * the next test, so the first attempt of every delivery is waited for.
+ */
+async function awaitFirstAttempts() {
+  for (let waited = 0; waited < 5_000; waited += 25) {
+    const unsent = await db.select({ id: notificationDeliveries.id }).from(notificationDeliveries)
+      .where(and(eq(notificationDeliveries.status, 'pending'), isNull(notificationDeliveries.lastAttemptAt), isNull(notificationDeliveries.groupKey)))
+    if (unsent.length === 0) return
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+}
+
 beforeEach(async () => {
+  await awaitFirstAttempts()
   requests.length = 0
   failuresRemaining = 0
   await db.delete(notificationDeliveryAttempts)
