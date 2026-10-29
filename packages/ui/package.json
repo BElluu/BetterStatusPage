@@ -3,7 +3,18 @@
   "version": "0.1.0",
   "description": "React admin shell, UI components, API client and shared pages.",
   "license": "MIT",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BElluu/Better-Forge.git",
+    "directory": "packages/ui"
+  },
+  "homepage": "https://github.com/BElluu/Better-Forge/tree/main/packages/ui#readme",
+  "bugs": {
+    "url": "https://github.com/BElluu/Better-Forge/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,10 +24,14 @@
       "import": "./dist/index.js"
     },
     "./styles.css": "./styles/base.css",
-    "./tailwind-preset": "./tailwind-preset.js"
+    "./tailwind-preset": "./tailwind-preset.js",
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
+    "src",
+    "!src/**/*.test.*",
+    "!src/testing",
     "styles",
     "tailwind-preset.js"
   ],
@@ -25,7 +40,6 @@
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput"
   },
   "peerDependencies": {
-    "@better-forge/contracts": "^0.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "clsx": "^2.1.1",
@@ -44,5 +58,11 @@
   },
   "sideEffects": [
     "*.css"
-  ]
+  ],
+  "dependencies": {
+    "@better-forge/contracts": "0.1.0"
+  },
+  "engines": {
+    "node": ">=26.10.0"
+  }
 }
