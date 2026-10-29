@@ -1,4 +1,4 @@
-import { createAppLock, createPublicUrlResolver, createSse, createUpdateCheck, dataDir } from '@better-kit/runtime'
+import { createAppLock, createPublicUrlResolver, createSse, createUpdateCheck, dataDir } from '@better-forge/runtime'
 import { getSseLimits } from '../config/sse.js'
 import { resolveAppVersion } from '../version.js'
 

@@ -1,4 +1,4 @@
-import type { VaultRef } from '@better-kit/contracts'
+import type { VaultRef } from '@better-forge/contracts'
 import { plainSegments, readableTimestamp, renderSegments, type Notice, type NoticeSeverity } from './notice.js'
 import type { SmtpMessage } from './engine.js'
 import { configForEvent, type EventWording } from './channelInput.js'

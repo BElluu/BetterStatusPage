@@ -1,4 +1,4 @@
-import type { SseLimits } from '@better-kit/runtime'
+import type { SseLimits } from '@better-forge/runtime'
 import { readPositiveInteger } from './env.js'
 
 export function getSseLimits(env: NodeJS.ProcessEnv = process.env): Partial<SseLimits> {

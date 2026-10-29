@@ -1,6 +1,6 @@
 import { Agent, fetch as httpFetch } from 'undici'
 import { and, eq } from 'drizzle-orm'
-import type { SqliteDatabase } from '@better-kit/db'
+import type { SqliteDatabase } from '@better-forge/db'
 import { vaults, vaultSecrets } from './tables.js'
 import type { SecretBox } from './secretBox.js'
 

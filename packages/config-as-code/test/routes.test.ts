@@ -4,7 +4,7 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import { parseAllDocuments } from 'yaml'
 import {
   ConfigExportError, createConfigEngine, createConfigRoutes, type ConfigCaller, type ConfigKind, type Json,
-} from '@better-kit/config-as-code'
+} from '@better-forge/config-as-code'
 
 // Two kinds over a list in memory: "Note" (anyone who may write notes) and "Secret" (administrators; optional in a full export).
 const store = { Note: new Map<string, string>(), Secret: new Map<string, string>() }

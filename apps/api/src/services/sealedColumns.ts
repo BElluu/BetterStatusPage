@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { sealedText } from '@better-kit/vault'
+import { sealedText } from '@better-forge/vault'
 import { sealer } from '../kit/sealer.js'
 import { configCodec } from './secretFields.js'
 

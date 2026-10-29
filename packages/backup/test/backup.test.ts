@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite'
 import {
   collectFiles, createArchiveFormat, createBackupRunner, createBackupService, createRestore, INTERRUPTED_BACKUP_ERROR,
   type BackupManifest, type RestoreExtras,
-} from '@better-kit/backup'
+} from '@better-forge/backup'
 
 let dir: string
 

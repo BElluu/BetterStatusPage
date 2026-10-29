@@ -6,7 +6,7 @@ export type BackupJob =
   | { task: 'validate'; input: string }
 
 export interface BackupWorkerOptions {
-  /** The worker script: the application's file that imports `@better-kit/backup/worker`. */
+  /** The worker script: the application's file that imports `@better-forge/backup/worker`. */
   workerUrl: URL
   /** The module the worker loads; it exports `createBackup` and `validateBackup`. */
   moduleUrl: string

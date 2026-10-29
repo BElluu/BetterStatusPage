@@ -1,4 +1,4 @@
-import { createDeliveryWorker } from '@better-kit/notify'
+import { createDeliveryWorker } from '@better-forge/notify'
 import { notifyEngine } from '../kit/notify.js'
 import { processDueSubscriberDeliveries, purgeSubscriberData } from './subscriberNotifier.js'
 import { processDueActionRuns, purgeOldActionRuns } from './actionRunner.js'

@@ -1,4 +1,4 @@
-# @better-kit/config-as-code
+# @better-forge/config-as-code
 
 Configuration as code: the objects of an application as YAML documents, exported and applied back.
 
@@ -7,4 +7,4 @@ Configuration as code: the objects of an application as YAML documents, exported
 - `toYaml`, `toYamlStream`, `readDocuments` write and read the YAML (1.1-safe quoting, no folding, limits on documents and aliases).
 - Entity keys: `isValidEntityKey`, `slugifyKey`, `keyForNew` and `backfillKeys` give every object the stable key a document refers to it by.
 
-The database, the transaction and the audit log are supplied by the application. Depends on `@better-kit/contracts` (token permissions) and `yaml`.
+The database, the transaction and the audit log are supplied by the application. Depends on `@better-forge/contracts` (token permissions) and `yaml`.

@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm'
-import type { VaultRef } from '@better-kit/contracts'
-import type { SqliteDatabase } from '@better-kit/db'
+import type { VaultRef } from '@better-forge/contracts'
+import type { SqliteDatabase } from '@better-forge/db'
 import { vaults, vaultSecrets } from './tables.js'
 import { HashicorpVaultError, type Hashicorp } from './hashicorp.js'
 import type { SecretBox } from './secretBox.js'

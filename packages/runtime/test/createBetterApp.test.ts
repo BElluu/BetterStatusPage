@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, it, mock } from 'node:test'
-import { createBetterApp, redactUrl, resolveJwtSecret, type BetterAppOptions } from '@better-kit/runtime'
+import { createBetterApp, redactUrl, resolveJwtSecret, type BetterAppOptions } from '@better-forge/runtime'
 
 let dir: string
 let calls: string[]

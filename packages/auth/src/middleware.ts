@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import { requiredScope, tokenAllows } from '@better-kit/contracts'
+import { requiredScope, tokenAllows } from '@better-forge/contracts'
 import { API_TOKEN_NOT_ACCEPTED, type AuthIdentity, type Sessions } from './sessions.js'
 import type { ApiTokens } from './apiTokens.js'
 

@@ -1,5 +1,5 @@
 {
-  "name": "@better-kit/vault",
+  "name": "@better-forge/vault",
   "version": "0.1.0",
   "description": "Local vault crypto, HashiCorp client, secret resolution and vault routes.",
   "license": "MIT",
@@ -21,8 +21,8 @@
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput"
   },
   "peerDependencies": {
-    "@better-kit/contracts": "^0.1.0",
-    "@better-kit/db": "^0.1.0",
+    "@better-forge/contracts": "^0.1.0",
+    "@better-forge/db": "^0.1.0",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.3.2",
     "undici": "^7.4.0"

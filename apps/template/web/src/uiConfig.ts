@@ -1,4 +1,4 @@
-import type { UiConfig } from '@better-kit/ui'
+import type { UiConfig } from '@better-forge/ui'
 
 // A plain mark instead of a picture file, so the template needs no assets of its own.
 const mark = (color: string) => `data:image/svg+xml,${encodeURIComponent(

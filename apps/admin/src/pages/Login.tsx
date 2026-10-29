@@ -1,4 +1,4 @@
-import { LoginPage } from '@better-kit/ui'
+import { LoginPage } from '@better-forge/ui'
 
 const FEATURES = [
   { icon: 'bolt', label: 'Live status updates' },

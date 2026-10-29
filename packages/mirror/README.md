@@ -1,4 +1,4 @@
-# @better-kit/mirror
+# @better-forge/mirror
 
 Publishes a set of files to static hosting.
 

@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
-import { openDatabase, runMigrations } from '@better-kit/db'
-import { auditDbModule, auditLog, createAudit } from '@better-kit/audit'
+import { openDatabase, runMigrations } from '@better-forge/db'
+import { auditDbModule, auditLog, createAudit } from '@better-forge/audit'
 
 const dir = mkdtempSync(join(tmpdir(), 'kit-audit-'))
 const database = openDatabase({ path: join(dir, 'db.sqlite'), schema: { auditLog } })

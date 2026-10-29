@@ -1,4 +1,4 @@
-import uiPreset from '@better-kit/ui/tailwind-preset'
+import uiPreset from '@better-forge/ui/tailwind-preset'
 
 /** @type {import('tailwindcss').Config} */
 export default {

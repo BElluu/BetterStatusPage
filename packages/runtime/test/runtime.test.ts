@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import Fastify from 'fastify'
-import { openDatabase } from '@better-kit/db'
+import { openDatabase } from '@better-forge/db'
 import {
   createAppLock, createHealthRoutes, createPublicUrlResolver, createSystemHealth, createUpdateCheck, dataDir, databasePath,
   isNewerVersion, isSetupComplete, rateLimitKey, resolveAppVersion, resolveTrustProxy, writeSetupComplete,
-} from '@better-kit/runtime'
+} from '@better-forge/runtime'
 
 const dir = mkdtempSync(join(tmpdir(), 'kit-runtime-'))
 after(() => rmSync(dir, { recursive: true, force: true }))

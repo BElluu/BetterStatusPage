@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
 import Fastify, { type FastifyInstance } from 'fastify'
-import { auditDbModule, createAudit } from '@better-kit/audit'
-import { openDatabase, runMigrations, type Database } from '@better-kit/db'
-import { createNotifyDbModule, createNotifyRoutes, type NotifyRoutesOptions } from '@better-kit/notify'
+import { auditDbModule, createAudit } from '@better-forge/audit'
+import { openDatabase, runMigrations, type Database } from '@better-forge/db'
+import { createNotifyDbModule, createNotifyRoutes, type NotifyRoutesOptions } from '@better-forge/notify'
 
 const module = createNotifyDbModule({ sourceIdColumn: 'source_id', sourceNameColumn: 'source_name', smtpFromName: 'Alerts', newKey: () => crypto.randomUUID() })
 const { notificationDeliveries, smtpSettings } = module.tables

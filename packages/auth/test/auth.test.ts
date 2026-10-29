@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import Fastify, { type RouteOptions } from 'fastify'
-import { acceptApiTokens, ADMIN_ROLE, belongsTo, createRoleRegistry, createTokenCatalogue, generateTotpCode, generateTotpSecret, totpUri, verifyTotp } from '@better-kit/auth'
+import { acceptApiTokens, ADMIN_ROLE, belongsTo, createRoleRegistry, createTokenCatalogue, generateTotpCode, generateTotpSecret, totpUri, verifyTotp } from '@better-forge/auth'
 
 describe('role registry', () => {
   const build = () => {

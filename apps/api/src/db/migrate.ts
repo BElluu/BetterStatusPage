@@ -1,4 +1,4 @@
-import { applyColumnMigration as applyColumn, runMigrations as migrate } from '@better-kit/db'
+import { applyColumnMigration as applyColumn, runMigrations as migrate } from '@better-forge/db'
 import { sqlite } from './client.js'
 import { dbModules } from './modules/index.js'
 

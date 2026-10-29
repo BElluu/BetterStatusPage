@@ -1,4 +1,4 @@
-import { createNotifyEngine, createTransports } from '@better-kit/notify'
+import { createNotifyEngine, createTransports } from '@better-forge/notify'
 import { DEFAULT_EMAIL_BODY, DEFAULT_EMAIL_SUBJECT } from '@bsp/shared'
 import { db } from '../db/client.js'
 import { notifyModule } from '../db/modules/notify/index.js'

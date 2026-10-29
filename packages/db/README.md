@@ -1,10 +1,10 @@
-# @better-kit/db
+# @better-forge/db
 
 SQLite (`node:sqlite`) and Drizzle bootstrap, transactions, and the registries that let each module own its tables and
 migrations. No state of its own: the application opens the connection and passes it in.
 
 ```ts
-import { composeModules, openDatabase, runMigrations, type DbModule } from '@better-kit/db'
+import { composeModules, openDatabase, runMigrations, type DbModule } from '@better-forge/db'
 
 const notes: DbModule = {
   id: 'notes',

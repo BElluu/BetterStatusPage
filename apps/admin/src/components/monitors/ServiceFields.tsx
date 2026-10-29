@@ -1,6 +1,6 @@
 import { DEFAULT_CERT_WARN_DAYS, DEFAULT_EXPIRY_WARN_DAYS, MAIL_DEFAULT_PORTS, MAX_EXPIRY_WARN_DAYS } from '@bsp/shared'
 import type { MailProtocol, MailSecurity } from '@bsp/shared'
-import { Field, Note } from '@better-kit/ui'
+import { Field, Note } from '@better-forge/ui'
 
 interface ConfigProps {
   config: Record<string, unknown>

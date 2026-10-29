@@ -1,16 +1,16 @@
-import { createAudit } from '@better-kit/audit'
-import { createAuth, createRoleRegistry, createTokenCatalogue, requestIdentity, type Auth } from '@better-kit/auth'
+import { createAudit } from '@better-forge/audit'
+import { createAuth, createRoleRegistry, createTokenCatalogue, requestIdentity, type Auth } from '@better-forge/auth'
 import {
   createBackupRoutes, createBackupRunner, createBackupScheduler, createBackupService, createRestore, type BackupManifest,
-} from '@better-kit/backup'
-import { keyForNew } from '@better-kit/config-as-code'
+} from '@better-forge/backup'
+import { keyForNew } from '@better-forge/config-as-code'
 import {
   CHANNEL_DESTINATIONS, CHANNEL_SECRETS, createDeliveryWorker, createNotifyEngine, createNotifyRoutes, createTransports, type Notice,
-} from '@better-kit/notify'
+} from '@better-forge/notify'
 import {
   createAppLock, createPublicUrlResolver, currentProcessOwner, dataDir, databasePath, backupDir, isOwnerAlive,
-} from '@better-kit/runtime'
-import { createSecretFields, createVault, createVaultUseGuard, uniqueSecretFields } from '@better-kit/vault'
+} from '@better-forge/runtime'
+import { createSecretFields, createVault, createVaultUseGuard, uniqueSecretFields } from '@better-forge/vault'
 import { EXTRA_SCOPES, TOKEN_RESOURCES } from '../shared/tokens.js'
 import { closeDb, db, initDb, migrate, notifyModule, sqlite } from './db.js'
 

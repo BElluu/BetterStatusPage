@@ -1,5 +1,5 @@
 import { inArray } from 'drizzle-orm'
-import { placeholderInAuthority } from '@better-kit/notify'
+import { placeholderInAuthority } from '@better-forge/notify'
 import { db } from '../db/client.js'
 import { vaultSecrets } from '../db/schema.js'
 

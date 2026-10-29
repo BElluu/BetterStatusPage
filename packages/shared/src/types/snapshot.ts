@@ -1,4 +1,4 @@
-import type { LocaleSummary } from '@better-kit/contracts'
+import type { LocaleSummary } from '@better-forge/contracts'
 
 /**
  * The public status page frozen at one moment (`snapshot.json`). A copy of the page hosted elsewhere

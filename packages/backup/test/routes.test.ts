@@ -4,11 +4,11 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, it, mock } from 'node:test'
 import Fastify, { type FastifyInstance } from 'fastify'
-import { auditDbModule, createAudit } from '@better-kit/audit'
-import { openDatabase, runMigrations, type Database } from '@better-kit/db'
+import { auditDbModule, createAudit } from '@better-forge/audit'
+import { openDatabase, runMigrations, type Database } from '@better-forge/db'
 import {
   createBackupRoutes, createBackupScheduler, createBackupService, DEFAULT_BACKUP_CONFIG, scheduleExpression, type BackupManifest,
-} from '@better-kit/backup'
+} from '@better-forge/backup'
 import { DatabaseSync } from 'node:sqlite'
 
 let dir: string

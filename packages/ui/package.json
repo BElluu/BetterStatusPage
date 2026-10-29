@@ -1,5 +1,5 @@
 {
-  "name": "@better-kit/ui",
+  "name": "@better-forge/ui",
   "version": "0.1.0",
   "description": "React admin shell, UI components, API client and shared pages.",
   "license": "MIT",
@@ -25,7 +25,7 @@
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput"
   },
   "peerDependencies": {
-    "@better-kit/contracts": "^0.1.0",
+    "@better-forge/contracts": "^0.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "clsx": "^2.1.1",

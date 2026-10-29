@@ -1,6 +1,6 @@
 import { sqliteTable, integer, text, real, primaryKey } from 'drizzle-orm/sqlite-core'
 import { DEFAULT_BRANDING_COLORS, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
-import { randomEntityKey } from '@better-kit/config-as-code'
+import { randomEntityKey } from '@better-forge/config-as-code'
 import { actionConfigColumn, monitorConfigColumn } from '../../../services/sealedColumns.js'
 
 export const monitors = sqliteTable('monitors', {

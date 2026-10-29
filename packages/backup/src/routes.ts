@@ -4,7 +4,7 @@ import path from 'node:path'
 import os from 'node:os'
 import type { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import type { Audit } from '@better-kit/audit'
+import type { Audit } from '@better-forge/audit'
 import { DEFAULT_BACKUP_CONFIG, type BackupConfig, type BackupInfo, type BackupManifest, type BackupService } from './service.js'
 
 /** The part of `@fastify/multipart` the upload route uses; the application registers the plugin. */

@@ -1,5 +1,5 @@
-import { createVault, createVaultUseGuard, type Vault } from '@better-kit/vault'
-import { requestIdentity } from '@better-kit/auth'
+import { createVault, createVaultUseGuard, type Vault } from '@better-forge/vault'
+import { requestIdentity } from '@better-forge/auth'
 import { db } from '../db/client.js'
 import { audit } from './audit.js'
 import { secretBox } from './sealer.js'

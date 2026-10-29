@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { API_TOKEN_SCOPES, normalizeScopes, TOKEN_PRESETS, TOKEN_RESOURCES } from '@bsp/shared'
-import { requiredScope, tokenAllows, VAULT_USE_SCOPE } from '@better-kit/contracts'
+import { requiredScope, tokenAllows, VAULT_USE_SCOPE } from '@better-forge/contracts'
 
 describe('what a token needs for a request', () => {
   it('is the read permission for GET and HEAD and the write permission for anything else', () => {

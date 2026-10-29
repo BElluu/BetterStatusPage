@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { AdminStaticMirror, StaticMirrorCheckResult, StaticMirrorHealthState, StaticMirrorSettings } from '@bsp/shared'
 import { api } from '../api/client'
-import { Alert, ErrorState, LoadingState, PageContainer, PageHeader, Switch, formatDateTime, useToast } from '@better-kit/ui'
+import { Alert, ErrorState, LoadingState, PageContainer, PageHeader, Switch, formatDateTime, useToast } from '@better-forge/ui'
 
 const QUERY_KEY = ['static-mirror']
 const DOCS_URL = 'https://docs.betterstatuspage.dev/static-fallback/'

@@ -1,5 +1,5 @@
 import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core'
-import { sealedText, type SealedText } from '@better-kit/vault'
+import { sealedText, type SealedText } from '@better-forge/vault'
 
 /**
  * How the application names what the notification tables store about it. The tables of an existing installation keep

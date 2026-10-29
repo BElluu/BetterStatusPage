@@ -14,7 +14,7 @@ import { processDueNotificationDeliveries, sendNotifications } from '../src/work
 import { runCheck } from '../src/workers/scheduler.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 import type { ChannelAlertPolicy, MonitorStatus } from '@bsp/shared'
-import type { QuietHoursPolicy } from '@better-kit/contracts'
+import type { QuietHoursPolicy } from '@better-forge/contracts'
 
 const testDb = createTestDb('bsp-alert-hygiene-test-')
 

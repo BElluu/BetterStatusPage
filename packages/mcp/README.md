@@ -1,4 +1,4 @@
-# @better-kit/mcp
+# @better-forge/mcp
 
 A Model Context Protocol endpoint for a Fastify app (Streamable HTTP, stateless).
 
@@ -11,4 +11,4 @@ A Model Context Protocol endpoint for a Fastify app (Streamable HTTP, stateless)
   characters; a result is cut to 64 KB (a list under `items` is shortened first).
 
 The package knows nothing about what the tools are about; the product supplies them with `defineTool` and the
-authentication with `authenticate`. Depends on: `@better-kit/contracts`.
+authentication with `authenticate`. Depends on: `@better-forge/contracts`.

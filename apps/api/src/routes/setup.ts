@@ -1,5 +1,5 @@
 import fs from 'fs'
-import { createSetupRoutes } from '@better-kit/auth'
+import { createSetupRoutes } from '@better-forge/auth'
 import { DEFAULT_BRANDING_COLORS } from '@bsp/shared'
 import { isSetupComplete, setupConfigPath, writeSetupComplete } from '../config.js'
 import { initDb, db } from '../db/client.js'

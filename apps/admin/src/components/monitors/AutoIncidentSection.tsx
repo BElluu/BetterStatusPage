@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AutoIncidentMode, IncidentTemplate } from '@bsp/shared'
 import { api } from '../../api/client'
-import { Field, Note } from '@better-kit/ui'
+import { Field, Note } from '@better-forge/ui'
 
 export interface AutoIncidentValues {
   autoIncidentMinutes: number | null

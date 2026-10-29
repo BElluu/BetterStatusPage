@@ -2,11 +2,11 @@ import { useEffect, useId, useState } from 'react'
 import { api } from '../../api/client'
 import { DEFAULT_APPROVAL_TIMEOUT_MINUTES, type Action, type NotificationChannel } from '@bsp/shared'
 import { CHANNEL_TYPES } from '../notifications/channelTypes'
-import type { VaultPickerProps } from '@better-kit/ui'
-import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
-import { SidePanelFrame, SideTabStrip, type SidePanelMeta, type SideTab } from '@better-kit/ui'
+import type { VaultPickerProps } from '@better-forge/ui'
+import { ModalFooter, ModalHeader, ModalShell } from '@better-forge/ui'
+import { SidePanelFrame, SideTabStrip, type SidePanelMeta, type SideTab } from '@better-forge/ui'
 import { YamlViewModal } from '../YamlViewModal'
-import { Alert, Field, Switch } from '@better-kit/ui'
+import { Alert, Field, Switch } from '@better-forge/ui'
 
 interface Props {
   action: Action | null

@@ -1,4 +1,4 @@
-import { safeLocalStorage } from '@better-kit/contracts'
+import { safeLocalStorage } from '@better-forge/contracts'
 import { storageKey } from '../config'
 import { parseChangelog, releasesBetween, summarizeRelease, type ReleaseItem, type ReleaseNotes } from '../lib/changelog'
 import { ModalFooter, ModalHeader, ModalShell } from './ModalShell'

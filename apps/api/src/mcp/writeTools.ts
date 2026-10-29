@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { defineTool, McpToolError, type McpTool, type McpToolContext } from '@better-kit/mcp'
+import { defineTool, McpToolError, type McpTool, type McpToolContext } from '@better-forge/mcp'
 import { parseAllDocuments } from 'yaml'
 import { z } from 'zod'
 

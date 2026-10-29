@@ -3,7 +3,7 @@ import { lazy, Suspense } from 'react'
 import {
   BackupsPage, ChangePasswordPage, ErrorBoundary, LoadingState, RequireAuth, RequirePasswordChanged, SettingsPage, SetupGate, SetupPage,
   SsoConfirmPage, SsoTestResultPage, VaultPage, createRoleGuard,
-} from '@better-kit/ui'
+} from '@better-forge/ui'
 import { getCurrentUser } from './api/client'
 import Layout from './components/Layout'
 import LoginPage from './pages/Login'

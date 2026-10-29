@@ -1,7 +1,7 @@
 import { isIP, connect as tcpConnect, type Socket } from 'node:net'
 import { connect as tlsConnect, type TLSSocket } from 'node:tls'
 import type { MonitorStatus, SocketTlsConfig } from '@bsp/shared'
-import type { VaultRef } from '@better-kit/contracts'
+import type { VaultRef } from '@better-forge/contracts'
 import { resolveVaultSecret } from '../kit/resolveSecret.js'
 import { guardedLookup, refusalReason } from '../services/ssrfGuard.js'
 

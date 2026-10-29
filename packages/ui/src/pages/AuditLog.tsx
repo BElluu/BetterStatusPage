@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { EmptyState, EmptyStateLink, ErrorState, LoadingState, PageContainer, PageHeader, Pagination, ResizeHandle } from '../components/ui'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
-import type { AuditAction, AuditLogEntry } from '@better-kit/contracts'
+import type { AuditAction, AuditLogEntry } from '@better-forge/contracts'
 
 /** How an application names the things its audit log is about: labels and icons by type, and the sections of the filter. */
 export interface AuditEntities {

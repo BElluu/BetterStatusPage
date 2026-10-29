@@ -1,7 +1,7 @@
-import type { DbModule } from '@better-kit/db'
-import { authDbModule } from '@better-kit/auth'
-import { auditDbModule } from '@better-kit/audit'
-import { vaultDbModule } from '@better-kit/vault'
+import type { DbModule } from '@better-forge/db'
+import { authDbModule } from '@better-forge/auth'
+import { auditDbModule } from '@better-forge/audit'
+import { vaultDbModule } from '@better-forge/vault'
 import { notifyModule } from './notify/index.js'
 import { appModule } from './app/index.js'
 

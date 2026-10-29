@@ -11,7 +11,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const SCOPE = '@better-kit/'
+const SCOPE = '@better-forge/'
 // Their tests run in a browser-like environment under the root vitest configuration, so only their build is checked here.
 const BUILD_ONLY = new Set(['ui'])
 

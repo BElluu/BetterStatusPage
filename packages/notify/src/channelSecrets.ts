@@ -1,4 +1,4 @@
-import type { SecretField } from '@better-kit/vault'
+import type { SecretField } from '@better-forge/vault'
 
 /** Which parts of a channel's configuration are secrets, by channel type. */
 const WEBHOOK_URL_SECRET: readonly SecretField[] = [{ path: ['webhookUrl'] }]

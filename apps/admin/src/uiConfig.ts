@@ -1,4 +1,4 @@
-import type { UiConfig } from '@better-kit/ui'
+import type { UiConfig } from '@better-forge/ui'
 import { statusPageUrl } from './navigation'
 
 /** What the shared interface needs to know about this application. */

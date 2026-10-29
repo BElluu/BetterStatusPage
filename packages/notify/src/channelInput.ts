@@ -1,4 +1,4 @@
-import type { NotificationChannelType } from '@better-kit/contracts'
+import type { NotificationChannelType } from '@better-forge/contracts'
 import { placeholderInAuthority } from './template.js'
 
 export const CHANNEL_TYPES: readonly NotificationChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack', 'telegram', 'ntfy', 'pushover']

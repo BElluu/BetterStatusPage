@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
-import { registerAdminApi } from '@better-kit/auth'
+import { registerAdminApi } from '@better-forge/auth'
 
 const seen = (req: FastifyRequest) => {
   const { allowApiToken, tokenScope } = req.routeOptions.config as { allowApiToken?: boolean; tokenScope?: string }

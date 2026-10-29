@@ -1,4 +1,4 @@
-import { baseLanguage } from '@better-kit/contracts'
+import { baseLanguage } from '@better-forge/contracts'
 import type { TranslationKey } from '../types/locale.js'
 import { EN_DEFAULTS } from './en.js'
 import { PL_DEFAULTS } from './pl.js'

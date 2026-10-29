@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { baseLanguage, normalizeScopes, requiredScope, tokenAllows, VAULT_USE_SCOPE } from '@better-kit/contracts'
+import { baseLanguage, normalizeScopes, requiredScope, tokenAllows, VAULT_USE_SCOPE } from '@better-forge/contracts'
 
 const KNOWN = ['notes:read', 'notes:write', 'stats:read', VAULT_USE_SCOPE]
 

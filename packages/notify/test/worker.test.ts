@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, it, mock } from 'node:test'
 import cron from 'node-cron'
-import { createDeliveryWorker } from '@better-kit/notify'
+import { createDeliveryWorker } from '@better-forge/notify'
 
 const engine = { processDue: async () => 0, purgeOldDeliveries: async () => undefined }
 

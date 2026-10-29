@@ -1,5 +1,5 @@
 {
-  "name": "@better-kit/runtime",
+  "name": "@better-forge/runtime",
   "version": "0.1.0",
   "description": "Application bootstrap: Fastify defaults, health, shutdown, update check, app lock and SSE.",
   "license": "MIT",
@@ -21,7 +21,7 @@
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput"
   },
   "peerDependencies": {
-    "@better-kit/db": "^0.1.0",
+    "@better-forge/db": "^0.1.0",
     "@fastify/cookie": "^11.1.1",
     "@fastify/cors": "^10.0.2",
     "@fastify/jwt": "^10.1.0",

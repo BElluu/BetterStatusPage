@@ -4,7 +4,7 @@ import { describe, it } from 'node:test'
 import {
   createIntervalRunner, createMirrorPublisher, createS3Transport, sha256Hex, signRequest,
   type MirrorObject, type MirrorTransport,
-} from '@better-kit/mirror'
+} from '@better-forge/mirror'
 
 describe('SigV4', () => {
   // The "PUT Object" example of the S3 documentation.

@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { cancelRunsOfAction } from '../../workers/actionRunner.js'
-import { ENTITY_KEY_ERROR, isValidEntityKey, byKey, canonical, documentKey, isObject, keyList, nestedDeeperThan, unknownFields, type AuditEntry, type ConfigChange, type ConfigKind, type Json, type Problems } from '@better-kit/config-as-code'
+import { ENTITY_KEY_ERROR, isValidEntityKey, byKey, canonical, documentKey, isObject, keyList, nestedDeeperThan, unknownFields, type AuditEntry, type ConfigChange, type ConfigKind, type Json, type Problems } from '@better-forge/config-as-code'
 import { ACTION_TRIGGER_STATUSES, DEFAULT_APPROVAL_TIMEOUT_MINUTES, type ActionTriggerStatus } from '@bsp/shared'
 import { db } from '../../db/client.js'
 import { actionNotificationChannels, actions, monitorActions } from '../../db/schema.js'

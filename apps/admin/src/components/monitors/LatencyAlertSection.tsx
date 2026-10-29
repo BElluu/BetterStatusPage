@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { DEFAULT_LATENCY_ALERT, LATENCY_FACTOR_RANGE, LATENCY_MIN_DELTA_MS_RANGE, LATENCY_SUSTAIN_RANGE, LATENCY_WINDOW_MINUTES_RANGE } from '@bsp/shared'
-import { Field, Note } from '@better-kit/ui'
+import { Field, Note } from '@better-forge/ui'
 
 export interface LatencyAlertValues {
   latencyAlertFactor: number | null

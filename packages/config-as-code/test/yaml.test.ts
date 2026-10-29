@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { parse, parseAllDocuments } from 'yaml'
-import { MAX_DOCUMENTS, readDocuments, toYaml, toYamlStream } from '@better-kit/config-as-code'
+import { MAX_DOCUMENTS, readDocuments, toYaml, toYamlStream } from '@better-forge/config-as-code'
 
 describe('writing YAML', () => {
   it('quotes what an older parser would read as something else', () => {

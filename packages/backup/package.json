@@ -1,5 +1,5 @@
 {
-  "name": "@better-kit/backup",
+  "name": "@better-forge/backup",
   "version": "0.1.0",
   "description": "Backup, restore, verification, scheduler and CLI.",
   "license": "MIT",
@@ -25,8 +25,8 @@
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput"
   },
   "peerDependencies": {
-    "@better-kit/audit": "^0.1.0",
-    "@better-kit/db": "^0.1.0",
+    "@better-forge/audit": "^0.1.0",
+    "@better-forge/db": "^0.1.0",
     "fastify": "^5.3.2"
   },
   "devDependencies": {

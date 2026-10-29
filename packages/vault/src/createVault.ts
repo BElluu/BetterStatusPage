@@ -1,5 +1,5 @@
 import type { FastifyRequest } from 'fastify'
-import type { SqliteDatabase } from '@better-kit/db'
+import type { SqliteDatabase } from '@better-forge/db'
 import { createHashicorp } from './hashicorp.js'
 import { createSecretBox, type SecretBox } from './secretBox.js'
 import { createSecretResolver } from './resolveSecret.js'

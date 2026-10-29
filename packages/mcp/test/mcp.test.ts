@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import Fastify from 'fastify'
 import { z } from 'zod'
-import { boundedJson, cleanDeep, cleanText, crossSiteProblem, defineTool, McpToolError, query, registerMcpEndpoint } from '@better-kit/mcp'
+import { boundedJson, cleanDeep, cleanText, crossSiteProblem, defineTool, McpToolError, query, registerMcpEndpoint } from '@better-forge/mcp'
 
 const char = (code: number) => String.fromCharCode(code)
 

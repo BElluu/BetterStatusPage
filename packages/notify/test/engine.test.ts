@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
-import { openDatabase, runMigrations, type Database } from '@better-kit/db'
+import { openDatabase, runMigrations, type Database } from '@better-forge/db'
 import {
   createNotifyDbModule, createNotifyEngine, createTransports, MAX_DELIVERY_ATTEMPTS,
   type ChannelRow, type Notice, type NotifyEngineOptions,
-} from '@better-kit/notify'
+} from '@better-forge/notify'
 
 const module = createNotifyDbModule({ sourceIdColumn: 'source_id', sourceNameColumn: 'source_name', smtpFromName: 'Alerts', newKey: () => crypto.randomUUID() })
 const { notificationChannels, notificationDeliveries, notificationDeliveryAttempts } = module.tables

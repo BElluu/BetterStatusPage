@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { safeLocalStorage } from '@better-kit/contracts'
+import { safeLocalStorage } from '@better-forge/contracts'
 import { storageKey } from '../config'
 
 // The public status app keeps a copy of this hook with the same behaviour, since it does not use this package.

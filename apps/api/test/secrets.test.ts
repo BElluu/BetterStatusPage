@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { resolveJwtSecret } from '@better-kit/runtime'
-import { validateEncryptionKey as validateVaultEncryptionKey } from '@better-kit/vault'
+import { resolveJwtSecret } from '@better-forge/runtime'
+import { validateEncryptionKey as validateVaultEncryptionKey } from '@better-forge/vault'
 
 describe('production secret validation', () => {
   it('rejects missing, weak, and placeholder secrets', () => {

@@ -8,7 +8,7 @@ import {
   hashRecoveryCode,
   totpUri,
   verifyTotp,
-} from '@better-kit/auth'
+} from '@better-forge/auth'
 
 describe('TOTP authentication', () => {
   it('generates and verifies time-based codes with a small clock-skew window', () => {

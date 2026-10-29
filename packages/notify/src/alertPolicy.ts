@@ -1,4 +1,4 @@
-import type { QuietHoursPolicy } from '@better-kit/contracts'
+import type { QuietHoursPolicy } from '@better-forge/contracts'
 
 const MINUTE_MS = 60_000
 const DAY_MINUTES = 24 * 60

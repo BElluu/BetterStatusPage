@@ -1,4 +1,4 @@
-import type { VaultRef } from '@better-kit/contracts'
+import type { VaultRef } from '@better-forge/contracts'
 
 /** An action changes something outside BetterStatusPage when a monitor goes down or comes back up. */
 

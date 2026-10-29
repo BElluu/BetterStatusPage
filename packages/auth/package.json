@@ -1,5 +1,5 @@
 {
-  "name": "@better-kit/auth",
+  "name": "@better-forge/auth",
   "version": "0.1.0",
   "description": "Users, sessions, 2FA, SSO/OIDC, roles, API tokens and sign-in routes.",
   "license": "MIT",
@@ -21,9 +21,9 @@
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput"
   },
   "peerDependencies": {
-    "@better-kit/audit": "^0.1.0",
-    "@better-kit/contracts": "^0.1.0",
-    "@better-kit/db": "^0.1.0",
+    "@better-forge/audit": "^0.1.0",
+    "@better-forge/contracts": "^0.1.0",
+    "@better-forge/db": "^0.1.0",
     "@fastify/cookie": "^11.1.1",
     "@fastify/jwt": "^10.1.0",
     "bcryptjs": "^3.0.2",

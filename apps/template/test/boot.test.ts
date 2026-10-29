@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { after, before, describe, it } from 'node:test'
 
 // Proof that the shared modules make an application on their own: this boots the template, a server that imports
-// nothing but @better-kit packages, on an empty data directory and uses it the way a person would.
+// nothing but @better-forge packages, on an empty data directory and uses it the way a person would.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 let child: ChildProcess

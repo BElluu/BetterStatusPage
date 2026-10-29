@@ -1,8 +1,8 @@
-import { createSecretFields, uniqueSecretFields, type LooseningSwitch, type SecretField } from '@better-kit/vault'
-import { CHANNEL_DESTINATIONS, CHANNEL_SECRETS } from '@better-kit/notify'
+import { createSecretFields, uniqueSecretFields, type LooseningSwitch, type SecretField } from '@better-forge/vault'
+import { CHANNEL_DESTINATIONS, CHANNEL_SECRETS } from '@better-forge/notify'
 
-export { SECRET_MASK } from '@better-kit/vault'
-export type { RestoreResult } from '@better-kit/vault'
+export { SECRET_MASK } from '@better-forge/vault'
+export type { RestoreResult } from '@better-forge/vault'
 
 /**
  * Which parts of a monitor or notification channel configuration are secrets.

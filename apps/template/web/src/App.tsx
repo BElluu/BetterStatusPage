@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import {
   ApiTokensPage, AuditLogPage, BackupsPage, ChangePasswordPage, ErrorBoundary, LoadingState, LoginPage, RequireAuth, RequirePasswordChanged, SettingsPage, SetupGate,
   SetupPage, SsoConfirmPage, UsersPage, VaultPage, createAdminShell, createRoleGuard, type AuditEntities,
-} from '@better-kit/ui'
+} from '@better-forge/ui'
 import { TOKEN_RESOURCES } from '../../src/shared/tokens'
 import { uiConfig } from './uiConfig'
 

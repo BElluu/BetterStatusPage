@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { sql } from 'drizzle-orm'
-import type { SqliteDatabase } from '@better-kit/db'
+import type { SqliteDatabase } from '@better-forge/db'
 import type { LatestRelease } from './updateCheck.js'
 
 /** `GET /health` (the process is up) and `GET /ready` (set up and the database answers), for load balancers and probes. */

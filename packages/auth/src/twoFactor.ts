@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm'
-import { withImmediateTransaction } from '@better-kit/db'
+import { withImmediateTransaction } from '@better-forge/db'
 import { consumeRecoveryCode, verifyTotp } from './totp.js'
 import { authSessions, users } from './tables.js'
 import type { AuthOptions } from './context.js'

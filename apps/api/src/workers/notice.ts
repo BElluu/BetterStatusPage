@@ -1,4 +1,4 @@
-import type { DeliveryRow, Notice, NoticeFact, NoticeSegment } from '@better-kit/notify'
+import type { DeliveryRow, Notice, NoticeFact, NoticeSegment } from '@better-forge/notify'
 
 type Vars = Record<string, string>
 

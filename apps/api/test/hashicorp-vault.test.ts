@@ -8,7 +8,7 @@ import { db } from '../src/db/client.js'
 import { auditLog, vaults, vaultSecrets } from '../src/db/schema.js'
 import { vaultCatalogRoutes, vaultRoutes } from '../src/kit/vaultRoutes.js'
 import { resolveVaultSecret } from '../src/kit/resolveSecret.js'
-import { hashicorpLimits } from '@better-kit/vault'
+import { hashicorpLimits } from '@better-forge/vault'
 import { vault } from '../src/kit/vault.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 const { forgetHashicorpVault } = vault.hashicorp

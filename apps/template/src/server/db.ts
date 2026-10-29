@@ -1,11 +1,11 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { auditDbModule } from '@better-kit/audit'
-import { authDbModule } from '@better-kit/auth'
-import { randomEntityKey } from '@better-kit/config-as-code'
-import { composeModules, openDatabase, runMigrations, type Database, type DbModule, type SqliteDatabase } from '@better-kit/db'
-import { createNotifyDbModule } from '@better-kit/notify'
-import { databasePath } from '@better-kit/runtime'
-import { vaultDbModule } from '@better-kit/vault'
+import { auditDbModule } from '@better-forge/audit'
+import { authDbModule } from '@better-forge/auth'
+import { randomEntityKey } from '@better-forge/config-as-code'
+import { composeModules, openDatabase, runMigrations, type Database, type DbModule, type SqliteDatabase } from '@better-forge/db'
+import { createNotifyDbModule } from '@better-forge/notify'
+import { databasePath } from '@better-forge/runtime'
+import { vaultDbModule } from '@better-forge/vault'
 
 /** What the notifications are about is called a source here; the template has no monitors or pages of its own. */
 export const notifyModule = createNotifyDbModule({

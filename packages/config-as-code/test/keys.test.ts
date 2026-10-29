@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { DatabaseSync } from 'node:sqlite'
-import { backfillKeys, ENTITY_KEY_ERROR, isValidEntityKey, keyForNew, randomEntityKey, slugifyKey } from '@better-kit/config-as-code'
+import { backfillKeys, ENTITY_KEY_ERROR, isValidEntityKey, keyForNew, randomEntityKey, slugifyKey } from '@better-forge/config-as-code'
 
 describe('entity keys', () => {
   it('accepts lowercase letters, digits, - and _, starting with a letter or digit, up to 64 characters', () => {

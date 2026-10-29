@@ -8,10 +8,10 @@ import { ActivityBadges, MonitorStatusBadge, effectiveStatus } from '../componen
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
 import { YamlViewModal } from '../components/YamlViewModal'
 import { MONITOR_TYPES } from '../components/monitors/monitorTypes'
-import { ConfirmModal } from '@better-kit/ui'
-import { DataTable, DataTh, useTableSort } from '@better-kit/ui'
-import { EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, QuickStartPanel, useToast, type QuickStartOption } from '@better-kit/ui'
-import { formatClock, formatDateTime } from '@better-kit/ui'
+import { ConfirmModal } from '@better-forge/ui'
+import { DataTable, DataTh, useTableSort } from '@better-forge/ui'
+import { EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, QuickStartPanel, useToast, type QuickStartOption } from '@better-forge/ui'
+import { formatClock, formatDateTime } from '@better-forge/ui'
 
 const MONITOR_QUICK_START: QuickStartOption<MonitorType>[] = MONITOR_TYPES.map((t) => ({
   key: t.value,

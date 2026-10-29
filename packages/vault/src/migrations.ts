@@ -1,4 +1,4 @@
-import type { MigrationStep } from '@better-kit/db'
+import type { MigrationStep } from '@better-forge/db'
 
 /** Vaults and the secrets in them. Steps run in this order. */
 export const vaultMigrations: readonly MigrationStep[] = [

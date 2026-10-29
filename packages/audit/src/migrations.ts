@@ -1,4 +1,4 @@
-import type { MigrationStep } from '@better-kit/db'
+import type { MigrationStep } from '@better-forge/db'
 
 /** The audit log. Steps run in this order. */
 export const auditMigrations: readonly MigrationStep[] = [

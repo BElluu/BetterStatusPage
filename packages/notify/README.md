@@ -1,4 +1,4 @@
-# @better-kit/notify
+# @better-forge/notify
 
 Notification channels, delivery history, retries and alert hygiene.
 
@@ -8,4 +8,4 @@ Notification channels, delivery history, retries and alert hygiene.
 - `createDeliveryWorker` sends the deliveries that came due every 30 seconds and purges old history daily, and runs the extra tasks the application adds to those ticks.
 - `defineNotifyTables` / `createNotifyDbModule` define the tables and their migrations; the application passes the names of the columns that identify what a delivery is about.
 
-Depends on: `@better-kit/db`, `@better-kit/contracts`, `@better-kit/vault`, `@better-kit/audit`.
+Depends on: `@better-forge/db`, `@better-forge/contracts`, `@better-forge/vault`, `@better-forge/audit`.

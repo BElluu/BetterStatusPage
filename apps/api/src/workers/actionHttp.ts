@@ -1,6 +1,6 @@
 import { buildWebhookRequest } from './notifier.js'
 import { resolveVaultSecret } from '../kit/resolveSecret.js'
-import { placeholderInAuthority } from '@better-kit/notify'
+import { placeholderInAuthority } from '@better-forge/notify'
 import { secretPlaceholders } from '../services/actionInput.js'
 import { db } from '../db/client.js'
 import { vaultSecrets } from '../db/schema.js'

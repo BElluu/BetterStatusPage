@@ -1,7 +1,7 @@
 import { db } from '../db/client.js'
 import { monitors, notificationChannels, monitorNotificationChannels, actionNotificationChannels } from '../db/schema.js'
 import { eq, inArray } from 'drizzle-orm'
-import { buildWebhookRequest, MAX_DELIVERY_ATTEMPTS, RETRY_DELAYS_MS } from '@better-kit/notify'
+import { buildWebhookRequest, MAX_DELIVERY_ATTEMPTS, RETRY_DELAYS_MS } from '@better-forge/notify'
 import { notifyEngine as engine, transports } from '../kit/notify.js'
 import type { MonitorStatus } from '@bsp/shared'
 

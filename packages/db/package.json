@@ -1,5 +1,5 @@
 {
-  "name": "@better-kit/db",
+  "name": "@better-forge/db",
   "version": "0.1.0",
   "description": "SQLite (node:sqlite) and Drizzle bootstrap, transactions, schema and migration registries.",
   "license": "MIT",

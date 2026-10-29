@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
-import { safeLocalStorage } from '@better-kit/contracts'
+import { safeLocalStorage } from '@better-forge/contracts'
 
 const blocked = {
   get() { throw new DOMException('denied', 'SecurityError') },

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, it, mock } from 'node:test'
 import {
   ConfigExportError, ConfigInvalidError, createConfigEngine, createVaultExporter, createVaultResolver, documentKey, findCycle, isValidEntityKey,
   keyList, Problems, unknownFields, ENTITY_KEY_ERROR, type AuditEntry, type ConfigChange, type ConfigKind, type Json,
-} from '@better-kit/config-as-code'
+} from '@better-forge/config-as-code'
 
 // Two kinds over an in-memory "installation": things, and boxes that name the things they hold.
 interface State { things: Map<string, { id: number; name: string }>; boxes: Map<string, { id: number; items: string[] }>; vaults: Json[] }

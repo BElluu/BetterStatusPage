@@ -1,4 +1,4 @@
-import { VAULT_USE_SCOPE, type TokenResource } from '@better-kit/contracts'
+import { VAULT_USE_SCOPE, type TokenResource } from '@better-forge/contracts'
 
 /** The parts of the API an API token can be given access to. The server checks tokens against them; the interface lists them. */
 export const TOKEN_RESOURCES: readonly TokenResource[] = [

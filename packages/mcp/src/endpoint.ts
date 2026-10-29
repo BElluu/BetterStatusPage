@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
-import { tokenAllows } from '@better-kit/contracts'
+import { tokenAllows } from '@better-forge/contracts'
 import { z } from 'zod'
 import type { FastifyInstance, FastifyRequest, onRequestAsyncHookHandler } from 'fastify'
 import { crossSiteProblem } from './guard.js'

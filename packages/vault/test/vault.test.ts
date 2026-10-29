@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { VAULT_USE_SCOPE } from '@better-kit/contracts'
-import { createSecretBox, createSecretFields, createVaultUseGuard, SECRET_MASK, uniqueSecretFields, validateEncryptionKey, type SecretField } from '@better-kit/vault'
+import { VAULT_USE_SCOPE } from '@better-forge/contracts'
+import { createSecretBox, createSecretFields, createVaultUseGuard, SECRET_MASK, uniqueSecretFields, validateEncryptionKey, type SecretField } from '@better-forge/vault'
 
 const KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
 

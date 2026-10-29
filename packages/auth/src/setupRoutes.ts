@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import bcrypt from 'bcryptjs'
 import { eq } from 'drizzle-orm'
-import type { SqliteDatabase } from '@better-kit/db'
+import type { SqliteDatabase } from '@better-forge/db'
 import { users } from './tables.js'
 
 export interface SetupRoutesOptions<Identity extends { sessionId?: string }> {

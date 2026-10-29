@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { safeLocalStorage } from '@better-kit/contracts'
+import { safeLocalStorage } from '@better-forge/contracts'
 import App from './App'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { LocaleProvider } from './i18n/LocaleContext'

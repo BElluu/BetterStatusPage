@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { and, desc, eq, gte, like, lte, sql } from 'drizzle-orm'
-import type { AuditAction } from '@better-kit/contracts'
-import type { SqliteDatabase } from '@better-kit/db'
+import type { AuditAction } from '@better-forge/contracts'
+import type { SqliteDatabase } from '@better-forge/db'
 import { parsePagination } from './pagination.js'
 import { auditLog } from './tables.js'
 

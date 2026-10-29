@@ -1,5 +1,5 @@
-import type { TokenPreset, TokenResource } from '@better-kit/contracts'
-import { VAULT_USE_SCOPE, normalizeScopes } from '@better-kit/contracts'
+import type { TokenPreset, TokenResource } from '@better-forge/contracts'
+import { VAULT_USE_SCOPE, normalizeScopes } from '@better-forge/contracts'
 
 export interface TokenCatalogue {
   /** Every permission a token can hold, in the order they are listed: `<part>:read`, `<part>:write`, then the extra ones. */

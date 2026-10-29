@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest, onRequestAsyncHookHandler } from 'fastify'
-import { tokenAllows } from '@better-kit/contracts'
+import { tokenAllows } from '@better-forge/contracts'
 import { clip, ConfigExportError, ConfigInvalidError, type Json } from './document.js'
 import type { ConfigEngine } from './engine.js'
 import { readDocuments, toYaml, toYamlStream } from './yaml.js'

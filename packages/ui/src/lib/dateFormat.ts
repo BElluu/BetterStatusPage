@@ -1,4 +1,4 @@
-import { safeLocalStorage } from '@better-kit/contracts'
+import { safeLocalStorage } from '@better-forge/contracts'
 import { useSyncExternalStore } from 'react'
 import { storageKey } from '../config'
 

@@ -1,4 +1,4 @@
-import { registerMcpEndpoint } from '@better-kit/mcp'
+import { registerMcpEndpoint } from '@better-forge/mcp'
 import type { FastifyInstance } from 'fastify'
 import { MCP_RATE_LIMIT } from '../config/rateLimits.js'
 import { auth } from '../kit/auth.js'

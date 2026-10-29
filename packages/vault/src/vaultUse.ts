@@ -1,4 +1,4 @@
-import { tokenAllows, VAULT_USE_SCOPE } from '@better-kit/contracts'
+import { tokenAllows, VAULT_USE_SCOPE } from '@better-forge/contracts'
 
 type Json = Record<string, unknown>
 const isObject = (value: unknown): value is Json => !!value && typeof value === 'object' && !Array.isArray(value)

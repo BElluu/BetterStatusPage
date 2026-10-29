@@ -1,5 +1,5 @@
 {
-  "name": "@better-kit/contracts",
+  "name": "@better-forge/contracts",
   "version": "0.1.0",
   "description": "Browser-safe types, core translations and a storage wrapper that never throws.",
   "license": "MIT",

@@ -11,7 +11,7 @@ import { CredentialSection } from '../components/CredentialSection'
 import type { VaultPickerProps } from '../components/formParts'
 import { uiConfig } from '../config'
 import { formatDate } from '../lib/dateFormat'
-import type { VaultRef } from '@better-kit/contracts'
+import type { VaultRef } from '@better-forge/contracts'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

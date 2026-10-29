@@ -1,5 +1,5 @@
-import { createAuth, createTokenCatalogue, type Auth } from '@better-kit/auth'
-import { VAULT_USE_SCOPE } from '@better-kit/contracts'
+import { createAuth, createTokenCatalogue, type Auth } from '@better-forge/auth'
+import { VAULT_USE_SCOPE } from '@better-forge/contracts'
 import { TOKEN_PRESETS, TOKEN_RESOURCES } from '@bsp/shared'
 import { db, sqlite } from '../db/client.js'
 import { vault } from './vault.js'

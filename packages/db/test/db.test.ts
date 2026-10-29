@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, it } from 'node:test'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { composeModules, openDatabase, runMigrations, applyColumnMigration, withImmediateTransaction, type DbModule } from '@better-kit/db'
+import { composeModules, openDatabase, runMigrations, applyColumnMigration, withImmediateTransaction, type DbModule } from '@better-forge/db'
 
 const notes = sqliteTable('notes', { id: integer('id').primaryKey({ autoIncrement: true }), body: text('body').notNull() })
 const tags = sqliteTable('tags', { id: integer('id').primaryKey({ autoIncrement: true }), noteId: integer('note_id').notNull() })

@@ -1,4 +1,4 @@
-import { createAlertPolicy, isValidTimezone, isWithinQuietHours, localMinutes, quietHoursEndAt } from '@better-kit/notify'
+import { createAlertPolicy, isValidTimezone, isWithinQuietHours, localMinutes, quietHoursEndAt } from '@better-forge/notify'
 import type { ChannelAlertPolicy } from '@bsp/shared'
 
 export { isValidTimezone, isWithinQuietHours, localMinutes, quietHoursEndAt }

@@ -3,7 +3,7 @@ import { describe, it } from 'node:test'
 import {
   buildWebhookRequest, channelConfigError, configForEvent, createAlertPolicy, DEFAULT_ALERT_POLICY, isWithinQuietHours, quietHoursEndAt, readableTimestamp,
   renderSegments, substituteVars, type NoticeSegment,
-} from '@better-kit/notify'
+} from '@better-forge/notify'
 
 describe('alert policy', () => {
   const policy = createAlertPolicy({ minSourcesKey: 'minItems' })

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useId, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { EN_DEFAULTS, builtInDefaultsFor, type Locale, type TranslationKey } from '@bsp/shared'
-import { ConfirmModal } from '@better-kit/ui'
-import { Alert, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '@better-kit/ui'
+import { ConfirmModal } from '@better-forge/ui'
+import { Alert, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '@better-forge/ui'
 
 /* ── Translation key groups ──────────────────────────────────────── */
 const ALL_KEYS = Object.keys(EN_DEFAULTS) as TranslationKey[]

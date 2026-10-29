@@ -1,5 +1,5 @@
 {
-  "name": "@better-kit/mirror",
+  "name": "@better-forge/mirror",
   "version": "0.1.0",
   "description": "Publishes a set of files to static hosting: S3-compatible storage transport, change detection and a single-flight interval runner.",
   "license": "MIT",

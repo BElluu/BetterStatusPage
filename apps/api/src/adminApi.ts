@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { registerAdminApi } from '@better-kit/auth'
+import { registerAdminApi } from '@better-forge/auth'
 import { requireAuth, requireRole } from './kit/authMiddleware.js'
 import { oidcSettingsRoutes } from './kit/oidcSettingsRoutes.js'
 import { monitorRoutes } from './routes/monitors.js'

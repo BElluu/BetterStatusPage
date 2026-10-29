@@ -1,4 +1,4 @@
-import { createConfigRoutes } from '@better-kit/config-as-code'
+import { createConfigRoutes } from '@better-forge/config-as-code'
 import { requestIdentity, requireRole } from './authMiddleware.js'
 import { auditActor } from './audit.js'
 import { config } from './config.js'

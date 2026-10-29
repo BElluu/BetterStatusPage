@@ -1,4 +1,4 @@
-import { createConfigEngine, type Json } from '@better-kit/config-as-code'
+import { createConfigEngine, type Json } from '@better-forge/config-as-code'
 import { withImmediateTransaction } from '../db/transaction.js'
 import { writeAudit, type Actor } from './audit.js'
 import { refreshPublishedMonitorIds } from '../services/publishedMonitors.js'

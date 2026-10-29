@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom'
 import { api, getCurrentUser } from '../api/client'
 import type { MonitorWithActivity, Incident } from '@bsp/shared'
 import { ActivityBadges, MonitorStatusBadge, effectiveStatus } from '../components/monitors/StatusBadge'
-import { useDarkMode } from '@better-kit/ui'
-import { EmptyState, ErrorState, LoadingState, PageContainer, PageHeader } from '@better-kit/ui'
-import { formatDayMonth } from '@better-kit/ui'
+import { useDarkMode } from '@better-forge/ui'
+import { EmptyState, ErrorState, LoadingState, PageContainer, PageHeader } from '@better-forge/ui'
+import { formatDayMonth } from '@better-forge/ui'
 
 /** Shared surface for the summary tiles, matching the component cards below. */
 const TILE_STYLE = { background: 'var(--m3-surface-container-lowest)' } as const

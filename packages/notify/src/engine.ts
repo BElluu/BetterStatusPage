@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, like, lt, lte, ne, sql } from 'drizzle-orm'
-import type { NotificationSuppressionReason, VaultRef } from '@better-kit/contracts'
-import type { SqliteDatabase } from '@better-kit/db'
+import type { NotificationSuppressionReason, VaultRef } from '@better-forge/contracts'
+import type { SqliteDatabase } from '@better-forge/db'
 import { createAlertPolicy, isWithinQuietHours, quietHoursEndAt, type AlertPolicy } from './alertPolicy.js'
 import type { NotifyTables } from './tables.js'
 import { MAX_DELIVERY_ATTEMPTS, RETRY_DELAYS_MS } from './template.js'

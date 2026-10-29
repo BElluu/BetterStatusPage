@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import bcrypt from 'bcryptjs'
-import type { MigrationStep } from '@better-kit/db'
+import type { MigrationStep } from '@better-forge/db'
 
 /** Users, sign-in sessions, SSO settings and API tokens. Steps run in this order. */
 export const authMigrations: readonly MigrationStep[] = [

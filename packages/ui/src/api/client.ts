@@ -1,4 +1,4 @@
-import { safeSessionStorage } from '@better-kit/contracts'
+import { safeSessionStorage } from '@better-forge/contracts'
 import { storageKey, uiConfig } from '../config'
 import { navigation } from '../navigation'
 

@@ -1,4 +1,4 @@
-import { clip, ENTITY_KEY_ERROR, isValidEntityKey } from '@better-kit/config-as-code'
+import { clip, ENTITY_KEY_ERROR, isValidEntityKey } from '@better-forge/config-as-code'
 
 /** How a document's `key` is checked. */
 export const entityKeys = { isValid: isValidEntityKey, error: ENTITY_KEY_ERROR }

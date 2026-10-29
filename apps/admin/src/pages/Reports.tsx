@@ -2,8 +2,8 @@ import { useId, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { Monitor, UptimeReport } from '@bsp/shared'
-import { Alert, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '@better-kit/ui'
-import { DataTable, DataTh, useTableSort } from '@better-kit/ui'
+import { Alert, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '@better-forge/ui'
+import { DataTable, DataTh, useTableSort } from '@better-forge/ui'
 
 const DAY_MS = 86_400_000
 const MAX_RANGE_DAYS = 366

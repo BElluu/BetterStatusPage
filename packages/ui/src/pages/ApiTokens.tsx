@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from 'react'
-import { VAULT_USE_SCOPE, type TokenPreset, type TokenResource } from '@better-kit/contracts'
+import { VAULT_USE_SCOPE, type TokenPreset, type TokenResource } from '@better-forge/contracts'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { uiConfig } from '../config'

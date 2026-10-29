@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, it, mock } from 'node:test'
-import { runBackupCli, runRestoreCli } from '@better-kit/backup'
+import { runBackupCli, runRestoreCli } from '@better-forge/backup'
 
 let output: string[]
 let errors: string[]

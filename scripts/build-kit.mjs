@@ -1,4 +1,4 @@
-// Builds the shared packages (packages/*, the @better-kit scope) in dependency order and leaves a package alone when
+// Builds the shared packages (packages/*, the @better-forge scope) in dependency order and leaves a package alone when
 // nothing it is built from changed since its last build: no source, manifest or compiler setting is newer than its
 // output, and no package it depends on was rebuilt in this run. A missing `dist` always builds.
 //
@@ -10,7 +10,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const SCOPE = '@better-kit/'
+const SCOPE = '@better-forge/'
 const force = process.argv.includes('--force')
 const tsc = createRequire(import.meta.url).resolve('typescript/bin/tsc')
 

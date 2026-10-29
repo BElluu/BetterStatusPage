@@ -1,4 +1,4 @@
-import type { AuditLogEntry as BaseAuditLogEntry, KitAuditEntityType } from '@better-kit/contracts'
+import type { AuditLogEntry as BaseAuditLogEntry, KitAuditEntityType } from '@better-forge/contracts'
 
 export type AuditEntityType =
   | KitAuditEntityType

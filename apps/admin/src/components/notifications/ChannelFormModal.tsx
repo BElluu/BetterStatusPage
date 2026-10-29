@@ -5,10 +5,10 @@ import { YamlViewModal } from '../YamlViewModal'
 import type { ChannelAlertPolicy, NotificationChannel } from '@bsp/shared'
 import { ChannelTypePicker } from './ChannelTypePicker'
 import { CHANNEL_TYPES, Field, MessageSection, buildChannelConfig, initialDrafts, isChannelType, readActionTexts, readOtherOverrides, type ActionTexts, type ChannelDrafts, type ChannelType, type MessageScope } from './channelTypes'
-import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
-import { SidePanelFrame, SideTabStrip, type SidePanelMeta, type SideTab } from '@better-kit/ui'
-import { Alert, Switch } from '@better-kit/ui'
-import type { VaultPickerProps } from '@better-kit/ui'
+import { ModalFooter, ModalHeader, ModalShell } from '@better-forge/ui'
+import { SidePanelFrame, SideTabStrip, type SidePanelMeta, type SideTab } from '@better-forge/ui'
+import { Alert, Switch } from '@better-forge/ui'
+import type { VaultPickerProps } from '@better-forge/ui'
 
 interface Props {
   channel: NotificationChannel | null

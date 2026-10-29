@@ -1,8 +1,8 @@
 import type { ComponentType, ReactNode } from 'react'
-import { Field } from '@better-kit/ui'
-import type { VaultRef } from '@better-kit/contracts'
-import { CredentialSection } from '@better-kit/ui'
-import type { VaultPickerProps } from '@better-kit/ui'
+import { Field } from '@better-forge/ui'
+import type { VaultRef } from '@better-forge/contracts'
+import { CredentialSection } from '@better-forge/ui'
+import type { VaultPickerProps } from '@better-forge/ui'
 import { DEFAULT_EMAIL_BODY, DEFAULT_EMAIL_SUBJECT } from '@bsp/shared'
 import { DiscordIcon, SlackIcon, TeamsIcon, TelegramIcon } from './icons'
 

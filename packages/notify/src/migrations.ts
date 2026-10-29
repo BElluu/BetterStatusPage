@@ -1,4 +1,4 @@
-import type { DbModule, MigrationStep } from '@better-kit/db'
+import type { DbModule, MigrationStep } from '@better-forge/db'
 import { defineNotifyTables, type NotifyTableOptions } from './tables.js'
 
 /** Notification channels, their delivery history and SMTP settings. Steps run in this order. */

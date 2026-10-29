@@ -26,7 +26,7 @@ Three things start:
 
 Open the admin URL and a setup wizard creates your administrator account.
 
-The shared packages in `packages/*` are used from their built `dist`. `npm run dev` builds only the packages that changed since the last build (`npm run build:kit -- --force` builds all of them). To see an edit in a package while the apps run, watch it with `npm run dev -w @better-kit/<name>`.
+The shared packages in `packages/*` are used from their built `dist`. `npm run dev` builds only the packages that changed since the last build (`npm run build:kit -- --force` builds all of them). To see an edit in a package while the apps run, watch it with `npm run dev -w @better-forge/<name>`.
 
 For a production-style run from source:
 
@@ -131,12 +131,12 @@ BetterStatusPage/
 │   │       ├── routes/    # Endpoint handlers
 │   │       ├── workers/   # Scheduler, checkers, notification events
 │   │       └── services/  # Application services
-│   ├── admin/         # Admin console (React): status-page pages on top of @better-kit/ui
+│   ├── admin/         # Admin console (React): status-page pages on top of @better-forge/ui
 │   ├── status/        # Public status page (React)
 │   └── template/      # Minimal app built only from the shared modules
 └── packages/
     ├── shared/        # Status-page types (@bsp/shared)
-    └── …              # Shared modules (@better-kit/*): contracts, db, audit, auth, vault,
+    └── …              # Shared modules (@better-forge/*): contracts, db, audit, auth, vault,
                        # notify, backup, config-as-code, mcp, runtime, ui
 ```
 

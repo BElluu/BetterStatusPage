@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { passwordLoginEnabled } from '@better-kit/auth'
+import { passwordLoginEnabled } from '@better-forge/auth'
 import { auth } from '../src/kit/auth.js'
 const { buildOidcConfig, resolveOidcConfigFromEnv } = auth.oidcConfig
 
