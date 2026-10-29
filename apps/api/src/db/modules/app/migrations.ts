@@ -499,4 +499,12 @@ CREATE TABLE IF NOT EXISTS static_mirror_runs (
   { kind: 'data', name: 'sealed-inline-secrets-v1', run: sealStoredSecrets },
   { kind: 'column', sql: `ALTER TABLE actions ADD COLUMN requires_approval INTEGER NOT NULL DEFAULT 0`, desc: 'actions.requires_approval' },
   { kind: 'column', sql: `ALTER TABLE actions ADD COLUMN approval_timeout_minutes INTEGER NOT NULL DEFAULT 60`, desc: 'actions.approval_timeout_minutes' },
+  { kind: 'exec', sql: `
+CREATE TABLE IF NOT EXISTS mcp_settings (
+  id INTEGER PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  allow_changes INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);
+` },
 ]

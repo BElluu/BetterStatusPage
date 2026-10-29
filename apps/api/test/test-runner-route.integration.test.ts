@@ -166,8 +166,10 @@ describe('POST /admin/monitors/test', () => {
     assert.equal(down.statusCode, 200)
     assert.equal(down.json().overall, 'error')
 
+    // The Test button judges the config like saving does, so a wrong one is refused before anything is contacted.
     const invalid = await runTest({ type: 'docker', config: { endpoint: 'http://127.0.0.1:1', container: '..' } })
-    assert.equal(invalid.json().steps.at(-1).label, 'Invalid configuration')
+    assert.equal(invalid.statusCode, 400)
+    assert.match(invalid.json().error, /Container name may only contain/)
 
     const headers = authorizations['admin']!
     const create = (config: unknown) => app.inject({

@@ -51,3 +51,7 @@ const secretFields = createSecretFields<ConfigKind>({
 })
 
 export const { maskSecrets, restoreSecrets, changedDestination, configCodec } = secretFields
+
+/** Where the secrets of a monitor type sit in its config, as dotted paths (`headers.*` = every credential header). */
+export const monitorSecretPaths = (type: string): string[] =>
+  (MONITOR_SECRETS[type] ?? []).map((field) => 'path' in field ? field.path.join('.') : `${field.mapAt.join('.')}.*`)

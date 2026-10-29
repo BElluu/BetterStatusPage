@@ -21,6 +21,7 @@
     "@better-kit/config-as-code": "*",
     "@better-kit/contracts": "*",
     "@better-kit/db": "*",
+    "@better-kit/mcp": "*",
     "@better-kit/mirror": "*",
     "@better-kit/notify": "*",
     "@better-kit/runtime": "*",
@@ -48,7 +49,8 @@
     "ping": "^0.4.4",
     "qrcode": "^1.5.4",
     "undici": "^7.4.0",
-    "yaml": "^2.9.1"
+    "yaml": "^2.9.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

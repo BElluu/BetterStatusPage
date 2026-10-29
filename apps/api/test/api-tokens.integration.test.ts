@@ -71,7 +71,7 @@ const tokenWith = async (...scopes: string[]) => (await createToken({ scopes }))
 const url = (route: RouteOptions) => (route.url.length > 1 ? route.url.replace(/\/$/, '') : route.url)
 
 describe('which admin routes accept a token, and for what', () => {
-  const SESSION_ONLY = ['/admin/users', '/admin/oidc', '/admin/status-page-access', '/admin/backups', '/admin/api-tokens']
+  const SESSION_ONLY = ['/admin/users', '/admin/oidc', '/admin/status-page-access', '/admin/backups', '/admin/api-tokens', '/admin/mcp']
   /** The part of the API each group of routes belongs to. */
   const PARTS: Record<string, string> = {
     '/admin/monitors': 'monitors', '/admin/incidents': 'incidents', '/admin/notifications': 'channels', '/admin/subscribers': 'subscribers',
@@ -209,7 +209,7 @@ describe('what a token may do', () => {
 
   it('never reaches account, credential or token management, whatever it was given', async () => {
     const token = await tokenWith(...API_TOKEN_SCOPES)
-    for (const path of ['/admin/users', '/admin/oidc', '/admin/status-page-access', '/admin/backups', '/admin/api-tokens', '/auth/session']) {
+    for (const path of ['/admin/users', '/admin/oidc', '/admin/status-page-access', '/admin/backups', '/admin/api-tokens', '/admin/mcp', '/auth/session']) {
       const response = await get(path, token)
       assert.equal(response.statusCode, 403, path)
       assert.equal(response.json().error, 'API tokens cannot call this endpoint', path)
@@ -350,6 +350,22 @@ describe('using vault secrets', () => {
     assert.equal((await put(reference, await tokenWith('channels:write', 'vault:use'))).statusCode, 200)
     const reordered = { fieldMapping: { password: 'p', user: 'u' }, secretId: 2, vaultId: 1 }
     assert.equal((await put(reordered, await tokenWith('channels:write'))).statusCode, 200)
+  })
+})
+
+describe('the heartbeat token of a monitor', () => {
+  it('is shown to a token that may write monitors and to a session, and hidden from a read-only token', async () => {
+    const created = await app.inject({ method: 'POST', url: '/admin/monitors', headers: sessions['admin']!, payload: { name: 'Nightly job', type: 'webhook', config: {} } })
+    const { id, webhookToken } = created.json() as { id: number; webhookToken: string }
+    assert.ok(webhookToken)
+    const readers = [await tokenWith('monitors:read'), await tokenWith('monitors:read', 'incidents:write')]
+    const writer = await tokenWith('monitors:write')
+    for (const url of ['/admin/monitors', `/admin/monitors/${id}`]) {
+      const pick = (body: unknown) => (Array.isArray(body) ? body.find((m: { id: number }) => m.id === id) : body) as Record<string, unknown>
+      for (const bearer of readers) assert.equal('webhookToken' in pick((await get(url, bearer)).json()), false, url)
+      assert.equal(pick((await get(url, writer)).json())['webhookToken'], webhookToken, url)
+      assert.equal(pick((await app.inject({ url, headers: sessions['operator']! })).json())['webhookToken'], webhookToken, url)
+    }
   })
 })
 

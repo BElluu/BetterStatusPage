@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../../api/client'
-import { DEFAULT_LATENCY_ALERT, supportsLatencyAlert } from '@bsp/shared'
+import { DEFAULT_CERT_WARN_DAYS, DEFAULT_EXPIRY_WARN_DAYS, DEFAULT_LATENCY_ALERT, supportsLatencyAlert } from '@bsp/shared'
 import type { Action, HttpAssertion, Monitor, MonitorAction, MonitorType, NotificationChannel, MonitorTag } from '@bsp/shared'
 import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
 import { YamlViewModal } from '../YamlViewModal'
@@ -40,8 +40,8 @@ const defaultConfigs: Record<MonitorType, Record<string, unknown>> = {
   redis:     { host: '', port: 6379 },
   mail:      { protocol: 'smtp', host: '', port: 587, security: 'starttls' },
   ssh:       { host: '', port: 22 },
-  tls:       { host: '', port: 443, warnDays: 14 },
-  domain:    { domain: '', warnDays: 30 },
+  tls:       { host: '', port: 443, warnDays: DEFAULT_CERT_WARN_DAYS },
+  domain:    { domain: '', warnDays: DEFAULT_EXPIRY_WARN_DAYS },
   docker:    { endpoint: 'unix:///var/run/docker.sock', container: '' },
   webhook:   {},
 }

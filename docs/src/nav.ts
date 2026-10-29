@@ -54,6 +54,7 @@ const SECTIONS: { label: string; items: { slug: string; label?: string }[] }[] =
       { slug: 'single-sign-on' },
       { slug: 'vault', label: 'Secrets vault' },
       { slug: 'api', label: 'API and tokens' },
+      { slug: 'mcp', label: 'MCP for AI agents' },
     ],
   },
   {

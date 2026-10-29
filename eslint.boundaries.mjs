@@ -14,6 +14,7 @@ export const PACKAGE_GRAPH = {
   notify: ['db', 'vault', 'audit'],
   backup: ['db', 'audit'],
   'config-as-code': ['db', 'contracts'],
+  mcp: [],
   runtime: ['db'],
   ui: ['contracts'],
 }

@@ -101,7 +101,7 @@ describe('incident templates', () => {
 })
 
 describe('automatic incident settings of a monitor', () => {
-  const body = { name: 'M', type: 'https' }
+  const body = { name: 'M', type: 'https', config: { url: 'https://example.test' } }
   it('default to off, draft and the default template', () => {
     const parsed = parseNewMonitor(body)
     assert.ok('value' in parsed)

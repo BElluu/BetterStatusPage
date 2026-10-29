@@ -20,7 +20,7 @@
     "typecheck:apps": "tsc --noEmit -p apps/admin && tsc --noEmit -p apps/status && tsc --noEmit -p apps/api && tsc --noEmit -p apps/template && tsc --noEmit -p apps/template/web",
     "test": "npm run test:api && npm run test:frontend",
     "test:api": "npm run build:kit && npm run build -w @bsp/shared && tsx --test apps/api/test/*.test.ts apps/template/test/*.test.ts packages/*/test/*.test.ts",
-    "test:api:coverage": "npm run build:kit && npm run build -w @bsp/shared && node --import tsx --test --experimental-test-coverage --test-coverage-include=\"apps/api/src/**\" --test-coverage-include=\"packages/{contracts,db,audit,auth,vault,notify,backup,config-as-code,runtime,ui}/dist/**\" --test-coverage-exclude=\"**/*.d.ts\" --test-coverage-lines=94 --test-coverage-branches=78 --test-coverage-functions=91 apps/api/test/*.test.ts apps/template/test/*.test.ts packages/*/test/*.test.ts",
+    "test:api:coverage": "npm run build:kit && npm run build -w @bsp/shared && node --import tsx --test --experimental-test-coverage --test-coverage-include=\"apps/api/src/**\" --test-coverage-include=\"packages/{contracts,db,audit,auth,vault,notify,backup,config-as-code,mcp,runtime,ui}/dist/**\" --test-coverage-exclude=\"**/*.d.ts\" --test-coverage-lines=94 --test-coverage-branches=78 --test-coverage-functions=91 apps/api/test/*.test.ts apps/template/test/*.test.ts packages/*/test/*.test.ts",
     "test:frontend": "npm run build:kit && npm run build -w @bsp/shared && vitest run",
     "test:coverage": "npm run build:kit && npm run build -w @bsp/shared && vitest run --coverage",
     "test:e2e": "playwright test",

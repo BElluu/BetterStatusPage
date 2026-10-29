@@ -1093,6 +1093,22 @@ describe('MonitorFormModal service monitors', () => {
     expect(createdBody()).toMatchObject({ type: 'domain', config: { domain: 'example.test', warnDays: 30 } })
   })
 
+  it('puts the default of the type back when the days to warn are cleared and left', async () => {
+    const user = userEvent.setup()
+    renderModal()
+    await pickType(user, 'TLS certificate')
+    expect(field('Degraded within (days)')).toHaveValue(14)
+    await user.clear(field('Degraded within (days)'))
+    await user.tab()
+    expect(field('Degraded within (days)')).toHaveValue(14)
+
+    await pickType(user, 'Domain expiry')
+    expect(field('Degraded within (days)')).toHaveValue(30)
+    await user.clear(field('Degraded within (days)'))
+    await user.tab()
+    expect(field('Degraded within (days)')).toHaveValue(30)
+  })
+
   it('tests the new types through the test endpoint', async () => {
     const user = userEvent.setup()
     vi.mocked(api.post).mockResolvedValue({ overall: 'ok', steps: [{ label: 'SSH host:22', status: 'ok', detail: 'SSH-2.0-OpenSSH_9.6' }], totalMs: 5 })

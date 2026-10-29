@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { VAULT_USE_SCOPE, type TokenPreset, type TokenResource } from '@better-kit/contracts'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
@@ -52,7 +52,7 @@ function expiry(token: ApiToken) {
 }
 
 /** The parts of the API a token can be given, and the ready-made sets of permissions, are the application's. */
-export default function ApiTokensPage({ resources, presets }: { resources: readonly TokenResource[]; presets: readonly TokenPreset[] }) {
+export default function ApiTokensPage({ resources, presets, actions }: { resources: readonly TokenResource[]; presets: readonly TokenPreset[]; /** Buttons shown next to New token, for what a product adds to tokens. */ actions?: ReactNode }) {
   const qc = useQueryClient()
   const toast = useToast()
   const nameInputId = useId()
@@ -132,10 +132,13 @@ export default function ApiTokensPage({ resources, presets }: { resources: reado
         title="API tokens"
         subtitle={isLoading || isError ? undefined : `${tokens.length} token${tokens.length !== 1 ? 's' : ''}`}
         actions={
-          <button type="button" onClick={openCreate} className="btn btn-primary">
-            <span className="material-symbols-outlined" aria-hidden="true">add</span>
-            New token
-          </button>
+          <>
+            {actions}
+            <button type="button" onClick={openCreate} className="btn btn-primary">
+              <span className="material-symbols-outlined" aria-hidden="true">add</span>
+              New token
+            </button>
+          </>
         }
       />
 

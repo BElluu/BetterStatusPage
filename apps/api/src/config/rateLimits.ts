@@ -20,6 +20,13 @@ export const SETUP_RATE_LIMIT = {
   timeWindow: '15 minutes',
 }
 
+/** Per client address; the token's own budget (300 a minute) is spent by the admin API calls behind each tool. */
+export const MCP_RATE_LIMIT = {
+  groupId: 'mcp',
+  max: 300,
+  timeWindow: '1 minute',
+}
+
 export const PUBLIC_HISTORY_RATE_LIMIT = {
   groupId: 'public-history',
   max: 300,

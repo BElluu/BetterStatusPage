@@ -76,6 +76,7 @@ Every change a token makes is recorded in the audit log (**Administration → Au
 - Give it only the **Permissions** the job needs, and an expiry. A pipeline that only opens incidents needs `incidents:write`, not write access to everything.
 - Send it over HTTPS only. A token sent to an `http://` address crosses the network in clear.
 - A token is not tied to an address or to a pipeline: whoever has the text can use it.
+- A token can also be given to an AI agent through the [MCP endpoint](mcp.md), which is off until an administrator switches it on. Give such a token the permissions of the job only, and no `vault:use`.
 - If a token may have leaked, revoke it at once in **Administration → API tokens**, then filter the **Audit Log** for `(token: <name>)` to see what it did.
 - A token with `vault:use`, like an operator in the panel, can point a monitor, a test or the SMTP settings at any [vault](vault.md#who-can-use-the-vault) secret and at any address, and whoever can apply a [configuration document](configuration-as-code.md) can do it by name. A token never reads a vault value, but a vault secret can be sent where the token's holder chooses. Without `vault:use` a token cannot do this. Treat a token that has it like the people it stands for.
 

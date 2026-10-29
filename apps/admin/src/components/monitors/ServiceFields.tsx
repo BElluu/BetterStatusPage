@@ -1,4 +1,4 @@
-import { DEFAULT_EXPIRY_WARN_DAYS, MAIL_DEFAULT_PORTS, MAX_EXPIRY_WARN_DAYS } from '@bsp/shared'
+import { DEFAULT_CERT_WARN_DAYS, DEFAULT_EXPIRY_WARN_DAYS, MAIL_DEFAULT_PORTS, MAX_EXPIRY_WARN_DAYS } from '@bsp/shared'
 import type { MailProtocol, MailSecurity } from '@bsp/shared'
 import { Field, Note } from '@better-kit/ui'
 
@@ -120,14 +120,14 @@ export function SshFields({ config, updateConfig }: ConfigProps) {
   )
 }
 
-/** An empty box is allowed while typing; leaving it empty puts the default back. */
-function WarnDaysField({ config, updateConfig, label }: ConfigProps & { label: string }) {
+/** An empty box is allowed while typing; leaving it empty puts the monitor type's own default back. */
+function WarnDaysField({ config, updateConfig, label, fallback }: ConfigProps & { label: string; fallback: number }) {
   const warnDays = config['warnDays'] as number | undefined
   return (
     <Field label={label}>
       <input type="number" min={1} max={MAX_EXPIRY_WARN_DAYS} value={warnDays ?? ''} className="input-sig"
         onChange={(e) => updateConfig('warnDays', e.target.value === '' ? undefined : Math.min(MAX_EXPIRY_WARN_DAYS, Number(e.target.value)))}
-        onBlur={() => { if (warnDays === undefined) updateConfig('warnDays', DEFAULT_EXPIRY_WARN_DAYS) }} />
+        onBlur={() => { if (warnDays === undefined) updateConfig('warnDays', fallback) }} />
     </Field>
   )
 }
@@ -140,7 +140,7 @@ export function TlsCertFields({ config, updateConfig }: ConfigProps) {
         <Field label="Host name for SNI (optional)">
           <input value={(config['servername'] as string) ?? ''} onChange={(e) => updateConfig('servername', e.target.value || undefined)} className="input-sig" placeholder="same as host" />
         </Field>
-        <WarnDaysField config={config} updateConfig={updateConfig} label="Degraded within (days)" />
+        <WarnDaysField config={config} updateConfig={updateConfig} label="Degraded within (days)" fallback={DEFAULT_CERT_WARN_DAYS} />
       </div>
       <TlsVerifyFields config={config} updateConfig={updateConfig} />
       <Note tone="info">Works for any service that speaks TLS from the first byte (HTTPS, IMAPS, LDAPS and others). Degraded inside the warning window, Down once the certificate has expired or is not trusted.</Note>
@@ -155,7 +155,7 @@ export function DomainFields({ config, updateConfig }: ConfigProps) {
         <Field label="Domain">
           <input value={(config['domain'] as string) ?? ''} onChange={(e) => updateConfig('domain', e.target.value)} required className="input-sig" placeholder="example.com" />
         </Field>
-        <WarnDaysField config={config} updateConfig={updateConfig} label="Degraded within (days)" />
+        <WarnDaysField config={config} updateConfig={updateConfig} label="Degraded within (days)" fallback={DEFAULT_EXPIRY_WARN_DAYS} />
       </div>
       <Note tone="info">Use the registered domain, not a subdomain. The end date comes from RDAP, or WHOIS where the registry has no RDAP, and is looked up at most every six hours.</Note>
     </>

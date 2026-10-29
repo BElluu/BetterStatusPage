@@ -2,6 +2,9 @@ import { guardedFetch } from '../services/ssrfGuard.js'
 import { errorText, failed, open, type CheckOutcome } from './probe.js'
 import { expiryOutcome } from './tlsCert.js'
 import type { DomainConfig } from '@bsp/shared'
+import { normalizeDomain } from './domainName.js'
+
+export { normalizeDomain } from './domainName.js'
 
 /** Where the registries are asked; a parameter so a test can point it at servers of its own. */
 export interface RegistryEndpoints { bootstrapUrl: string; ianaWhoisHost: string; whoisPort: number }
@@ -13,14 +16,6 @@ const MAX_WHOIS_LINES = 500
 /** A lookup that failed is not repeated for this long, so a registry that refuses us is not asked every interval. */
 const FAILURE_CACHE_MS = 30 * 60 * 1000
 const MAX_CACHED_DOMAINS = 1000
-
-const DOMAIN_PATTERN = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$/
-
-/** The domain as it is looked up (lower case, no trailing dot), or null when it is not a domain name. */
-export function normalizeDomain(value: string): string | null {
-  const domain = value.trim().toLowerCase().replace(/\.$/, '')
-  return DOMAIN_PATTERN.test(domain) ? domain : null
-}
 
 // ── RDAP ──────────────────────────────────────────────────────────────────────
 
