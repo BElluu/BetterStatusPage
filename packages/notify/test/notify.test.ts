@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   buildWebhookRequest, channelConfigError, configForEvent, createAlertPolicy, DEFAULT_ALERT_POLICY, isWithinQuietHours, quietHoursEndAt, readableTimestamp,
-  renderSegments, substituteVars, type NoticeSegment,
+  renderSegments, substituteVars, createTransports, type Notice, type NoticeSegment,
 } from '@better-forge/notify'
 
 describe('alert policy', () => {
@@ -128,5 +128,34 @@ describe('event names of a channel\'s wording', () => {
     }
     const polluted = Object.create({ action: { text: 'inherited' } }) as Record<string, Record<string, string>>
     assert.equal(configForEvent('slack', { webhookUrl: 'https://h.test', eventOverrides: polluted }, 'action')['text'], undefined)
+  })
+})
+
+describe('transports', () => {
+  const notice: Notice = { severity: 'critical', headline: [], subtitle: [], facts: [], at: '2026-01-01T00:00:00Z', atLabel: 'At' }
+  const transports = (doFetch?: typeof fetch) => createTransports({
+    resolveSecret: async () => ({}),
+    sendMail: async () => {},
+    discordAvatarUrl: 'https://example.com/avatar.png',
+    ...(doFetch ? { fetch: doFetch } : {}),
+  })
+
+  it('opens the requests to an address of the channel with the fetch the application gave', async () => {
+    const urls: string[] = []
+    const doFetch = (async (url: string) => { urls.push(url); return new Response(null, { status: 200 }) }) as unknown as typeof fetch
+    const send = transports(doFetch)
+    await send.deliver({ type: 'slack', config: JSON.stringify({ webhookUrl: 'https://hooks.example.com/a' }) }, {}, notice)
+    await send.deliver({ type: 'ntfy', config: JSON.stringify({ serverUrl: 'https://ntfy.example.com', topic: 'alerts' }) }, {}, notice)
+    await send.deliver({ type: 'webhook', config: JSON.stringify({ url: 'https://hooks.example.com/b', method: 'POST' }) }, {}, notice)
+    assert.equal(urls.length, 3)
+    assert.match(urls[0] ?? '', /hooks\.example\.com\/a/)
+  })
+
+  it('fails the delivery with the reason of a fetch that refuses the address', async () => {
+    const refuse = (async () => { throw new Error('Refusing to connect to 169.254.169.254') }) as unknown as typeof fetch
+    await assert.rejects(
+      transports(refuse).deliver({ type: 'slack', config: JSON.stringify({ webhookUrl: 'http://169.254.169.254/' }) }, {}, notice),
+      /Refusing to connect/,
+    )
   })
 })

@@ -187,7 +187,7 @@ these requests in server logs or leave them out of cache rules.
 
 A monitor requests the address you give it, and a failed response check or a test shows something
 of the answer, so a URL must not be able to read the credentials of the host the server runs on.
-HTTPS monitors, the test runner, the certificate reading, HTTP actions, Docker monitors on a TCP endpoint and the Redis, mail server, SSH and TLS certificate monitors therefore refuse to
+HTTPS monitors, the test runner, the certificate reading, HTTP actions, Docker monitors on a TCP endpoint, the Redis, mail server, SSH and TLS certificate monitors, and the notification channels that call an address you typed (webhook, Slack, Discord, Teams and an ntfy server of your own) therefore refuse to
 connect to cloud metadata services: the link-local range `169.254.0.0/16` (AWS, GCP, Azure and others),
 `fe80::/10`, `fd00:ec2::254`, `fd20:ce::254`, `100.100.100.200` and `metadata.google.internal`. The address that is
 actually connected to is checked, so a redirect, a host name that resolves to such an address or a

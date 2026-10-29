@@ -18,6 +18,12 @@ export interface TransportOptions {
   standardEmail?: { subject: string; body: string }
   /** Which kinds of event the channel's own message fields word, and the wording of the others when the channel has none. */
   wording?: EventWording
+  /**
+   * Opens the requests to an address the channel's owner typed in (a webhook, a Slack, Discord or Teams URL, an ntfy
+   * server of the channel's own), so that a product which must keep them away from some networks passes a fetch that refuses them. The
+   * requests to the fixed hosts of Telegram, Pushover and ntfy.sh use the global fetch. Defaults to the global fetch.
+   */
+  fetch?: typeof fetch
 }
 
 /** The part of a stored channel that picks and configures its transport. */
@@ -87,16 +93,17 @@ function clipBytes(value: string, maxBytes: number): string {
 
 /** One outbound notification request; a non-2xx answer fails the delivery as `<failurePrefix> <status>`. */
 async function sendHttp(
+  doFetch: typeof fetch,
   url: string,
   init: { method: string; headers: Record<string, string>; body?: string },
   failurePrefix: string,
 ): Promise<void> {
-  const res = await fetch(url, { ...init, signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS) })
+  const res = await doFetch(url, { ...init, signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS) })
   if (!res.ok) throw new Error(`${failurePrefix} ${res.status}`)
 }
 
-function postWebhookJson(url: string, payload: unknown, label: string): Promise<void> {
-  return sendHttp(url, {
+function postWebhookJson(doFetch: typeof fetch, url: string, payload: unknown, label: string): Promise<void> {
+  return sendHttp(doFetch, url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -143,6 +150,8 @@ type Vars = Record<string, string>
  * format the `notice` themselves and only read `vars` to fill in the free text the user typed into the channel.
  */
 export function createTransports(options: TransportOptions) {
+  const doFetch = options.fetch ?? fetch
+
   /** A credential typed into the channel, or the `value` secret of its vault reference. */
   async function resolveToken(direct: string | undefined, vault: VaultRef | undefined, vaultProblem: string): Promise<string> {
     if (!vault) return direct ?? ''
@@ -166,7 +175,7 @@ export function createTransports(options: TransportOptions) {
 
   async function sendWebhook(config: { url: string; method: string; headers?: Record<string, string>; body?: string }, vars: Vars) {
     const { url, init } = buildWebhookRequest(config, vars)
-    await sendHttp(url, init, 'HTTP')
+    await sendHttp(doFetch, url, init, 'HTTP')
   }
 
   async function sendDiscord(
@@ -190,7 +199,7 @@ export function createTransports(options: TransportOptions) {
     payload['avatar_url'] = config.avatarUrl ? substituteVars(config.avatarUrl, vars, encodeUrlPart) : options.discordAvatarUrl
     if (config.content) payload['content'] = substituteVars(config.content, withEscapedError(vars, escapeDiscordText))
 
-    await postWebhookJson(config.webhookUrl, payload, 'Discord')
+    await postWebhookJson(doFetch, config.webhookUrl, payload, 'Discord')
   }
 
   async function sendTeams(config: { webhookUrl: string; summary?: string }, vars: Vars, notice: Notice) {
@@ -217,7 +226,7 @@ export function createTransports(options: TransportOptions) {
       }],
     }
 
-    await postWebhookJson(config.webhookUrl, payload, 'Teams')
+    await postWebhookJson(doFetch, config.webhookUrl, payload, 'Teams')
   }
 
   async function sendSlack(config: { webhookUrl: string; text?: string }, vars: Vars, notice: Notice) {
@@ -241,7 +250,7 @@ export function createTransports(options: TransportOptions) {
     }
     if (config.text) payload['text'] = substituteVars(config.text, vars, escapeHtml) + '\n' + fallbackText
 
-    await postWebhookJson(config.webhookUrl, payload, 'Slack')
+    await postWebhookJson(doFetch, config.webhookUrl, payload, 'Slack')
   }
 
   async function sendTelegram(config: TelegramConfig, vars: Vars, notice: Notice) {
@@ -293,10 +302,11 @@ export function createTransports(options: TransportOptions) {
     if (token && !HEADER_SAFE_TOKEN.test(token)) throw new Error('ntfy access token contains characters that cannot be sent in a header')
     const { title, body } = plainAlert(notice, vars, config.text, NTFY_MAX_MESSAGE_BYTES)
     // A server behind a reverse proxy may live under a path prefix, which publishing keeps.
-    const target = new URL(config.serverUrl?.trim() || NTFY_DEFAULT_SERVER)
+    const customServer = config.serverUrl?.trim()
+    const target = new URL(customServer || NTFY_DEFAULT_SERVER)
     if (!target.pathname.endsWith('/')) target.pathname += '/'
     // Publishing as JSON to the server root keeps non-ASCII titles intact, which a header-based publish would not.
-    const res = await fetch(target.href, {
+    const res = await (customServer ? doFetch : fetch)(target.href, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ topic: config.topic.trim(), title, message: clipBytes(body, NTFY_MAX_MESSAGE_BYTES), priority: NTFY_PRIORITY[notice.severity], tags: [NTFY_TAGS[notice.severity]] }),
