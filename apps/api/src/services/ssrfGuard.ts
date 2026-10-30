@@ -1,6 +1,6 @@
 import { lookup as dnsLookup, type LookupAddress } from 'node:dns'
 import { BlockList, isIP, type LookupFunction } from 'node:net'
-import { Agent, buildConnector, fetch as undiciFetch } from 'undici'
+import { Agent, buildConnector, EnvHttpProxyAgent, fetch as undiciFetch } from 'undici'
 
 /**
  * A monitor, a test or an action connects to whatever address its owner typed in, and shows
@@ -16,7 +16,8 @@ blocked.addSubnet('fe80::', 10, 'ipv6')
 blocked.addAddress('fd00:ec2::254', 'ipv6') // AWS, IPv6
 blocked.addAddress('fd20:ce::254', 'ipv6') // GCP, IPv6
 
-const BLOCKED_HOSTS = new Set(['metadata.google.internal'])
+// Names a metadata service answers to. Through a proxy the name is resolved by the proxy, so the list is the only check.
+const BLOCKED_HOSTS = new Set(['metadata.google.internal', 'metadata.goog', 'metadata', 'instance-data', 'instance-data.ec2.internal'])
 
 /** For hosts that sit on a trusted network where nothing else can reach the metadata service. */
 export function metadataTargetsAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -75,6 +76,51 @@ export function guardedConnector(options: { lookup?: LookupFunction; rejectUnaut
     const reason = refusalReason(opts.hostname)
     if (reason) return callback(refusal(opts.hostname, reason), null)
     return connect(opts, callback)
+  }
+}
+
+/** Throws for a URL whose host may not be connected to. */
+export function assertTargetAllowed(url: string): void {
+  const host = new URL(url).hostname
+  const reason = refusalReason(host)
+  if (reason) throw refusal(host, reason)
+}
+
+/**
+ * For HTTP checks: honours HTTP_PROXY, HTTPS_PROXY and NO_PROXY. A request that goes through a proxy
+ * connects to the proxy, so the connector never sees the target; it is checked in `proxiedFetch` instead.
+ * Names are resolved by the proxy then, which the lookup guard cannot see. A plain http target is sent to
+ * the proxy as an ordinary request, so a proxy that allows CONNECT only to port 443 still serves it.
+ */
+export function proxyAwareAgent(options: { lookup?: LookupFunction; rejectUnauthorized?: boolean; keepAlive?: boolean } = {}): EnvHttpProxyAgent {
+  const { keepAlive, ...connector } = options
+  return new EnvHttpProxyAgent({
+    connect: guardedConnector(connector),
+    proxyTunnel: false,
+    ...(options.rejectUnauthorized === undefined ? {} : { requestTls: { rejectUnauthorized: options.rejectUnauthorized } }),
+    ...(keepAlive ? { keepAliveTimeout: 5 * 60_000, keepAliveMaxTimeout: 30 * 60_000 } : {}),
+  })
+}
+
+const PROXY_VARIABLES = ['http_proxy', 'HTTP_PROXY', 'https_proxy', 'HTTPS_PROXY']
+
+export function proxiedFetch(agent: EnvHttpProxyAgent): (url: string, init: RequestInit) => Promise<Response> {
+  return async (url, init) => {
+    assertTargetAllowed(url)
+    try {
+      return await (undiciFetch(url as Parameters<typeof undiciFetch>[0], { ...init, dispatcher: agent } as Parameters<typeof undiciFetch>[1]) as unknown as Promise<Response>)
+    } catch (error) {
+      // "fetch failed" hides whether the proxy refused (407, 403 on the tunnel) or could not be reached; the reason is the deepest cause.
+      if (PROXY_VARIABLES.some((name) => process.env[name])) {
+        let reason: Error | undefined
+        for (let e: unknown = error; e instanceof Error; e = e.cause) {
+          if ((e as { code?: unknown }).code === 'EBLOCKED') throw error
+          reason = e
+        }
+        if (reason && reason !== error) throw new Error(reason.message, { cause: error })
+      }
+      throw error
+    }
   }
 }
 

@@ -198,6 +198,32 @@ watching internal services is what a self-hosted status page is for. If the serv
 where a monitor has to read a metadata service, set `MONITOR_ALLOW_METADATA=true`. Ping / TCP, DNS and the
 database monitors are not affected: they connect to the host you name and show nothing of what it answers.
 
+### Outbound proxy
+
+> [!WARNING]
+> **Not released yet.** This is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+HTTPS monitor checks and the **Test** button go through a proxy when the server is started with the standard
+`HTTP_PROXY` and `HTTPS_PROXY` environment variables (`http://proxy.example:3128`, optionally with
+`user:password@`), for networks that require outbound traffic to pass a proxy. `http://` addresses go to
+`HTTP_PROXY` as ordinary proxy requests and `https://` addresses are tunnelled through `HTTPS_PROXY` (with `CONNECT`);
+when only `HTTP_PROXY` is set, it serves both. The lower-case names (`http_proxy`, `https_proxy`, `no_proxy`) win over the
+upper-case ones when both are set. `NO_PROXY` lists hosts that are reached directly: comma-separated, a leading dot or `*.` covers
+subdomains, `host:port` limits an entry to a port, an IPv6 address is written in brackets (`[::1]`), CIDR ranges are not understood,
+and `*` as the whole value turns the proxy off. `HTTP_PROXY` and `HTTPS_PROXY` are read when the server starts, so a change needs a
+restart; `NO_PROXY` is read at every request. When the proxy refuses a request or cannot be reached, the check and the test
+show the reason (for example `Proxy response (407) !== 200 when HTTP Tunneling`) instead of a bare `fetch failed`.
+
+The proxy opens the connection and resolves the host name, so the address check above is made on the host in the URL
+(and in every redirect) and not on the address it resolves to: the addresses and the names metadata services answer to
+are refused, but a name that merely resolves to one is not. Make the proxy itself refuse `169.254.0.0/16`,
+`fd00:ec2::254` and `100.100.100.200` if it runs on a cloud host.
+
+Only HTTPS monitors and the test runner use the proxy. Reading the certificate (the expiry warning of a monitor and the
+certificate step of the test), the other monitor types, HTTP actions and notification channels still connect directly, so
+on a network that only allows traffic through the proxy the expiry warning cannot be read. A monitor that sets its own
+`Proxy-Authorization` header fails while a proxy is configured.
+
 ### Response checks
 
 Beyond the status code and the keyword, a monitor can check the **headers** and the **JSON body** of

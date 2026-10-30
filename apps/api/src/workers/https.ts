@@ -2,10 +2,9 @@ import type { HttpsConfig } from '@bsp/shared'
 import type { MonitorStatus } from '@bsp/shared'
 import { evaluateAssertions, hasJsonAssertions } from './assertions.js'
 import { discardBody, followRedirects, insecureForOrigin, requestUrl, readBodyText, requestWithCas, resolveHttpAuth, skipsTlsVerification, type HttpFetch, type HttpResponse } from './httpAuth.js'
-import { Agent, fetch as httpFetch } from 'undici'
 import { lookup as dnsLookup } from 'dns'
 import type { LookupFunction } from 'net'
-import { guardedConnector, unwrapRefusal } from '../services/ssrfGuard.js'
+import { proxiedFetch, proxyAwareAgent, unwrapRefusal } from '../services/ssrfGuard.js'
 
 // Application-level DNS cache — avoids repeated resolver round-trips between checks.
 const dnsCache = new Map<string, { address: string; family: number; expires: number }>()
@@ -35,23 +34,15 @@ const cachedLookup: LookupFunction = (hostname, options, callback): void => {
 }
 
 // Persistent connection pool — reuses TCP/TLS connections and caches DNS lookups
-// between checks, keeping measured response times accurate.
-const httpAgent = new Agent({
-  connect: guardedConnector({ lookup: cachedLookup }),
-  keepAliveTimeout: 5 * 60_000,
-  keepAliveMaxTimeout: 30 * 60_000,
-})
+// between checks, keeping measured response times accurate. Honours HTTP_PROXY, HTTPS_PROXY and NO_PROXY.
+const httpAgent = proxyAwareAgent({ lookup: cachedLookup, keepAlive: true })
 
 // Same pool for monitors that opted out of certificate verification (`ignoreTls`).
-const insecureHttpAgent = new Agent({
-  connect: guardedConnector({ lookup: cachedLookup, rejectUnauthorized: false }),
-  keepAliveTimeout: 5 * 60_000,
-  keepAliveMaxTimeout: 30 * 60_000,
-})
+const insecureHttpAgent = proxyAwareAgent({ lookup: cachedLookup, rejectUnauthorized: false, keepAlive: true })
 
 /** Scheduled checks reuse the pooled agent so repeated checks measure the endpoint, not the handshake. */
-const pooledFetch: HttpFetch = (url, init) => httpFetch(url, { ...init, dispatcher: httpAgent })
-const insecurePooledFetch: HttpFetch = (url, init) => httpFetch(url, { ...init, dispatcher: insecureHttpAgent })
+const pooledFetch: HttpFetch = proxiedFetch(httpAgent)
+const insecurePooledFetch: HttpFetch = proxiedFetch(insecureHttpAgent)
 
 export async function checkHttps(
   config: HttpsConfig,
