@@ -1,13 +1,13 @@
 import { useState, useMemo, useEffect } from 'react'
-import { formatDateTime } from '@better-kit/ui'
+import { formatDateTime } from '@better-forge/ui'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { MaintenanceRecurrence, MaintenanceWindow, Monitor } from '@bsp/shared'
-import { ConfirmModal } from '@better-kit/ui'
+import { ConfirmModal } from '@better-forge/ui'
 import { describeRecurrence, WEEKDAY_LABELS, WEEKDAY_ORDER } from '../components/maintenance/recurrence'
 import { NotifySubscribersCheckbox } from '../components/subscribers/NotifySubscribersCheckbox'
-import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
-import { Alert, EmptyState, ErrorState, Field, LoadingState, PageContainer, PageHeader, useToast } from '@better-kit/ui'
+import { ModalFooter, ModalHeader, ModalShell } from '@better-forge/ui'
+import { Alert, EmptyState, ErrorState, Field, LoadingState, PageContainer, PageHeader, useToast } from '@better-forge/ui'
 
 type Tab = 'active' | 'upcoming' | 'past'
 

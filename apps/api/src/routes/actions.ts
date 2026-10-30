@@ -7,12 +7,12 @@ import { auditActor, diffObjects, snapshot, writeAudit } from '../kit/audit.js'
 import { requestIdentity } from '../kit/authMiddleware.js'
 import { withImmediateTransaction } from '../db/transaction.js'
 import { parsePagination } from '../lib/pagination.js'
-import { keyForNew, type KeyOwner } from '@better-kit/config-as-code'
+import { keyForNew, type KeyOwner } from '@better-forge/config-as-code'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
 import { actionConfigError, actionVaultProblem } from '../services/actionInput.js'
 import { vaultUseProblem } from '../kit/vaultUse.js'
 import { ACTION_TRIGGER_STATUSES, DEFAULT_APPROVAL_TIMEOUT_MINUTES, type ActionTriggerStatus } from '@bsp/shared'
-import { tokenAllows } from '@better-kit/contracts'
+import { tokenAllows } from '@better-forge/contracts'
 
 const MAX_MINUTES = 7 * 24 * 60
 

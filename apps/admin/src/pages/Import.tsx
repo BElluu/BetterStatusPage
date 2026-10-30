@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { api, ApiError } from '../api/client'
-import { Alert, ConfirmModal, PageContainer, PageHeader, useToast } from '@better-kit/ui'
-import { DataTable, DataTh } from '@better-kit/ui'
+import { Alert, ConfirmModal, PageContainer, PageHeader, useToast } from '@better-forge/ui'
+import { DataTable, DataTh } from '@better-forge/ui'
 import { YamlEditor } from '../components/YamlEditor'
 
 type Action = 'create' | 'update' | 'delete' | 'unchanged'

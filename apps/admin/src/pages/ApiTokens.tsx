@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ApiTokensPage } from '@better-kit/ui'
+import { ApiTokensPage } from '@better-forge/ui'
 import { TOKEN_PRESETS, TOKEN_RESOURCES } from '@bsp/shared'
 import { McpSettingsModal } from '../components/McpSettingsModal'
 

@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SUBSCRIBER_EVENT_TYPES, subscriptionMethodStatuses, type AdminSubscriptionSettings } from '@bsp/shared'
 import { api } from '../api/client'
-import { ToastProvider } from '@better-kit/ui'
+import { ToastProvider } from '@better-forge/ui'
 import SubscribersPage from './Subscribers'
 
 vi.mock('../api/client', () => ({ api: { get: vi.fn(), put: vi.fn(), delete: vi.fn(), download: vi.fn() } }))

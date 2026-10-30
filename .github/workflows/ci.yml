@@ -51,6 +51,12 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 
+      - name: Shared modules come from npm, at one version
+        run: npm run check:kit
+
+      - name: Signatures of the installed packages
+        run: npm audit signatures
+
       - name: Lint
         run: npm run lint
 
@@ -114,18 +120,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # The scenarios start the sources with tsx and Vite, which read the built shared packages.
-      - name: Build shared packages
-        run: npm run build:kit && npm run build -w @bsp/shared
+      # The scenarios start the sources with tsx and Vite, which read the built shared package.
+      - name: Build shared package
+        run: npm run build -w @bsp/shared
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
       - name: End-to-end tests
         run: npm run test:e2e
-
-      - name: Template end-to-end tests
-        run: npm run test:e2e:template
 
       - name: Upload test reports
         if: always()
@@ -135,8 +138,6 @@ jobs:
           path: |
             playwright-report/
             test-results/
-            apps/template/playwright-report/
-            apps/template/test-results/
           if-no-files-found: ignore
 
   build:
@@ -158,9 +159,6 @@ jobs:
 
       - name: Build
         run: npm run build
-
-      - name: Packages in isolation
-        run: npm run test:isolation
 
   # The image is published for amd64 and arm64, so the smoke test runs natively on both.
   docker-smoke:

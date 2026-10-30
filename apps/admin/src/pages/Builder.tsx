@@ -12,8 +12,8 @@ import {
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { api } from '../api/client'
-import { ConfirmModal } from '@better-kit/ui'
-import { ErrorState, LoadingState, useToast } from '@better-kit/ui'
+import { ConfirmModal } from '@better-forge/ui'
+import { ErrorState, LoadingState, useToast } from '@better-forge/ui'
 import {
   useBuilderStore, createMonitorNode, createGroupNode, createTextNode, createIncidentsNode,
   createChartNode, defaultGrid, findNode, canJoinGroup,

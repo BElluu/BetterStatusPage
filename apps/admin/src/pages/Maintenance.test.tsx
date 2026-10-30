@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import MaintenancePage, { DateTimeInput } from './Maintenance'
-import { ToastProvider } from '@better-kit/ui'
+import { ToastProvider } from '@better-forge/ui'
 
 vi.mock('../api/client', () => ({
   api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },

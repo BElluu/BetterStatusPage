@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, ConfirmIdentityModal, CopyButton, ErrorState, LoadingState, ModalFooter, ModalHeader, ModalShell, Note, Switch, useToast } from '@better-kit/ui'
+import { Alert, ConfirmIdentityModal, CopyButton, ErrorState, LoadingState, ModalFooter, ModalHeader, ModalShell, Note, Switch, useToast } from '@better-forge/ui'
 import { api } from '../api/client'
 
 interface McpSettings {

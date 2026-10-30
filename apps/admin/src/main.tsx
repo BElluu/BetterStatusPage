@@ -1,11 +1,11 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { safeLocalStorage, safeSessionStorage } from '@better-kit/contracts'
-import { configureUi } from '@better-kit/ui'
+import { safeLocalStorage, safeSessionStorage } from '@better-forge/contracts'
+import { configureUi } from '@better-forge/ui'
 import App from './App'
 import { adminUiConfig } from './uiConfig'
-import { ToastProvider } from '@better-kit/ui'
+import { ToastProvider } from '@better-forge/ui'
 import './index.css'
 
 // Remove credentials left by versions that stored JWTs in sessionStorage.

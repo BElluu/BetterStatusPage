@@ -1,4 +1,7 @@
-@import '@better-kit/ui/styles.css';
+@import '@better-forge/ui/styles.css';
+
+/* The icon font holds the admin's icons plus the ones in `@better-forge/ui/icons.json` (npm run build:icons). */
+@font-face { font-family: 'Material Symbols Outlined'; font-style: normal; font-weight: 400; font-display: block; src: url('./fonts/material-symbols-outlined-fill.woff2') format('woff2'); }
 
 /* What this product adds to the shared interface styles. */
 :root {

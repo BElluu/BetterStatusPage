@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
-import { openDatabase, type Database } from '@better-kit/db'
+import { openDatabase, type Database } from '@better-forge/db'
 import * as schema from './schema.js'
 import { databasePath } from '../config.js'
 

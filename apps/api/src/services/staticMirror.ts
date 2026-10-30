@@ -1,5 +1,5 @@
 import { desc, eq, notInArray } from 'drizzle-orm'
-import { createIntervalRunner, createMirrorPublisher, createS3Transport } from '@better-kit/mirror'
+import { createIntervalRunner, createMirrorPublisher, createS3Transport } from '@better-forge/mirror'
 import type {
   AdminStaticMirror, StaticMirrorCheckResult, StaticMirrorHealthState, StaticMirrorRun, StaticMirrorSettings, StaticMirrorStatus,
 } from '@bsp/shared'

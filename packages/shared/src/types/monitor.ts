@@ -1,4 +1,4 @@
-import type { VaultRef } from '@better-kit/contracts'
+import type { VaultRef } from '@better-forge/contracts'
 import type { IncidentImpact } from './incident.js'
 import type { MaintenanceRecurrence } from './maintenance.js'
 export type MonitorType = 'https' | 'ping' | 'dns' | 'sqlserver' | 'postgresql' | 'mysql' | 'mongodb' | 'oracle' | 'redis' | 'mail' | 'ssh' | 'tls' | 'domain' | 'docker' | 'webhook'

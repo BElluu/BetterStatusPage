@@ -1,6 +1,6 @@
 import { DATABASE_TLS_MODES } from '@bsp/shared'
 import type { MonitorStatus, DatabaseConfig, DatabaseTlsMode } from '@bsp/shared'
-import type { VaultRef } from '@better-kit/contracts'
+import type { VaultRef } from '@better-forge/contracts'
 import { resolveVaultSecret } from '../kit/resolveSecret.js'
 
 /** Where to connect: a full connection string, or discrete settings. */

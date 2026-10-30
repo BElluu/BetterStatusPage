@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { safeLocalStorage } from '@better-kit/contracts'
+import { safeLocalStorage } from '@better-forge/contracts'
 
-// Mirrors packages/ui's useDarkMode with this app's fixed storage keys; the public app does not depend on @better-kit/ui.
+// Mirrors the useDarkMode of @better-forge/ui with this app's fixed storage keys; the public app does not depend on @better-forge/ui.
 
 export function useDarkMode(): [boolean, () => void] {
   const [isDark, setIsDark] = useState(() => {

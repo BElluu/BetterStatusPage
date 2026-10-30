@@ -1,4 +1,4 @@
-export { navigation } from '@better-kit/ui'
+export { navigation } from '@better-forge/ui'
 
 /** The status page: on this origin in production, on its own dev server (:5174) in development. */
 export function statusPageUrl(): string {

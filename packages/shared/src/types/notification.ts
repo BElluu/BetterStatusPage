@@ -1,4 +1,4 @@
-import type { NotificationChannelConfig, NotificationChannelType, NotificationDeliveryStatus, NotificationSuppressionReason, QuietHoursPolicy } from '@better-kit/contracts'
+import type { NotificationChannelConfig, NotificationChannelType, NotificationDeliveryStatus, NotificationSuppressionReason, QuietHoursPolicy } from '@better-forge/contracts'
 
 /** Caps how many alerts a single monitor may produce on this channel per window. */
 export interface ThrottlePolicy {

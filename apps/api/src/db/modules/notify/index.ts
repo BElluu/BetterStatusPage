@@ -1,5 +1,5 @@
-import { createNotifyDbModule } from '@better-kit/notify'
-import { randomEntityKey } from '@better-kit/config-as-code'
+import { createNotifyDbModule } from '@better-forge/notify'
+import { randomEntityKey } from '@better-forge/config-as-code'
 import { notifySealedColumns } from '../../../services/sealedColumns.js'
 
 /** Notification channels, their delivery history and SMTP settings. */

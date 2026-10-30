@@ -1,4 +1,4 @@
-import type { Locale as LocaleOf } from '@better-kit/contracts'
+import type { Locale as LocaleOf } from '@better-forge/contracts'
 
 export type TranslationKey =
   | 'status.operational'

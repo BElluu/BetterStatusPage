@@ -2,9 +2,9 @@ import { useId } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { highlightYaml } from './YamlEditor'
-import { CopyButton } from '@better-kit/ui'
-import { ModalFooter, ModalHeader, ModalShell } from '@better-kit/ui'
-import { ErrorState, LoadingState } from '@better-kit/ui'
+import { CopyButton } from '@better-forge/ui'
+import { ModalFooter, ModalHeader, ModalShell } from '@better-forge/ui'
+import { ErrorState, LoadingState } from '@better-forge/ui'
 
 type YamlKind = 'Monitor' | 'NotificationChannel' | 'Action'
 

@@ -1,6 +1,6 @@
 import { HEADER_ASSERTION_OPS, JSON_ASSERTION_OPS, MAX_DEGRADED_ABOVE_MS, MAX_HTTP_ASSERTIONS } from '@bsp/shared'
 import type { AssertionFailureStatus, HttpAssertion } from '@bsp/shared'
-import { Field } from '@better-kit/ui'
+import { Field } from '@better-forge/ui'
 
 interface Props {
   keyword: string

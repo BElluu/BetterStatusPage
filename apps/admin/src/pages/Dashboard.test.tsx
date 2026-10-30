@@ -11,8 +11,8 @@ vi.mock('../api/client', () => ({
 }))
 
 const { dark } = vi.hoisted(() => ({ dark: { value: false } }))
-vi.mock('@better-kit/ui', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@better-kit/ui')>(),
+vi.mock('@better-forge/ui', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@better-forge/ui')>(),
   useDarkMode: () => [dark.value, vi.fn()] as const,
 }))
 

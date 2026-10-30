@@ -1,4 +1,4 @@
-import { UsersPage } from '@better-kit/ui'
+import { UsersPage } from '@better-forge/ui'
 import { StatusPageAccessModal } from '../components/StatusPageAccessModal'
 
 const ROLES = [

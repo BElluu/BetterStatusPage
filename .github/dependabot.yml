@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # The shared modules are released together and must stay at one version, so they move in one pull request. After
+  # it, run `npm run build:icons` when `npm run check:icons` asks for it (the admin icon font follows the package).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    allow:
+      - dependency-name: '@better-forge/*'
+    groups:
+      better-forge:
+        patterns:
+          - '@better-forge/*'

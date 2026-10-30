@@ -1,4 +1,4 @@
-import { normalizeScopes as normalizeKnownScopes, VAULT_USE_SCOPE, type TokenPreset, type TokenResource } from '@better-kit/contracts'
+import { normalizeScopes as normalizeKnownScopes, VAULT_USE_SCOPE, type TokenPreset, type TokenResource } from '@better-forge/contracts'
 
 /** Every part of the admin API a token can be given access to, in the order the permissions are listed. */
 export const TOKEN_RESOURCES: readonly TokenResource[] = [

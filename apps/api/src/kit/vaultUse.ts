@@ -1,6 +1,6 @@
 import { vaultUseGuard } from './vault.js'
 
-export { canonical } from '@better-kit/vault'
+export { canonical } from '@better-forge/vault'
 
 export const VAULT_USE_REFUSED = vaultUseGuard.refused
 

@@ -13,9 +13,7 @@
   },
   "include": [
     "apps/api/test/**/*",
-    "apps/template/test/**/*",
-    "apps/template/e2e/**/*",
-    "packages/*/test/**/*",
+    "packages/shared/test/**/*",
     "e2e/**/*"
   ]
 }

@@ -4,8 +4,8 @@ import crypto from 'node:crypto'
 import {
   collectFiles, createBackupRunner, createBackupService, createRestore, replaceFile,
   type BackupManifest as BaseManifest,
-} from '@better-kit/backup'
-import { currentProcessOwner, isOwnerAlive } from '@better-kit/runtime'
+} from '@better-forge/backup'
+import { currentProcessOwner, isOwnerAlive } from '@better-forge/runtime'
 import { backupDir, databasePath, setupConfigPath, uploadDir } from '../config.js'
 import { closeDb, initDb } from '../db/client.js'
 import { runMigrations } from '../db/migrate.js'

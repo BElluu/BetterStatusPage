@@ -9,13 +9,17 @@ import { processDueNotificationDeliveries, purgeOldNotificationDeliveries, retry
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const testDb = createTestDb('bsp-notifier-test-')
-const requests: Array<{ url: string; body: string }> = []
+const requests: Array<{ url: string; body: string; authorization: string | undefined }> = []
 let flakyFailuresRemaining = 0
 const server = createServer((request, response) => {
   const chunks: Buffer[] = []
   request.on('data', (chunk: Buffer) => chunks.push(chunk))
   request.on('end', () => {
-    requests.push({ url: request.url ?? '', body: Buffer.concat(chunks).toString() })
+    requests.push({ url: request.url ?? '', body: Buffer.concat(chunks).toString(), authorization: request.headers.authorization })
+    if (request.url?.startsWith('/bad-gateway')) {
+      response.writeHead(502).end('null')
+      return
+    }
     if (request.url === '/flaky' && flakyFailuresRemaining-- > 0) {
       response.writeHead(500).end()
       return
@@ -264,17 +268,13 @@ describe('notification delivery', () => {
   }
 
   it('publishes an ntfy alert as JSON with a bearer token, priority and tags', async () => {
-    const monitor = await pushChannelFixture('ntfy', { serverUrl: 'https://ntfy.example.test/', topic: 'alerts', accessToken: 'tk_SECRET', text: 'Heads up' })
-    const calls: Array<{ url: string; auth: string | undefined; body: Record<string, unknown> }> = []
-    await withFetch((url, init) => {
-      calls.push({ url, auth: (init?.headers as Record<string, string>)['Authorization'], body: JSON.parse(String(init?.body)) })
-      return new Response('{}', { status: 200 })
-    }, () => sendNotifications(monitor, 'down', 'up', 'boom'))
+    const monitor = await pushChannelFixture('ntfy', { serverUrl: `${baseUrl}/ntfy-alert`, topic: 'alerts', accessToken: 'tk_SECRET', text: 'Heads up' })
+    await sendNotifications(monitor, 'down', 'up', 'boom')
 
+    const calls = requests.filter((request) => request.url === '/ntfy-alert/')
     assert.equal(calls.length, 1)
-    assert.equal(calls[0]!.url, 'https://ntfy.example.test/')
-    assert.equal(calls[0]!.auth, 'Bearer tk_SECRET')
-    const body = calls[0]!.body
+    assert.equal(calls[0]!.authorization, 'Bearer tk_SECRET')
+    const body = JSON.parse(calls[0]!.body) as Record<string, unknown>
     assert.equal(body['topic'], 'alerts')
     assert.equal(body['title'], 'Monitor Push API is DOWN')
     assert.equal(body['priority'], 4)
@@ -327,10 +327,9 @@ describe('notification delivery', () => {
   })
 
   it('keeps the HTTP status when an error body is JSON null, and keeps a server path prefix', async () => {
-    const monitor = await pushChannelFixture('ntfy', { serverUrl: 'https://proxy.example.test/ntfy', topic: 'alerts' })
-    let url = ''
-    await withFetch((u) => { url = u; return new Response('null', { status: 502 }) }, () => sendNotifications(monitor, 'down', 'up', 'boom'))
-    assert.equal(url, 'https://proxy.example.test/ntfy/')
+    const monitor = await pushChannelFixture('ntfy', { serverUrl: `${baseUrl}/bad-gateway/ntfy`, topic: 'alerts' })
+    await sendNotifications(monitor, 'down', 'up', 'boom')
+    assert.ok(requests.some((request) => request.url === '/bad-gateway/ntfy/'))
     const [delivery] = await db.select().from(notificationDeliveries)
     assert.equal(delivery!.lastError, 'ntfy API returned HTTP 502')
   })

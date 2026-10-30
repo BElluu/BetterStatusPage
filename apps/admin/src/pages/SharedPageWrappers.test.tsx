@@ -2,15 +2,15 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import type { AuditEntities } from '@better-kit/ui'
-import type { TokenPreset, TokenResource } from '@better-kit/contracts'
+import type { AuditEntities } from '@better-forge/ui'
+import type { TokenPreset, TokenResource } from '@better-forge/contracts'
 import AuditLog, { ENTITY_TYPES_ALL_GROUPED } from './AuditLog'
 import ApiTokens from './ApiTokens'
 import Login from './Login'
 import Users from './Users'
 
 // The shared pages are tested in the interface package; here only what this product hands them is checked.
-vi.mock('@better-kit/ui', () => ({
+vi.mock('@better-forge/ui', () => ({
   ApiTokensPage: ({ resources, presets, actions }: { resources: TokenResource[]; presets: TokenPreset[]; actions: ReactNode }) => (
     <div><p data-testid="tokens">{resources.map((resource) => resource.key).join(',')}|{presets.map((preset) => preset.label).join(',')}</p>{actions}</div>
   ),

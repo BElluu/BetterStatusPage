@@ -1,4 +1,4 @@
-import { defineTool, query, type McpTool, type McpToolContext } from '@better-kit/mcp'
+import { defineTool, query, type McpTool, type McpToolContext } from '@better-forge/mcp'
 import { z } from 'zod'
 import { describeMonitorType, MONITOR_TYPES, MONITOR_TYPE_SUMMARY } from './monitorFields.js'
 import type { MonitorType } from '@bsp/shared'

@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { Field } from '@better-kit/ui'
+import { Field } from '@better-forge/ui'
 
 export interface ScheduleValues {
   intervalSecs: number

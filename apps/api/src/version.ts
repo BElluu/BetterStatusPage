@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import { resolveAppVersion as resolveVersion } from '@better-kit/runtime'
+import { resolveAppVersion as resolveVersion } from '@better-forge/runtime'
 
 function readPackageVersion(): string {
   const metadata: unknown = JSON.parse(

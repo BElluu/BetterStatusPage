@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { MirrorObject } from '@better-kit/mirror'
+import type { MirrorObject } from '@better-forge/mirror'
 import type { ChartNode, LayoutNode, LayoutTree, StatusSnapshot } from '@bsp/shared'
 import { uploadDir } from '../config.js'
 import {

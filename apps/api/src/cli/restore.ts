@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { runRestoreCli } from '@better-kit/backup'
+import { runRestoreCli } from '@better-forge/backup'
 import { restoreBackup } from '../kit/backup.js'
 
 await runRestoreCli(process.argv, {

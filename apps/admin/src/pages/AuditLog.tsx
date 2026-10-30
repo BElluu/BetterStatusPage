@@ -1,4 +1,4 @@
-import { AuditLogPage, type AuditEntities } from '@better-kit/ui'
+import { AuditLogPage, type AuditEntities } from '@better-forge/ui'
 import type { AuditEntityType } from '@bsp/shared'
 
 const ENTITY_LABELS: Record<AuditEntityType, string> = {

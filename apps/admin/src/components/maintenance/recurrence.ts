@@ -1,4 +1,4 @@
-import { formatDateTime } from '@better-kit/ui'
+import { formatDateTime } from '@better-forge/ui'
 import type { MaintenanceRecurrence } from '@bsp/shared'
 
 export const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']

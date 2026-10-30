@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { createHealthRoutes } from '@better-kit/runtime'
+import { createHealthRoutes } from '@better-forge/runtime'
 import { isSetupComplete } from '../config.js'
 import { db } from '../db/client.js'
 

@@ -1,4 +1,4 @@
-import { createSealer, createSecretBox } from '@better-kit/vault'
+import { createSealer, createSecretBox } from '@better-forge/vault'
 
 /**
  * The secret box of this application and the sealer built on it. They live apart from ./vault.ts because the tables
