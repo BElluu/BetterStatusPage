@@ -18,8 +18,7 @@ import { checkTlsCert } from './tlsCert.js'
 import { checkDomainExpiry } from './domainExpiry.js'
 import type { CheckOutcome } from './probe.js'
 import { Resolver } from 'dns/promises'
-import { Agent, fetch as undiciFetch } from 'undici'
-import { guardedConnector, guardedFetch } from '../services/ssrfGuard.js'
+import { proxiedFetch, proxyAwareAgent } from '../services/ssrfGuard.js'
 
 export interface TestStep {
   label: string
@@ -156,9 +155,8 @@ export async function certificateStep(config: HttpsConfig, timeoutMs: number): P
   }
 }
 
-const globalFetch: HttpFetch = (url, init) => guardedFetch(url, init)
-const insecureAgent = new Agent({ connect: guardedConnector({ rejectUnauthorized: false }) })
-const insecureFetch: HttpFetch = (url, init) => undiciFetch(url, { ...init, dispatcher: insecureAgent })
+const globalFetch: HttpFetch = proxiedFetch(proxyAwareAgent())
+const insecureFetch: HttpFetch = proxiedFetch(proxyAwareAgent({ rejectUnauthorized: false }))
 
 // ── Databases (SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB, Oracle) ───────────────────
 
