@@ -184,6 +184,11 @@ NODE_ENV=production node apps/api/dist/index.js
 
 Open `http://localhost:3000/admin` to run the setup wizard.
 
+> [!WARNING]
+> **Not released yet.** `COOKIE_SECURE` is available when you build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+If you open the panel over plain HTTP from another machine (`http://your-server:3000/admin`) and the sign-in sends you back to the login screen, the browser is refusing the `Secure` session cookie. Put HTTPS in front (recommended), or, on a trusted network or VPN only, set `COOKIE_SECURE=false`: without HTTPS the password and the session are sent unencrypted. See `COOKIE_SECURE` in [Environment variables](#environment-variables).
+
 ### 6. Keep it running with PM2
 
 ```bash
@@ -488,6 +493,7 @@ Before exposing an instance publicly:
 | `BSP_BIND_ADDRESS` | Docker Compose | Host address for published port. Default/recommended behind Nginx: `127.0.0.1`. Use `0.0.0.0` only for direct testing. |
 | `PORT` | No | Port to listen on. Default: `3000` |
 | `NODE_ENV` | Yes (prod) | Set to `production`. Enables security headers, HSTS, enforces secrets. |
+| `COOKIE_SECURE` | No | Whether the session cookies are marked `Secure`. Default: `true` when `NODE_ENV=production`. A browser keeps a `Secure` cookie only over HTTPS (or on `localhost`), so an installation opened over plain `http://` cannot stay signed in: the sign-in succeeds and the login screen comes straight back. Set `COOKIE_SECURE=false` there, or put HTTPS in front (recommended, see [HTTPS with Let's Encrypt](#https-with-lets-encrypt)). Over plain HTTP the password and the session travel unencrypted whatever this flag says, so use `false` only on a trusted network or VPN, never on a panel reachable from the internet, and never on an installation that does have HTTPS. The application logs a warning at start while it is `false` in production. |
 | `JWT_SECRET` | Yes (prod) | Signs the HttpOnly admin session cookie. Min 32 chars. Changing it logs everyone out. |
 | `VAULT_ENCRYPTION_KEY` | Yes (prod) | 64-char hex string (32 bytes) for AES-256-GCM vault encryption. **Changing it makes all stored secrets unreadable.** |
 | `ADMIN_EMAIL` | `db:seed` only | Required only when intentionally running `npm run db:seed`, which creates this administrator and skips the web setup wizard. The wizard does not read it. |

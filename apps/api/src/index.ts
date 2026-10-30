@@ -12,6 +12,7 @@ import { startBackgroundServices, stopBackgroundServices } from './services/back
 import { validateEncryptionKey as validateVaultEncryptionKey } from '@better-forge/vault'
 import { getHeartbeatAutoCreateLimit } from './config/heartbeat.js'
 import { sseService } from './kit/sse.js'
+import { secureCookies } from './kit/auth.js'
 import { registerProductionFrontends } from './services/productionFallback.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -21,7 +22,13 @@ const { run } = await createBetterApp({
   redactQueryParams: ['token', 'msg'],
   // The heartbeat token is the credential of its monitor and sits in the path.
   redactPathTokenPrefixes: ['/api/v1/hook/'],
-  validate: () => { validateVaultEncryptionKey(); getHeartbeatAutoCreateLimit() },
+  validate: () => {
+    validateVaultEncryptionKey()
+    getHeartbeatAutoCreateLimit()
+    if (process.env['NODE_ENV'] === 'production' && !secureCookies()) {
+      console.warn('COOKIE_SECURE=false: session cookies are sent over plain HTTP, so passwords and sessions travel unencrypted. Use it only on a trusted network or VPN; on the internet put HTTPS in front.')
+    }
+  },
   uploads: { dir: uploadDir(), maxFileBytes: 5 * 1024 * 1024 },
   // The branding editor previews the status page in a frame of the admin console.
   allowSameOriginFraming: ({ path: requestPath, query }) => requestPath === '/' && query.get('branding-preview') === '1',

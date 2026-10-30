@@ -10,6 +10,16 @@ import { sseService } from './sse.js'
 import { audit } from './audit.js'
 import { roles } from './roles.js'
 
+/**
+ * Cookies are `Secure` in production, which a browser keeps only over HTTPS (or on localhost). `COOKIE_SECURE=false`
+ * lets an installation served over plain HTTP sign in; `COOKIE_SECURE=true` forces it outside production.
+ */
+export function secureCookies(): boolean {
+  const override = process.env['COOKIE_SECURE']?.trim().toLowerCase()
+  if (override === 'true' || override === 'false') return override === 'true'
+  return process.env['NODE_ENV'] === 'production'
+}
+
 /** What an API token may be given access to: the parts of this application's admin API, and the permission to use vault secrets. */
 export const tokenCatalogue = createTokenCatalogue({
   resources: TOKEN_RESOURCES,
@@ -34,7 +44,7 @@ export const auth: Auth = createAuth({
   basePath: '/api/v1/auth',
   urls: { signIn: '/admin/login', home: '/admin/', ssoConfirm: '/admin/sso-confirm', ssoTest: '/admin/sso-test' },
   publicUrl: resolvePublicUrl,
-  secureCookies: () => process.env['NODE_ENV'] === 'production',
+  secureCookies,
   rateLimits: { signIn: LOGIN_RATE_LIMIT, sensitiveAction: SENSITIVE_ACTION_RATE_LIMIT },
   returnTargets: ['status'],
   hooks: {
