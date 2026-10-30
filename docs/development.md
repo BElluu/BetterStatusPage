@@ -26,7 +26,7 @@ Three things start:
 
 Open the admin URL and a setup wizard creates your administrator account.
 
-The shared packages in `packages/*` are used from their built `dist`. `npm run dev` builds only the packages that changed since the last build (`npm run build:kit -- --force` builds all of them). To see an edit in a package while the apps run, watch it with `npm run dev -w @better-forge/<name>`.
+The shared modules (`@better-forge/*`) are installed from npm. To try a change to them before it is released, check out [Better-Forge](https://github.com/BElluu/Better-Forge) next to this repository and run `npm run kit:local` (add `-- --watch` to copy again after every build there); `npm run kit:reset` restores the released versions.
 
 For a production-style run from source:
 
@@ -132,15 +132,12 @@ BetterStatusPage/
 │   │       ├── workers/   # Scheduler, checkers, notification events
 │   │       └── services/  # Application services
 │   ├── admin/         # Admin console (React): status-page pages on top of @better-forge/ui
-│   ├── status/        # Public status page (React)
-│   └── template/      # Minimal app built only from the shared modules
+│   └── status/        # Public status page (React)
 └── packages/
-    ├── shared/        # Status-page types (@bsp/shared)
-    └── …              # Shared modules (@better-forge/*): contracts, db, audit, auth, vault,
-                       # notify, backup, config-as-code, mcp, runtime, ui
+    └── shared/        # Status-page types (@bsp/shared)
 ```
 
-The shared modules hold everything that is not specific to a status page, so another product can be built on the same foundation. `CLAUDE.md` in the repository root describes the layering rules and how to start a new product from `apps/template`.
+The shared modules (`@better-forge/*`: contracts, db, audit, auth, vault, notify, backup, config-as-code, mcp, mirror, runtime, ui) hold everything that is not specific to a status page and live in their own repository, [Better-Forge](https://github.com/BElluu/Better-Forge), so another product can be built on the same foundation. `CLAUDE.md` in the repository root describes how this product uses them and how a change spans the two repositories.
 
 ## Contributing
 

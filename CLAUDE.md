@@ -37,7 +37,7 @@ Suggested flow: `architect` (if non-trivial) → `recon` checklist → implement
 
 ## Layers: shared modules and products
 
-The code that is not specific to a status page lives in `packages/*` as `@better-forge/*` modules. A product (this repository's `apps/api`, `apps/admin`, `apps/status`, or `apps/template`) is composed from them.
+The code that is not specific to a status page lives in its own repository, Better-Forge (`D:\Program Files (x86)\Code\Better-Forge`, `github.com/BElluu/Better-Forge`), and comes from npm as `@better-forge/*`. This repository (`apps/api`, `apps/admin`, `apps/status`) is one product composed from them; `packages/shared` (`@bsp/shared`) holds the status-page types.
 
 | Package | Owns |
 |---|---|
@@ -47,21 +47,24 @@ The code that is not specific to a status page lives in `packages/*` as `@better
 | `notify` | channels, transports, delivery engine, alert hygiene, routes, delivery worker |
 | `backup`, `config-as-code` | backup/restore/CLI/scheduler/routes; YAML engine with a kind registry, entity keys |
 | `mcp` | MCP endpoint (Streamable HTTP): Bearer-only access, scoped tools, bounded and sanitised output |
+| `mirror` | publishes a set of files to static hosting |
 | `runtime` | `createBetterApp`, health, SSE, update check, app lock, shutdown, data paths |
 | `ui` | React shell, shared pages, API client, styles and Tailwind preset |
 
-Rules (the ESLint boundary rule enforces the import ones):
+Rules:
 
-- Packages never import from `apps/*` and only along the graph in `eslint.boundaries.mjs`; they import each other through the package name, never `src/`.
-- No global singletons and nothing status-page-specific (monitors, incidents, "status page") in a package, including comments and error messages. Product names and wording come in through options (`configureUi`, factory options).
-- A package owns its tables, migrations, tests and README. Tests run in isolation with `npm run test:isolation`.
-- Packages are consumed from `dist`. `npm run build:kit` (`scripts/build-kit.mjs`) builds them in dependency order and skips a package whose sources, manifest and dependencies did not change; `--force` builds all. Watch one while editing with `npm run dev -w @better-forge/<name>`.
+- All `@better-forge/*` dependencies are pinned to one released version, exactly (`"0.1.1"`, no range); they are released together and `npm run check:kit` (also in CI) fails on a range, a `file:`/`link:` or a mixture of versions. Dependabot raises them in one pull request. Nothing imports a package's `src/` or `dist/` (ESLint).
+- Code that is status-page-specific (monitors, incidents, "status page") stays here; code that another product could use belongs in Better-Forge, behind an option or a factory, never with a product name in it.
 - In `apps/api/src`, `kit/*.ts` is the composition root: it creates each module's instance with the product's choices (`kit/auth.ts`, `kit/vault.ts`, `kit/notify.ts`, ...) and exports the members the rest of the code uses as plain re-exports (`export const { requireAuth } = auth.middleware` in `kit/authMiddleware.ts`; likewise `kit/authSession.ts`, `kit/secretBox.ts`, `kit/resolveSecret.ts`, `writeAudit` in `kit/audit.ts`, `kit/userRoutes.ts`, ...). Code outside `kit/` imports those bindings; a member that has none is used through the instance (`auth.twoFactor.resetTwoFactor(...)`), not by adding a forwarding function. Because they read the instance when the module loads, no import cycle may run through `kit/` (`npm run check:cycles`, also in CI). Everything else in `apps/api/src` is status-page code. Paths to `kit/*.js` that are built as strings (the backup worker's `moduleUrl`, `kit/backupService.ts`) are not rewritten by an import refactor; check them by hand.
-- `apps/template` must stay buildable from `@better-forge/*` alone (lint forbids `@bsp/*` there); a boot test and a browser test run in CI.
+- The admin icon font (`apps/admin/src/fonts/`) holds the admin's icons plus the ones in `@better-forge/ui/icons.json`; after raising the version, `npm run check:icons` may ask for `npm run build:icons`. The admin Tailwind config adds `uiContent` from `@better-forge/ui/tailwind-preset` to `content`, and vitest lists `@better-forge/ui` in `server.deps.inline` (the package is built for bundlers).
+
+### Changing a module together with this product (two repositories)
+
+A feature or fix here may need a change in a module. Make it in Better-Forge first (its `CLAUDE.md` has the rules; add a changeset; merging to `main` releases it), then raise every `@better-forge/*` here to the released version and continue. To try it before it is released: `npm run kit:local` builds `../Better-Forge` (or `KIT_DIR`) and copies the packages into `node_modules/@better-forge/` (`-- --watch` repeats it on every build there; `npm run kit:reset` is `npm ci`). `package.json` and the lockfile are not changed, so a pull request never carries a local copy. Subagents that scout or review a change must look in both repositories.
 
 ### Starting a new Better product
 
-Copy `apps/template` (server in `src/server`, interface in `web/`). The server is: `db.ts` (compose the `DbModule`s), `kit.ts` (create audit, vault, roles, auth, notify, backup), `routes.ts` (`registerAdminApi` groups) and `index.ts` (`createBetterApp`). The interface is `createAdminShell` plus the pages of `@better-forge/ui`, configured by `configureUi` (storage prefix, API base, CSRF cookie, base path, brand, texts).
+Copy `apps/template` from Better-Forge (`npx degit BElluu/Better-Forge/apps/template my-product`); its `CLAUDE.md` describes the server and the interface.
 
 ### Registering what a product adds
 
@@ -74,9 +77,9 @@ Copy `apps/template` (server in `src/server`, interface in `web/`). The server i
 
 ## Conventions
 
-- Tests and the end-to-end scenarios run through `tsx`, which does not check types; `npm run typecheck` (`tsconfig.test.json`, then `tsc --noEmit` of `apps/admin`, `apps/status`, `apps/api` and `apps/template`) does, and CI runs it. Run it after editing tests or code.
+- Tests and the end-to-end scenarios run through `tsx`, which does not check types; `npm run typecheck` (`tsconfig.test.json`, then `tsc --noEmit` of `apps/admin`, `apps/status` and `apps/api`) does, and CI runs it. Run it after editing tests or code.
 
-- Icons come from a subset of Material Symbols. After using a new icon name, run `npm run build:icons` to add it to the fonts (`npm run check:icons` fails in CI otherwise).
+- Icons come from a subset of Material Symbols. After using a new icon name (or raising `@better-forge/*`), run `npm run build:icons` to add it to the fonts (`npm run check:icons` fails in CI otherwise).
 - Rename code, CSS, and DB identifiers when UI wording changes; names must match what the UI says.
 - Do not reference other products as the model for a feature in docs, README, or code comments.
 - README links point to `https://docs.betterstatuspage.dev/<slug>/`; the changelog lives in `docs/changelog.md`.
