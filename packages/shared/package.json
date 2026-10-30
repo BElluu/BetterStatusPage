@@ -16,7 +16,7 @@
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput"
   },
   "dependencies": {
-    "@better-forge/contracts": "*"
+    "@better-forge/contracts": "0.1.1"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

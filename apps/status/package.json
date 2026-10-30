@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@better-forge/contracts": "*",
+    "@better-forge/contracts": "0.1.1",
     "@bsp/shared": "*",
     "@tanstack/react-query": "^5.74.4",
     "react": "^19.0.0",

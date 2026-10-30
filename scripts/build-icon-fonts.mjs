@@ -1,7 +1,7 @@
 // Cuts the Material Symbols font down to the icons the sources use, one file per product surface.
 //
-// The shared interface (packages/ui) lists the icons its own sources use in packages/ui/icons.json. A product builds
-// its font from its sources plus that list, so an update of the package never drops an icon of the shared pages.
+// The shared interface (@better-forge/ui) lists the icons its own pages use in icons.json. The admin font is built from
+// the admin sources plus that list, so an update of the package never drops an icon of the shared pages.
 //
 // The icons are written as names in the markup (`<span class="material-symbols-outlined">check_circle</span>`) and the
 // font turns each name into one glyph (a ligature). The full font has thousands of icons; this keeps the ones whose
@@ -26,10 +26,8 @@ const source = path.join(root, 'node_modules', 'material-symbols', 'material-sym
 const surfaces = [
   { file: 'apps/status/src/fonts/material-symbols-outlined.woff2', dirs: ['apps/status'], fill: 0 },
   { file: 'apps/admin/src/fonts/material-symbols-outlined-fill.woff2', dirs: ['apps/admin'], fill: undefined, withUiIcons: true },
-  { file: 'packages/ui/styles/fonts/material-symbols-outlined-fill.woff2', dirs: ['packages/ui/src', 'apps/template'], fill: undefined },
 ]
-const uiIconList = 'packages/ui/icons.json'
-const uiSources = ['packages/ui/src']
+const uiIconList = 'node_modules/@better-forge/ui/icons.json'
 
 const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
   const file = path.join(dir, entry.name)
@@ -113,17 +111,9 @@ const full = shaperOf(fullSfnt)
 const letters = [...'abcdefghijklmnopqrstuvwxyz0123456789_'].map((letter) => full.nominalGlyph(letter.codePointAt(0)))
 let failed = false
 
-// The icons the shared interface uses, written next to the package so that products can add them to their fonts.
-const uiIcons = JSON.stringify([...iconsIn(full, wordsIn(uiSources)).keys()].sort(), null, 2) + '\n'
-const uiIconFile = path.join(root, uiIconList)
-if (check) {
-  if (!fs.existsSync(uiIconFile) || fs.readFileSync(uiIconFile, 'utf8').replace(/\r\n/g, '\n') !== uiIcons) {
-    failed = true
-    console.error(`${uiIconList} is out of date; run: node scripts/build-icon-fonts.mjs`)
-  }
-} else {
-  fs.writeFileSync(uiIconFile, uiIcons)
-}
+// The icons the shared interface lists for the products that use it (`npm run kit:local` or an update of the package
+// changes the list, and `npm run check:icons` then asks for a new font).
+const uiIcons = fs.readFileSync(path.join(root, uiIconList), 'utf8')
 
 for (const surface of surfaces) {
   const words = wordsIn(surface.dirs)
