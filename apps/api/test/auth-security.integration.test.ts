@@ -123,6 +123,24 @@ describe('authentication security regressions', () => {
     assert.ok(entries.every((entry) => !JSON.stringify(entry).includes('wrong-password')))
   })
 
+  it('drops the Secure flag with COOKIE_SECURE=false, so sign-in works over plain HTTP', async () => {
+    await createUser('http-admin@example.test', '["admin"]')
+    const previous = { nodeEnv: process.env['NODE_ENV'], secure: process.env['COOKIE_SECURE'] }
+    process.env['NODE_ENV'] = 'production'
+    process.env['COOKIE_SECURE'] = 'false'
+    const response = await login('http-admin@example.test')
+    for (const [key, value] of [['NODE_ENV', previous.nodeEnv], ['COOKIE_SECURE', previous.secure]] as const) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+
+    assert.equal(response.statusCode, 200)
+    const raw = response.headers['set-cookie']
+    const setCookies = Array.isArray(raw) ? raw : raw ? [raw] : []
+    assert.ok(setCookies.length > 0)
+    for (const value of setCookies) assert.doesNotMatch(value, /Secure/i)
+  })
+
   it('normalizes legacy roles in actual sessions and applies the cookie policy', async () => {
     await createUser('legacy-admin@example.test', '["admin","operator"]')
     const previousNodeEnv = process.env['NODE_ENV']
