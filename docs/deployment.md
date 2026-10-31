@@ -57,7 +57,7 @@ openssl rand -hex 32   # VAULT_ENCRYPTION_KEY
 Edit `.env` and set at least:
 
 ```env
-BSP_IMAGE=ghcr.io/belluu/better-status-page:0.7.0
+BSP_IMAGE=ghcr.io/belluu/better-status-page:0.8.0
 BSP_BIND_ADDRESS=127.0.0.1
 JWT_SECRET=<first generated value>
 VAULT_ENCRYPTION_KEY=<second generated value>
@@ -183,9 +183,6 @@ NODE_ENV=production node apps/api/dist/index.js
 ```
 
 Open `http://localhost:3000/admin` to run the setup wizard.
-
-> [!WARNING]
-> **Not released yet.** `COOKIE_SECURE` is available when you build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 If you open the panel over plain HTTP from another machine (`http://your-server:3000/admin`) and the sign-in sends you back to the login screen, the browser is refusing the `Secure` session cookie. Put HTTPS in front (recommended), or, on a trusted network or VPN only, set `COOKIE_SECURE=false`: without HTTPS the password and the session are sent unencrypted. See `COOKIE_SECURE` in [Environment variables](#environment-variables).
 
@@ -439,7 +436,7 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ### Docker Compose
 
-Set the new version in `.env`, for example `BSP_IMAGE=ghcr.io/belluu/better-status-page:0.7.0`, then:
+Set the new version in `.env`, for example `BSP_IMAGE=ghcr.io/belluu/better-status-page:0.8.0`, then:
 
 ```bash
 docker compose pull
@@ -489,7 +486,7 @@ Before exposing an instance publicly:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `BSP_IMAGE` | Docker Compose | Container image used by `docker-compose.yml`, for example `ghcr.io/belluu/better-status-page:0.7.0`. |
+| `BSP_IMAGE` | Docker Compose | Container image used by `docker-compose.yml`, for example `ghcr.io/belluu/better-status-page:0.8.0`. |
 | `BSP_BIND_ADDRESS` | Docker Compose | Host address for published port. Default/recommended behind Nginx: `127.0.0.1`. Use `0.0.0.0` only for direct testing. |
 | `PORT` | No | Port to listen on. Default: `3000` |
 | `NODE_ENV` | Yes (prod) | Set to `production`. Enables security headers, HSTS, enforces secrets. |

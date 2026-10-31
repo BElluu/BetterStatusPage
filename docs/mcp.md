@@ -1,8 +1,5 @@
 # MCP server for AI agents
 
-> [!WARNING]
-> **Not released yet.** This feature is on `main` but not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 BetterStatusPage can answer an AI agent such as Claude Code through the [Model Context Protocol](https://modelcontextprotocol.io). Connect the agent to `/mcp` and ask it things like *"what is down right now?"*, *"why did the payments monitor flap last night?"* or *"were the alerts for that outage delivered?"*. It reads the same data as the admin console, and only what the API token you give it may read.
 
 The agent can **look** with a token that may read. It can **act** only when an administrator has also allowed changes (see below) and the token may write: open and update incidents, schedule maintenance, run a check and create or update monitors. No object can be deleted, and tools that take a list replace it whole. Use a read-only token for everyday questions and a separate one for changes, and leave **Allow agents to make changes** off until you need it.

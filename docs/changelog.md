@@ -5,6 +5,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-31
+
 ### Added
 
 - **HTTPS checks through an outbound proxy**: HTTPS monitors and the **Test** button honour the standard `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` environment variables, for networks where outbound traffic has to pass a proxy. Cloud metadata addresses and names are still refused, checked on the host in the URL; a proxy resolves names itself, so it should block the metadata range too. The certificate expiry reading does not use the proxy. See [Monitors](monitors.md#outbound-proxy).

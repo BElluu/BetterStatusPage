@@ -83,9 +83,6 @@ The side tabs of the form hold the rest:
 
 ### What is checked when you save
 
-> [!WARNING]
-> **Not released yet.** This is on `main` but not in a published release. To try it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 The configuration of a monitor is checked when it is created, changed, imported from [YAML](configuration-as-code.md), sent with the [API](api.md) or run with **Test**, and a wrong one is refused with a message that names the field. A monitor that is already saved is checked again only when it is changed or imported again.
 
 | Type | Required | Also checked |
@@ -170,9 +167,6 @@ recorded and charted; it only changes the status when **Degraded when slower tha
 
 ### Bypassing caches
 
-> [!WARNING]
-> **Not released yet.** **Bypass caches** is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 A CDN or reverse proxy in front of the endpoint may answer a `GET` from its cache, so the check passes while the backend is down. With **Bypass caches** on
 (`cacheBuster: true` in the monitor's `config`), every check adds a query parameter named `bsp_cachebuster` with a new random value (16 hexadecimal characters)
 to the URL of the request, so a cache that keys on the URL has no stored answer for it. The name is fixed, which lets you recognise
@@ -199,9 +193,6 @@ where a monitor has to read a metadata service, set `MONITOR_ALLOW_METADATA=true
 database monitors are not affected: they connect to the host you name and show nothing of what it answers.
 
 ### Outbound proxy
-
-> [!WARNING]
-> **Not released yet.** This is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 HTTPS monitor checks and the **Test** button go through a proxy when the server is started with the standard
 `HTTP_PROXY` and `HTTPS_PROXY` environment variables (`http://proxy.example:3128`, optionally with
@@ -404,9 +395,6 @@ A container stuck in a crash loop alternates between restarting (**Degraded**) a
 
 ## SQL Server, PostgreSQL, MySQL / MariaDB, MongoDB and Oracle
 
-> [!WARNING]
-> **Not released yet.** The Oracle engine is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 In the monitor form these are one **Database** type: pick the **Engine** inside it. Switching the engine keeps what you typed and changes the port only while it still holds the previous default. The engines share one check; only the driver, the default port and the test query differ.
 
 | Type | Default port | Notes |
@@ -479,9 +467,6 @@ PATCH /api/v1/admin/monitors/:id
 
 ## Redis
 
-> [!WARNING]
-> **Not released yet.** The Redis monitor is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 Connects to a Redis server (or a compatible one such as Valkey or KeyDB), signs in when a password is set and sends `PING`. It reads and writes no data.
 
 | Field | Default | What it does |
@@ -505,9 +490,6 @@ example `WRONGPASS invalid username-password pair` or `NOAUTH Authentication req
 ---
 
 ## Mail server
-
-> [!WARNING]
-> **Not released yet.** The mail server monitor is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 Checks an SMTP, IMAP or POP3 server. Without an account it proves the server answers with its greeting; with one it
 also proves that signing in works. No mail is sent, listed or read.
@@ -549,9 +531,6 @@ reply. It is never **Degraded**.
 
 ## SSH
 
-> [!WARNING]
-> **Not released yet.** The SSH monitor is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 Connects to an SSH port and reads the identification string the server sends first, for example `SSH-2.0-OpenSSH_9.6`.
 No login is attempted, so no key or password is needed and nothing shows up in the server's authentication log.
 
@@ -567,9 +546,6 @@ a dropped handshake on every check. A service that does not send an `SSH-` line 
 ---
 
 ## TLS certificate
-
-> [!WARNING]
-> **Not released yet.** The TLS certificate monitor is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 Connects to any service that speaks TLS from the first byte (HTTPS, IMAPS, SMTPS, LDAPS, a database with TLS) and judges the certificate it presents.
 Unlike the [certificate warnings of an HTTPS monitor](#tls-certificate-expiry-warnings), which send notifications and leave the status alone, this monitor
@@ -596,9 +572,6 @@ with STARTTLS are not covered here; the [mail server monitor](#mail-server) veri
 ---
 
 ## Domain expiry
-
-> [!WARNING]
-> **Not released yet.** The domain expiry monitor is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 Looks up when the registration of a domain ends and turns **Degraded** before it does, so a forgotten renewal does not take the site down.
 
@@ -809,9 +782,6 @@ Certificate notifications add these [template variables](notification-channels.m
 ---
 
 ## Slower-than-usual alert
-
-> [!WARNING]
-> **Not released yet.** The slower-than-usual alert is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
 
 *Admin → Monitors → edit a monitor → **Latency** tab*
 
