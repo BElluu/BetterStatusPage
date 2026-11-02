@@ -1,7 +1,7 @@
 import { createNotifyEngine, createTransports } from '@better-forge/notify'
 import { DEFAULT_EMAIL_BODY, DEFAULT_EMAIL_SUBJECT } from '@bsp/shared'
 import { db } from '../db/client.js'
-import { guardedFetch } from '../services/ssrfGuard.js'
+import { guardedFetch, serviceFetch } from '../services/ssrfGuard.js'
 import { notifyModule } from '../db/modules/notify/index.js'
 import { digestOf, noticeFromVars } from '../workers/notice.js'
 import { resolveVaultSecret } from './resolveSecret.js'
@@ -27,6 +27,8 @@ export const transports = createTransports({
   discordAvatarUrl: DISCORD_AVATAR_URL,
   // A channel connects to an address its owner typed in, so it gets the same refusal of metadata addresses as a monitor.
   fetch: guardedFetch,
+  // Telegram, Pushover, Twilio and ntfy.sh are fixed hosts; they leave through the outbound proxy as well.
+  serviceFetch,
   standardEmail: { subject: DEFAULT_EMAIL_SUBJECT, body: DEFAULT_EMAIL_BODY },
   // What a channel's own message fields say is about monitors. An action has its own wording (the Action tab of the
   // channel form), and without it a webhook gets this, while the other channels use their standard message.

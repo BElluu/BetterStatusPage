@@ -5,6 +5,10 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+### Added
+
+- **Notifications and other HTTP requests through the outbound proxy**: notification channels (webhook, Discord, Teams, Slack, Telegram, ntfy, Pushover, Twilio), subscriber webhooks, HTTP requests of actions and the domain expiry lookup now honour `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` like HTTPS checks do. Email (SMTP) is not sent through the proxy. See [Monitors](monitors.md#outbound-proxy).
+
 ## [0.8.0] - 2026-10-31
 
 ### Added

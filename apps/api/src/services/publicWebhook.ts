@@ -1,6 +1,6 @@
 import { lookup as dnsLookup, type LookupAddress } from 'node:dns'
 import { BlockList, isIP, type LookupFunction } from 'node:net'
-import { Agent, fetch as httpFetch } from 'undici'
+import { EnvHttpProxyAgent, fetch as httpFetch } from 'undici'
 
 /**
  * Subscriber webhooks are URLs typed in by anonymous visitors, so the server must not become a
@@ -43,8 +43,19 @@ const guardedLookup: LookupFunction = (hostname, options, callback): void => {
   })
 }
 
-const guardedAgent = new Agent({ connect: { lookup: guardedLookup } })
-const openAgent = new Agent()
+// Both honour HTTP_PROXY, HTTPS_PROXY and NO_PROXY. Through a proxy the name is resolved by the proxy and the lookup guard
+// never runs, so postSubscriberWebhook resolves the name itself first.
+const guardedAgent = new EnvHttpProxyAgent({ connect: { lookup: guardedLookup }, proxyTunnel: false })
+const openAgent = new EnvHttpProxyAgent({ proxyTunnel: false })
+
+const PROXY_VARIABLES = ['http_proxy', 'HTTP_PROXY', 'https_proxy', 'HTTPS_PROXY']
+
+/** Rejects when the name resolves to a non-public address. Meant for the requests a proxy will resolve itself. */
+function assertResolvesPublic(host: string): Promise<void> {
+  return new Promise((done, fail) => {
+    guardedLookup(host.replace(/^[|]$/g, ''), { all: true }, ((error: Error | null) => (error ? fail(error) : done())) as Parameters<LookupFunction>[2])
+  })
+}
 
 /** Syntactic check used when a visitor submits a URL. Returns an error message or null. */
 export function validateWebhookUrl(raw: string): string | null {
@@ -72,6 +83,8 @@ export async function postSubscriberWebhook(
 ): Promise<void> {
   const problem = validateWebhookUrl(url)
   if (problem) throw new Error(problem)
+  // The proxy resolves the name, so the private-address guard has to be applied here (the name is resolved again by the proxy).
+  if (!privateWebhookTargetsAllowed() && PROXY_VARIABLES.some((name) => process.env[name])) await assertResolvesPublic(new URL(url).hostname)
   const res = await httpFetch(url, {
     method,
     // Caller-supplied headers go first so the ones the payload contract depends on always win.
