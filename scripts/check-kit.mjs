@@ -20,17 +20,19 @@ for (const file of ['package.json', 'apps/api/package.json', 'apps/admin/package
   }
 }
 
-const versions = new Set()
+const versions = new Map()
 for (const [key, entry] of Object.entries(read('package-lock.json').packages)) {
   const name = key.slice(key.lastIndexOf('node_modules/') + 'node_modules/'.length)
   if (!key.includes('node_modules/') || !name.startsWith(SCOPE)) continue
-  versions.add(entry.version)
+  versions.set(name, new Set([...(versions.get(name) ?? []), entry.version]))
   if (!entry.resolved?.startsWith('https://registry.npmjs.org/')) problems.push(`package-lock.json: ${name} is not resolved from the npm registry`)
 }
-if (versions.size > 1) problems.push(`package-lock.json holds several versions of the shared modules: ${[...versions].join(', ')}`)
+for (const [name, found] of versions) {
+  if (found.size > 1) problems.push(`package-lock.json holds several versions of ${name}: ${[...found].join(', ')}`)
+}
 
 if (problems.length > 0) {
   console.error(problems.join('\n'))
   process.exit(1)
 }
-console.log(`@better-forge/* at ${[...versions].join(', ') || 'no version'}`)
+console.log(`@better-forge/*: ${[...versions].map(([name, found]) => `${name.slice(SCOPE.length)} ${[...found].join(', ')}`).join('; ') || 'none'}`)

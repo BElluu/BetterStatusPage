@@ -133,7 +133,43 @@ export function unwrapRefusal(error: unknown): unknown {
   return cause instanceof Error && (cause as { code?: unknown }).code === 'EBLOCKED' ? cause : error
 }
 
-/** A one-off request to an address someone typed in, without a connection pool of its own. */
-// undici's fetch is the platform's fetch with a dispatcher; its types are the same shape, not the same declarations.
-export const guardedFetch: typeof fetch = (url, init) =>
-  undiciFetch(url as Parameters<typeof undiciFetch>[0], { ...init, dispatcher: guardedAgent } as Parameters<typeof undiciFetch>[1]) as unknown as Promise<Response>
+/**
+ * A one-off request to an address someone typed in, or to the fixed host of a service. Goes through the
+ * outbound proxy like an HTTP check; the connection pool is shared by all such requests.
+ */
+export const guardedFetch = followRedirects(proxiedFetch(proxyAwareAgent())) as unknown as typeof fetch
+
+const MAX_REDIRECTS = 10
+
+/**
+ * Through a proxy the connector never sees the target, so a redirect has to be checked before it is requested: the
+ * redirects are followed here, each target passing through `send` (which checks it). `redirect: 'manual'` and `'error'` are left alone.
+ */
+function followRedirects(send: (url: string, init: RequestInit) => Promise<Response>): (url: string, init?: RequestInit) => Promise<Response> {
+  return async (url, init = {}) => {
+    if (init.redirect === 'manual' || init.redirect === 'error') return send(url, init)
+    let current = url
+    let next: RequestInit = { ...init, redirect: 'manual' }
+    for (let hop = 0; ; hop++) {
+      const res = await send(current, next)
+      const location = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null
+      if (!location) return res
+      if (hop >= MAX_REDIRECTS) throw new Error('Too many redirects')
+      await res.body?.cancel().catch(() => undefined)
+      current = new URL(location, current).href
+      // As fetch does: 303, and 301 or 302 after a POST, continue as a GET without a body.
+      const method = (next.method ?? 'GET').toUpperCase()
+      if (res.status === 303 || ((res.status === 301 || res.status === 302) && method === 'POST')) {
+        const { body: _body, ...rest } = next
+        next = { ...rest, method: 'GET' }
+      }
+    }
+  }
+}
+
+/**
+ * Requests to the fixed hosts of a service (Telegram, Pushover, Twilio, ntfy.sh). They are not an address someone typed in,
+ * so without an outbound proxy configured they use the platform's fetch as before.
+ */
+export const serviceFetch: typeof fetch = (url, init) =>
+  PROXY_VARIABLES.some((name) => process.env[name]) ? guardedFetch(url, init) : fetch(url, init)

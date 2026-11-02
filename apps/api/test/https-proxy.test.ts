@@ -167,4 +167,37 @@ describe('HTTP checks through an outbound proxy', () => {
     assert.equal(result.status, 'up', result.error ?? '')
     assert.deepEqual(viaHttp.requests, [metadata])
   })
+
+  it('sends notification channels and subscriber webhooks through the proxy', async () => {
+    const { transports } = await import('../src/kit/notify.js')
+    const { postSubscriberWebhook } = await import('../src/services/publicWebhook.js')
+    process.env['SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE'] = 'true'
+    try {
+      const notice = { severity: 'critical' as const, headline: [], subtitle: [], facts: [], at: '2026-01-01T00:00:00Z', atLabel: 'At' }
+      await transports.deliver({ type: 'slack', config: JSON.stringify({ webhookUrl: `${targetUrl}slack` }) }, {}, notice)
+      await postSubscriberWebhook(`${targetUrl}subscriber`, '{}', {})
+    } finally {
+      delete process.env['SUBSCRIBER_WEBHOOK_ALLOW_PRIVATE']
+    }
+    assert.deepEqual(viaHttp.requests, [`${targetUrl}slack`, `${targetUrl}subscriber`])
+  })
+
+  it('sends the fixed hosts of Telegram, Pushover and ntfy through the proxy', async () => {
+    const { serviceFetch } = await import('../src/services/ssrfGuard.js')
+    const res = await serviceFetch('http://api.telegram.test/bot1/sendMessage', { method: 'POST' })
+    assert.equal(res.status, 200)
+    assert.deepEqual(viaHttp.requests, ['http://api.telegram.test/bot1/sendMessage'])
+  })
+
+  it('checks the target of a redirect before a channel request follows it through the proxy', async () => {
+    const { guardedFetch } = await import('../src/services/ssrfGuard.js')
+    await assert.rejects(guardedFetch(redirectUrl, { method: 'POST', body: '{}' }), /Refusing to connect/)
+    assert.deepEqual(viaHttp.requests, [redirectUrl])
+  })
+
+  it('refuses a subscriber webhook whose name resolves to a private address, since the proxy would resolve it', async () => {
+    const { postSubscriberWebhook } = await import('../src/services/publicWebhook.js')
+    await assert.rejects(postSubscriberWebhook('https://localhost.:9/hook', '{}', {}), /non-public address/)
+    assert.deepEqual(viaHttps.tunnels, [])
+  })
 })

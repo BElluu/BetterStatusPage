@@ -99,7 +99,7 @@ describe('monitors cannot read the metadata service', () => {
 
   it('refuses it when reading a certificate and in a one-off request', async () => {
     await assert.rejects(readCertificate(`https://${METADATA}/`, 2_000), /Refusing to connect/)
-    await assert.rejects(guardedFetch(metadata), (error: Error) => (error.cause as { code?: string } | undefined)?.code === 'EBLOCKED')
+    await assert.rejects(guardedFetch(metadata), (error: Error) => (error as { code?: string }).code === 'EBLOCKED')
   })
 
   it('still reaches a service on a private address', async () => {
