@@ -205,9 +205,6 @@ and `*` as the whole value turns the proxy off. `HTTP_PROXY` and `HTTPS_PROXY` a
 restart; `NO_PROXY` is read at every request. When the proxy refuses a request or cannot be reached, the check and the test
 show the reason (for example `Proxy response (407) !== 200 when HTTP Tunneling`) instead of a bare `fetch failed`.
 
-> [!WARNING]
-> **Not released yet.** Notification channels, subscriber webhooks, action requests and the domain expiry lookup going through the proxy are only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 The same variables apply to the other HTTP requests the server makes: notification channels (webhook, Discord, Teams, Slack, Telegram, ntfy, Pushover and the Twilio API), subscriber webhooks, HTTP requests of [actions](actions.md) and the RDAP lookup of a domain expiry monitor.
 
 Redirects of these requests are followed by the server itself, and each target is checked like the first. Before a subscriber webhook goes to the proxy, the server resolves its name and refuses a private address (the proxy resolves it again, so a proxy that can reach internal networks should still block them).
