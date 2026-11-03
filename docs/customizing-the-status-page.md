@@ -18,21 +18,33 @@ All three are open to the `admin`, `operator` and `branding` roles. See [Who can
 
 The left side is the **Toolbox**, the right side is the canvas. Drag an item from the toolbox onto the canvas, or press its **+** button to add it below everything else on the page.
 
+> [!WARNING]
+> **Not released yet.** The tabbed toolbox is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+The left panel has two tabs, **Add** and **Properties**. **Add** shows the blocks (group, text, divider, incidents, maintenance) as tiles that stay in place, and under them the list of monitors, which is the only part that scrolls. In the list you can:
+
+- search by monitor name or type,
+- narrow it to one type with the chips (each shows how many monitors it has),
+- switch between **By type** (collapsible groups) and a plain **List**,
+- tick **Hide added** to see only the monitors that are not on the page yet.
+
+A monitor that already has a card on the page shows a check mark instead of **+**, and the bar at the bottom counts how many monitors are on the page. A monitor is still added again if you press its check mark.
+
 The canvas is a grid three columns wide. Move a block by its handle (⠿) and resize it horizontally by its right edge, from one to three columns. Heights are fixed: monitors, charts, dividers and the incident feed always take one row, a group grows with the number of items in it, and a text block grows with its content.
 
-Click a block to select it. Its settings appear under **Properties** in the left panel.
+Click a block to select it. The left panel switches to **Properties** with its settings; closing them, or deleting the block, brings back **Add**.
 
 ### Blocks
 
 | Toolbox item | What it shows on the page | Properties |
 | --- | --- | --- |
-| **New group** | A titled card that holds monitors and text blocks | **Group name**, **Collapsible**, **Add monitor to group** |
+| **New group** | A titled card that holds monitors, charts and text blocks | **Group name**, **Collapsible**, **Add monitor to group** |
 | **Monitors** (one entry per monitor) | A status card for that monitor | **Monitor**, **Display name (optional)**, **Card type**, **Uptime bar**, **Uptime bar position**, **Show uptime %**, **Show monitor type** |
 | **Text** | A Markdown block | **Name** (only shown in the builder), **Text (Markdown)** |
 | **Divider** | A horizontal line | None |
 | **Incidents** | Incident cards | **Incident limit** (1–20, default 5), **Filter**: all, active only or resolved only |
 | **Maintenance** | Maintenance window cards: name, time span, description and affected services | **Maintenance limit** (1–20, default 5), **Filter**: all, in progress only, upcoming only or past only |
-| **Charts** (one entry per monitor) | A response-time chart for that monitor | See below |
+| **Chart** button on a monitor (only on monitors that have a response time) | A response-time chart for that monitor | See below |
 
 **Monitor cards.** **Display name (optional)** is the name visitors see on the card and in the incidents that list the monitor, instead of the monitor's own name; leave it empty to use the monitor name. With several cards for one monitor, the first one that has a display name sets the name in the incidents. The title and text of an incident are written by you and are not changed. **Card type** is **Full** (default) or **Compact**. A full card has a 30-day uptime bar that you can switch off or place to the **Right** of the name (default) or **Below** it. With the bar below, **Show uptime %** adds the uptime percentage. A compact card is a single row without the uptime bar. **Show monitor type** adds the monitor type to either kind.
 
@@ -49,10 +61,10 @@ Click a block to select it. Its settings appear under **Properties** in the left
 
 ### Groups
 
-A group holds monitors and text blocks only. To fill a group:
+A group holds monitors, charts and text blocks only. To fill a group:
 
-- drag a monitor or a **Text** item from the toolbox onto the group,
-- drag a monitor or text block that is already on the canvas onto the group, or
+- drag a monitor, a chart (the chart button of a monitor) or a **Text** item from the toolbox onto the group,
+- drag a monitor, chart or text block that is already on the canvas onto the group, or
 - select the group and pick monitors under **Add monitor to group**.
 
 Inside a group, drag items by their handle to reorder them. Drag an item out of the group and drop it on the canvas to ungroup it. The **×** next to an item removes it from the group.

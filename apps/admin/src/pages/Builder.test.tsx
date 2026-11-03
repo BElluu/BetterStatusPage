@@ -85,7 +85,8 @@ describe('BuilderPage', () => {
     expect(await screen.findByText('Unsaved')).toBeInTheDocument()
     expect(findGroupChildren()).toEqual(['gm1', 'gt1'])
     // Only monitors that report response times are offered as charts.
-    expect(screen.getByText('Charts').parentElement).not.toHaveTextContent('Deploy hook')
+    expect(screen.getByRole('button', { name: 'Add chart for Checkout API to the page' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add chart for Deploy hook to the page' })).not.toBeInTheDocument()
   })
 
   it('saves the edited layout', async () => {
@@ -142,8 +143,9 @@ describe('BuilderPage', () => {
     const card = screen.getByRole('button', { name: 'Incidents', pressed: false })
     card.focus()
     await user.keyboard('{Enter}')
-    expect(screen.getByText('Properties')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Properties/ })).toHaveAttribute('aria-selected', 'true')
     expect(card).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('tab', { name: 'Add' }))
 
     const before = useBuilderStore.getState().tree.children.length
     await user.click(screen.getByRole('button', { name: 'Add Divider to the page' }))
@@ -156,6 +158,34 @@ describe('BuilderPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add monitor Deploy hook to the page' }))
     expect(useBuilderStore.getState().tree.children.at(-1)).toMatchObject({ type: 'monitor', monitorId: 2 })
+  })
+
+  it('searches, filters and groups the monitors in the toolbox', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Core services')
+    const add = (name: string) => screen.queryByRole('button', { name: `Add monitor ${name} to the page` })
+
+    expect(screen.getByText('1 of 2 monitors on the page')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /^https/, pressed: false }))
+    expect(add('Checkout API')).toBeInTheDocument()
+    expect(add('Deploy hook')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /^All/, pressed: false }))
+
+    // A type group collapses and expands from its header.
+    await user.click(screen.getByRole('button', { name: /^webhook/, expanded: true }))
+    expect(add('Deploy hook')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /^webhook/, expanded: false }))
+    expect(add('Deploy hook')).toBeInTheDocument()
+
+    await user.click(screen.getByLabelText('Hide added'))
+    expect(add('Checkout API')).not.toBeInTheDocument()
+    await user.click(screen.getByLabelText('Hide added'))
+
+    await user.type(screen.getByLabelText('Search monitors'), 'nothing like it')
+    expect(screen.getByText('No monitors match.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(add('Checkout API')).toBeInTheDocument()
   })
 
   it('asks before deleting a group that still has items', async () => {
@@ -179,7 +209,7 @@ describe('BuilderPage', () => {
     await screen.findByText('Core services')
 
     await user.click(screen.getAllByText('Checkout API').find((el) => el.closest('.react-grid-item') && !el.closest('.rounded-xl'))!)
-    expect(screen.getByText('Properties')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Properties/ })).toHaveAttribute('aria-selected', 'true')
     await user.selectOptions(screen.getByDisplayValue('Right'), 'below')
     await user.click(screen.getByLabelText('Show uptime %'))
     await user.click(screen.getByRole('button', { name: 'Compact' }))
@@ -187,8 +217,9 @@ describe('BuilderPage', () => {
     const node = useBuilderStore.getState().tree.children.find((n) => n.id === 'm1')
     expect(node).toMatchObject({ cardVariant: 'compact', uptimeBarPosition: 'below', showUptimePct: true })
     expect(screen.getByText('compact')).toBeInTheDocument()
-    await user.click(screen.getByText('Properties').nextElementSibling as HTMLElement)
-    expect(screen.queryByText('Properties')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Close properties' }))
+    expect(screen.getByRole('tab', { name: 'Add' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('button', { name: 'Close properties' })).not.toBeInTheDocument()
   })
 
   it('edits chart, text, incidents and group properties', async () => {
@@ -217,7 +248,7 @@ describe('BuilderPage', () => {
     expect(useBuilderStore.getState().tree.children.find((n) => n.id === 'i1')).toMatchObject({ limit: 20 })
 
     await user.click(screen.getByText('Core services'))
-    const properties = screen.getByText('Properties').closest('div')!.parentElement!
+    const properties = screen.getByRole('tabpanel')
     await user.click(within(properties).getByRole('button', { name: /Deploy hook/ }))
     expect(findGroupChildren()).toHaveLength(3)
   })
@@ -227,7 +258,7 @@ describe('BuilderPage', () => {
     renderPage()
     await screen.findByText('Core services')
 
-    // Adding a child remounts the grid, so the drop zone is looked up again for every drop.
+    // Adding a child re-renders the group, so the drop zone is looked up again for every drop.
     const dropZone = () => screen.getByText(/^(Drag monitor from toolbox · drag out to ungroup|Drop here)$/).parentElement!
     fireEvent.dragOver(dropZone(), { dataTransfer: dataTransfer({}) })
     expect(screen.getByText('Drop here')).toBeInTheDocument()
@@ -235,6 +266,10 @@ describe('BuilderPage', () => {
     expect(findGroupChildren()).toHaveLength(3)
     fireEvent.drop(dropZone(), { dataTransfer: dataTransfer({ nodeType: 'text' }) })
     expect(findGroupChildren()).toHaveLength(4)
+    fireEvent.drop(dropZone(), { dataTransfer: dataTransfer({ nodeType: 'chart', monitorId: '1' }) })
+    expect(findGroupChildren()).toHaveLength(5)
+    const group = useBuilderStore.getState().tree.children.find((n) => n.id === 'g1')
+    expect(group && 'children' in group && group.children.at(-1)).toMatchObject({ type: 'chart', monitorId: 1 })
 
     const before = useBuilderStore.getState().tree.children.length
     await user.click(screen.getAllByTitle('Delete')[1]!)

@@ -725,6 +725,14 @@ function GroupBlock({ groupNode, monitors, statusMap, activeIncidents, maintenan
               )
             }
 
+            if (child.type === 'chart') {
+              return (
+                <div key={child.id} style={{ ...borderStyle, padding: '12px 16px' }}>
+                  <ChartBlock node={child as ChartNode} monitors={monitors} />
+                </div>
+              )
+            }
+
             if (child.type === 'text') {
               return (
                 <div

@@ -18,6 +18,7 @@ import {
   useBuilderStore, createMonitorNode, createGroupNode, createTextNode, createIncidentsNode, createMaintenanceNode,
   createChartNode, defaultGrid, findNode, canJoinGroup,
 } from '../components/builder/useBuilderStore'
+import { Toolbox, CHART_TYPES } from '../components/builder/Toolbox'
 import type {
   Monitor, LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode, IncidentsNode, MaintenanceNode, ChartNode, GridPos,
 } from '@bsp/shared'
@@ -80,8 +81,6 @@ function calcTextH(markdown: string): number {
   const estimatedPx = lines * 22 + 28   // ~22px per line + padding
   return Math.max(1, Math.ceil(estimatedPx / ROW_H))
 }
-
-const CHART_TYPES = ['https', 'ping', 'sqlserver', 'postgresql', 'mysql', 'mongodb', 'oracle', 'redis', 'mail', 'ssh', 'tls', 'docker']
 
 /** A new root node of the given toolbox type, or null when the type needs a monitor that was not given. */
 function createToolboxNode(type: string, options: { monitorId?: number; label?: string } = {}): Omit<LayoutNode, 'id'> | null {
@@ -249,16 +248,6 @@ export default function BuilderPage() {
     return (maxBottom + 4) * (ROW_H + 10)
   }, [rglLayout])
 
-  // Force RGL remount when items are added/removed or group child counts change
-  const rglKey = useMemo(() =>
-    tree.children.length + '|' +
-    tree.children
-      .filter((n) => n.type === 'group')
-      .map((n) => `${n.id}:${(n as GroupNode).children.length}`)
-      .join('|'),
-    [tree.children],
-  )
-
   function handleLayoutChange(newLayout: Layout) {
     applyGridLayout(newLayout.map(({ i, x, y, w, h }) => ({ i, x, y, w, h })))
   }
@@ -292,6 +281,25 @@ export default function BuilderPage() {
   }
 
   const selectedNode = selectedId ? findNode(tree.children, selectedId) : null
+
+  // Selecting an element on the canvas opens its properties; deselecting (or deleting it) returns to the toolbox.
+  const [sideTab, setSideTab] = useState<'add' | 'properties'>('add')
+  useEffect(() => { setSideTab(selectedId ? 'properties' : 'add') }, [selectedId])
+
+  // Monitors that already have a card or a chart on the page, groups included.
+  const { usedMonitorIds, chartMonitorIds } = useMemo(() => {
+    const used = new Set<number>()
+    const charted = new Set<number>()
+    const walk = (nodes: LayoutNode[]) => {
+      for (const n of nodes) {
+        if (n.type === 'monitor') used.add((n as MonitorNode).monitorId)
+        else if (n.type === 'chart') charted.add((n as ChartNode).monitorId)
+        else if (n.type === 'group') walk((n as GroupNode).children)
+      }
+    }
+    walk(tree.children)
+    return { usedMonitorIds: used, chartMonitorIds: charted }
+  }, [tree.children])
 
   // @dnd-kit sensors for within-group reordering
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
@@ -371,127 +379,57 @@ export default function BuilderPage() {
 
   return (
     <div className="flex h-full overflow-hidden"  style={{ '--rgl-placeholder-bg': 'color-mix(in srgb, var(--m3-primary) 15%, transparent)' } as React.CSSProperties}>
-      {/* ── Toolbox + Properties ── */}
-      <aside className="w-56 flex flex-col shrink-0 overflow-y-auto" style={{ background: "var(--m3-surface-container-low)", borderRight: "1px solid var(--m3-outline-variant)" }}>
-        <div className="p-3" style={{ borderBottom: "1px solid var(--m3-outline-variant)" }}>
-          <h2 className="text-xs font-semibold" style={{ color: 'var(--m3-on-surface)' }}>Toolbox</h2>
-          <p className="text-[10px] mt-0.5" style={{ color: 'var(--m3-secondary)' }}>Drag onto canvas or press + to add</p>
-        </div>
-
-        <div className="p-3 space-y-4">
-          {/* Groups */}
-          <section>
-            <p className="text-[10px] uppercase tracking-wider text-secondary mb-1.5">Groups</p>
-            <ToolboxItem
-              label="New group"
-              onAdd={() => handleToolboxAdd('group')}
-              onDragStart={(e) => {
-                handleToolboxDragStart('group', { label: 'New group' })
-                e.dataTransfer.setData('nodeType', 'group')
-                e.dataTransfer.setData('label', 'New group')
-                e.dataTransfer.effectAllowed = 'copy'
-              }}
+      {/* ── Toolbox / Properties ── */}
+      <aside className="w-72 flex flex-col shrink-0 overflow-hidden" style={{ background: "var(--m3-surface-container-low)", borderRight: "1px solid var(--m3-outline-variant)" }}>
+        <div className="flex shrink-0 border-b border-outline-variant" role="tablist">
+          {([['add', 'Add'], ['properties', 'Properties']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              id={`builder-tab-${key}`}
+              aria-selected={sideTab === key}
+              aria-controls={`builder-pane-${key}`}
+              onClick={() => setSideTab(key)}
+              className={`flex-1 py-2.5 text-xs font-semibold -mb-px border-b-2 ${sideTab === key ? 'text-on-surface border-primary' : 'text-secondary border-transparent'}`}
             >
-              <span className="text-secondary" aria-hidden="true">◧</span>
-              <span className="truncate">New group</span>
-            </ToolboxItem>
-          </section>
-
-          {/* Monitors */}
-          <section>
-            <p className="text-[10px] uppercase tracking-wider text-secondary mb-1.5">Monitors</p>
-            <div className="space-y-1">
-              {monitors.map((m) => (
-                <ToolboxItem
-                  key={m.id}
-                  label={`monitor ${m.name}`}
-                  onAdd={() => handleToolboxAdd('monitor', m.id)}
-                  onDragStart={(e) => {
-                    handleToolboxDragStart('monitor')
-                    e.dataTransfer.setData('nodeType', 'monitor')
-                    e.dataTransfer.setData('monitorId', String(m.id))
-                    e.dataTransfer.effectAllowed = 'copy'
-                  }}
-                >
-                  <span className="text-[9px] uppercase bg-surface-container-high text-secondary px-1 rounded shrink-0">{m.type}</span>
-                  <span className="truncate">{m.name}</span>
-                </ToolboxItem>
-              ))}
-              {monitorsQuery.isPending && <p className="text-xs text-secondary">Loading monitors…</p>}
-              {monitorsQuery.isError && <p className="text-xs" style={{ color: 'var(--m3-down)' }}>Couldn't load monitors</p>}
-              {monitorsQuery.isSuccess && monitors.length === 0 && <p className="text-xs text-secondary">No monitors</p>}
-            </div>
-          </section>
-
-          {/* Blocks */}
-          <section>
-            <p className="text-[10px] uppercase tracking-wider text-secondary mb-1.5">Blocks</p>
-            <div className="space-y-1">
-              {[
-                { type: 'text',      label: 'Text',      icon: 'T'  },
-                { type: 'divider',   label: 'Divider',   icon: '—'  },
-                { type: 'incidents', label: 'Incidents', icon: '⚠'  },
-                { type: 'maintenance', label: 'Maintenance', icon: '🛠' },
-              ].map(({ type, label, icon }) => (
-                <ToolboxItem
-                  key={type}
-                  label={label}
-                  onAdd={() => handleToolboxAdd(type)}
-                  onDragStart={(e) => {
-                    handleToolboxDragStart(type)
-                    e.dataTransfer.setData('nodeType', type)
-                    e.dataTransfer.effectAllowed = 'copy'
-                  }}
-                >
-                  <span className="text-secondary font-mono text-xs" aria-hidden="true">{icon}</span>
-                  {label}
-                </ToolboxItem>
-              ))}
-            </div>
-          </section>
-
-          {/* Charts */}
-          {monitors.some((m) => CHART_TYPES.includes(m.type)) && (
-            <section>
-              <p className="text-[10px] uppercase tracking-wider text-secondary mb-1.5">Charts</p>
-              <div className="space-y-1">
-                {monitors.filter((m) => CHART_TYPES.includes(m.type)).map((m) => (
-                  <ToolboxItem
-                    key={m.id}
-                    label={`chart for ${m.name}`}
-                    onAdd={() => handleToolboxAdd('chart', m.id)}
-                    onDragStart={(e) => {
-                      handleToolboxDragStart('chart')
-                      e.dataTransfer.setData('nodeType', 'chart')
-                      e.dataTransfer.setData('monitorId', String(m.id))
-                      e.dataTransfer.effectAllowed = 'copy'
-                    }}
-                  >
-                    <span className="text-secondary font-mono text-xs" aria-hidden="true">↗</span>
-                    <span className="text-[9px] uppercase bg-surface-container-high text-secondary px-1 rounded shrink-0">{m.type}</span>
-                    <span className="truncate">{m.name}</span>
-                  </ToolboxItem>
-                ))}
-              </div>
-            </section>
-          )}
+              {label}
+              {key === 'properties' && selectedNode && sideTab !== key && <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary ml-1.5 align-middle" aria-label="Element selected" />}
+            </button>
+          ))}
         </div>
 
-        {/* ── Properties (below toolbox, when element selected) ── */}
-        {selectedNode && (
-          <div className="flex flex-col" style={{ borderTop: '1px solid var(--m3-outline-variant)' }}>
-            <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-              <p className="text-[10px] uppercase tracking-wider text-secondary font-semibold">Properties</p>
-              <button type="button" onClick={() => selectNode(null)} aria-label="Close properties" title="Close properties" className="btn-icon w-6 h-6 text-base leading-none">×</button>
-            </div>
-            <div className="p-3">
-              <PropertiesPanel
-                node={selectedNode}
-                monitors={monitors}
-                onUpdate={(patch) => updateNode(selectedNode.id, patch)}
-                onAddChild={(n) => addNode(selectedNode.id, n)}
-              />
-            </div>
+        {sideTab === 'add' ? (
+          <div role="tabpanel" id="builder-pane-add" aria-labelledby="builder-tab-add" className="flex flex-col flex-1 min-h-0">
+            <Toolbox
+              monitors={monitors}
+              status={monitorsQuery.status}
+              usedMonitorIds={usedMonitorIds}
+              chartMonitorIds={chartMonitorIds}
+              onAdd={handleToolboxAdd}
+              onDragStart={handleToolboxDragStart}
+            />
+          </div>
+        ) : (
+          <div role="tabpanel" id="builder-pane-properties" aria-labelledby="builder-tab-properties" className="flex-1 min-h-0 overflow-y-auto">
+            {selectedNode ? (
+              <>
+                <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
+                  <p className="text-xs font-semibold text-on-surface truncate">{nodeLabel(selectedNode, monitors)}</p>
+                  <button type="button" onClick={() => selectNode(null)} aria-label="Close properties" title="Close properties" className="btn-icon w-6 h-6 text-base leading-none">×</button>
+                </div>
+                <div className="p-3">
+                  <PropertiesPanel
+                    node={selectedNode}
+                    monitors={monitors}
+                    onUpdate={(patch) => updateNode(selectedNode.id, patch)}
+                    onAddChild={(n) => addNode(selectedNode.id, n)}
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="p-4 text-xs text-secondary">Select an element on the page to change its settings.</p>
+            )}
           </div>
         )}
       </aside>
@@ -551,7 +489,6 @@ export default function BuilderPage() {
                 ))}
               </div>
             <RGL
-              key={rglKey}
               layout={rglLayout}
               cols={COLS}
               rowHeight={ROW_H}
@@ -610,29 +547,6 @@ export default function BuilderPage() {
           onCancel={() => setConfirmDeleteGroup(null)}
         />
       )}
-    </div>
-  )
-}
-
-// ── Toolbox entry: draggable onto the canvas, or added at the bottom with its + button ──
-function ToolboxItem({ label, onAdd, onDragStart, children }: {
-  label: string
-  onAdd: () => void
-  onDragStart: (e: React.DragEvent) => void
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex items-center rounded bg-surface-container hover:bg-surface-container-high">
-      <div
-        draggable
-        onDragStart={onDragStart}
-        className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-sm text-on-surface-variant cursor-grab active:cursor-grabbing select-none"
-      >
-        {children}
-      </div>
-      <button type="button" onClick={onAdd} aria-label={`Add ${label} to the page`} title="Add to page" className="btn-icon w-7 h-7 mr-0.5">
-        <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px' }}>add</span>
-      </button>
     </div>
   )
 }
@@ -786,7 +700,7 @@ function NodeCard(props: NodeCardProps) {
       <div className={`relative h-full flex items-center gap-2 px-3 rounded-lg bg-surface-container-low focus-ring ${ring}`} {...card}>
         <DeleteBtn onDelete={onDelete} label={label} />
         <span className="drag-handle cursor-grab text-secondary hover:text-on-surface-variant shrink-0" aria-hidden="true">⠿</span>
-        <span className="text-secondary font-mono text-xs shrink-0" aria-hidden="true">↗</span>
+        <span className="material-symbols-outlined text-secondary shrink-0" aria-hidden="true" style={{ fontSize: '18px' }}>show_chart</span>
         <span className="flex-1 text-sm text-on-surface truncate pr-5">{monitor?.name ?? `#${n.monitorId}`}</span>
         <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 py-0.5 rounded shrink-0">{sizeLabel}</span>
         <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 py-0.5 rounded shrink-0">{n.aggregation}</span>
@@ -867,6 +781,9 @@ function GroupCard({
     if (type === 'monitor') {
       const monitorId = Number(e.dataTransfer.getData('monitorId'))
       if (monitorId) onAddChild(createMonitorNode(monitorId))
+    } else if (type === 'chart') {
+      const monitorId = Number(e.dataTransfer.getData('monitorId'))
+      if (monitorId) onAddChild(createChartNode(monitorId))
     } else if (type === 'text') {
       onAddChild(createTextNode())
     }
@@ -982,6 +899,11 @@ function SortableGroupItem({
         <>
           <span className="text-[9px] uppercase bg-surface-container-high text-secondary px-1 rounded">{monitor.type}</span>
           <span className="flex-1 text-on-surface-variant truncate">{monitor.name}</span>
+        </>
+      ) : child.type === 'chart' ? (
+        <>
+          <span className="material-symbols-outlined text-secondary shrink-0" aria-hidden="true" style={{ fontSize: '16px' }}>show_chart</span>
+          <span className="flex-1 text-on-surface-variant truncate">{monitors.find((m) => m.id === (child as ChartNode).monitorId)?.name ?? `#${(child as ChartNode).monitorId}`}</span>
         </>
       ) : child.type === 'text' ? (
         <>
