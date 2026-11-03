@@ -92,14 +92,35 @@ const incidentUpdate = defineTool({
 
 const incidentSetMonitors = defineTool({
   name: 'incident_set_monitors',
-  title: 'Set the monitors of an incident',
-  description: 'Replaces the list of monitors an incident affects. On a published incident an active minor incident marks them degraded, major or critical marks them down on the public page. Not for a resolved incident.',
+  title: 'Set or extend the monitors of an incident',
+  description: 'Changes the monitors an incident affects, in one of two ways: monitorIds REPLACES the whole list, addMonitorIds adds to it and keeps the others (prefer it to add a service). Pass exactly one. On a published incident an active minor incident marks the monitors degraded, major or critical marks them down on the public page. Not for a resolved incident.',
   scope: 'incidents:write',
   access: 'destructive',
-  input: { id: id('Incident id'), monitorIds: z.array(z.number().int().min(1)).max(100).describe('Ids from list_monitors; the whole list replaces the current one') },
+  input: {
+    id: id('Incident id'),
+    monitorIds: z.array(z.number().int().min(1)).max(100).optional().describe('Ids from list_monitors; the whole list replaces the current one'),
+    addMonitorIds: z.array(z.number().int().min(1)).min(1).max(100).optional().describe('Ids from list_monitors to add to the monitors the incident already has'),
+  },
+  async handler(args, ctx) {
+    if ((args.monitorIds === undefined) === (args.addMonitorIds === undefined)) throw new McpToolError('Pass either monitorIds (replaces the list) or addMonitorIds (adds to it)')
+    const incident = await findIncident(ctx, args.id)
+    if (incident['status'] === 'resolved') throw new McpToolError('A resolved incident cannot be changed from here')
+    const current = Array.isArray(incident['monitorIds']) ? (incident['monitorIds'] as number[]) : []
+    const monitorIds = args.monitorIds ?? [...new Set([...current, ...(args.addMonitorIds ?? [])])]
+    return ctx.send('POST', `${ADMIN}/incidents/${args.id}/monitors`, { monitorIds })
+  },
+})
+
+const incidentUpdateEdit = defineTool({
+  name: 'incident_update_edit',
+  title: 'Correct the text of an incident update',
+  description: 'Rewrites the text of one entry in an incident timeline (its id is in list_incidents), for a typo or a detail that should not be public. The entry keeps its status and time, the incident keeps its status, subscribers are not notified again, and the translations of the old text are removed. On a published incident the new text is public. Not for a resolved incident.',
+  scope: 'incidents:write',
+  access: 'destructive',
+  input: { id: id('Incident id'), updateId: id('Id of the update, from the updates of the incident'), body: z.string().min(1).max(5000) },
   async handler(args, ctx) {
     if ((await findIncident(ctx, args.id))['status'] === 'resolved') throw new McpToolError('A resolved incident cannot be changed from here')
-    return ctx.send('POST', `${ADMIN}/incidents/${args.id}/monitors`, { monitorIds: args.monitorIds })
+    return ctx.send('PATCH', `${ADMIN}/incidents/${args.id}/updates/${args.updateId}`, { body: args.body })
   },
 })
 
@@ -328,6 +349,6 @@ const monitorsApply = defineTool({
 })
 
 export const mcpWriteTools: readonly McpTool[] = [
-  incidentCreateDraft, incidentPublish, incidentPostUpdate, incidentUpdate, incidentSetMonitors,
+  incidentCreateDraft, incidentPublish, incidentPostUpdate, incidentUpdate, incidentSetMonitors, incidentUpdateEdit,
   maintenanceCreate, maintenanceUpdate, maintenanceEnd, monitorCreate, monitorUpdate, monitorSetDependencies, monitorCheckNow, monitorsValidate, monitorsApply,
 ]
