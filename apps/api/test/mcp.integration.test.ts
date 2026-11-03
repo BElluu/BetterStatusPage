@@ -17,7 +17,8 @@ import { MONITOR_CONFIG_SCHEMAS } from '../src/services/monitorConfigSchema.js'
 import { MONITOR_TYPES } from '../src/services/monitorInput.js'
 import { MCP_INSTRUCTIONS } from '../src/mcp/tools.js'
 import { db } from '../src/db/client.js'
-import { auditLog, authSessions, incidents, maintenanceWindows, mcpSettings, monitorDependencies, monitors, notificationChannels, subscribers, users } from '../src/db/schema.js'
+import { eq } from 'drizzle-orm'
+import { auditLog, authSessions, incidentMonitors, incidents, incidentUpdates, maintenanceWindows, mcpSettings, monitorDependencies, monitors, notificationChannels, subscribers, users } from '../src/db/schema.js'
 import { auth } from '../src/kit/auth.js'
 import { registerMcp } from '../src/mcp/register.js'
 import { createProductionFallback } from '../src/services/productionFallback.js'
@@ -266,7 +267,7 @@ describe('changing things', () => {
     const by = Object.fromEntries(tools.map((tool) => [tool.name, tool.annotations]))
     assert.equal(by['incident_create_draft']!['readOnlyHint'], false)
     assert.equal(by['incident_create_draft']!['destructiveHint'], false)
-    for (const name of ['incident_publish', 'incident_post_update', 'incident_update', 'incident_set_monitors', 'maintenance_create', 'maintenance_update', 'monitor_create', 'monitor_update', 'monitor_set_dependencies', 'monitors_apply']) assert.equal(by[name]!['destructiveHint'], true, name)
+    for (const name of ['incident_publish', 'incident_post_update', 'incident_update', 'incident_set_monitors', 'incident_update_edit', 'maintenance_create', 'maintenance_update', 'monitor_create', 'monitor_update', 'monitor_set_dependencies', 'monitors_apply']) assert.equal(by[name]!['destructiveHint'], true, name)
     assert.ok(!tools.some((tool) => /delete|remove/.test(tool.name)))
   })
 
@@ -378,6 +379,71 @@ describe('changing things', () => {
     assert.equal(entry.userEmail, 'token: Agent')
     assert.equal((await call(token, 'monitor_update', { id: created.id })).isError, true, 'nothing to change')
     assert.equal((await call(token, 'monitor_update', { id: created.id, intervalSecs: 1 })).isError, true, 'the API range applies')
+  })
+
+  it('adds a monitor to an incident without dropping the others, and replaces the list only when told to', async () => {
+    const token = await tokenWith(...WRITE)
+    const { id } = parsed(await call(token, 'incident_create_draft', { title: 'Spreading' })) as { id: number }
+    const link = (name: string) => createMonitor({ name: `Link ${name}`, type: 'https', config: { url: `https://${name}.example.test` } })
+    const a = await link('A')
+    const b = await link('B')
+    const c = await link('C')
+    const linked = async () => (await db.select().from(incidentMonitors)).filter((row) => row.incidentId === id).map((row) => row.monitorId).sort()
+
+    assert.ok(!(await call(token, 'incident_set_monitors', { id, monitorIds: [a.id, b.id] })).isError)
+    assert.deepEqual(await linked(), [a.id, b.id].sort())
+    // Adding keeps what is there, and an id that is already linked is not doubled.
+    assert.ok(!(await call(token, 'incident_set_monitors', { id, addMonitorIds: [b.id, c.id] })).isError)
+    assert.deepEqual(await linked(), [a.id, b.id, c.id].sort())
+    // Replacing is still possible, and may empty the list.
+    assert.ok(!(await call(token, 'incident_set_monitors', { id, monitorIds: [c.id] })).isError)
+    assert.deepEqual(await linked(), [c.id])
+
+    // Exactly one of the two, so a call cannot mean both.
+    for (const args of [{}, { monitorIds: [a.id], addMonitorIds: [b.id] }, { addMonitorIds: [] }]) {
+      assert.equal((await call(token, 'incident_set_monitors', { id, ...args })).isError, true, JSON.stringify(args))
+    }
+    assert.deepEqual(await linked(), [c.id], 'the refused calls changed nothing')
+  })
+
+  it('corrects the text of one update and leaves its status, time and the incident alone', async () => {
+    const token = await tokenWith(...WRITE)
+    const { id } = parsed(await call(token, 'incident_create_draft', { title: 'Typos' })) as { id: number }
+    assert.ok(!(await call(token, 'incident_post_update', { id, body: 'First', status: 'investigating', notifySubscribers: false })).isError)
+    assert.ok(!(await call(token, 'incident_post_update', { id, body: 'Secnod', status: 'identified', notifySubscribers: false })).isError)
+    const [first, second] = (await db.select().from(incidentUpdates)).filter((row) => row.incidentId === id).sort((x, y) => x.id - y.id)
+    await db.update(incidentUpdates).set({ bodyTranslations: '{"pl":"stare"}' }).where(eq(incidentUpdates.id, second!.id))
+
+    assert.ok(!(await call(token, 'incident_update_edit', { id, updateId: second!.id, body: 'Second' })).isError)
+    const rows = (await db.select().from(incidentUpdates)).filter((row) => row.incidentId === id).sort((x, y) => x.id - y.id)
+    assert.deepEqual(rows.map((row) => [row.body, row.status, row.postedAt, row.bodyTranslations]), [
+      [first!.body, first!.status, first!.postedAt, first!.bodyTranslations],
+      ['Second', 'identified', second!.postedAt, '{}'],
+    ])
+    assert.equal((await db.select().from(incidents)).find((row) => row.id === id)!.status, 'identified')
+
+    // The audit log names the token, as for every other change.
+    const entry = (await db.select().from(auditLog)).find((row) => row.entityType === 'incident' && row.entityName === 'Typos' && /Second/.test(row.diff ?? ''))
+    assert.equal(entry?.userEmail, 'token: Agent')
+  })
+
+  it('refuses an empty text, an update of another incident and an unknown update', async () => {
+    const token = await tokenWith(...WRITE)
+    const { id } = parsed(await call(token, 'incident_create_draft', { title: 'Mine' })) as { id: number }
+    const other = parsed(await call(token, 'incident_create_draft', { title: 'Theirs' })) as { id: number }
+    assert.ok(!(await call(token, 'incident_post_update', { id: other.id, body: 'Not yours', status: 'investigating', notifySubscribers: false })).isError)
+    const foreign = (await db.select().from(incidentUpdates)).find((row) => row.incidentId === other.id)!
+
+    for (const args of [{ updateId: foreign.id, body: 'Hijacked' }, { updateId: 999999, body: 'Nothing here' }, { updateId: foreign.id, body: '' }]) {
+      assert.equal((await call(token, 'incident_update_edit', { id, ...args })).isError, true, JSON.stringify(args))
+    }
+    assert.equal((await db.select().from(incidentUpdates)).find((row) => row.id === foreign.id)!.body, 'Not yours')
+  })
+
+  it('needs the write permission to correct an update', async () => {
+    const reader = await tokenWith('incidents:read')
+    assert.ok(!(await toolNames(reader)).includes('incident_update_edit'))
+    assert.equal((await call(reader, 'incident_update_edit', { id: 1, updateId: 1, body: 'x' })).isError, true)
   })
 
   it('changes the impact of an incident, and reschedules a one-time window within the same limits', async () => {
@@ -668,6 +734,8 @@ describe('what an agent cannot do by mistake', () => {
       ['incident_post_update', { id, body: 'Again', status: 'investigating', notifySubscribers: false }],
       ['incident_set_monitors', { id, monitorIds: [monitor.id] }],
       ['incident_update', { id, title: 'Rewritten' }],
+      ['incident_set_monitors', { id, addMonitorIds: [monitor.id] }],
+      ['incident_update_edit', { id, updateId: 1, body: 'Rewritten history' }],
     ] as const) {
       const result = await call(token, name, args)
       assert.equal(result.isError, true, name)

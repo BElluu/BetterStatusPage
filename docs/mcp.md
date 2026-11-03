@@ -2,7 +2,7 @@
 
 BetterStatusPage can answer an AI agent such as Claude Code through the [Model Context Protocol](https://modelcontextprotocol.io). Connect the agent to `/mcp` and ask it things like *"what is down right now?"*, *"why did the payments monitor flap last night?"* or *"were the alerts for that outage delivered?"*. It reads the same data as the admin console, and only what the API token you give it may read.
 
-The agent can **look** with a token that may read. It can **act** only when an administrator has also allowed changes (see below) and the token may write: open and update incidents, schedule maintenance, run a check and create or update monitors. No object can be deleted, and tools that take a list replace it whole. Use a read-only token for everyday questions and a separate one for changes, and leave **Allow agents to make changes** off until you need it.
+The agent can **look** with a token that may read. It can **act** only when an administrator has also allowed changes (see below) and the token may write: open and update incidents, schedule maintenance, run a check and create or update monitors. No object can be deleted, and tools that take a list replace it whole (`incident_set_monitors` can also add to the list). Use a read-only token for everyday questions and a separate one for changes, and leave **Allow agents to make changes** off until you need it.
 
 ---
 
@@ -85,7 +85,8 @@ Offered only while **Allow agents to make changes** is on, and only to a token w
 | `incident_publish` | Publishes a draft on the public page. Cannot be undone | `incidents:write` | destructive |
 | `incident_post_update` | Posts an update with a status; `resolved` closes the incident. On a draft nobody is notified | `incidents:write` | destructive |
 | `incident_update` | Changes only the title and/or impact of an incident that is not resolved (a new title removes its translations). On a published one it is public, and impact decides degraded or down | `incidents:write` | destructive |
-| `incident_set_monitors` | Replaces the monitors an incident affects | `incidents:write` | destructive |
+| `incident_set_monitors` | Changes the monitors an incident affects: `addMonitorIds` adds to them (keeps the others), `monitorIds` replaces the whole list. Exactly one of the two | `incidents:write` | destructive |
+| `incident_update_edit` | Rewrites the text of one timeline entry (typo, or a detail that should not be public). Status, time and the incident's status stay, nobody is notified, its translations are removed. On a published incident it is public | `incidents:write` | destructive |
 | `maintenance_create` | Schedules a one-time window for **named** monitors, ending in the future and lasting at most 7 days (alerts are silenced while it runs) | `maintenance:write` | destructive |
 | `maintenance_update` | Changes only the passed settings of a one-time window (name, description, times, monitors), with the same limits. Repeating windows are edited in the admin console | `maintenance:write` | destructive |
 | `maintenance_end` | Ends a window that is running now: the banner goes and alerts resume | `maintenance:write` | destructive |
@@ -100,7 +101,7 @@ Rules built into them:
 
 - `notifySubscribers` has **no default** on `incident_publish`, `incident_post_update` and `maintenance_create`: the agent has to decide, and you see it in the approval.
 - `monitor_create` takes the config as the API does. The agent should call `monitor_config_fields` for the type first; a config the API refuses comes back with a message that names the field (see [what is checked when you save](monitors.md#what-is-checked-when-you-save)). **Do not give an agent passwords or tokens**: they would pass through the chat. Create a vault secret in the admin console and let a person add the reference or the credentials there: referencing a vault secret needs `vault:use`, and a token that has it can send any vault secret to an address the agent chooses, so **do not give `vault:use` to an agent token**. The heartbeat URL of a new `webhook` monitor is not given to the agent; copy it from the admin console.
-- A **resolved** incident cannot be changed, given an update or have its monitors replaced from here: that would reopen or rewrite public history. Do it in the admin console.
+- A **resolved** incident cannot be changed, given an update, have an update corrected or its monitors changed from here: that would reopen or rewrite public history. Do it in the admin console.
 - A maintenance window made from here must end in the future, lasts at most 7 days from its start to its end, and names the monitors it covers. Repeating windows are edited in the admin console.
 - A tool refuses an argument it does not have, so a typo is an error the agent sees, not a change that silently did not happen.
 - Times you send are ISO 8601 with an offset (`2026-11-02T22:00:00+01:00` or `...Z`); a time without one is refused.
