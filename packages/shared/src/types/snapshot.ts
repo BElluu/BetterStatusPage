@@ -18,6 +18,8 @@ export interface StatusSnapshot {
   layout: unknown
   /** The newest incidents, as `/api/v1/public/incidents` lists them. */
   incidents: unknown[]
+  /** Windows of the Maintenance block, as `/api/v1/public/maintenances` lists them. Absent in older files. */
+  maintenances?: unknown[]
   /** Body of `/api/v1/public/monitor/:id/uptime?days=90`, by monitor id. */
   uptime: Record<string, { days: unknown[]; overallUptimePct: number | null }>
   /** Body of `/api/v1/public/monitor/:id/history`, by `monitorId:hours:buckets`, for each chart block of the layout. */

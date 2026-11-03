@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
 import { maintenanceRoutes } from '../src/routes/maintenance.js'
+import { sseService } from '../src/kit/sse.js'
+import { loadPublicMaintenances } from '../src/services/publicStatusData.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
 const testDb = createTestDb('bsp-maintenance-recurrence-test-')
@@ -100,6 +102,31 @@ describe('recurrence validation', () => {
 })
 
 describe('ending a window early', () => {
+  it('lists a one-off window that was ended early as past on the status page', async () => {
+    const now = Date.now()
+    const id = (await app.inject({
+      method: 'POST', url: '/maintenance',
+      payload: { name: 'Ended soon', startsAt: now - HOUR, endsAt: now + HOUR, notifySubscribers: false },
+    })).json<{ id: number }>().id
+    assert.equal((await loadPublicMaintenances(Date.now())).find((w) => w.id === id)?.state, 'active')
+    assert.equal((await app.inject({ method: 'POST', url: `/maintenance/${id}/end` })).statusCode, 200)
+    assert.equal((await loadPublicMaintenances(Date.now() + 1)).find((w) => w.id === id)?.state, 'past')
+  })
+
+  it('tells open status pages about every change', async () => {
+    const events: string[] = []
+    const stop = sseService.onBroadcast((event) => { if (event === 'maintenance.changed') events.push(event) })
+    const now = Date.now()
+    const id = (await app.inject({
+      method: 'POST', url: '/maintenance',
+      payload: { name: 'Announced', startsAt: now + HOUR, endsAt: now + 2 * HOUR, notifySubscribers: false },
+    })).json<{ id: number }>().id
+    await app.inject({ method: 'PATCH', url: `/maintenance/${id}`, payload: { name: 'Announced again' } })
+    await app.inject({ method: 'DELETE', url: `/maintenance/${id}` })
+    stop()
+    assert.deepEqual(events, ['maintenance.changed', 'maintenance.changed', 'maintenance.changed'])
+  })
+
   it('ends a one-off window by moving its end to now', async () => {
     const now = Date.now()
     const created = await app.inject({

@@ -55,6 +55,7 @@ export function useSSE(onIncidentChange?: () => void) {
 
       es.addEventListener('incident.created', () => { onIncidentChange?.() })
       es.addEventListener('incident.updated', () => { onIncidentChange?.() })
+      es.addEventListener('maintenance.changed', () => { onIncidentChange?.() })
 
       es.onopen = () => {
         retryMs = RETRY_MIN_MS

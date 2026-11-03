@@ -140,6 +140,7 @@ describe('snapshot', () => {
     // The response time chart of the layout is answered from the snapshot, for exactly the range it asks for.
     assert.deepEqual(Object.keys(snapshot.history ?? {}), [`${ids['Website']}:24:30`])
     assert.equal(snapshot.history![`${ids['Website']}:24:30`]!.buckets.length, 30)
+    assert.ok(Array.isArray(snapshot.maintenances), 'the snapshot carries the Maintenance block windows')
     const [incident] = snapshot.incidents as Array<{ monitorIds: number[] }>
     assert.deepEqual(incident!.monitorIds, [ids['Website']])
   })

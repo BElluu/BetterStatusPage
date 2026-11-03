@@ -59,12 +59,15 @@ export function checkNow(api: APIRequestContext, monitorId: number): Promise<unk
 }
 
 /** Replaces the public layout with the given monitors, optionally followed by an incidents block. */
-export function setPublicLayout(api: APIRequestContext, monitorIds: number[], options: { incidents?: boolean } = {}): Promise<unknown> {
+export function setPublicLayout(api: APIRequestContext, monitorIds: number[], options: { incidents?: boolean; maintenance?: boolean } = {}): Promise<unknown> {
   const children: unknown[] = monitorIds.map((monitorId, index) => ({
     id: `monitor-${monitorId}`, type: 'monitor', monitorId, showUptimeBar: false, grid: { x: 0, y: index * 2, w: 12, h: 2 },
   }))
   if (options.incidents) {
     children.push({ id: 'incidents', type: 'incidents', filter: 'all', limit: 5, grid: { x: 0, y: monitorIds.length * 2, w: 12, h: 4 } })
+  }
+  if (options.maintenance) {
+    children.push({ id: 'maintenance', type: 'maintenance', filter: 'all', limit: 5, grid: { x: 0, y: monitorIds.length * 2 + (options.incidents ? 4 : 0), w: 12, h: 4 } })
   }
   return ok(api.put('admin/layout', { data: { tree: { id: 'root', type: 'page', children } } }))
 }

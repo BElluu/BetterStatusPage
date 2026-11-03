@@ -15,11 +15,11 @@ import { api } from '../api/client'
 import { ConfirmModal } from '@better-forge/ui'
 import { ErrorState, LoadingState, useToast } from '@better-forge/ui'
 import {
-  useBuilderStore, createMonitorNode, createGroupNode, createTextNode, createIncidentsNode,
+  useBuilderStore, createMonitorNode, createGroupNode, createTextNode, createIncidentsNode, createMaintenanceNode,
   createChartNode, defaultGrid, findNode, canJoinGroup,
 } from '../components/builder/useBuilderStore'
 import type {
-  Monitor, LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode, IncidentsNode, ChartNode, GridPos,
+  Monitor, LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode, IncidentsNode, MaintenanceNode, ChartNode, GridPos,
 } from '@bsp/shared'
 
 /** What the builder knows about a monitor: /admin/layout/monitors, readable by branding users too. */
@@ -91,9 +91,16 @@ function createToolboxNode(type: string, options: { monitorId?: number; label?: 
     case 'text':      return createTextNode()
     case 'divider':   return { type: 'divider' } as Omit<LayoutNode, 'id'>
     case 'incidents': return createIncidentsNode()
+    case 'maintenance': return createMaintenanceNode()
     case 'chart':     return options.monitorId ? createChartNode(options.monitorId) : null
     default:          return null
   }
+}
+
+/** The number of a block's limit field kept within 1–20; an empty or invalid field gives the default of 5. */
+function clampBlockLimit(value: string): number {
+  const n = Math.trunc(Number(value))
+  return Number.isFinite(n) && n >= 1 ? Math.min(n, 20) : 5
 }
 
 /** Human name of a node, used for accessible labels on cards and their delete buttons. */
@@ -105,6 +112,7 @@ function nodeLabel(node: LayoutNode, monitors: BuilderMonitor[]): string {
     case 'chart':     return `Chart ${monitorName((node as ChartNode).monitorId)}`
     case 'text':      return `Text ${(node as TextNode).name || ''}`.trim()
     case 'incidents': return 'Incidents'
+    case 'maintenance': return 'Maintenance'
     case 'divider':   return 'Divider'
     default:          return 'Block'
   }
@@ -227,7 +235,7 @@ export default function BuilderPage() {
       const g = node.grid ?? { ...defaultGrid(node.type), y: i * 3 }
       const h = node.type === 'group'
         ? 2 + (node as GroupNode).children.length   // header row + 1 per child
-        : (node.type === 'monitor' || node.type === 'incidents' || node.type === 'divider' || node.type === 'chart')
+        : (node.type === 'monitor' || node.type === 'incidents' || node.type === 'maintenance' || node.type === 'divider' || node.type === 'chart')
         ? 1                                          // always compact — ignore stored h
         : g.h                                        // text: auto-sized from content
       return { i: node.id, x: g.x, y: g.y, w: g.w, h, minH: h, maxH: h, minW: 1, maxW: 3 }
@@ -423,6 +431,7 @@ export default function BuilderPage() {
                 { type: 'text',      label: 'Text',      icon: 'T'  },
                 { type: 'divider',   label: 'Divider',   icon: '—'  },
                 { type: 'incidents', label: 'Incidents', icon: '⚠'  },
+                { type: 'maintenance', label: 'Maintenance', icon: '🛠' },
               ].map(({ type, label, icon }) => (
                 <ToolboxItem
                   key={type}
@@ -754,6 +763,19 @@ function NodeCard(props: NodeCardProps) {
       </div>
     )
   }
+
+  if (node.type === 'maintenance') {
+    const n = node as MaintenanceNode
+    return (
+      <div className={`relative h-full flex items-center gap-2 px-3 rounded-lg bg-surface-container-low focus-ring ${ring}`} {...card}>
+        <DeleteBtn onDelete={onDelete} label={label} />
+        <span className="drag-handle cursor-grab text-secondary hover:text-on-surface-variant shrink-0" aria-hidden="true">⠿</span>
+        <span className="material-symbols-outlined text-secondary shrink-0" aria-hidden="true" style={{ fontSize: '16px' }}>build</span>
+        <span className="flex-1 text-sm text-on-surface truncate pr-5">Maintenance · {n.filter ?? 'all'}</span>
+      </div>
+    )
+  }
+
 
   if (node.type === 'chart') {
     const n = node as ChartNode
@@ -1128,7 +1150,7 @@ function PropertiesPanel({
           min={1}
           max={20}
           value={n.limit ?? 5}
-          onChange={(e) => onUpdate({ limit: Number(e.target.value) } as Partial<IncidentsNode>)}
+          onChange={(e) => onUpdate({ limit: clampBlockLimit(e.target.value) } as Partial<IncidentsNode>)}
           className={cls}
         />
         <Label htmlFor="builder-prop-filter">Filter</Label>
@@ -1146,6 +1168,35 @@ function PropertiesPanel({
     )
   }
 
+  if (node.type === 'maintenance') {
+    const n = node as MaintenanceNode
+    return (
+      <div className="space-y-3">
+        <Label htmlFor="builder-prop-limit">Maintenance limit</Label>
+        <input
+          id="builder-prop-limit"
+          type="number"
+          min={1}
+          max={20}
+          value={n.limit ?? 5}
+          onChange={(e) => onUpdate({ limit: clampBlockLimit(e.target.value) } as Partial<MaintenanceNode>)}
+          className={cls}
+        />
+        <Label htmlFor="builder-prop-filter">Filter</Label>
+        <select
+          id="builder-prop-filter"
+          value={n.filter ?? 'all'}
+          onChange={(e) => onUpdate({ filter: e.target.value as MaintenanceNode['filter'] } as Partial<MaintenanceNode>)}
+          className={cls}
+        >
+          <option value="all">All</option>
+          <option value="active">In progress only</option>
+          <option value="upcoming">Upcoming only</option>
+          <option value="past">Past only</option>
+        </select>
+      </div>
+    )
+  }
   if (node.type === 'chart') {
     const n = node as ChartNode
     const compatibleMonitors = monitors.filter((m) => CHART_TYPES.includes(m.type))

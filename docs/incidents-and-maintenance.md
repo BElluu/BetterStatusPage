@@ -128,7 +128,7 @@ Incidents are public as soon as they are created, unless they are [drafts](#draf
 - **Monitor status.** Linked monitors change colour according to the impact, as described above.
 - **Uptime bar.** Each day's tooltip lists the incidents linked to that monitor that were open that day.
 
-The page updates live: creating, updating or resolving an incident is pushed to open status pages straight away.
+The page updates live: creating, updating or resolving an incident is pushed to open status pages straight away. So is scheduling, changing, ending or deleting a maintenance window, for a page that has a Maintenance block.
 
 ### Feeds and the status API
 
@@ -265,7 +265,7 @@ On the status page:
 
 - A **banner** at the top lists every running window with its name, description and end time.
 - Each covered monitor card shows a **MAINTENANCE** chip.
-- Upcoming windows are not shown on the page itself.
+- Upcoming windows are not in the banner. Add a **Maintenance block** in the Page Builder to list them: it shows running, upcoming and past windows (name, time span in the visitor's local time, description and the services covered), filtered by all, in progress only, upcoming only or past only, up to a set number (5 by default). A repeating window appears with its running or next occurrence; past occurrences of a repeating window are not kept, and only the 20 newest one-off windows that are over are listed. See [Customizing the status page](customizing-the-status-page.md).
 
 The [status API](subscriptions.md#status-api) lists running and upcoming windows in `summary.json` and reports covered components as `under_maintenance`.
 

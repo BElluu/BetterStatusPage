@@ -4,7 +4,7 @@ import { chartRangeKey, getPublishedChartRanges, getPublishedMonitorIds, publish
 import { createTtlCache } from '../lib/ttlCache.js'
 import { PUBLIC_EVENTS_RATE_LIMIT, PUBLIC_HISTORY_RATE_LIMIT } from '../config/rateLimits.js'
 import {
-  loadPublicStatus, loadPublicLayout, loadPublicIncidents, loadPublicIncident, loadUptime, loadHistory, publishIncident,
+  loadPublicStatus, loadPublicLayout, loadPublicIncidents, loadPublicMaintenances, loadPublicIncident, loadUptime, loadHistory, publishIncident,
 } from '../services/publicStatusData.js'
 import { parseStrictPagination } from '../lib/pagination.js'
 import { authenticateRequest, type AuthIdentity } from '../kit/authSession.js'
@@ -27,6 +27,7 @@ function parseInteger(value: string | undefined, fallback: number, min: number, 
 export async function publicRoutes(app: FastifyInstance) {
   protectStatusPage(app)
   let statusCache: { expiresAt: number; value: Promise<unknown> } | null = null
+  let maintenancesCache: { expiresAt: number; value: Promise<unknown> } | null = null
   // Keyed by `${monitorId}:${days}`.
   const uptimeCache = createTtlCache<unknown>(UPTIME_CACHE_TTL_MS, UPTIME_CACHE_MAX_ENTRIES)
   // Keyed by `${monitorId}:${hours}:${buckets}`; it holds no incidents, so incident events leave it alone.
@@ -34,6 +35,11 @@ export async function publicRoutes(app: FastifyInstance) {
   // Clients refetch the status as soon as an incident event arrives; a cached copy from just
   // before the change would hide it from them until the next periodic refresh.
   const stopListening = sseService.onBroadcast((event) => {
+    // Running windows are part of the status; the Maintenance block lists them all.
+    if (event === 'maintenance.changed') {
+      statusCache = null
+      maintenancesCache = null
+    }
     if (event.startsWith('incident.')) {
       statusCache = null
       // Uptime bars list the incidents of each day.
@@ -64,6 +70,19 @@ export async function publicRoutes(app: FastifyInstance) {
     }
 
     return loadPublicIncidents(paging)
+  })
+
+  app.get('/maintenances', async (_req, reply) => {
+    reply.header('Cache-Control', 'public, max-age=2, stale-while-revalidate=5')
+    const now = Date.now()
+    if (maintenancesCache && maintenancesCache.expiresAt > now) return maintenancesCache.value
+
+    const value = loadPublicMaintenances(now)
+    maintenancesCache = { expiresAt: now + STATUS_CACHE_TTL_MS, value }
+    value.catch(() => {
+      if (maintenancesCache?.value === value) maintenancesCache = null
+    })
+    return value
   })
 
   app.get<{ Params: { id: string } }>('/incidents/:id', async (req, reply) => {

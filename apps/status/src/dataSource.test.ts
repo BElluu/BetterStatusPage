@@ -37,6 +37,13 @@ describe('answerFromSnapshot', () => {
     expect(await answer('/api/v1/public/locales/de')).toEqual({ translations: {} })
   })
 
+  it('serves the maintenance windows, and none from a file that predates them', async () => {
+    expect(await answer('/api/v1/public/maintenances')).toEqual([])
+    vi.resetModules()
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ...snapshot, maintenances: [{ id: 4, state: 'upcoming' }] }))))
+    expect(await answer('/api/v1/public/maintenances')).toEqual([{ id: 4, state: 'upcoming' }])
+  })
+
   it('is never private and never signed in', async () => {
     expect(await answer('/api/v1/public/access')).toMatchObject({ private: false, signedIn: false })
   })

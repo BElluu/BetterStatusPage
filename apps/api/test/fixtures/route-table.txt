@@ -81,6 +81,7 @@ GET /api/v1/public/incidents/:id | auth=no | token=no | scope=- | roles=none
 GET /api/v1/public/layout | auth=no | token=no | scope=- | roles=none
 GET /api/v1/public/locales/ | auth=no | token=no | scope=- | roles=none
 GET /api/v1/public/locales/:code | auth=no | token=no | scope=- | roles=none
+GET /api/v1/public/maintenances | auth=no | token=no | scope=- | roles=none
 GET /api/v1/public/monitor/:id/history | auth=no | token=no | scope=- | roles=none
 GET /api/v1/public/monitor/:id/uptime | auth=no | token=no | scope=- | roles=none
 GET /api/v1/public/slack.rss | auth=no | token=no | scope=- | roles=none
@@ -179,6 +180,7 @@ HEAD /api/v1/public/layout | auth=no | token=no | scope=- | roles=none
 HEAD /api/v1/public/locales | auth=no | token=no | scope=- | roles=none
 HEAD /api/v1/public/locales/ | auth=no | token=no | scope=- | roles=none
 HEAD /api/v1/public/locales/:code | auth=no | token=no | scope=- | roles=none
+HEAD /api/v1/public/maintenances | auth=no | token=no | scope=- | roles=none
 HEAD /api/v1/public/monitor/:id/history | auth=no | token=no | scope=- | roles=none
 HEAD /api/v1/public/monitor/:id/uptime | auth=no | token=no | scope=- | roles=none
 HEAD /api/v1/public/slack.rss | auth=no | token=no | scope=- | roles=none

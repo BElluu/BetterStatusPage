@@ -96,6 +96,7 @@ function mockApi() {
       return data.layout
     }
     if (path.startsWith('/api/v1/public/incidents')) return data.incidents
+    if (path === '/api/v1/public/maintenances') return []
     throw new Error(`Unexpected GET ${path}`)
   })
 }
@@ -162,6 +163,18 @@ describe('status App', () => {
 
     expect(await screen.findByRole('heading', { name: 'Incidents in Progress.' })).toBeInTheDocument()
     expect(screen.getByText(/1 active incidents\./)).toBeInTheDocument()
+  })
+
+  it('asks for the maintenance windows only when the layout has a Maintenance block', async () => {
+    const { unmount } = renderApp()
+    await screen.findByRole('heading', { name: 'All systems operational.' })
+    expect(getJSON).not.toHaveBeenCalledWith('/api/v1/public/maintenances', expect.anything())
+    unmount()
+
+    data.layout = { tree: { ...layout, children: [...layout.children, { id: 'mw', type: 'maintenance' }] }, branding: null }
+    renderApp()
+    await screen.findByRole('heading', { name: 'All systems operational.' })
+    await vi.waitFor(() => expect(getJSON).toHaveBeenCalledWith('/api/v1/public/maintenances', { cache: 'no-cache' }))
   })
 
   it('says it is checking, not operational, while the status is still loading', async () => {
