@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createServer as createHttpServer } from 'node:http'
-import { createServer, type Server, type Socket } from 'node:net'
+import { connect as connectTcp, createServer, type Server, type Socket } from 'node:net'
 import { createServer as createTlsServer, TLSSocket } from 'node:tls'
 import { after, before, describe, it } from 'node:test'
 import Fastify from 'fastify'
@@ -496,6 +496,80 @@ describe('TLS certificate monitor', () => {
     assert.equal(expiryOutcome('X', now + 40 * DAY, 3, now).status, 'up')
     assert.equal(expiryOutcome('X', now + 3 * DAY, 3, now).status, 'up')
     assert.equal(expiryOutcome('X', now + 2.5 * DAY, 3, now).status, 'degraded')
+  })
+})
+
+// ── Outbound proxy ────────────────────────────────────────────────────────────
+
+describe('monitors that open a plain connection, behind an outbound proxy', () => {
+  const names = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'NO_PROXY', 'no_proxy'] as const
+  const saved = Object.fromEntries(names.map((name) => [name, process.env[name]]))
+  const tunnels: string[] = []
+  let deny = false
+  let proxy: ReturnType<typeof createHttpServer>
+
+  before(async () => {
+    proxy = createHttpServer()
+    proxy.on('connect', (req, client) => {
+      tunnels.push(req.url ?? '')
+      if (deny) return void client.end('HTTP/1.1 403 Forbidden\r\n\r\n')
+      const [host, port] = (req.url ?? '').split(':')
+      const upstream = connectTcp(Number(port), host, () => {
+        client.write('HTTP/1.1 200 Connection Established\r\n\r\n')
+        upstream.pipe(client)
+        client.pipe(upstream)
+      })
+      upstream.on('error', () => client.destroy())
+      client.on('error', () => upstream.destroy())
+    })
+    await new Promise<void>((resolve) => proxy.listen(0, HOST, resolve))
+    for (const name of names) delete process.env[name]
+    process.env.HTTPS_PROXY = `http://${HOST}:${(proxy.address() as { port: number }).port}`
+  })
+
+  after(async () => {
+    for (const name of names) {
+      if (saved[name] === undefined) delete process.env[name]
+      else process.env[name] = saved[name]
+    }
+    await new Promise<void>((resolve) => { proxy.close(() => resolve()); proxy.closeAllConnections() })
+  })
+
+  it('reach SSH, a TLS certificate and a mail server through a CONNECT tunnel', async () => {
+    tunnels.length = 0
+    const ssh = await track(fake({ greeting: 'SSH-2.0-OpenSSH_9.6', onLine: () => {} }))
+    const sshResult = await checkSsh({ host: HOST, port: ssh.port }, 2_000)
+    assert.equal(sshResult.status, 'up', sshResult.error ?? '')
+
+    const secure = await track(fake({ implicitTls: true, onLine: () => {} }))
+    const certResult = await checkTlsCert({ host: HOST, port: secure.port, warnDays: 14, verifyTls: false }, 2_000)
+    assert.equal(certResult.status, 'up', certResult.error ?? '')
+
+    const smtp = await track(fake({ greeting: '220 mail ready', onLine: (line, say) => { if (line.startsWith('EHLO')) say('250 ok') } }))
+    const mailResult = await checkMail({ host: HOST, port: smtp.port, protocol: 'smtp', security: 'none' }, 2_000)
+    assert.equal(mailResult.status, 'up', mailResult.error ?? '')
+
+    assert.deepEqual(tunnels, [`${HOST}:${ssh.port}`, `${HOST}:${secure.port}`, `${HOST}:${smtp.port}`])
+  })
+
+  it('go direct for a host in NO_PROXY and show why when the proxy refuses', async () => {
+    tunnels.length = 0
+    const ssh = await track(fake({ greeting: 'SSH-2.0-OpenSSH_9.6', onLine: () => {} }))
+    process.env.NO_PROXY = HOST
+    try {
+      assert.equal((await checkSsh({ host: HOST, port: ssh.port }, 2_000)).status, 'up')
+      assert.equal(tunnels.length, 0)
+    } finally {
+      delete process.env.NO_PROXY
+    }
+    deny = true
+    try {
+      const refused = await checkSsh({ host: HOST, port: ssh.port }, 2_000)
+      assert.equal(refused.status, 'down')
+      assert.match(refused.error ?? '', /Proxy response \(403\)/)
+    } finally {
+      deny = false
+    }
   })
 })
 

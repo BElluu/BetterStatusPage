@@ -7,6 +7,7 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ### Fixed
 
+- **TLS certificate, Mail server and SSH monitors through the outbound proxy**: they now connect through a `CONNECT` tunnel of `HTTP_PROXY`/`HTTPS_PROXY` and honour `NO_PROXY`, instead of timing out where direct connections are blocked. The proxy has to allow `CONNECT` to the monitored port. See [Monitors](monitors.md#outbound-proxy).
 - **Certificate expiry through the outbound proxy**: reading the certificate of an HTTPS monitor (the expiry warning and the certificate step of the test) now goes through `HTTP_PROXY`/`HTTPS_PROXY` with a `CONNECT` tunnel and honours `NO_PROXY`, instead of failing with `TLS handshake timed out` where direct connections are blocked. See [Monitors](monitors.md#outbound-proxy).
 
 ## [0.8.1] - 2026-11-02

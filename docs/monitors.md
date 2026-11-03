@@ -211,7 +211,9 @@ Redirects of these requests are followed by the server itself, and each target i
 
 The certificate expiry reading of an HTTPS monitor and the certificate step of the test open a `CONNECT` tunnel through the same proxy, so the expiry warning works where direct connections are blocked.
 
-Not proxied: email (SMTP), the TLS certificate monitor and the monitors that open a plain connection (Ping, TCP, Database, Redis, Mail server, SSH, DNS).
+The TLS certificate, Mail server and SSH monitors reach their server through a `CONNECT` tunnel of the same proxy. Many proxies allow `CONNECT` only to port 443 (and sometimes a few more); for any other port the proxy answers `403`, which the monitor shows as `Proxy response (403) !== 200 when HTTP Tunneling`, and the proxy has to be opened for that port.
+
+Not proxied: email sent by the server (SMTP), and the Ping, Database, Redis and DNS monitors.
 
 The proxy opens the connection and resolves the host name, so the address check above is made on the host in the URL
 (and in every redirect) and not on the address it resolves to: the addresses and the names metadata services answer to

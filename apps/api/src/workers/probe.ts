@@ -3,7 +3,7 @@ import { connect as tlsConnect, type TLSSocket } from 'node:tls'
 import type { MonitorStatus, SocketTlsConfig } from '@bsp/shared'
 import type { VaultRef } from '@better-forge/contracts'
 import { resolveVaultSecret } from '../kit/resolveSecret.js'
-import { guardedLookup, refusalReason } from '../services/ssrfGuard.js'
+import { guardedLookup, openTunnel, proxyFor, refusalReason } from '../services/ssrfGuard.js'
 
 /** What every checker of a monitor type returns. `detail` is a note on success that the test button shows. */
 export interface CheckOutcome {
@@ -145,14 +145,24 @@ export function open(opts: OpenOptions): Promise<Conversation> {
     const timeout = setTimeout(() => onFailed(new Error('Connection timed out')), remaining())
     const connected = () => { clearTimeout(timeout); attach(socket); resolve(conversation) }
 
-    if (opts.tls) {
-      socket = tlsConnect({ host: opts.host, port: opts.port, lookup: guardedLookup(), ...tlsOptions(opts) })
-      socket.once('secureConnect', connected)
-    } else {
-      socket = tcpConnect({ host: opts.host, port: opts.port, lookup: guardedLookup() })
-      socket.once('connect', connected)
+    const begin = (through?: Socket) => {
+      if (opts.tls) {
+        socket = tlsConnect({ ...(through ? { socket: through } : { host: opts.host, port: opts.port, lookup: guardedLookup() }), ...tlsOptions(opts) })
+        socket.once('secureConnect', connected)
+      } else if (through) {
+        socket = through
+        connected()
+      } else {
+        socket = tcpConnect({ host: opts.host, port: opts.port, lookup: guardedLookup() })
+        socket.once('connect', connected)
+      }
+      socket.once('error', (err) => { clearTimeout(timeout); onFailed(err) })
     }
-    socket.once('error', (err) => { clearTimeout(timeout); onFailed(err) })
+
+    // Where direct connections are not allowed, the service is reached through a CONNECT tunnel of the outbound proxy.
+    const proxy = proxyFor(`https://${opts.host.includes(':') ? `[${opts.host}]` : opts.host}:${opts.port}`)
+    if (!proxy) return begin()
+    openTunnel(proxy, opts.host, opts.port, remaining()).then(begin, (err: Error) => { clearTimeout(timeout); onFailed(err) })
   })
 }
 

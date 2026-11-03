@@ -1,5 +1,6 @@
 import { lookup as dnsLookup, type LookupAddress } from 'node:dns'
-import { BlockList, isIP, type LookupFunction } from 'node:net'
+import { request as httpRequest } from 'node:http'
+import { BlockList, isIP, type LookupFunction, type Socket } from 'node:net'
 import { Agent, buildConnector, EnvHttpProxyAgent, fetch as undiciFetch } from 'undici'
 
 /**
@@ -124,6 +125,38 @@ export function proxyFor(url: string, env: NodeJS.ProcessEnv = process.env): URL
     if (host === name || host === name.replace(/^\[(.*)\]$/, '$1') || host.endsWith(`.${name}`)) return null
   }
   return new URL(value.includes('://') ? value : `http://${value}`)
+}
+
+/**
+ * A socket to `host:port` through a `CONNECT` tunnel of `proxy`, for code that speaks its own protocol
+ * (the caller checks the target with `refusalReason` first; the proxy resolves the name). Rejects
+ * with the proxy's own status when it refuses.
+ */
+export function openTunnel(proxy: URL, host: string, port: number, timeoutMs: number): Promise<Socket> {
+  const authority = `${host.includes(':') ? `[${host}]` : host}:${port}`
+  const credentials = proxy.username ? `${decodeURIComponent(proxy.username)}:${decodeURIComponent(proxy.password)}` : ''
+  return new Promise((resolve, reject) => {
+    const tunnel = httpRequest({
+      host: proxy.hostname.replace(/^\[(.*)\]$/, '$1'),
+      port: proxy.port || (proxy.protocol === 'https:' ? 443 : 80),
+      method: 'CONNECT',
+      path: authority,
+      headers: { host: authority, ...(credentials ? { 'proxy-authorization': `Basic ${Buffer.from(credentials).toString('base64')}` } : {}) },
+      timeout: timeoutMs,
+    })
+    tunnel.once('connect', (res, socket, head) => {
+      if (res.statusCode === 200) {
+        // A server that speaks first can have its greeting in the same packet as the proxy's answer.
+        if (head.length) socket.unshift(head)
+        return resolve(socket)
+      }
+      socket.destroy()
+      reject(new Error(`Proxy response (${res.statusCode}) !== 200 when HTTP Tunneling`))
+    })
+    tunnel.once('timeout', () => { tunnel.destroy(); reject(new Error('Timed out connecting to the proxy')) })
+    tunnel.once('error', reject)
+    tunnel.end()
+  })
 }
 
 const PROXY_VARIABLES = ['http_proxy', 'HTTP_PROXY', 'https_proxy', 'HTTPS_PROXY']

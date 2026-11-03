@@ -1,5 +1,4 @@
-import { request } from 'http'
-import { isIP, type Socket } from 'net'
+import { isIP } from 'net'
 import { connect, type TLSSocket } from 'tls'
 import { eq } from 'drizzle-orm'
 import { CERT_REMINDER_DAYS, DEFAULT_CERT_WARN_DAYS, MAX_CERT_WARN_DAYS } from '@bsp/shared'
@@ -7,7 +6,7 @@ import type { CertExpiryConfig, HttpsConfig } from '@bsp/shared'
 import { db } from '../db/client.js'
 import { monitors } from '../db/schema.js'
 import { sendCertificateNotifications } from './notifier.js'
-import { guardedLookup, proxyFor, refusalReason } from '../services/ssrfGuard.js'
+import { guardedLookup, openTunnel, proxyFor, refusalReason } from '../services/ssrfGuard.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 /** Certificates change rarely — one extra handshake every few hours per monitor is plenty. */
@@ -51,63 +50,38 @@ export const readCertificate: CertificateReader = (url, timeoutMs) => {
   // An address literal is never resolved, so the lookup guard does not see it.
   const refused = refusalReason(target.host)
   if (refused) return Promise.reject(new Error(`Refusing to connect to ${target.host}: ${refused}`))
-  return new Promise((resolve, reject) => {
+  // Where direct connections are not allowed, the handshake runs through a CONNECT tunnel, like the check itself.
+  const proxy = proxyFor(url)
+  return (proxy ? openTunnel(proxy, target.host, target.port, timeoutMs) : Promise.resolve(undefined)).then((through) => new Promise((resolve, reject) => {
     let socket: TLSSocket | undefined
-    let tunnel: ReturnType<typeof request> | undefined
     const finish = (settle: () => void) => {
       socket?.destroy()
-      tunnel?.destroy()
+      through?.destroy()
       settle()
     }
     const fail = (err: Error) => finish(() => reject(err))
     const timedOut = () => fail(new Error(`TLS handshake timed out after ${timeoutMs} ms`))
-    const startTls = (through?: Socket) => {
-      const tls = connect({
-        host: target.host,
-        port: target.port,
-        ...(through ? { socket: through } : { lookup: guardedLookup() }),
-        // SNI must name a host, never an IP address.
-        ...(isIP(target.host) ? {} : { servername: target.host }),
-        // Only the dates are read here. Whether the certificate is trusted is the scheduled check's
-        // call, and a certificate it rejects should still show when it expires.
-        rejectUnauthorized: false,
-        timeout: timeoutMs,
-      })
-      socket = tls
-      tls.once('secureConnect', () => {
-        const cert = tls.getPeerCertificate()
-        const expiresAt = Date.parse(cert?.valid_to ?? '')
-        if (!Number.isFinite(expiresAt)) return fail(new Error('Endpoint presented no TLS certificate'))
-        finish(() => resolve({ host: target.host, expiresAt, issuer: commonName(cert.issuer?.CN) }))
-      })
-      tls.once('timeout', timedOut)
-      tls.once('error', fail)
-    }
-
-    const proxy = proxyFor(url)
-    if (!proxy) return startTls()
-    // Where direct connections are not allowed, the handshake runs through a CONNECT tunnel, like the check itself.
-    const authority = `${target.host.includes(':') ? `[${target.host}]` : target.host}:${target.port}`
-    const credentials = proxy.username ? `${decodeURIComponent(proxy.username)}:${decodeURIComponent(proxy.password)}` : ''
-    tunnel = request({
-      host: proxy.hostname.replace(/^\[(.*)\]$/, '$1'),
-      port: proxy.port || (proxy.protocol === 'https:' ? 443 : 80),
-      method: 'CONNECT',
-      path: authority,
-      headers: { host: authority, ...(credentials ? { 'proxy-authorization': `Basic ${Buffer.from(credentials).toString('base64')}` } : {}) },
+    const tls = connect({
+      host: target.host,
+      port: target.port,
+      ...(through ? { socket: through } : { lookup: guardedLookup() }),
+      // SNI must name a host, never an IP address.
+      ...(isIP(target.host) ? {} : { servername: target.host }),
+      // Only the dates are read here. Whether the certificate is trusted is the scheduled check's
+      // call, and a certificate it rejects should still show when it expires.
+      rejectUnauthorized: false,
       timeout: timeoutMs,
     })
-    tunnel.once('connect', (res, tunnelSocket) => {
-      if (res.statusCode !== 200) {
-        tunnelSocket.destroy()
-        return fail(new Error(`Proxy response (${res.statusCode}) !== 200 when HTTP Tunneling`))
-      }
-      startTls(tunnelSocket)
+    socket = tls
+    tls.once('secureConnect', () => {
+      const cert = tls.getPeerCertificate()
+      const expiresAt = Date.parse(cert?.valid_to ?? '')
+      if (!Number.isFinite(expiresAt)) return fail(new Error('Endpoint presented no TLS certificate'))
+      finish(() => resolve({ host: target.host, expiresAt, issuer: commonName(cert.issuer?.CN) }))
     })
-    tunnel.once('timeout', timedOut)
-    tunnel.once('error', fail)
-    tunnel.end()
-  })
+    tls.once('timeout', timedOut)
+    tls.once('error', fail)
+  }))
 }
 
 /** The expiry warning settings in effect, or null when warnings are off. */
