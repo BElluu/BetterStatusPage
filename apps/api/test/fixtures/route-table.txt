@@ -3,6 +3,7 @@ DELETE /api/v1/admin/api-tokens/:id | auth=yes | token=no | scope=- | roles=admi
 DELETE /api/v1/admin/backups/:filename | auth=yes | token=no | scope=- | roles=admin
 DELETE /api/v1/admin/incident-templates/:id | auth=yes | token=yes | scope=incidents | roles=admin,operator
 DELETE /api/v1/admin/incidents/:id | auth=yes | token=yes | scope=incidents | roles=admin,operator
+DELETE /api/v1/admin/incidents/:id/updates/:updateId | auth=yes | token=yes | scope=incidents | roles=admin,operator
 DELETE /api/v1/admin/locales/:code | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
 DELETE /api/v1/admin/maintenance/:id | auth=yes | token=yes | scope=maintenance | roles=admin,operator
 DELETE /api/v1/admin/monitors/:id | auth=yes | token=yes | scope=monitors | roles=admin,operator
@@ -192,6 +193,7 @@ PATCH /api/v1/admin/actions/:id | auth=yes | token=yes | scope=actions | roles=a
 PATCH /api/v1/admin/branding/ | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
 PATCH /api/v1/admin/incident-templates/:id | auth=yes | token=yes | scope=incidents | roles=admin,operator
 PATCH /api/v1/admin/incidents/:id | auth=yes | token=yes | scope=incidents | roles=admin,operator
+PATCH /api/v1/admin/incidents/:id/updates/:updateId | auth=yes | token=yes | scope=incidents | roles=admin,operator
 PATCH /api/v1/admin/locales/:code | auth=yes | token=yes | scope=appearance | roles=admin,operator,branding
 PATCH /api/v1/admin/maintenance/:id | auth=yes | token=yes | scope=maintenance | roles=admin,operator
 PATCH /api/v1/admin/monitors/:id | auth=yes | token=yes | scope=monitors | roles=admin,operator
