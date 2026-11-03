@@ -114,6 +114,21 @@ export async function baselineOf(monitor: MonitorRow, now = Date.now()): Promise
 }
 
 /**
+ * How many times slower than usual a monitor with an open alert is now: the p95 of its latest window over the baseline
+ * the alert was judged against, the figure the notification carries. Null without an open alert, without a baseline,
+ * or when the window holds too few checks to judge.
+ */
+export async function currentLatencyRatio(
+  monitor: Pick<MonitorRow, 'id' | 'latencyAlertSince' | 'latencyBaselineP95' | 'latencyAlertWindowMinutes'>,
+  now = Date.now(),
+): Promise<number | null> {
+  if (monitor.latencyAlertSince === null || monitor.latencyBaselineP95 === null) return null
+  const { ms } = await loadTimedResults(monitor.id, now - monitor.latencyAlertWindowMinutes * MINUTE_MS, now + 1)
+  if (ms.length < MIN_WINDOW_SAMPLES) return null
+  return percentileOf(ms.sort((a, b) => a - b), 0.95)! / Math.max(1, monitor.latencyBaselineP95)
+}
+
+/**
  * Judges the latest window of checks of a monitor against its baseline and alerts when it has become slower than
  * usual, or tells that it is back to normal. The monitor's status is left alone: a slow endpoint that still answers
  * is not an outage, and one that stops answering fails the scheduled check, which alerts on its own.

@@ -113,9 +113,24 @@ per monitor for any date range, with CSV export.
 The **Check now** button in the monitor list runs a check straight away. It is not offered for
 webhook monitors.
 
+### The monitor list
+
+The list shows the worst status first, so a monitor that is down is never below the fold; click a
+column heading to sort by it instead. A monitor that is down or degraded shows how long it has
+been failing ("Down 14 min"), and one with an open [slower-than-usual alert](#slower-than-usual-alert) shows **Slower 3.1×**, how many times slower than usual it is now. **Uptime 24 h** is the share of checks that passed in the last 24
+hours (failures inside a maintenance window are left out), and the small chart beside it is the
+average response time per hour. **Last Check** reads as "12 s ago" (hover for the exact time), and
+the line under a name gives the address that is checked, the interval, the tags and, for an HTTPS
+monitor, the days its TLS certificate is still valid.
+
+Above the table, search by name, address or type, narrow the list to **Down**, **Degraded** or
+**Operational** (the numbers count the monitors in each state), pick a type, or click tags. A
+monitor must match all of them to stay visible. **Edit** and **Delete** sit in the **⋯** menu of a
+row, and **Export YAML** and **Import YAML** in the **⋯** menu beside **Add Monitor**.
+
 ### Monitor details
 
-Click a monitor's name in the monitor list, or its tile under **System Components** on the
+Click a monitor's name in the monitor list, or its row under **System Components** on the
 **Dashboard**, to open its page (`/admin/monitors/:id`); **Monitors** above the title leads back to
 the list. The page shows the monitor over the last 24 hours, 7 days, 30 days or 90 days, up to the result retention:
 

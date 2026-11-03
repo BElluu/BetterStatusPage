@@ -20,6 +20,7 @@ import { validateMonitorConfig } from '../services/monitorConfigSchema.js'
 import { MONITOR_TYPES, certResetsFor, generateWebhookToken, latencyResetsFor, parseMonitorPatch, parseNewMonitor } from '../services/monitorInput.js'
 import { baselineOf } from '../workers/latencyAnomaly.js'
 import { loadMonitorActivity } from '../services/monitorActivity.js'
+import { loadMonitorHealth } from '../services/monitorHealth.js'
 import { maskSecrets, restoreSecrets } from '../services/secretFields.js'
 import type { HttpsConfig, DatabaseConfig, PingConfig, DnsConfig, DockerConfig, RedisConfig, MailConfig, SshConfig, TlsCertConfig, DomainConfig, MonitorActivity, MonitorType } from '@bsp/shared'
 
@@ -95,7 +96,9 @@ export async function monitorRoutes(app: FastifyInstance) {
   app.get('/', async (req) => {
     const rows = await db.select().from(monitors)
     const activityOf = await activityFor(req)
-    return rows.map((row) => ({ ...readableBy(req, parseMonitor(row)), activity: activityOf(row.id) }))
+    const parsed = rows.map((row) => parseMonitor(row))
+    const healthOf = await loadMonitorHealth(parsed)
+    return parsed.map((monitor) => ({ ...readableBy(req, monitor), activity: activityOf(monitor.id), health: healthOf(monitor.id) }))
   })
 
   // Live status of every monitor, internal ones included; the public stream only carries published ones.

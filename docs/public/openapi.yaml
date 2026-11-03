@@ -1459,6 +1459,18 @@ components:
                   timezone: { type: string }
                   recurrenceUntil: { type: [integer, 'null'] }
             incident: { type: [string, 'null'], enum: [minor, major, critical, null], description: Impact of the worst open, published incident that names the monitor. }
+        health:
+          type: object
+          description: Only in the list. How the monitor did over the last 24 hours.
+          properties:
+            uptime24h: { type: [number, 'null'], description: 'Share of counted checks that passed, in percent (failures inside a maintenance window are left out); null when no check counted.' }
+            avgResponseMs: { type: [number, 'null'], description: Average response time of the timed checks; null when there were none. }
+            responseTrend:
+              type: array
+              description: Average response time per hour, oldest first, 24 entries; null for an hour without a timed check.
+              items: { type: [number, 'null'] }
+            failingSince: { type: [integer, 'null'], description: 'When the run of failed checks behind a down or degraded status began (ms since epoch); null otherwise.' }
+            latencyRatio: { type: [number, 'null'], description: 'While the slower-than-usual alert is open, the p95 of the latest window over the usual p95; null otherwise.' }
         webhookToken: { type: [string, 'null'], description: The heartbeat token of a `webhook` monitor. }
         createdAt: { type: integer }
         updatedAt: { type: integer }

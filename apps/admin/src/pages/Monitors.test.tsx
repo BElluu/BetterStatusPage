@@ -43,11 +43,13 @@ class FakeEventSource {
   }
 }
 
+const HEALTH = { uptime24h: 99, avgResponseMs: 120, responseTrend: Array.from({ length: 24 }, (_, i) => 100 + i), failingSince: null }
+
 const monitors = [
-  { id: 1, name: 'Checkout API', type: 'https', intervalSecs: 60, currentStatus: 'up', activity: { maintenance: false, windows: [], incident: null }, lastCheckedAt: Date.UTC(2026, 8, 1, 12), tags: [{ label: 'prod', color: '#ff0000' }] },
+  { id: 1, name: 'Checkout API', type: 'https', config: { url: 'https://checkout.example.test' }, intervalSecs: 60, currentStatus: 'up', activity: { maintenance: false, windows: [], incident: null }, lastCheckedAt: Date.UTC(2026, 8, 1, 12), tags: [{ label: 'prod', color: '#ff0000' }] },
   { id: 2, name: 'billing db', type: 'sqlserver', intervalSecs: 30, currentStatus: 'down', activity: { maintenance: false, windows: [], incident: null }, lastCheckedAt: null, tags: [{ label: 'prod', color: '#ff0000' }, { label: 'db', color: '#00ff00' }] },
   { id: 3, name: 'Deploy hook', type: 'webhook', intervalSecs: 300, currentStatus: 'pending', activity: { maintenance: false, windows: [], incident: null }, lastCheckedAt: null, tags: [] },
-] as unknown as Monitor[]
+].map((m) => ({ ...m, health: HEALTH })) as unknown as Monitor[]
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -77,24 +79,97 @@ describe('MonitorsPage', () => {
     vi.unstubAllGlobals()
   })
 
-  it('lists monitors sorted by name and toggles the sort direction', async () => {
+  it('lists the worst status first and lets the columns re-sort', async () => {
     const user = userEvent.setup()
     renderPage()
 
     expect(await screen.findByText('Checkout API')).toBeInTheDocument()
-    expect(screen.getByText('3 monitors · Live')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Import YAML' })).toHaveAttribute('href', '/admin/import')
-    expect(names()).toEqual(['billing db', 'Checkout API', 'Deploy hook'])
+    expect(screen.getByText('3 monitors')).toBeInTheDocument()
+    expect(screen.getByText('https://checkout.example.test · every 60 s')).toBeInTheDocument()
+    // Down, then pending, then operational.
+    expect(names()).toEqual(['billing db', 'Deploy hook', 'Checkout API'])
     // Webhook monitors are push-based and cannot be checked on demand.
     expect(screen.getAllByTitle('Check now')).toHaveLength(2)
 
+    expect(screen.getByRole('columnheader', { name: /^Status/ })).toHaveAttribute('aria-sort', 'ascending')
+    await user.click(screen.getByRole('button', { name: /^Name/ }))
+    expect(names()).toEqual(['billing db', 'Checkout API', 'Deploy hook'])
     expect(screen.getByRole('columnheader', { name: /^Name/ })).toHaveAttribute('aria-sort', 'ascending')
     await user.click(screen.getByRole('button', { name: /^Name/ }))
     expect(names()).toEqual(['Deploy hook', 'Checkout API', 'billing db'])
     expect(screen.getByRole('columnheader', { name: /^Name/ })).toHaveAttribute('aria-sort', 'descending')
-    await user.click(screen.getByRole('button', { name: 'Interval' }))
-    expect(names()).toEqual(['billing db', 'Checkout API', 'Deploy hook'])
-    expect(screen.getByRole('columnheader', { name: /^Name/ })).not.toHaveAttribute('aria-sort')
+    expect(screen.getByRole('columnheader', { name: /^Status/ })).not.toHaveAttribute('aria-sort')
+  })
+
+  it('keeps export and import in the header menu', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Checkout API')
+
+    expect(screen.queryByRole('link', { name: 'Import YAML' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Import YAML' })).toHaveAttribute('href', '/admin/import')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('searches by name, address and type and filters by status', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Checkout API')
+
+    const statusGroup = screen.getByRole('group', { name: 'Filter by status' })
+    expect(within(statusGroup).getByRole('button', { name: /^Down\s*1$/ })).toBeInTheDocument()
+    expect(within(statusGroup).getByRole('button', { name: /^All\s*3$/ })).toBeInTheDocument()
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search monitors' }), 'checkout.example')
+    expect(names()).toEqual(['Checkout API'])
+    await user.clear(screen.getByRole('searchbox', { name: 'Search monitors' }))
+    await user.type(screen.getByRole('searchbox', { name: 'Search monitors' }), 'sqlserver')
+    expect(names()).toEqual(['billing db'])
+    await user.clear(screen.getByRole('searchbox', { name: 'Search monitors' }))
+
+    await user.click(within(statusGroup).getByRole('button', { name: /^Down/ }))
+    expect(names()).toEqual(['billing db'])
+    await user.click(within(statusGroup).getByRole('button', { name: /^Operational/ }))
+    expect(names()).toEqual(['Checkout API'])
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by type' }), 'sqlserver')
+    expect(screen.getByText('No monitors match the filters.')).toBeInTheDocument()
+  })
+
+  it('shows uptime, a response trend and how long a failing monitor has been down', async () => {
+    vi.mocked(api.get).mockResolvedValue([
+      { ...monitors[1], health: { ...HEALTH, uptime24h: 94.14, avgResponseMs: 48, failingSince: Date.now() - 14 * 60_000 } },
+      { ...monitors[2], health: { ...HEALTH, uptime24h: null, avgResponseMs: null, responseTrend: Array.from({ length: 24 }, () => null) } },
+    ])
+    renderPage()
+
+    const row = (await screen.findByText('billing db')).closest('tr')!
+    expect(within(row).getByText('Down 14 min')).toBeInTheDocument()
+    expect(within(row).getByText('94.1%')).toBeInTheDocument()
+    expect(within(row).getByRole('img', { name: 'Response time, last 24 hours, average 48 ms' })).toBeInTheDocument()
+    // No timed check: a dash for uptime and no chart.
+    const quiet = screen.getByText('Deploy hook').closest('tr')!
+    expect(within(quiet).queryByRole('img')).not.toBeInTheDocument()
+    expect(within(quiet).getAllByText('—').length).toBeGreaterThan(0)
+  })
+
+  it('shows how many times slower than usual a monitor is instead of its status', async () => {
+    vi.mocked(api.get).mockResolvedValue([
+      { ...monitors[0], latencyAlertSince: Date.now() - 60_000, health: { ...HEALTH, latencyRatio: 3.14 } },
+    ])
+    renderPage()
+
+    const row = (await screen.findByText('Checkout API')).closest('tr')!
+    expect(within(row).getByText('Slower 3.1×')).toBeInTheDocument()
+    expect(within(row).queryByText('Operational')).not.toBeInTheDocument()
+  })
+
+  it('shows when a monitor was last checked as a relative time', async () => {
+    vi.mocked(api.get).mockResolvedValue([{ ...monitors[0], lastCheckedAt: Date.now() - 12_000 }])
+    renderPage()
+    expect(await screen.findByText('12 s ago')).toBeInTheDocument()
   })
 
   it('marks monitors in maintenance or with an open incident', async () => {
@@ -129,8 +204,9 @@ describe('MonitorsPage', () => {
     renderPage()
     expect(await screen.findByText('Down · incident')).toBeInTheDocument()
     // The incident never hides a worse check result.
-    expect(screen.getByText('Down')).toBeInTheDocument()
-    expect(screen.queryByText('Operational')).not.toBeInTheDocument()
+    const table = within(screen.getByRole('table'))
+    expect(table.getByText('Down')).toBeInTheDocument()
+    expect(table.queryByText('Operational')).not.toBeInTheDocument()
   })
 
   it('filters by tag and clears the filter', async () => {
@@ -179,12 +255,14 @@ describe('MonitorsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Add Monitor' }))
     expect(screen.getByText('New monitor')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Close form' }))
-    await user.click(screen.getAllByTitle('Edit')[1]!)
+    await user.click(screen.getByRole('button', { name: 'More actions for Checkout API' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Edit' }))
     expect(screen.getByText('Editing Checkout API')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Save monitor' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
-    await user.click(screen.getAllByTitle('Delete')[2]!)
+    await user.click(screen.getByRole('button', { name: 'More actions for Deploy hook' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }))
     expect(screen.getByText('Delete "Deploy hook"? This cannot be undone.')).toBeInTheDocument()
     await user.click(within(screen.getByRole('dialog', { name: 'Delete Monitor' })).getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/admin/monitors/3'))
@@ -203,7 +281,8 @@ describe('MonitorsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Check Checkout API now' }))
     expect(await screen.findByText("Couldn't check \"Checkout API\": timeout")).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Delete Checkout API' }))
+    await user.click(screen.getByRole('button', { name: 'More actions for Checkout API' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }))
     const dialog = screen.getByRole('dialog', { name: 'Delete Monitor' })
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
     expect(within(dialog).getByRole('button', { name: 'Deleting…' })).toBeDisabled()
@@ -250,15 +329,15 @@ describe('MonitorsPage', () => {
     renderPage()
     await screen.findByText('Checkout API')
 
-    const filterBar = screen.getByText('Filter:').parentElement!
+    const filterBar = screen.getByRole('group', { name: 'Filter by tag' })
     await user.click(within(filterBar).getByRole('button', { name: 'eu' }))
     await user.click(within(filterBar).getByRole('button', { name: 'us' }))
     expect(screen.getByRole('columnheader', { name: 'Name' })).toBeInTheDocument()
-    expect(screen.getByText('No monitors match the selected tags.')).toBeInTheDocument()
+    expect(screen.getByText('No monitors match the filters.')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Clear the filter' }))
+    await user.click(screen.getByRole('button', { name: 'Clear the filters' }))
     expect(screen.getByText('Checkout API')).toBeInTheDocument()
-    expect(screen.queryByText('No monitors match the selected tags.')).not.toBeInTheDocument()
+    expect(screen.queryByText('No monitors match the filters.')).not.toBeInTheDocument()
   })
 
   it('shows how long the TLS certificate of an HTTPS monitor is still valid', async () => {
@@ -269,8 +348,8 @@ describe('MonitorsPage', () => {
     ])
     renderPage()
 
-    expect(await screen.findByText('TLS certificate: 5 days left')).toBeInTheDocument()
-    expect(screen.getByText('TLS certificate expired')).toBeInTheDocument()
+    expect(await screen.findByText('TLS 5 d')).toBeInTheDocument()
+    expect(screen.getByText('TLS expired')).toBeInTheDocument()
   })
 
   it('shows no certificate validity for a monitor that ignores TLS errors', async () => {
@@ -280,6 +359,6 @@ describe('MonitorsPage', () => {
     renderPage()
 
     await screen.findByText(monitors[0]!.name)
-    expect(screen.queryByText(/TLS certificate/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^TLS /)).not.toBeInTheDocument()
   })
 })

@@ -7,8 +7,8 @@ Every document says what it describes in its `kind`: `Monitor` or `NotificationC
 | Where | What it does |
 |---|---|
 | **YAML** button on a monitor or a notification channel | Shows that one object as a document, to copy or download. Read only. |
-| **Export YAML** button on the Monitors and Notifications pages | Shows every monitor, notification channel and action you may read as one file, to copy or download. Read only. |
-| **Import YAML** button on the Monitors and Notifications pages | Takes pasted or uploaded documents, shows what they would change, and creates or updates the objects when you apply them. |
+| **Export YAML** on the Monitors page (in its **⋯** menu) and on the Notifications page | Shows every monitor, notification channel and action you may read as one file, to copy or download. Read only. |
+| **Import YAML** on the Monitors page (in its **⋯** menu) and on the Notifications page | Takes pasted or uploaded documents, shows what they would change, and creates or updates the objects when you apply them. |
 | [The API](api.md) | `GET /config/export` writes the documents, `POST /config/validate` and `POST /config/apply` read them, for scripts and pipelines. |
 
 **Who may use it.** The Operator role (and administrators), the same as for editing monitors and notification channels in the panel. An [API token](api.md#permissions) needs the permission of each kind in the file: `monitors`, `channels` or `actions`, read to export and write to import, and `vault:use` besides to add a vault reference or change a monitor, channel or action that has one. [Actions](actions.md) are for administrators only: an operator's export leaves them out (and the `actions` list of each monitor), and an operator cannot import an `Action` document or a monitor that carries an `actions` list. A token that predates actions keeps working for a full export, which then holds no actions.
@@ -19,13 +19,13 @@ Every document says what it describes in its `kind`: `Monitor` or `NotificationC
 
 ### The YAML of an object
 
-Open a monitor (its page, or **Edit**) or a notification channel (**Edit**) and click **YAML**. The dialog shows the saved object as a document, with **Copy** and **Download**. **Export YAML** on **Monitors** or **Notifications** does the same for everything at once, which is the file to keep in a repository. It is only a view: to change the object, change it in the panel, or edit a copy of the document and import it.
+Open a monitor (its page, or **Edit**) or a notification channel (**Edit**) and click **YAML**. The dialog shows the saved object as a document, with **Copy** and **Download**. **Export YAML** on **Monitors** (in the **⋯** menu) or on **Notifications** does the same for everything at once, which is the file to keep in a repository. It is only a view: to change the object, change it in the panel, or edit a copy of the document and import it.
 
 The view shows what is saved, not what you have typed into an open form.
 
 ### Importing
 
-Click **Import YAML** on **Monitors** or **Notifications**, then paste one or more documents into the box, or **Choose file** (YAML, up to 2 MB). The text is checked a moment after you stop typing, and nothing is written yet: the page lists what applying it would create and update, and for an update which settings differ, never their values. Text with mistakes shows its problems with their place instead, and cannot be applied.
+Click **Import YAML** on **Monitors** (in the **⋯** menu) or on **Notifications**, then paste one or more documents into the box, or **Choose file** (YAML, up to 2 MB). The text is checked a moment after you stop typing, and nothing is written yet: the page lists what applying it would create and update, and for an update which settings differ, never their values. Text with mistakes shows its problems with their place instead, and cannot be applied.
 
 **Apply changes** carries it out, completely or not at all. Nothing is ever deleted by an import. Open the YAML of an existing object, change it, and paste it back to edit; paste a new document with a new `key` to add one.
 
