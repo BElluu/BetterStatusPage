@@ -1,5 +1,6 @@
 import { lookup as dnsLookup, type LookupAddress } from 'node:dns'
-import { BlockList, isIP, type LookupFunction } from 'node:net'
+import { request as httpRequest } from 'node:http'
+import { BlockList, isIP, type LookupFunction, type Socket } from 'node:net'
 import { Agent, buildConnector, EnvHttpProxyAgent, fetch as undiciFetch } from 'undici'
 
 /**
@@ -99,6 +100,62 @@ export function proxyAwareAgent(options: { lookup?: LookupFunction; rejectUnauth
     proxyTunnel: false,
     ...(options.rejectUnauthorized === undefined ? {} : { requestTls: { rejectUnauthorized: options.rejectUnauthorized } }),
     ...(keepAlive ? { keepAliveTimeout: 5 * 60_000, keepAliveMaxTimeout: 30 * 60_000 } : {}),
+  })
+}
+
+/**
+ * The proxy a connection to `url` goes through, from the same variables the agent above reads, or null
+ * when it is reached directly. For code that opens its own sockets and so cannot use the agent.
+ */
+export function proxyFor(url: string, env: NodeJS.ProcessEnv = process.env): URL | null {
+  const target = new URL(url)
+  const https = target.protocol === 'https:'
+  const value = https
+    ? env.https_proxy || env.HTTPS_PROXY || env.http_proxy || env.HTTP_PROXY
+    : env.http_proxy || env.HTTP_PROXY
+  if (!value) return null
+  const port = target.port || (https ? '443' : '80')
+  const host = target.hostname.toLowerCase()
+  for (const entry of (env.no_proxy ?? env.NO_PROXY ?? '').split(/[\s,]+/).filter(Boolean)) {
+    if (entry === '*') return null
+    const m = /^(\[[^\]]*\]|[^:]*)(?::(\d+))?$/.exec(entry)
+    if (!m?.[1]) continue
+    if (m[2] && m[2] !== port) continue
+    const name = m[1].replace(/^\*?\./, '').toLowerCase()
+    if (host === name || host === name.replace(/^\[(.*)\]$/, '$1') || host.endsWith(`.${name}`)) return null
+  }
+  return new URL(value.includes('://') ? value : `http://${value}`)
+}
+
+/**
+ * A socket to `host:port` through a `CONNECT` tunnel of `proxy`, for code that speaks its own protocol
+ * (the caller checks the target with `refusalReason` first; the proxy resolves the name). Rejects
+ * with the proxy's own status when it refuses.
+ */
+export function openTunnel(proxy: URL, host: string, port: number, timeoutMs: number): Promise<Socket> {
+  const authority = `${host.includes(':') ? `[${host}]` : host}:${port}`
+  const credentials = proxy.username ? `${decodeURIComponent(proxy.username)}:${decodeURIComponent(proxy.password)}` : ''
+  return new Promise((resolve, reject) => {
+    const tunnel = httpRequest({
+      host: proxy.hostname.replace(/^\[(.*)\]$/, '$1'),
+      port: proxy.port || (proxy.protocol === 'https:' ? 443 : 80),
+      method: 'CONNECT',
+      path: authority,
+      headers: { host: authority, ...(credentials ? { 'proxy-authorization': `Basic ${Buffer.from(credentials).toString('base64')}` } : {}) },
+      timeout: timeoutMs,
+    })
+    tunnel.once('connect', (res, socket, head) => {
+      if (res.statusCode === 200) {
+        // A server that speaks first can have its greeting in the same packet as the proxy's answer.
+        if (head.length) socket.unshift(head)
+        return resolve(socket)
+      }
+      socket.destroy()
+      reject(new Error(`Proxy response (${res.statusCode}) !== 200 when HTTP Tunneling`))
+    })
+    tunnel.once('timeout', () => { tunnel.destroy(); reject(new Error('Timed out connecting to the proxy')) })
+    tunnel.once('error', reject)
+    tunnel.end()
   })
 }
 

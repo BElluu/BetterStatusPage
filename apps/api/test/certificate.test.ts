@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { createServer as createTcpServer, type Socket } from 'node:net'
+import { connect as connectTcp, createServer as createTcpServer, type Socket } from 'node:net'
 import { createServer as createTlsServer, type Server as TlsServer } from 'node:tls'
 import { join } from 'node:path'
 import { after, before, beforeEach, describe, it } from 'node:test'
@@ -267,6 +267,53 @@ describe('readCertificate', () => {
     assert.equal(cert.host, 'localhost')
     assert.equal(cert.expiresAt, expectedExpiry)
     assert.equal(cert.issuer, 'localhost')
+  })
+
+  it('reads the certificate through the outbound proxy with CONNECT', async (t) => {
+    if (!tlsServer) return t.skip('openssl is not available')
+    const tunnels: Array<{ target?: string; auth?: string }> = []
+    let status = 200
+    const proxy = createServer()
+    proxy.on('connect', (req, client) => {
+      tunnels.push({ target: req.url, auth: req.headers['proxy-authorization'] })
+      if (status !== 200) return void client.end(`HTTP/1.1 ${status} Denied\r\n\r\n`)
+      const [host, p] = (req.url ?? '').split(':')
+      const upstream = connectTcp(Number(p), host, () => {
+        client.write('HTTP/1.1 200 Connection Established\r\n\r\n')
+        upstream.pipe(client)
+        client.pipe(upstream)
+      })
+      upstream.on('error', () => client.destroy())
+      client.on('error', () => upstream.destroy())
+    })
+    await new Promise<void>((resolve) => proxy.listen(0, '127.0.0.1', resolve))
+    const proxyPort = (proxy.address() as { port: number }).port
+    const saved = { https: process.env.HTTPS_PROXY, lowerHttps: process.env.https_proxy, no: process.env.NO_PROXY, lowerNo: process.env.no_proxy }
+    delete process.env.https_proxy
+    delete process.env.no_proxy
+    delete process.env.NO_PROXY
+    process.env.HTTPS_PROXY = `http://user:pa%20ss@127.0.0.1:${proxyPort}`
+    try {
+      const cert = await readCertificate(`https://localhost:${port}/`, 2_000)
+      assert.equal(cert.expiresAt, expectedExpiry)
+      assert.equal(tunnels[0]?.target, `localhost:${port}`)
+      assert.equal(tunnels[0]?.auth, `Basic ${Buffer.from('user:pa ss').toString('base64')}`)
+
+      status = 407
+      await assert.rejects(readCertificate(`https://localhost:${port}/`, 2_000), /Proxy response \(407\)/)
+
+      process.env.NO_PROXY = 'localhost'
+      tunnels.length = 0
+      status = 200
+      await readCertificate(`https://localhost:${port}/`, 2_000)
+      assert.equal(tunnels.length, 0)
+    } finally {
+      for (const [name, value] of [['HTTPS_PROXY', saved.https], ['https_proxy', saved.lowerHttps], ['NO_PROXY', saved.no], ['no_proxy', saved.lowerNo]] as const) {
+        if (value === undefined) delete process.env[name]
+        else process.env[name] = value
+      }
+      await new Promise<void>((resolve) => { proxy.close(() => resolve()); proxy.closeAllConnections() })
+    }
   })
 
   it('reports the expiry as a test-run step, flagged inside the warning window', async (t) => {

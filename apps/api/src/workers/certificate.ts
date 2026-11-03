@@ -1,12 +1,12 @@
-import { connect } from 'tls'
 import { isIP } from 'net'
+import { connect } from 'tls'
 import { eq } from 'drizzle-orm'
 import { CERT_REMINDER_DAYS, DEFAULT_CERT_WARN_DAYS, MAX_CERT_WARN_DAYS } from '@bsp/shared'
 import type { CertExpiryConfig, HttpsConfig } from '@bsp/shared'
 import { db } from '../db/client.js'
 import { monitors } from '../db/schema.js'
 import { sendCertificateNotifications } from './notifier.js'
-import { guardedLookup, refusalReason } from '../services/ssrfGuard.js'
+import { guardedLookup, openTunnel, proxyFor, refusalReason } from '../services/ssrfGuard.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 /** Certificates change rarely — one extra handshake every few hours per monitor is plenty. */
@@ -50,11 +50,20 @@ export const readCertificate: CertificateReader = (url, timeoutMs) => {
   // An address literal is never resolved, so the lookup guard does not see it.
   const refused = refusalReason(target.host)
   if (refused) return Promise.reject(new Error(`Refusing to connect to ${target.host}: ${refused}`))
-  return new Promise((resolve, reject) => {
-    const socket = connect({
+  // Where direct connections are not allowed, the handshake runs through a CONNECT tunnel, like the check itself.
+  const proxy = proxyFor(url)
+  return (proxy ? openTunnel(proxy, target.host, target.port, timeoutMs) : Promise.resolve(undefined)).then((through) => new Promise((resolve, reject) => {
+    const finish = (settle: () => void) => {
+      tls.destroy()
+      through?.destroy()
+      settle()
+    }
+    const fail = (err: Error) => finish(() => reject(err))
+    const timedOut = () => fail(new Error(`TLS handshake timed out after ${timeoutMs} ms`))
+    const tls = connect({
       host: target.host,
       port: target.port,
-      lookup: guardedLookup(),
+      ...(through ? { socket: through } : { lookup: guardedLookup() }),
       // SNI must name a host, never an IP address.
       ...(isIP(target.host) ? {} : { servername: target.host }),
       // Only the dates are read here. Whether the certificate is trusted is the scheduled check's
@@ -62,22 +71,15 @@ export const readCertificate: CertificateReader = (url, timeoutMs) => {
       rejectUnauthorized: false,
       timeout: timeoutMs,
     })
-    const finish = (settle: () => void) => {
-      socket.destroy()
-      settle()
-    }
-    socket.once('secureConnect', () => {
-      const cert = socket.getPeerCertificate()
+    tls.once('secureConnect', () => {
+      const cert = tls.getPeerCertificate()
       const expiresAt = Date.parse(cert?.valid_to ?? '')
-      if (!Number.isFinite(expiresAt)) {
-        finish(() => reject(new Error('Endpoint presented no TLS certificate')))
-        return
-      }
+      if (!Number.isFinite(expiresAt)) return fail(new Error('Endpoint presented no TLS certificate'))
       finish(() => resolve({ host: target.host, expiresAt, issuer: commonName(cert.issuer?.CN) }))
     })
-    socket.once('timeout', () => finish(() => reject(new Error(`TLS handshake timed out after ${timeoutMs} ms`))))
-    socket.once('error', (err) => finish(() => reject(err)))
-  })
+    tls.once('timeout', timedOut)
+    tls.once('error', fail)
+  }))
 }
 
 /** The expiry warning settings in effect, or null when warnings are off. */

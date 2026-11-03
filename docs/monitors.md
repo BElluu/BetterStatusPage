@@ -209,17 +209,18 @@ The same variables apply to the other HTTP requests the server makes: notificati
 
 Redirects of these requests are followed by the server itself, and each target is checked like the first. Before a subscriber webhook goes to the proxy, the server resolves its name and refuses a private address (the proxy resolves it again, so a proxy that can reach internal networks should still block them).
 
-Not proxied: email (SMTP), the certificate expiry reading, the TLS certificate monitor and the monitors that open a plain connection (Ping, TCP, Database, Redis, Mail server, SSH, DNS).
+The certificate expiry reading of an HTTPS monitor and the certificate step of the test open a `CONNECT` tunnel through the same proxy, so the expiry warning works where direct connections are blocked.
+
+The TLS certificate, Mail server and SSH monitors reach their server through a `CONNECT` tunnel of the same proxy. Many proxies allow `CONNECT` only to port 443 (and sometimes a few more); for any other port the proxy answers `403`, which the monitor shows as `Proxy response (403) !== 200 when HTTP Tunneling`, and the proxy has to be opened for that port.
+
+Not proxied: email sent by the server (SMTP), and the Ping, Database, Redis and DNS monitors.
 
 The proxy opens the connection and resolves the host name, so the address check above is made on the host in the URL
 (and in every redirect) and not on the address it resolves to: the addresses and the names metadata services answer to
 are refused, but a name that merely resolves to one is not. Make the proxy itself refuse `169.254.0.0/16`,
 `fd00:ec2::254` and `100.100.100.200` if it runs on a cloud host.
 
-Only HTTPS monitors and the test runner use the proxy. Reading the certificate (the expiry warning of a monitor and the
-certificate step of the test), the other monitor types, HTTP actions and notification channels still connect directly, so
-on a network that only allows traffic through the proxy the expiry warning cannot be read. A monitor that sets its own
-`Proxy-Authorization` header fails while a proxy is configured.
+A monitor that sets its own `Proxy-Authorization` header fails while a proxy is configured.
 
 ### Response checks
 
