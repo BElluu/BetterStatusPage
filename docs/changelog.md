@@ -7,6 +7,7 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ### Added
 
+- **Page Builder toolbox**: the left panel has **Add** and **Properties** tabs, the blocks are fixed tiles, and the monitor list can be searched, filtered by type, grouped by type or hidden once added, with a count of monitors on the page. The separate *Charts* list is replaced by a chart button on each monitor. See [Customizing the status page](customizing-the-status-page.md#page-builder).
 - **Maintenance block**: add a *Maintenance* block in the Page Builder to list running, upcoming and past maintenance windows on the status page, filtered by all, in progress, upcoming or past, up to a set number. Served by the new `GET /api/v1/public/maintenances`. See [Customizing the status page](customizing-the-status-page.md) and [Maintenance](incidents-and-maintenance.md#on-the-status-page-1).
 - **Edit an incident**: the title, impact and affected monitors of an incident can be changed in the admin console (the pencil button on its row). Changing only the monitors now also reaches open status pages live. See [Incidents](incidents-and-maintenance.md#editing-an-incident).
 - **Incident editing for agents (MCP)**: `incident_update_edit` corrects the text of one timeline entry, and `incident_set_monitors` takes `addMonitorIds` to add a service without replacing the list. See [MCP](mcp.md).
