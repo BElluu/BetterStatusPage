@@ -258,7 +258,7 @@ describe('BuilderPage', () => {
     renderPage()
     await screen.findByText('Core services')
 
-    // Adding a child remounts the grid, so the drop zone is looked up again for every drop.
+    // Adding a child re-renders the group, so the drop zone is looked up again for every drop.
     const dropZone = () => screen.getByText(/^(Drag monitor from toolbox · drag out to ungroup|Drop here)$/).parentElement!
     fireEvent.dragOver(dropZone(), { dataTransfer: dataTransfer({}) })
     expect(screen.getByText('Drop here')).toBeInTheDocument()
@@ -266,6 +266,10 @@ describe('BuilderPage', () => {
     expect(findGroupChildren()).toHaveLength(3)
     fireEvent.drop(dropZone(), { dataTransfer: dataTransfer({ nodeType: 'text' }) })
     expect(findGroupChildren()).toHaveLength(4)
+    fireEvent.drop(dropZone(), { dataTransfer: dataTransfer({ nodeType: 'chart', monitorId: '1' }) })
+    expect(findGroupChildren()).toHaveLength(5)
+    const group = useBuilderStore.getState().tree.children.find((n) => n.id === 'g1')
+    expect(group && 'children' in group && group.children.at(-1)).toMatchObject({ type: 'chart', monitorId: 1 })
 
     const before = useBuilderStore.getState().tree.children.length
     await user.click(screen.getAllByTitle('Delete')[1]!)

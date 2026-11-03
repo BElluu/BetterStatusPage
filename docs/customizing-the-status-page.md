@@ -38,7 +38,7 @@ Click a block to select it. The left panel switches to **Properties** with its s
 
 | Toolbox item | What it shows on the page | Properties |
 | --- | --- | --- |
-| **New group** | A titled card that holds monitors and text blocks | **Group name**, **Collapsible**, **Add monitor to group** |
+| **New group** | A titled card that holds monitors, charts and text blocks | **Group name**, **Collapsible**, **Add monitor to group** |
 | **Monitors** (one entry per monitor) | A status card for that monitor | **Monitor**, **Display name (optional)**, **Card type**, **Uptime bar**, **Uptime bar position**, **Show uptime %**, **Show monitor type** |
 | **Text** | A Markdown block | **Name** (only shown in the builder), **Text (Markdown)** |
 | **Divider** | A horizontal line | None |
@@ -61,10 +61,10 @@ Click a block to select it. The left panel switches to **Properties** with its s
 
 ### Groups
 
-A group holds monitors and text blocks only. To fill a group:
+A group holds monitors, charts and text blocks only. To fill a group:
 
-- drag a monitor or a **Text** item from the toolbox onto the group,
-- drag a monitor or text block that is already on the canvas onto the group, or
+- drag a monitor, a chart (the chart button of a monitor) or a **Text** item from the toolbox onto the group,
+- drag a monitor, chart or text block that is already on the canvas onto the group, or
 - select the group and pick monitors under **Add monitor to group**.
 
 Inside a group, drag items by their handle to reorder them. Drag an item out of the group and drop it on the canvas to ungroup it. The **×** next to an item removes it from the group.

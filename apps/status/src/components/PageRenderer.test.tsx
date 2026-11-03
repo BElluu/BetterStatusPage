@@ -76,6 +76,19 @@ describe('PageRenderer', () => {
     expect(await screen.findByText('Latency')).toBeInTheDocument()
   })
 
+  it('renders a chart inside a group', async () => {
+    const tree: LayoutTree = {
+      id: 'root', type: 'page', children: [
+        { id: 'g', type: 'group', label: 'Core', collapsible: false, children: [
+          { id: 'chart', type: 'chart', monitorId: 1, title: 'Group latency', hours: 24, buckets: 30, aggregation: 'avg' },
+        ] },
+      ],
+    }
+    render(<PageRenderer tree={tree} monitors={monitors} statusMap={{}} />)
+
+    expect(await screen.findByText('Group latency')).toBeInTheDocument()
+  })
+
   it('shows uptime % in the chart block only when asked', async () => {
     uptimeState.value = { uptime: { overallUptimePct: 99.5, days: [] }, failed: false }
     const chart = { id: 'chart', type: 'chart', monitorId: 1, hours: 720, buckets: 30, aggregation: 'avg' } as const

@@ -248,16 +248,6 @@ export default function BuilderPage() {
     return (maxBottom + 4) * (ROW_H + 10)
   }, [rglLayout])
 
-  // Force RGL remount when items are added/removed or group child counts change
-  const rglKey = useMemo(() =>
-    tree.children.length + '|' +
-    tree.children
-      .filter((n) => n.type === 'group')
-      .map((n) => `${n.id}:${(n as GroupNode).children.length}`)
-      .join('|'),
-    [tree.children],
-  )
-
   function handleLayoutChange(newLayout: Layout) {
     applyGridLayout(newLayout.map(({ i, x, y, w, h }) => ({ i, x, y, w, h })))
   }
@@ -499,7 +489,6 @@ export default function BuilderPage() {
                 ))}
               </div>
             <RGL
-              key={rglKey}
               layout={rglLayout}
               cols={COLS}
               rowHeight={ROW_H}
@@ -711,7 +700,7 @@ function NodeCard(props: NodeCardProps) {
       <div className={`relative h-full flex items-center gap-2 px-3 rounded-lg bg-surface-container-low focus-ring ${ring}`} {...card}>
         <DeleteBtn onDelete={onDelete} label={label} />
         <span className="drag-handle cursor-grab text-secondary hover:text-on-surface-variant shrink-0" aria-hidden="true">⠿</span>
-        <span className="text-secondary font-mono text-xs shrink-0" aria-hidden="true">↗</span>
+        <span className="material-symbols-outlined text-secondary shrink-0" aria-hidden="true" style={{ fontSize: '18px' }}>show_chart</span>
         <span className="flex-1 text-sm text-on-surface truncate pr-5">{monitor?.name ?? `#${n.monitorId}`}</span>
         <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 py-0.5 rounded shrink-0">{sizeLabel}</span>
         <span className="text-[9px] uppercase bg-surface-container text-secondary px-1 py-0.5 rounded shrink-0">{n.aggregation}</span>
@@ -792,6 +781,9 @@ function GroupCard({
     if (type === 'monitor') {
       const monitorId = Number(e.dataTransfer.getData('monitorId'))
       if (monitorId) onAddChild(createMonitorNode(monitorId))
+    } else if (type === 'chart') {
+      const monitorId = Number(e.dataTransfer.getData('monitorId'))
+      if (monitorId) onAddChild(createChartNode(monitorId))
     } else if (type === 'text') {
       onAddChild(createTextNode())
     }
@@ -907,6 +899,11 @@ function SortableGroupItem({
         <>
           <span className="text-[9px] uppercase bg-surface-container-high text-secondary px-1 rounded">{monitor.type}</span>
           <span className="flex-1 text-on-surface-variant truncate">{monitor.name}</span>
+        </>
+      ) : child.type === 'chart' ? (
+        <>
+          <span className="material-symbols-outlined text-secondary shrink-0" aria-hidden="true" style={{ fontSize: '16px' }}>show_chart</span>
+          <span className="flex-1 text-on-surface-variant truncate">{monitors.find((m) => m.id === (child as ChartNode).monitorId)?.name ?? `#${(child as ChartNode).monitorId}`}</span>
         </>
       ) : child.type === 'text' ? (
         <>

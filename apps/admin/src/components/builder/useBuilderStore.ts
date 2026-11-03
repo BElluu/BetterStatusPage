@@ -57,9 +57,9 @@ function mapTree(children: LayoutNode[], fn: (n: LayoutNode) => LayoutNode): Lay
   })
 }
 
-/** Groups render monitors and text blocks only, so only those can be moved into one. */
+/** Groups render monitors, charts and text blocks only, so only those can be moved into one. */
 export function canJoinGroup(node: LayoutNode): boolean {
-  return node.type === 'monitor' || node.type === 'text'
+  return node.type === 'monitor' || node.type === 'chart' || node.type === 'text'
 }
 
 /** Root items at or below `fromY` pushed down by `by` rows, so a new item fits at `fromY`. */

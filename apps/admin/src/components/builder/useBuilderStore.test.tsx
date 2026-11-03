@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createGroupNode, createIncidentsNode, createMaintenanceNode, createMonitorNode, createTextNode, defaultGrid, findNode, useBuilderStore } from './useBuilderStore'
+import { createChartNode, createGroupNode, createIncidentsNode, createMaintenanceNode, createMonitorNode, createTextNode, defaultGrid, findNode, useBuilderStore } from './useBuilderStore'
 
 describe('builder store', () => {
   beforeEach(() => {
@@ -61,6 +61,21 @@ describe('builder store', () => {
     const grouped = children[0]!
     if (grouped.type !== 'group') throw new Error('Group missing')
     expect(grouped.children.map((n) => n.type)).toEqual(['text'])
+    expect(grouped.children[0]!.grid).toBeUndefined()
+  })
+
+  it('moves a chart into a group', () => {
+    const store = useBuilderStore.getState()
+    store.addNode('root', { ...createGroupNode('Group'), grid: defaultGrid('group') })
+    store.addNode('root', { ...createChartNode(1), grid: { x: 0, y: 1, w: 3, h: 1 } })
+    const [group, chart] = useBuilderStore.getState().tree.children
+    useBuilderStore.getState().moveToGroup(chart!.id, group!.id)
+
+    const { children } = useBuilderStore.getState().tree
+    expect(children.map((n) => n.id)).toEqual([group!.id])
+    const grouped = children[0]!
+    if (grouped.type !== 'group') throw new Error('Group missing')
+    expect(grouped.children).toMatchObject([{ type: 'chart', monitorId: 1, chartH: 5 }])
     expect(grouped.children[0]!.grid).toBeUndefined()
   })
 
