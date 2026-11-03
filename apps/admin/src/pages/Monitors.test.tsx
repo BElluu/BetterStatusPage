@@ -63,6 +63,7 @@ function names() {
 describe('MonitorsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
     FakeEventSource.instances = []
     vi.stubGlobal('EventSource', FakeEventSource)
     vi.mocked(api.get).mockImplementation(async (path: string) => {
@@ -164,6 +165,26 @@ describe('MonitorsPage', () => {
     const row = (await screen.findByText('Checkout API')).closest('tr')!
     expect(within(row).getByText('Slower 3.1×')).toBeInTheDocument()
     expect(within(row).queryByText('Operational')).not.toBeInTheDocument()
+  })
+
+  it('switches to compact rows and remembers the choice', async () => {
+    const user = userEvent.setup()
+    const first = renderPage()
+    await screen.findByText('Checkout API')
+
+    const cells = () => screen.getAllByRole('row')[1]!.querySelector('td')!
+    expect(screen.getByRole('button', { name: 'Comfortable rows' })).toHaveAttribute('aria-pressed', 'true')
+    expect(cells()).toHaveClass('py-3')
+
+    await user.click(screen.getByRole('button', { name: 'Compact rows' }))
+    expect(screen.getByRole('button', { name: 'Compact rows' })).toHaveAttribute('aria-pressed', 'true')
+    expect(cells()).toHaveClass('py-1.5')
+    expect(localStorage.getItem('bsp.monitors.compact')).toBe('1')
+
+    first.unmount()
+    renderPage()
+    await screen.findByText('Checkout API')
+    expect(screen.getByRole('button', { name: 'Compact rows' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('shows when a monitor was last checked as a relative time', async () => {

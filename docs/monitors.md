@@ -123,6 +123,9 @@ average response time per hour. **Last Check** reads as "12 s ago" (hover for th
 the line under a name gives the address that is checked, the interval, the tags and, for an HTTPS
 monitor, the days its TLS certificate is still valid.
 
+The two buttons at the right of the toolbar switch between comfortable rows and **compact rows**,
+which put the name, address and tags on one line; the browser remembers the choice.
+
 Above the table, search by name, address or type, narrow the list to **Down**, **Degraded** or
 **Operational** (the numbers count the monitors in each state), pick a type, or click tags. A
 monitor must match all of them to stay visible. **Edit** and **Delete** sit in the **⋯** menu of a

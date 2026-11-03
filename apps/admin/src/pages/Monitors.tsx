@@ -22,6 +22,11 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'All' }, { value: 'down', label: 'Down' }, { value: 'degraded', label: 'Degraded' }, { value: 'up', label: 'Operational' },
 ]
 
+const COMPACT_KEY = 'bsp.monitors.compact'
+function readCompact(): boolean {
+  try { return localStorage.getItem(COMPACT_KEY) === '1' } catch { return false }
+}
+
 const MONITOR_QUICK_START: QuickStartOption<MonitorType>[] = MONITOR_TYPES.map((t) => ({
   key: t.value,
   label: t.label,
@@ -42,6 +47,12 @@ export default function MonitorsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [typeFilter, setTypeFilter] = useState('all')
   const now = useNow()
+  const [compact, setCompact] = useState(readCompact)
+  const cell = compact ? 'px-4 py-1.5' : 'px-4 py-3'
+  function chooseCompact(value: boolean) {
+    setCompact(value)
+    try { localStorage.setItem(COMPACT_KEY, value ? '1' : '0') } catch { /* the choice is just not remembered */ }
+  }
 
   const { data: monitors = [], isPending, isError, refetch } = useQuery<MonitorListItem[]>({
     queryKey: ['monitors'],
@@ -236,6 +247,22 @@ export default function MonitorsPage() {
               {types.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           )}
+          <div className="inline-flex rounded-lg p-0.5 ml-auto" role="group" aria-label="Row density" style={{ background: 'var(--m3-surface-container)' }}>
+            {([[false, 'density_medium', 'Comfortable rows'], [true, 'density_small', 'Compact rows']] as const).map(([value, icon, label]) => (
+              <button
+                key={label}
+                type="button"
+                aria-pressed={compact === value}
+                aria-label={label}
+                title={label}
+                onClick={() => chooseCompact(value)}
+                className="px-2 py-1.5 rounded-md focus-ring"
+                style={compact === value ? { background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface)' } : { color: 'var(--m3-on-surface-variant)' }}
+              >
+                <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '18px', display: 'block' }}>{icon}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -277,55 +304,56 @@ export default function MonitorsPage() {
               </tr>
             </thead>
             <tbody>
-              {displayed.map((monitor, i) => (
+              {displayed.map((monitor) => (
                 <tr
                   key={monitor.id}
-                  className={`transition-colors ${effectiveStatus(monitor) === 'down' ? 'bg-[var(--m3-down-bg)] hover:bg-[color-mix(in_srgb,var(--m3-down)_12%,var(--m3-down-bg))]' : 'hover:bg-surface-container'}`}
-                  style={{ borderTop: i > 0 ? '1px solid var(--m3-outline-variant)' : 'none' }}
+                  className={`border-t border-outline-variant first:border-t-0 transition-[background-color] ${effectiveStatus(monitor) === 'down' ? 'bg-[var(--m3-down-bg)] hover:bg-[color-mix(in_srgb,var(--m3-down)_12%,var(--m3-down-bg))]' : 'hover:bg-surface-container'}`}
                 >
-                  <td className="px-4 py-3">
+                  <td className={`${cell}`}>
                     <div className="flex flex-wrap items-center gap-1.5">
                       {!(effectiveStatus(monitor) === 'up' && isSlower(monitor)) && <MonitorStatusBadge monitor={monitor} detail={failingFor(monitor, now)} />}
                       <ActivityBadges activity={monitor.activity} slower={isSlower(monitor)} slowerRatio={monitor.health.latencyRatio} />
                     </div>
                   </td>
-                  <td className="px-4 py-3">
-                    <Link to={`/admin/monitors/${monitor.id}`} className="font-medium hover:underline focus-ring rounded" style={{ color: 'var(--m3-on-surface)' }}>{monitor.name}</Link>
-                    <div className="font-mono text-xs mt-0.5 truncate max-w-[320px]" style={{ color: 'var(--m3-secondary)' }}>
-                      {monitorEndpoint(monitor)} · every {monitor.intervalSecs} s
-                    </div>
-                    {((monitor.tags ?? []).length > 0 || showsCert(monitor)) && (
-                      <div className="flex flex-wrap items-center gap-1 mt-1">
-                        {(monitor.tags ?? []).map((t, j) => {
-                          const active = activeTags.includes(t.label)
-                          return (
-                            <button key={j} type="button" aria-pressed={active}
-                              onClick={(e) => { e.stopPropagation(); setActiveTags((prev) => active ? prev.filter((l) => l !== t.label) : [...prev, t.label]) }}
-                              className="text-xs px-1.5 py-0.5 rounded-full font-medium transition-all"
-                              style={{ background: active ? `${t.color}33` : `${t.color}22`, color: t.color, border: `1px solid ${active ? `${t.color}66` : `${t.color}44`}` }}
-                            >
-                              {t.label}
-                            </button>
-                          )
-                        })}
-                        {showsCert(monitor) && <CertExpiryChip monitor={monitor} />}
+                  <td className={cell}>
+                    <div className={compact ? 'flex items-center gap-2 min-w-0' : undefined}>
+                      <Link to={`/admin/monitors/${monitor.id}`} className={`font-medium hover:underline focus-ring rounded ${compact ? 'shrink-0' : ''}`} style={{ color: 'var(--m3-on-surface)' }}>{monitor.name}</Link>
+                      <div className={`font-mono text-xs truncate ${compact ? 'max-w-[240px]' : 'mt-0.5 max-w-[320px]'}`} style={{ color: 'var(--m3-secondary)' }}>
+                        {monitorEndpoint(monitor)} · every {monitor.intervalSecs} s
                       </div>
-                    )}
+                      {((monitor.tags ?? []).length > 0 || showsCert(monitor)) && (
+                        <div className={`flex items-center gap-1 ${compact ? 'shrink-0' : 'flex-wrap mt-1'}`}>
+                          {(monitor.tags ?? []).map((t, j) => {
+                            const active = activeTags.includes(t.label)
+                            return (
+                              <button key={j} type="button" aria-pressed={active}
+                                onClick={(e) => { e.stopPropagation(); setActiveTags((prev) => active ? prev.filter((l) => l !== t.label) : [...prev, t.label]) }}
+                                className="text-xs px-1.5 py-0.5 rounded-full font-medium transition-all"
+                                style={{ background: active ? `${t.color}33` : `${t.color}22`, color: t.color, border: `1px solid ${active ? `${t.color}66` : `${t.color}44`}` }}
+                              >
+                                {t.label}
+                              </button>
+                            )
+                          })}
+                          {showsCert(monitor) && <CertExpiryChip monitor={monitor} />}
+                        </div>
+                      )}
+                    </div>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs tabular-nums">
+                  <td className={`${cell} font-mono text-xs tabular-nums`}>
                     {monitor.health.uptime24h !== null ? formatPercent(monitor.health.uptime24h) : '—'}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className={`${cell}`}>
                     <Sparkline
                       values={monitor.health.responseTrend}
                       status={effectiveStatus(monitor)}
                       label={`Response time, last 24 hours${monitor.health.avgResponseMs !== null ? `, average ${Math.round(monitor.health.avgResponseMs)} ms` : ''}`}
                     />
                   </td>
-                  <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: 'var(--m3-secondary)' }} title={monitor.lastCheckedAt ? formatDateTime(monitor.lastCheckedAt) : undefined}>
+                  <td className={`${cell} text-xs whitespace-nowrap`} style={{ color: 'var(--m3-secondary)' }} title={monitor.lastCheckedAt ? formatDateTime(monitor.lastCheckedAt) : undefined}>
                     {monitor.lastCheckedAt ? formatAgo(monitor.lastCheckedAt, now) : '—'}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className={`${cell}`}>
                     <div className="flex items-center justify-end gap-1">
                       {monitor.type !== 'webhook' && (
                         <ActionBtn
