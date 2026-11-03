@@ -13,6 +13,18 @@ const BLOCKS = [
   { type: 'maintenance', label: 'Maintenance', title: 'Maintenance', icon: 'build' },
 ]
 
+/** An icon with a small green check in its corner once what it adds is already on the page. */
+const AddedIcon = ({ name, added }: { name: string; added: boolean }) => (
+  <span className="relative inline-flex">
+    <Icon name={name} size={18} />
+    {added && (
+      <span className="absolute -top-1 -right-1 flex items-center justify-center w-2.5 h-2.5 rounded-full" style={{ background: 'var(--m3-up)', color: 'var(--m3-surface)' }} aria-hidden="true">
+        <Icon name="check" size={8} />
+      </span>
+    )}
+  </span>
+)
+
 const Icon = ({ name, size = 16 }: { name: string; size?: number }) => (
   <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: `${size}px` }}>{name}</span>
 )
@@ -86,9 +98,9 @@ export function Toolbox({ monitors, status, usedMonitorIds, chartMonitorIds, onA
             onClick={() => onAdd('chart', m.id)}
             aria-label={`Add chart for ${m.name} to the page`}
             title={charted ? 'Chart already on the page, add another' : 'Add chart'}
-            className={`btn-icon w-7 h-7 shrink-0 focus-visible:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:opacity-100 ${charted ? '' : 'opacity-0'}`}
+            className="btn-icon w-7 h-7 shrink-0"
           >
-            <Icon name={charted ? 'check' : 'show_chart'} />
+            <AddedIcon name="show_chart" added={charted} />
           </button>
         )}
         <button
@@ -98,7 +110,7 @@ export function Toolbox({ monitors, status, usedMonitorIds, chartMonitorIds, onA
           title={used ? 'Already on the page, add another' : 'Add to page'}
           className="btn-icon w-7 h-7 mr-0.5 shrink-0"
         >
-          <Icon name={used ? 'check' : 'add'} />
+          <AddedIcon name="monitor_heart" added={used} />
         </button>
       </div>
     )
@@ -154,14 +166,14 @@ export function Toolbox({ monitors, status, usedMonitorIds, chartMonitorIds, onA
             />
           </div>
           {typeCounts.length > 1 && (
-            <div className="flex gap-1.5 px-3 pt-2 pb-1 overflow-x-auto" role="group" aria-label="Filter by type">
+            <div className="flex flex-wrap gap-1.5 px-3 pt-2 pb-1" role="group" aria-label="Filter by type">
               {[['all', monitors.length] as const, ...typeCounts].map(([t, n]) => (
                 <button
                   key={t}
                   type="button"
                   aria-pressed={type === t}
                   onClick={() => setType(t)}
-                  className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] border ${type === t ? 'bg-surface-container-high text-on-surface border-transparent font-medium' : 'text-secondary border-outline-variant hover:bg-surface-container'}`}
+                  className={`rounded-full px-2.5 py-0.5 text-[11px] border ${type === t ? 'bg-surface-container-high text-on-surface border-transparent font-medium' : 'text-secondary border-outline-variant hover:bg-surface-container'}`}
                 >
                   {t === 'all' ? 'All' : t}<span className="opacity-70 ml-1 text-[10px]">{n}</span>
                 </button>
