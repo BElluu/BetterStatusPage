@@ -5,6 +5,10 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+### Fixed
+
+- **Certificate expiry through the outbound proxy**: reading the certificate of an HTTPS monitor (the expiry warning and the certificate step of the test) now goes through `HTTP_PROXY`/`HTTPS_PROXY` with a `CONNECT` tunnel and honours `NO_PROXY`, instead of failing with `TLS handshake timed out` where direct connections are blocked. See [Monitors](monitors.md#outbound-proxy).
+
 ## [0.8.1] - 2026-11-02
 
 ### Added

@@ -5,7 +5,7 @@ import type { LookupFunction } from 'node:net'
 import { checkHttps } from '../src/workers/https.js'
 import { testHttps } from '../src/workers/testRunner.js'
 import { readCertificate } from '../src/workers/certificate.js'
-import { guardedFetch, guardedLookup, metadataTargetsAllowed, refusalReason } from '../src/services/ssrfGuard.js'
+import { guardedFetch, guardedLookup, metadataTargetsAllowed, proxyFor, refusalReason } from '../src/services/ssrfGuard.js'
 
 const METADATA = '169.254.169.254'
 
@@ -25,6 +25,23 @@ describe('refusalReason', () => {
   it('is lifted by MONITOR_ALLOW_METADATA', () => {
     assert.equal(metadataTargetsAllowed({ MONITOR_ALLOW_METADATA: 'true' }), true)
     assert.equal(refusalReason(METADATA, { MONITOR_ALLOW_METADATA: 'true' }), null)
+  })
+})
+
+describe('proxyFor', () => {
+  it('picks the proxy by scheme and honours NO_PROXY', () => {
+    const env = { HTTPS_PROXY: 'http://secure:3128', HTTP_PROXY: 'plain:8080' }
+    assert.equal(proxyFor('https://a.example/', env)?.href, 'http://secure:3128/')
+    assert.equal(proxyFor('http://a.example/', env)?.href, 'http://plain:8080/')
+    assert.equal(proxyFor('https://a.example/', { HTTP_PROXY: 'http://only:1' })?.hostname, 'only')
+    assert.equal(proxyFor('https://a.example/', {}), null)
+    assert.equal(proxyFor('https://a.example/', { ...env, no_proxy: 'a.example' }), null)
+    assert.equal(proxyFor('https://x.a.example/', { ...env, NO_PROXY: '.a.example' }), null)
+    assert.equal(proxyFor('https://x.a.example/', { ...env, NO_PROXY: '*.a.example' }), null)
+    assert.equal(proxyFor('https://a.example:8443/', { ...env, NO_PROXY: 'a.example:443' })?.hostname, 'secure')
+    assert.equal(proxyFor('https://[::1]/', { ...env, NO_PROXY: '[::1]' }), null)
+    assert.equal(proxyFor('https://b.example/', { ...env, NO_PROXY: '*' }), null)
+    assert.equal(proxyFor('https://nota.example/', { ...env, NO_PROXY: 'a.example' })?.hostname, 'secure')
   })
 })
 

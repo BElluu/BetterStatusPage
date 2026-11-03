@@ -102,6 +102,30 @@ export function proxyAwareAgent(options: { lookup?: LookupFunction; rejectUnauth
   })
 }
 
+/**
+ * The proxy a connection to `url` goes through, from the same variables the agent above reads, or null
+ * when it is reached directly. For code that opens its own sockets and so cannot use the agent.
+ */
+export function proxyFor(url: string, env: NodeJS.ProcessEnv = process.env): URL | null {
+  const target = new URL(url)
+  const https = target.protocol === 'https:'
+  const value = https
+    ? env.https_proxy || env.HTTPS_PROXY || env.http_proxy || env.HTTP_PROXY
+    : env.http_proxy || env.HTTP_PROXY
+  if (!value) return null
+  const port = target.port || (https ? '443' : '80')
+  const host = target.hostname.toLowerCase()
+  for (const entry of (env.no_proxy ?? env.NO_PROXY ?? '').split(/[\s,]+/).filter(Boolean)) {
+    if (entry === '*') return null
+    const m = /^(\[[^\]]*\]|[^:]*)(?::(\d+))?$/.exec(entry)
+    if (!m?.[1]) continue
+    if (m[2] && m[2] !== port) continue
+    const name = m[1].replace(/^\*?\./, '').toLowerCase()
+    if (host === name || host === name.replace(/^\[(.*)\]$/, '$1') || host.endsWith(`.${name}`)) return null
+  }
+  return new URL(value.includes('://') ? value : `http://${value}`)
+}
+
 const PROXY_VARIABLES = ['http_proxy', 'HTTP_PROXY', 'https_proxy', 'HTTPS_PROXY']
 
 export function proxiedFetch(agent: EnvHttpProxyAgent): (url: string, init: RequestInit) => Promise<Response> {
