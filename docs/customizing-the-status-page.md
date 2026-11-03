@@ -31,6 +31,7 @@ Click a block to select it. Its settings appear under **Properties** in the left
 | **Text** | A Markdown block | **Name** (only shown in the builder), **Text (Markdown)** |
 | **Divider** | A horizontal line | None |
 | **Incidents** | Incident cards | **Incident limit** (1–20, default 5), **Filter**: all, active only or resolved only |
+| **Maintenance** | Maintenance window cards: name, time span, description and affected services | **Maintenance limit** (1–20, default 5), **Filter**: all, in progress only, upcoming only or past only |
 | **Charts** (one entry per monitor) | A response-time chart for that monitor | See below |
 
 **Monitor cards.** **Display name (optional)** is the name visitors see on the card and in the incidents that list the monitor, instead of the monitor's own name; leave it empty to use the monitor name. With several cards for one monitor, the first one that has a display name sets the name in the incidents. The title and text of an incident are written by you and are not changed. **Card type** is **Full** (default) or **Compact**. A full card has a 30-day uptime bar that you can switch off or place to the **Right** of the name (default) or **Below** it. With the bar below, **Show uptime %** adds the uptime percentage. A compact card is a single row without the uptime bar. **Show monitor type** adds the monitor type to either kind.

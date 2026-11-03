@@ -5,7 +5,7 @@ import type { MirrorObject } from '@better-forge/mirror'
 import type { ChartNode, LayoutNode, LayoutTree, StatusSnapshot } from '@bsp/shared'
 import { uploadDir } from '../config.js'
 import {
-  loadHistory, loadPublicIncidents, loadPublicLayout, loadPublicLocale, loadPublicLocales, loadPublicStatus, loadUptime,
+  loadHistory, loadPublicIncidents, loadPublicLayout, loadPublicMaintenances, loadPublicLocale, loadPublicLocales, loadPublicStatus, loadUptime,
 } from './publicStatusData.js'
 
 /** The newest incidents the page lists; the Incidents block of the builder allows at most this many. */
@@ -45,8 +45,8 @@ function chartNodes(nodes: LayoutNode[], into: ChartNode[] = []): ChartNode[] {
 }
 
 export async function buildSnapshot(now = Date.now(), options: { intervalSeconds?: number; showBanner?: boolean } = {}): Promise<StatusSnapshot> {
-  const [status, layout, incidents, locales] = await Promise.all([
-    loadPublicStatus(), loadPublicLayout(), loadPublicIncidents({ limit: SNAPSHOT_INCIDENTS, offset: 0 }), loadPublicLocales(),
+  const [status, layout, incidents, maintenances, locales] = await Promise.all([
+    loadPublicStatus(), loadPublicLayout(), loadPublicIncidents({ limit: SNAPSHOT_INCIDENTS, offset: 0 }), loadPublicMaintenances(now), loadPublicLocales(),
   ])
   const uptime: StatusSnapshot['uptime'] = {}
   for (const monitor of status.monitors) {
@@ -62,7 +62,7 @@ export async function buildSnapshot(now = Date.now(), options: { intervalSeconds
   }
   const translations: StatusSnapshot['translations'] = {}
   for (const { code } of locales) translations[code] = (await loadPublicLocale(code))?.translations ?? {}
-  return { schemaVersion: 1, generatedAt: now, ...(options.intervalSeconds ? { intervalSeconds: options.intervalSeconds } : {}), ...(options.showBanner === false ? { showBanner: false } : {}), status, layout, incidents, uptime, history, locales, translations }
+  return { schemaVersion: 1, generatedAt: now, ...(options.intervalSeconds ? { intervalSeconds: options.intervalSeconds } : {}), ...(options.showBanner === false ? { showBanner: false } : {}), status, layout, incidents, maintenances, uptime, history, locales, translations }
 }
 
 /** Every file below a directory, as paths relative to it with `/` separators. */

@@ -1,4 +1,4 @@
-export type NodeType = 'page' | 'group' | 'monitor' | 'text' | 'divider' | 'incidents' | 'chart'
+export type NodeType = 'page' | 'group' | 'monitor' | 'text' | 'divider' | 'incidents' | 'maintenance' | 'chart'
 
 export interface GridPos {
   x: number
@@ -58,6 +58,14 @@ export interface IncidentsNode extends BaseNode {
   filter?: 'active' | 'resolved' | 'all'
 }
 
+export interface MaintenanceNode extends BaseNode {
+  type: 'maintenance'
+  /** Max number of maintenance windows to show (default: 5) */
+  limit?: number
+  /** Show only running, only upcoming, only past (one-off) windows, or all */
+  filter?: 'active' | 'upcoming' | 'past' | 'all'
+}
+
 export interface ChartNode extends BaseNode {
   type: 'chart'
   monitorId: number
@@ -78,5 +86,5 @@ export interface ChartNode extends BaseNode {
   chartH?: number
 }
 
-export type LayoutNode = GroupNode | MonitorNode | TextNode | DividerNode | IncidentsNode | ChartNode
+export type LayoutNode = GroupNode | MonitorNode | TextNode | DividerNode | IncidentsNode | MaintenanceNode | ChartNode
 export type LayoutTree = PageNode

@@ -29,6 +29,36 @@ const monitors: PublicMonitor[] = [
 ]
 
 describe('PageRenderer', () => {
+  it('shows incidents even when the limit of the block is empty or zero', () => {
+    const incident = { id: 1, title: 'Checkout errors', status: 'investigating', impact: 'major', monitorIds: [], updates: [], startedAt: 1, createdAt: 1, updatedAt: 1 } as never
+    const tree = (limit: number): LayoutTree => ({ id: 'root', type: 'page', children: [{ id: 'i', type: 'incidents', limit }] })
+    render(<PageRenderer tree={tree(0)} monitors={monitors} statusMap={{}} activeIncidents={[incident]} />)
+    expect(screen.getByText('Checkout errors')).toBeTruthy()
+  })
+
+  it('lists the maintenance windows the block filter selects, up to its limit', () => {
+    const windows = (['active', 'upcoming', 'upcoming', 'past'] as const).map((state, i) => ({
+      id: i + 1, name: `Window ${i + 1}`, description: null, startsAt: 1_000_000 * (i + 1), endsAt: 1_000_000 * (i + 1) + 3_600_000, monitorIds: i === 0 ? [] : [1], state,
+    }))
+    const tree = (filter: 'all' | 'upcoming' | 'past', limit?: number): LayoutTree => ({
+      id: 'root', type: 'page', children: [{ id: 'm', type: 'maintenance', filter, ...(limit ? { limit } : {}) }],
+    })
+    const { rerender } = render(<PageRenderer tree={tree('upcoming')} monitors={monitors} statusMap={{}} maintenances={windows} />)
+    expect(screen.queryByText('Window 1')).toBeNull()
+    expect(screen.getByText('Window 2')).toBeTruthy()
+    expect(screen.getByText('Window 3')).toBeTruthy()
+    expect(screen.getAllByText('maintenance.upcoming')).toHaveLength(2)
+    expect(screen.getAllByText('uptime.affected: Public API.')).toHaveLength(2)
+
+    rerender(<PageRenderer tree={tree('all', 3)} monitors={monitors} statusMap={{}} maintenances={windows} />)
+    expect(screen.getByText('uptime.affected: maintenance.allServices.')).toBeTruthy()
+    expect(screen.queryByText('Window 4')).toBeNull()
+
+    rerender(<PageRenderer tree={tree('past')} monitors={monitors} statusMap={{}} maintenances={windows} />)
+    expect(screen.getByText('Window 4')).toBeTruthy()
+    expect(screen.getByText('maintenance.past')).toBeTruthy()
+  })
+
   it('renders text, monitor, divider, and chart nodes', async () => {
     const tree: LayoutTree = {
       id: 'root', type: 'page', children: [

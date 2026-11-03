@@ -76,3 +76,34 @@ test('maintenance: scheduled from the admin panel, shown on the status page whil
   await page.reload()
   await expect(page.getByText('MAINTENANCE')).toBeVisible()
 })
+
+test('the Maintenance block lists an upcoming window and shows it as in progress once it runs', async ({ browser, adminApi }) => {
+  const monitor = await createHttpMonitor(adminApi, unique('Search'), `${API_URL}/health`)
+  await checkNow(adminApi, monitor.id)
+  await setPublicLayout(adminApi, [monitor.id], { maintenance: true })
+  await waitUntilPublished({ [monitor.id]: 'up' })
+
+  const visitor = await browser.newPage()
+  await visitor.goto(STATUS_URL)
+  await expect(visitor.getByText(monitor.name)).toBeVisible()
+  await expect(visitor.getByText('Scheduled', { exact: true })).toHaveCount(0)
+
+  // The window is announced to the open page over SSE; the visitor never reloads.
+  const upcoming = unique('Planned index rebuild')
+  const now = Date.now()
+  await ok(adminApi.post('admin/maintenance', {
+    data: { name: upcoming, description: 'Search may be slow.', startsAt: now + 3_600_000, endsAt: now + 7_200_000, monitorIds: [monitor.id], notifySubscribers: false },
+  }))
+  await expect(visitor.getByText(upcoming)).toBeVisible()
+  await expect(visitor.getByText('Search may be slow.')).toBeVisible()
+  await expect(visitor.getByText('Scheduled', { exact: true })).toBeVisible()
+
+  const running = unique('Emergency reindex')
+  await ok(adminApi.post('admin/maintenance', {
+    data: { name: running, startsAt: now - 60_000, endsAt: now + 3_600_000, monitorIds: [monitor.id], notifySubscribers: false },
+  }))
+  // The banner repeats a running window, so look inside the block's section.
+  await expect(visitor.locator('#status').getByText(running)).toBeVisible()
+  await expect(visitor.getByText('In progress', { exact: true })).toBeVisible()
+  await visitor.close()
+})

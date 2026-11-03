@@ -11,6 +11,11 @@ export interface PublicMaintenanceWindow {
   monitorIds: number[]
 }
 
+/** A window of the Maintenance block: running, still to come, or a one-off that is over. */
+export interface PublicMaintenanceEntry extends PublicMaintenanceWindow {
+  state: 'active' | 'upcoming' | 'past'
+}
+
 export interface MaintenanceWindow {
   id: number
   name: string

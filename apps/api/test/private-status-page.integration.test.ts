@@ -138,7 +138,7 @@ describe('A private status page', () => {
     assert.equal(access.signedIn, false)
     assert.equal(access.branding.siteName, 'Acme Status')
 
-    for (const url of ['/status', '/layout', '/incidents', '/incidents/1', '/monitor/1/uptime', '/events', '/subscriptions/options']) {
+    for (const url of ['/status', '/layout', '/maintenances', '/incidents', '/incidents/1', '/monitor/1/uptime', '/events', '/subscriptions/options']) {
       const response = await app.inject({ url: `/api/v1/public${url}` })
       assert.equal(response.statusCode, 401, url)
       assert.equal(response.json().code, STATUS_PAGE_PRIVATE, url)

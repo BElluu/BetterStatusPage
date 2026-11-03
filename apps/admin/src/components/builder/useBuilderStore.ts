@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { arrayMove } from '@dnd-kit/sortable'
-import type { LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode, IncidentsNode, ChartNode, GridPos } from '@bsp/shared'
+import type { LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode, IncidentsNode, MaintenanceNode, ChartNode, GridPos } from '@bsp/shared'
 
 interface BuilderState {
   tree: LayoutTree
@@ -209,6 +209,7 @@ const DEFAULT_GRIDS: Record<string, GridPos> = {
   text:      { x: 0, y: 0, w: 3, h: 2 },
   divider:   { x: 0, y: 0, w: 3, h: 1 },
   incidents: { x: 0, y: 0, w: 3, h: 1 },
+  maintenance: { x: 0, y: 0, w: 3, h: 1 },
   chart:     { x: 0, y: 0, w: 3, h: 1 },
 }
 
@@ -230,6 +231,10 @@ export function createTextNode(): Omit<TextNode, 'id'> {
 
 export function createIncidentsNode(): Omit<IncidentsNode, 'id'> {
   return { type: 'incidents', limit: 5, filter: 'all' }
+}
+
+export function createMaintenanceNode(): Omit<MaintenanceNode, 'id'> {
+  return { type: 'maintenance', limit: 5, filter: 'all' }
 }
 
 export function createChartNode(monitorId: number): Omit<ChartNode, 'id'> {

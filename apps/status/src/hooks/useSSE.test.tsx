@@ -42,7 +42,8 @@ describe('useSSE', () => {
 
     act(() => source.emit('incident.created'))
     act(() => source.emit('incident.updated'))
-    expect(onIncidentChange).toHaveBeenCalledTimes(2)
+    act(() => source.emit('maintenance.changed', { id: 1 }))
+    expect(onIncidentChange).toHaveBeenCalledTimes(3)
 
     unmount()
     expect(source.close).toHaveBeenCalled()

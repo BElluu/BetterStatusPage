@@ -7,7 +7,7 @@ import { useSSE } from './hooks/useSSE'
 import { useDarkMode } from './hooks/useDarkMode'
 import { useLocale } from './i18n/LocaleContext'
 import { STATUS_PAGE_PRIVATE, applyIncidentStatus, incidentTitle } from '@bsp/shared'
-import type { Branding, Incident, PublicMonitor, PublicMaintenanceWindow, LayoutTree, LayoutNode, GroupNode, MonitorNode, PublicStatusPageAccess } from '@bsp/shared'
+import type { Branding, Incident, PublicMonitor, PublicMaintenanceWindow, PublicMaintenanceEntry, LayoutTree, LayoutNode, GroupNode, MonitorNode, PublicStatusPageAccess } from '@bsp/shared'
 import { PageRenderer } from './components/PageRenderer'
 import { IncidentCard } from './components/IncidentCard'
 import { LanguageSwitcher } from './components/LanguageSwitcher'
@@ -35,6 +35,7 @@ interface PublicLayout {
 }
 
 const EMPTY_MONITORS: PublicMonitor[] = []
+const EMPTY_MAINTENANCES: PublicMaintenanceEntry[] = []
 const EMPTY_MAINTENANCE_WINDOWS: PublicMaintenanceWindow[] = []
 const EMPTY_MONITOR_DEPENDENCIES: MonitorDependency[] = []
 
@@ -65,6 +66,10 @@ function collectDisplayNames(nodes: LayoutNode[], names = new Map<number, string
 
 function hasIncidentsBlock(nodes: LayoutNode[]): boolean {
   return nodes.some((node) => node.type === 'incidents')
+}
+
+function hasMaintenanceBlock(nodes: LayoutNode[]): boolean {
+  return nodes.some((node) => node.type === 'maintenance')
 }
 
 const ACCESS_QUERY_KEY = ['public-access']
@@ -147,6 +152,7 @@ function StatusPage({ account }: { account: { email: string; role: string | null
   const handleIncidentChange = useCallback(() => {
     qc.invalidateQueries({ queryKey: ['public-status'] })
     qc.invalidateQueries({ queryKey: ['public-incidents'] })
+    qc.invalidateQueries({ queryKey: ['public-maintenances'] })
   }, [qc])
 
   const statusMap = useSSE(handleIncidentChange)
@@ -179,6 +185,15 @@ function StatusPage({ account }: { account: { email: string; role: string | null
   useEffect(() => {
     if (signInRequired) void qc.invalidateQueries({ queryKey: ACCESS_QUERY_KEY })
   }, [signInRequired, qc])
+
+  const layoutHasMaintenance = layoutData ? hasMaintenanceBlock(layoutData.tree.children) : false
+  const { data: maintenances = EMPTY_MAINTENANCES } = useQuery<PublicMaintenanceEntry[]>({
+    queryKey: ['public-maintenances'],
+    // Like the status: revalidate, so a refetch after an SSE event is not answered from the browser's two-second copy.
+    queryFn: () => getJSON<PublicMaintenanceEntry[]>('/api/v1/public/maintenances', { cache: 'no-cache' }),
+    enabled: layoutHasMaintenance,
+    refetchInterval: SNAPSHOT_URL ? 60_000 : 5 * 60_000,
+  })
 
   const branding = brandingPreview ?? layoutData?.branding ?? status?.branding
   const tree = layoutData?.tree
@@ -425,6 +440,7 @@ function StatusPage({ account }: { account: { email: string; role: string | null
               statusMap={statusMap}
               activeIncidents={activeIncidents}
               allIncidents={incidents}
+              maintenances={maintenances}
               maintenanceMonitorIds={maintenanceMonitorIds}
               dependencyMap={dependencyMap}
             />

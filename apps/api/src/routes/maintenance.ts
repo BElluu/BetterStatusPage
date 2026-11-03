@@ -4,6 +4,7 @@ import { maintenanceWindows, maintenanceWindowMonitors, monitors } from '../db/s
 import { eq, inArray } from 'drizzle-orm'
 import { auditActor, writeAudit, diffObjects, snapshot } from '../kit/audit.js'
 import { requestIdentity } from '../kit/authMiddleware.js'
+import { sseService } from '../kit/sse.js'
 import { notifyMaintenanceSubscribers } from '../workers/subscriberNotifier.js'
 import { activeWindows, maxOccurrenceMs, parseRecurrenceDays, shownOccurrence, windowOccurrences } from '../services/maintenanceSchedule.js'
 import { isValidTimezone } from '../services/alertPolicy.js'
@@ -160,6 +161,7 @@ export async function maintenanceRoutes(app: FastifyInstance) {
       await notifyMaintenanceSubscribers(win.id)
         .catch((error) => console.error('[subscriptions] Failed to queue maintenance notice:', error))
     }
+    sseService.broadcast('maintenance.changed', { id: win.id })
     return withMonitorIds(win)
   })
 
@@ -212,6 +214,7 @@ export async function maintenanceRoutes(app: FastifyInstance) {
     const diff = diffObjects(before, after)
     if (req.body.monitorIds !== undefined) diff['monitorIds'] = { from: '[previous]', to: req.body.monitorIds }
     if (Object.keys(diff).length) writeAudit(auditActor(actor), 'update', 'maintenance', id, existing.name, diff)
+    sseService.broadcast('maintenance.changed', { id: win.id })
     return withMonitorIds(win)
   })
 
@@ -229,6 +232,7 @@ export async function maintenanceRoutes(app: FastifyInstance) {
     const win = (await db.update(maintenanceWindows).set(updates).where(eq(maintenanceWindows.id, id)).returning())[0]!
     writeAudit(auditActor(requestIdentity(req)), 'update', 'maintenance', id, existing.name,
       { endedEarly: { from: new Date(running.endsAt).toISOString(), to: new Date(now).toISOString() } })
+    sseService.broadcast('maintenance.changed', { id: win.id })
     return withMonitorIds(win)
   })
 
@@ -238,6 +242,7 @@ export async function maintenanceRoutes(app: FastifyInstance) {
     const existing = (await db.select().from(maintenanceWindows).where(eq(maintenanceWindows.id, id)))[0]
     await db.delete(maintenanceWindows).where(eq(maintenanceWindows.id, id))
     if (existing) {
+      sseService.broadcast('maintenance.changed', { id })
       const actor = requestIdentity(req)
       writeAudit(auditActor(actor), 'delete', 'maintenance', id, existing.name,
         snapshot({ name: existing.name }))

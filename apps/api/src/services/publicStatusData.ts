@@ -1,13 +1,13 @@
 import { db } from '../db/client.js'
 import {
   monitors, incidents, incidentMonitors, monitorResults, monitorDailyResults, layout, branding, locales,
-  maintenanceWindowMonitors, monitorDependencies,
+  maintenanceWindows, maintenanceWindowMonitors, monitorDependencies,
 } from '../db/schema.js'
-import { eq, desc, gte, ne, inArray, and } from 'drizzle-orm'
+import { eq, desc, gte, lt, ne, inArray, and } from 'drizzle-orm'
 import { nonEmptyDay } from './uptimeCounts.js'
-import { activeWindows } from './maintenanceSchedule.js'
+import { activeWindows, liveWindows } from './maintenanceSchedule.js'
 import { getPublishedMonitorIds } from './publishedMonitors.js'
-import type { LayoutTree, LayoutNode, GroupNode, MonitorNode, PublicMaintenanceWindow, UptimeThresholds } from '@bsp/shared'
+import type { LayoutTree, LayoutNode, GroupNode, MonitorNode, PublicMaintenanceWindow, PublicMaintenanceEntry, UptimeThresholds } from '@bsp/shared'
 import { classifyUptimeDay, DEFAULT_UPTIME_THRESHOLDS } from '@bsp/shared'
 import { publishedIncident, withIncidentDetails } from './incidentDetails.js'
 import { RESULT_IN_MAINTENANCE } from '../db/resultMarks.js'
@@ -34,6 +34,52 @@ export function publishIncidents<T extends { monitorIds: number[]; autoMonitorId
   return rows.map((row) => publishIncident(row, published))
 }
 
+/**
+ * Windows as visitors get them, with the monitors they cover reduced to published ones. An empty list means
+ * "every monitor", so a window that only covers internal monitors is left out entirely rather than published
+ * with its (hidden) links stripped.
+ */
+async function publishWindows(
+  rows: Array<{ id: number; name: string; description: string | null; startsAt: number; endsAt: number }>,
+  published: ReadonlySet<number>,
+): Promise<PublicMaintenanceWindow[]> {
+  const links = rows.length
+    ? await db.select().from(maintenanceWindowMonitors).where(inArray(maintenanceWindowMonitors.windowId, rows.map((win) => win.id)))
+    : []
+  return rows
+    .map((win) => ({ win, own: links.filter((link) => link.windowId === win.id) }))
+    .filter(({ own }) => own.length === 0 || own.some((link) => published.has(link.monitorId)))
+    .map(({ win, own }) => ({
+      id: win.id, name: win.name, description: win.description, startsAt: win.startsAt, endsAt: win.endsAt,
+      monitorIds: publicIds(own, published),
+    }))
+}
+
+/** How many one-off windows that are over the public list keeps; the Maintenance block of the builder shows at most this many. */
+export const PUBLIC_PAST_MAINTENANCES = 20
+
+/**
+ * Running and upcoming windows (each with the span of the occurrence it shows), then the newest one-off windows that
+ * are over. Occurrences of a repeating window that are over are not kept, so such a window is listed again only
+ * when its next occurrence comes.
+ */
+export async function loadPublicMaintenances(now = Date.now()): Promise<PublicMaintenanceEntry[]> {
+  const published = await getPublishedMonitorIds()
+  const live = (await liveWindows(now)).sort((a, b) => a.startsAt - b.startsAt)
+  // Windows that cover only internal monitors are dropped after the query, so read on until enough are left.
+  const past: Awaited<ReturnType<typeof publishWindows>> = []
+  for (let offset = 0; past.length < PUBLIC_PAST_MAINTENANCES; offset += PUBLIC_PAST_MAINTENANCES) {
+    const rows = await db.select().from(maintenanceWindows)
+      .where(and(eq(maintenanceWindows.recurrence, 'none'), lt(maintenanceWindows.endsAt, now)))
+      .orderBy(desc(maintenanceWindows.endsAt), desc(maintenanceWindows.id)).limit(PUBLIC_PAST_MAINTENANCES).offset(offset)
+    past.push(...await publishWindows(rows, published))
+    if (rows.length < PUBLIC_PAST_MAINTENANCES) break
+  }
+  past.length = Math.min(past.length, PUBLIC_PAST_MAINTENANCES)
+  const running = (await publishWindows(live, published)).map((win): PublicMaintenanceEntry => ({ ...win, state: win.startsAt <= now ? 'active' : 'upcoming' }))
+  return [...running, ...past.map((win): PublicMaintenanceEntry => ({ ...win, state: 'past' }))]
+}
+
 export async function loadPublicStatus() {
   const published = await getPublishedMonitorIds()
   const allMonitors = await db.select({
@@ -50,19 +96,7 @@ export async function loadPublicStatus() {
 
   const now = Date.now()
   const activeWindowRows = await activeWindows(now)
-  const windowLinks = activeWindowRows.length
-    ? await db.select().from(maintenanceWindowMonitors)
-      .where(inArray(maintenanceWindowMonitors.windowId, activeWindowRows.map((win) => win.id)))
-    : []
-  const windowsWithLinks = activeWindowRows.map((win) => ({ win, links: windowLinks.filter((link) => link.windowId === win.id) }))
-  // An empty list means "every monitor", so a window that only covers internal monitors is left
-  // out entirely rather than published with its (hidden) links stripped.
-  const activeMaintenanceWindows = windowsWithLinks
-    .filter(({ links }) => links.length === 0 || links.some((link) => published.has(link.monitorId)))
-    .map(({ win, links }): PublicMaintenanceWindow => ({
-      id: win.id, name: win.name, description: win.description, startsAt: win.startsAt, endsAt: win.endsAt,
-      monitorIds: publicIds(links, published),
-    }))
+  const activeMaintenanceWindows = await publishWindows(activeWindowRows, published)
 
   const publishedDependencies = (await db.select().from(monitorDependencies))
     .filter((dep) => published.has(dep.dependentId) && published.has(dep.dependsOnId))

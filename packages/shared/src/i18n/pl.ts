@@ -40,6 +40,10 @@ export const PL_DEFAULTS: Record<TranslationKey, string> = {
   'page.changeLanguage':     'Zmień język',
   'page.maintenanceUntil':   'do {date}',
   'page.maintenance':        'Prace serwisowe',
+  'maintenance.active':      'W trakcie',
+  'maintenance.upcoming':    'Zaplanowane',
+  'maintenance.past':        'Zakończone',
+  'maintenance.allServices': 'Wszystkie usługi',
 
   'section.systemEvents': 'Zdarzenia systemowe',
   'tab.active':           'Aktywne',

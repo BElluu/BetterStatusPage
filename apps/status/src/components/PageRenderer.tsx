@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { applyIncidentStatus } from '@bsp/shared'
 import type {
   LayoutTree, LayoutNode, GroupNode, MonitorNode, TextNode,
-  IncidentsNode, ChartNode, PublicMonitor, MonitorStatus, Incident,
+  IncidentsNode, MaintenanceNode, ChartNode, PublicMonitor, MonitorStatus, Incident, PublicMaintenanceEntry,
 } from '@bsp/shared'
 import Markdown from 'react-markdown'
 import { IncidentCard } from './IncidentCard'
@@ -23,13 +23,14 @@ interface Props {
   statusMap: Record<number, StatusInfo>
   activeIncidents?: Incident[]
   allIncidents?: Incident[]
+  maintenances?: PublicMaintenanceEntry[]
   maintenanceMonitorIds?: Set<number>
   dependencyMap?: Record<number, number[]>
 }
 
 export function PageRenderer({
   tree, monitors, statusMap,
-  activeIncidents = [], allIncidents = [],
+  activeIncidents = [], allIncidents = [], maintenances = [],
   maintenanceMonitorIds = new Set(),
   dependencyMap = {},
 }: Props) {
@@ -58,6 +59,7 @@ export function PageRenderer({
             statusMap={statusMap}
             activeIncidents={activeIncidents}
             allIncidents={allIncidents}
+            maintenances={maintenances}
             maintenanceMonitorIds={maintenanceMonitorIds}
             dependencyMap={dependencyMap}
           />
@@ -68,13 +70,14 @@ export function PageRenderer({
 }
 
 function NodeRenderer({
-  node, monitors, statusMap, activeIncidents, allIncidents, maintenanceMonitorIds, dependencyMap,
+  node, monitors, statusMap, activeIncidents, allIncidents, maintenances, maintenanceMonitorIds, dependencyMap,
 }: {
   node: LayoutNode
   monitors: PublicMonitor[]
   statusMap: Record<number, StatusInfo>
   activeIncidents: Incident[]
   allIncidents: Incident[]
+  maintenances: PublicMaintenanceEntry[]
   maintenanceMonitorIds: Set<number>
   dependencyMap: Record<number, number[]>
 }) {
@@ -179,6 +182,10 @@ function NodeRenderer({
         monitors={monitors}
       />
     )
+  }
+
+  if (node.type === 'maintenance') {
+    return <MaintenanceBlock config={node as MaintenanceNode} maintenances={maintenances} monitors={monitors} />
   }
 
   if (node.type === 'chart') {
@@ -748,7 +755,7 @@ function IncidentsBlock({ config, activeIncidents, allIncidents, monitors }: {
   monitors: PublicMonitor[]
 }) {
   const filter = config.filter ?? 'all'
-  const limit  = config.limit ?? 5
+  const limit  = Number.isInteger(config.limit) && config.limit! >= 1 ? config.limit! : 5
 
   const items = filter === 'active'
     ? activeIncidents
@@ -765,6 +772,103 @@ function IncidentsBlock({ config, activeIncidents, allIncidents, monitors }: {
       {shown.map((incident) => (
         <IncidentCard key={incident.id} incident={incident} monitors={monitors} />
       ))}
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   MAINTENANCE BLOCK  (planned, running and past maintenance windows)
+   ───────────────────────────────────────────────────────────────────── */
+function MaintenanceBlock({ config, maintenances, monitors }: {
+  config: MaintenanceNode
+  maintenances: PublicMaintenanceEntry[]
+  monitors: PublicMonitor[]
+}) {
+  const { t, locale } = useLocale()
+  const filter = config.filter ?? 'all'
+  const limit  = Number.isInteger(config.limit) && config.limit! >= 1 ? config.limit! : 5
+
+  const shown = maintenances.filter((win) => filter === 'all' || win.state === filter).slice(0, limit)
+  if (shown.length === 0) return null
+
+  const day = (ms: number) => new Date(ms).toLocaleDateString(locale, { month: 'long', day: 'numeric', year: 'numeric' })
+  const time = (ms: number) => new Date(ms).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false })
+  const span = (win: PublicMaintenanceEntry) => `${time(win.startsAt)} – ${day(win.endsAt) === day(win.startsAt) ? '' : `${day(win.endsAt)}, `}${time(win.endsAt)}`
+
+  return (
+    <div>
+      {shown.map((win) => {
+        const covered = win.monitorIds.length === 0
+          ? t('maintenance.allServices')
+          : win.monitorIds.map((id) => monitors.find((m) => m.id === id)?.name).filter(Boolean).join(', ')
+        const affected = covered ? `${t('uptime.affected')}: ${covered}` : null
+        const date = (
+          <>
+            {day(win.startsAt)}
+            <br />
+            <span className="text-xs normal-case">{span(win)}</span>
+          </>
+        )
+
+        /* Over: a quiet row, like a resolved incident. */
+        if (win.state === 'past') {
+          return (
+            <div key={win.id} className="bsp-incident-card" style={{ borderBottom: '1px solid var(--m3-outline-variant)', borderRadius: '16px' }}>
+              <div className="bsp-incident-row" style={{ borderRadius: '16px' }}>
+                <div className="bsp-incident-row__date font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--m3-secondary)' }}>{date}</div>
+                <div className="bsp-incident-row__title">
+                  <h4 className="font-headline font-bold text-xl" style={{ color: 'var(--m3-on-surface)' }}>{win.name}</h4>
+                  {win.description && <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>{win.description}</p>}
+                  {affected && <p className="text-sm mt-1" style={{ color: 'var(--m3-secondary)' }}>{affected}.</p>}
+                </div>
+                <span
+                  className="bsp-incident-row__badge font-bold text-xs uppercase tracking-wide whitespace-nowrap"
+                  style={{ padding: '6px 16px', borderRadius: '999px', background: 'var(--m3-surface-container-high)', color: 'var(--m3-secondary)' }}
+                >
+                  {t('maintenance.past')}
+                </span>
+              </div>
+            </div>
+          )
+        }
+
+        /* Running or still to come: a full card; the running one is the one in colour. */
+        const running = win.state === 'active'
+        return (
+          <div
+            key={win.id}
+            className="bsp-incident-card bsp-incident-active"
+            style={{
+              background: running ? 'var(--bsp-maintenance-bg)' : 'var(--m3-surface-container-low)',
+              borderRadius: '2rem',
+              borderLeft: `4px solid ${running ? 'var(--bsp-maintenance)' : 'var(--m3-outline)'}`,
+              marginBottom: '1rem',
+            }}
+          >
+            <div className="bsp-incident-active-grid">
+              <div className="font-mono text-xs md:text-sm uppercase tracking-widest md:pt-1" style={{ color: 'var(--m3-secondary)' }}>{date}</div>
+              <div>
+                <span
+                  className="inline-block font-bold text-xs uppercase tracking-tight rounded-full mb-4"
+                  style={{
+                    padding: '4px 12px',
+                    background: running ? 'var(--bsp-maintenance-chip-bg)' : 'var(--m3-surface-container-high)',
+                    color: running ? 'var(--bsp-maintenance-text)' : 'var(--m3-secondary)',
+                  }}
+                >
+                  {t(`maintenance.${win.state}`)}
+                  {running && (
+                    <span className="animate-pulse inline-block rounded-full ml-1.5" style={{ width: 5, height: 5, background: 'var(--bsp-maintenance)', verticalAlign: 'middle' }} />
+                  )}
+                </span>
+                <h4 className="font-headline font-bold text-xl" style={{ color: 'var(--m3-on-surface)' }}>{win.name}</h4>
+                {win.description && <p className="text-sm mt-2" style={{ color: 'var(--m3-on-surface)', opacity: 0.8 }}>{win.description}</p>}
+                {affected && <p className="text-sm mt-2" style={{ color: 'var(--m3-secondary)' }}>{affected}.</p>}
+              </div>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

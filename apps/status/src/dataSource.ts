@@ -64,6 +64,7 @@ export async function answerFromSnapshot<T>(path: string, url: string): Promise<
     const limit = Number(params.get('limit') ?? 10)
     return snapshot.incidents.slice(0, Number.isInteger(limit) && limit > 0 ? limit : 10) as T
   }
+  if (pathname === 'maintenances') return (snapshot.maintenances ?? []) as T
   if (pathname === 'locales') return snapshot.locales as T
 
   const locale = /^locales\/([^/]+)$/.exec(pathname)?.[1]

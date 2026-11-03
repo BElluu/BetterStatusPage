@@ -116,6 +116,24 @@ describe('BuilderPage', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
   })
 
+  it('edits the filter and limit of a maintenance block', async () => {
+    const user = userEvent.setup()
+    mockApi({ ...layout, children: [...layout.children, { id: 'mw1', type: 'maintenance', filter: 'all', limit: 5, grid: { x: 0, y: 11, w: 3, h: 1 } }] } as unknown as LayoutTree)
+    renderPage()
+    await screen.findByText('Core services')
+
+    await user.click(screen.getByText('Maintenance · all'))
+    await user.selectOptions(screen.getByLabelText('Filter'), 'upcoming')
+    expect(await screen.findByText('Maintenance · upcoming')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Maintenance limit'), { target: { value: '12' } })
+    expect(useBuilderStore.getState().tree.children.find((n) => n.id === 'mw1')).toMatchObject({ filter: 'upcoming', limit: 12 })
+    // An emptied or oversized field never leaves a block that shows nothing.
+    fireEvent.change(screen.getByLabelText('Maintenance limit'), { target: { value: '' } })
+    expect(useBuilderStore.getState().tree.children.find((n) => n.id === 'mw1')).toMatchObject({ limit: 5 })
+    fireEvent.change(screen.getByLabelText('Maintenance limit'), { target: { value: '99' } })
+    expect(useBuilderStore.getState().tree.children.find((n) => n.id === 'mw1')).toMatchObject({ limit: 20 })
+  })
+
   it('selects cards from the keyboard and adds toolbox blocks without dragging', async () => {
     const user = userEvent.setup()
     renderPage()
@@ -193,6 +211,10 @@ describe('BuilderPage', () => {
     await user.click(screen.getByText('Incidents · active'))
     await user.selectOptions(screen.getByLabelText('Filter'), 'resolved')
     expect(await screen.findByText('Incidents · resolved')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Incident limit'), { target: { value: '' } })
+    expect(useBuilderStore.getState().tree.children.find((n) => n.id === 'i1')).toMatchObject({ limit: 5 })
+    fireEvent.change(screen.getByLabelText('Incident limit'), { target: { value: '99' } })
+    expect(useBuilderStore.getState().tree.children.find((n) => n.id === 'i1')).toMatchObject({ limit: 20 })
 
     await user.click(screen.getByText('Core services'))
     const properties = screen.getByText('Properties').closest('div')!.parentElement!

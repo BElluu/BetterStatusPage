@@ -37,6 +37,10 @@ export const EN_DEFAULTS: Record<TranslationKey, string> = {
   'page.changeLanguage':     'Change language',
   'page.maintenanceUntil':   'until {date}',
   'page.maintenance':        'Maintenance',
+  'maintenance.active':      'In progress',
+  'maintenance.upcoming':    'Scheduled',
+  'maintenance.past':        'Completed',
+  'maintenance.allServices': 'All services',
 
   'section.systemEvents': 'System Events',
   'tab.active':           'Active',

@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createGroupNode, createIncidentsNode, createMonitorNode, createTextNode, defaultGrid, findNode, useBuilderStore } from './useBuilderStore'
+import { createGroupNode, createIncidentsNode, createMaintenanceNode, createMonitorNode, createTextNode, defaultGrid, findNode, useBuilderStore } from './useBuilderStore'
 
 describe('builder store', () => {
   beforeEach(() => {
     useBuilderStore.getState().setTree({ id: 'root', type: 'page', children: [] })
+  })
+
+  it('creates a maintenance block that lists everything, five at most, one row high', () => {
+    expect(createMaintenanceNode()).toEqual({ type: 'maintenance', limit: 5, filter: 'all' })
+    expect(defaultGrid('maintenance')).toEqual({ x: 0, y: 0, w: 3, h: 1 })
   })
 
   it('adds, updates, selects, and deletes nodes', () => {
