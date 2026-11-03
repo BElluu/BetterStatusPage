@@ -70,6 +70,20 @@ Click an incident to expand it. The panel shows its affected monitors, the updat
 
 Picking **Resolved** resolves the incident. Once it is resolved the **Post Update** box disappears from the admin console.
 
+### Editing an incident
+
+> [!WARNING]
+> **Not released yet.** This feature is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+The pencil button on an incident's row opens **Edit Incident**, where you can change the title, the impact and the affected monitors (for example to add a service that turned out to be affected). The status is changed by posting an update. Subscribers are not notified about the edit, and a translation of the old title is dropped. Open status pages show the change straight away.
+
+### Editing and deleting an update
+
+> [!WARNING]
+> **Not released yet.** This feature is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+Each entry in the timeline has **Edit** and **Delete** buttons, for fixing a typo or removing a detail that should not have been public. Editing changes only the text: the entry keeps its status and time, and subscribers are not notified again. A translation of the old text is dropped. Deleting an entry does not change the incident's status. Both show on open status pages straight away and are written to the audit log.
+
 Incident templates (`/api/v1/admin/incident-templates`, same permission):
 
 | Method | Path | Body |
@@ -282,6 +296,8 @@ Incidents (`/api/v1/admin/incidents`):
 | PATCH | `/:id` | `{ title?, status?, impact?, resolvedAt?, notifySubscribers?, draft? }` — `draft: false` publishes a draft |
 | DELETE | `/:id` | — |
 | POST | `/:id/updates` | `{ body, status, notifySubscribers? }` |
+| PATCH | `/:id/updates/:updateId` | `{ body }` — fixes the text only; the status is kept and subscribers are not notified again |
+| DELETE | `/:id/updates/:updateId` | — the incident's status is kept |
 | POST | `/:id/monitors` | `{ monitorIds }` — replaces the links |
 
 `status` defaults to `investigating`, `impact` to `minor`, `startedAt` to now and `draft` to `false`. A published incident cannot be set back to `draft: true` (`400`). A `PATCH` that changes the status to `resolved` sends a resolution to subscribers unless `notifySubscribers` is `false`.

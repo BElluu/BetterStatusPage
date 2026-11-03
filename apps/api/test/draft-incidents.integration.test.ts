@@ -123,3 +123,38 @@ describe('automatic incident settings of a monitor', () => {
     assert.deepEqual(patch.value, { autoIncidentMinutes: null, autoIncidentTemplateId: null })
   })
 })
+
+describe('editing and deleting an incident update', () => {
+  async function incidentWithUpdate() {
+    const incident = (await createIncident({ title: 'Outage', notifySubscribers: false })).json()
+    const update = (await app.inject({ method: 'POST', url: `/admin/incidents/${incident.id}/updates`, payload: { body: 'Typo hree', status: 'identified', notifySubscribers: false } })).json()
+    return { incident, update }
+  }
+
+  it('changes only the text and drops the stale translations', async () => {
+    const { incident, update } = await incidentWithUpdate()
+    await db.update(incidentUpdates).set({ bodyTranslations: '{"pl":"stare"}' }).where(eq(incidentUpdates.id, update.id))
+    const res = await app.inject({ method: 'PATCH', url: `/admin/incidents/${incident.id}/updates/${update.id}`, payload: { body: 'Typo here' } })
+    assert.equal(res.statusCode, 200)
+    const row = (await db.select().from(incidentUpdates).where(eq(incidentUpdates.id, update.id)))[0]!
+    assert.equal(row.body, 'Typo here')
+    assert.equal(row.status, 'identified')
+    assert.equal(row.postedAt, update.postedAt)
+    assert.equal(row.bodyTranslations, '{}')
+  })
+
+  it('refuses an empty text and an update of another incident', async () => {
+    const { incident, update } = await incidentWithUpdate()
+    const other = (await createIncident({ title: 'Other' })).json()
+    assert.equal((await app.inject({ method: 'PATCH', url: `/admin/incidents/${incident.id}/updates/${update.id}`, payload: { body: '  ' } })).statusCode, 400)
+    assert.equal((await app.inject({ method: 'PATCH', url: `/admin/incidents/${other.id}/updates/${update.id}`, payload: { body: 'x' } })).statusCode, 404)
+    assert.equal((await app.inject({ method: 'DELETE', url: `/admin/incidents/${other.id}/updates/${update.id}` })).statusCode, 404)
+  })
+
+  it('deletes an update and keeps the incident status', async () => {
+    const { incident, update } = await incidentWithUpdate()
+    assert.equal((await app.inject({ method: 'DELETE', url: `/admin/incidents/${incident.id}/updates/${update.id}` })).statusCode, 204)
+    assert.equal((await db.select().from(incidentUpdates).where(eq(incidentUpdates.id, update.id))).length, 0)
+    assert.equal((await db.select().from(incidents).where(eq(incidents.id, incident.id)))[0]!.status, 'identified')
+  })
+})

@@ -48,7 +48,10 @@ export default function IncidentsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [editIncident, setEditIncident] = useState<Incident | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Incident | null>(null)
+  const [editing, setEditing] = useState<{ incidentId: number; id: number; body: string } | null>(null)
+  const [confirmDeleteUpdate, setConfirmDeleteUpdate] = useState<{ incidentId: number; id: number } | null>(null)
   const [updateBody, setUpdateBody] = useState('')
   const [updateStatus, setUpdateStatus] = useState('monitoring')
   const [updateNotify, setUpdateNotify] = useState(true)
@@ -72,6 +75,28 @@ export default function IncidentsPage() {
       setUpdateNotify(true)
       toast.success('Update posted')
     },
+  })
+
+  const editUpdateMutation = useMutation({
+    mutationFn: ({ incidentId, id, body }: { incidentId: number; id: number; body: string }) =>
+      api.patch(`/admin/incidents/${incidentId}/updates/${id}`, { body }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['incidents'] })
+      setEditing(null)
+      toast.success('Update saved')
+    },
+    onError: (err) => toast.error(`Couldn't save the update: ${(err as Error).message}`),
+  })
+
+  const deleteUpdateMutation = useMutation({
+    mutationFn: ({ incidentId, id }: { incidentId: number; id: number }) =>
+      api.delete(`/admin/incidents/${incidentId}/updates/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['incidents'] })
+      setConfirmDeleteUpdate(null)
+      toast.success('Update deleted')
+    },
+    onError: (err) => toast.error(`Couldn't delete the update: ${(err as Error).message}`),
   })
 
   const publishMutation = useMutation({
@@ -180,6 +205,15 @@ export default function IncidentsPage() {
                 )}
                 <button
                   type="button"
+                  onClick={() => setEditIncident(incident)}
+                  title="Edit"
+                  aria-label={`Edit ${incident.title}`}
+                  className="btn-icon"
+                >
+                  <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '18px' }}>edit</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setConfirmDelete(incident)}
                   title="Delete"
                   aria-label={`Delete ${incident.title}`}
@@ -250,8 +284,54 @@ export default function IncidentsPage() {
                                   <span className="font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
                                     {formatDateTime(update.postedAt)}
                                   </span>
+                                  {editing?.id !== update.id && (
+                                    <span className="flex gap-1 ml-auto">
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditing({ incidentId: incident.id, id: update.id, body: update.body })}
+                                        title="Edit"
+                                        aria-label={`Edit the ${update.status} update`}
+                                        className="btn-icon"
+                                      >
+                                        <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px' }}>edit</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmDeleteUpdate({ incidentId: incident.id, id: update.id })}
+                                        title="Delete"
+                                        aria-label={`Delete the ${update.status} update`}
+                                        className="btn-icon hover:!bg-[var(--m3-down-bg)]"
+                                        style={{ color: 'var(--m3-down)' }}
+                                      >
+                                        <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '16px' }}>delete</span>
+                                      </button>
+                                    </span>
+                                  )}
                                 </div>
-                                <p className="text-sm" style={{ color: 'var(--m3-on-surface)' }}>{update.body}</p>
+                                {editing?.id === update.id ? (
+                                  <div className="space-y-2">
+                                    <textarea
+                                      value={editing.body}
+                                      onChange={(e) => setEditing({ ...editing, body: e.target.value })}
+                                      rows={3}
+                                      aria-label="Update text"
+                                      className="input-sig resize-none"
+                                    />
+                                    <div className="flex gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => editUpdateMutation.mutate(editing)}
+                                        disabled={editUpdateMutation.isPending || !editing.body.trim()}
+                                        className="btn btn-primary"
+                                      >
+                                        Save
+                                      </button>
+                                      <button type="button" onClick={() => setEditing(null)} className="btn btn-secondary">Cancel</button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="text-sm" style={{ color: 'var(--m3-on-surface)' }}>{update.body}</p>
+                                )}
                               </div>
                             </div>
                           )
@@ -327,7 +407,31 @@ export default function IncidentsPage() {
         />
       )}
 
+      {editIncident && (
+        <EditIncidentModal
+          incident={editIncident}
+          monitors={monitors}
+          onClose={() => setEditIncident(null)}
+          onSaved={() => {
+            qc.invalidateQueries({ queryKey: ['incidents'] })
+            setEditIncident(null)
+            toast.success('Incident saved')
+          }}
+        />
+      )}
+
       {showTemplates && <IncidentTemplatesModal onClose={() => setShowTemplates(false)} />}
+
+      {confirmDeleteUpdate && (
+        <ConfirmModal
+          title="Delete update"
+          message="Delete this update? It disappears from the status page too. The incident keeps its status."
+          pending={deleteUpdateMutation.isPending}
+          pendingLabel="Deleting…"
+          onConfirm={() => deleteUpdateMutation.mutate(confirmDeleteUpdate)}
+          onCancel={() => setConfirmDeleteUpdate(null)}
+        />
+      )}
 
       {confirmDelete && (
         <ConfirmModal
@@ -340,6 +444,87 @@ export default function IncidentsPage() {
         />
       )}
     </PageContainer>
+  )
+}
+
+function MonitorPicker({ monitors, selected, onChange }: { monitors: Monitor[]; selected: number[]; onChange: (ids: number[]) => void }) {
+  return (
+    <fieldset>
+      <legend className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
+        Affected Monitors
+      </legend>
+      <div
+        className="space-y-1 max-h-36 overflow-y-auto rounded-lg p-2"
+        style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}
+      >
+        {monitors.map((m) => (
+          <label key={m.id} className="flex items-center gap-2.5 text-sm cursor-pointer px-2 py-1.5 rounded-md transition-colors hover:bg-surface-container-high">
+            <input
+              type="checkbox"
+              checked={selected.includes(m.id)}
+              onChange={(e) => onChange(e.target.checked ? [...selected, m.id] : selected.filter((id) => id !== m.id))}
+            />
+            <span style={{ color: 'var(--m3-on-surface)' }}>{m.name}</span>
+          </label>
+        ))}
+        {monitors.length === 0 && (
+          <p className="text-xs px-2 py-2" style={{ color: 'var(--m3-secondary)' }}>No monitors available</p>
+        )}
+      </div>
+    </fieldset>
+  )
+}
+
+function EditIncidentModal({ incident, monitors, onClose, onSaved }: { incident: Incident; monitors: Monitor[]; onClose: () => void; onSaved: () => void }) {
+  const initialMonitors = incident.monitorIds ?? []
+  const [title, setTitle] = useState(incident.title)
+  const [impact, setImpact] = useState(incident.impact)
+  const [selectedMonitors, setSelectedMonitors] = useState<number[]>(initialMonitors)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      // Links first, so the change the status page receives from the patch already carries them.
+      const linksChanged = selectedMonitors.length !== initialMonitors.length || selectedMonitors.some((id) => !initialMonitors.includes(id))
+      if (linksChanged) await api.post(`/admin/incidents/${incident.id}/monitors`, { monitorIds: selectedMonitors })
+      if (title !== incident.title || impact !== incident.impact) await api.patch(`/admin/incidents/${incident.id}`, { title, impact })
+      onSaved()
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to save the incident. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal title="Edit Incident" icon="edit" onClose={onClose} flush>
+      <form onSubmit={handleSubmit}>
+        <div className="p-6 space-y-4">
+          <Field label="Title" required>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} required className="input-sig" />
+          </Field>
+          <Field label="Impact">
+            <select value={impact} onChange={(e) => setImpact(e.target.value as Incident['impact'])} className="input-sig">
+              <option value="minor">Minor</option>
+              <option value="major">Major</option>
+              <option value="critical">Critical</option>
+            </select>
+          </Field>
+          <MonitorPicker monitors={monitors} selected={selectedMonitors} onChange={setSelectedMonitors} />
+          {error && <Alert tone="error">{error}</Alert>}
+        </div>
+        <ModalFooter>
+          <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
+          <button type="submit" disabled={loading || !title.trim()} className="btn btn-primary">
+            {loading ? 'Saving…' : 'Save'}
+          </button>
+        </ModalFooter>
+      </form>
+    </Modal>
   )
 }
 
@@ -420,33 +605,7 @@ function CreateIncidentModal({ monitors, onClose, onSaved }: { monitors: Monitor
           </Field>
         </div>
 
-        <fieldset>
-          <legend className="block font-mono text-xs uppercase tracking-wider mb-2" style={{ color: 'var(--m3-secondary)' }}>
-            Affected Monitors
-          </legend>
-          <div
-            className="space-y-1 max-h-36 overflow-y-auto rounded-lg p-2"
-            style={{ background: 'var(--m3-surface-container)', border: '1px solid var(--m3-outline-variant)' }}
-          >
-            {monitors.map((m) => (
-              <label key={m.id} className="flex items-center gap-2.5 text-sm cursor-pointer px-2 py-1.5 rounded-md transition-colors hover:bg-surface-container-high">
-                <input
-                  type="checkbox"
-                  checked={selectedMonitors.includes(m.id)}
-                  onChange={(e) => {
-                    setSelectedMonitors(e.target.checked
-                      ? [...selectedMonitors, m.id]
-                      : selectedMonitors.filter((id) => id !== m.id))
-                  }}
-                />
-                <span style={{ color: 'var(--m3-on-surface)' }}>{m.name}</span>
-              </label>
-            ))}
-            {monitors.length === 0 && (
-              <p className="text-xs px-2 py-2" style={{ color: 'var(--m3-secondary)' }}>No monitors available</p>
-            )}
-          </div>
-        </fieldset>
+        <MonitorPicker monitors={monitors} selected={selectedMonitors} onChange={setSelectedMonitors} />
 
         <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--m3-on-surface)' }}>
           <input type="checkbox" checked={draft} onChange={(e) => setDraft(e.target.checked)} />

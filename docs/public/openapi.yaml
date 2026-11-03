@@ -384,6 +384,44 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /incidents/{id}/updates/{updateId}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+      - { name: updateId, in: path, required: true, schema: { type: integer } }
+    patch:
+      tags: [Incidents]
+      summary: Edit the text of an incident update
+      description: Only the text changes, not the incident's status. Subscribers are not notified again, and the translations of the old text are dropped.
+      x-scope: incidents:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+      responses:
+        '200':
+          description: The updated entry.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Incidents]
+      summary: Delete an incident update
+      description: The incident's status stays as it is.
+      x-scope: incidents:write
+      responses:
+        '204': { description: Deleted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /incidents/{id}/monitors:
     parameters:
       - { $ref: '#/components/parameters/Id' }

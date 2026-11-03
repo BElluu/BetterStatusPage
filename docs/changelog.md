@@ -5,6 +5,11 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+### Added
+
+- **Edit an incident**: the title, impact and affected monitors of an incident can be changed in the admin console (the pencil button on its row). Changing only the monitors now also reaches open status pages live. See [Incidents](incidents-and-maintenance.md#editing-an-incident).
+- **Edit and delete incident updates**: an entry in an incident's timeline can be corrected or removed in the admin console and through `PATCH`/`DELETE /api/v1/admin/incidents/:id/updates/:updateId`. Editing changes only the text and notifies nobody. See [Incidents](incidents-and-maintenance.md#editing-and-deleting-an-update).
+
 ### Fixed
 
 - **TLS certificate, Mail server and SSH monitors through the outbound proxy**: they now connect through a `CONNECT` tunnel of `HTTP_PROXY`/`HTTPS_PROXY` and honour `NO_PROXY`, instead of timing out where direct connections are blocked. The proxy has to allow `CONNECT` to the monitored port. See [Monitors](monitors.md#outbound-proxy).

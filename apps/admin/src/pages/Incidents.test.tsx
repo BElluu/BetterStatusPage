@@ -259,6 +259,51 @@ describe('IncidentsPage', () => {
     expect(await screen.findByText('Title too long')).toBeInTheDocument()
   })
 
+  it('edits the title and the affected monitors of an incident', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Edit Checkout errors' }))
+    const title = screen.getByRole('textbox', { name: /Title/ })
+    await user.clear(title)
+    await user.type(title, 'Checkout and search errors')
+    await user.click(screen.getByRole('checkbox', { name: 'Search' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/admin/incidents/1/monitors', { monitorIds: [10, 11] }))
+    expect(api.patch).toHaveBeenCalledWith('/admin/incidents/1', { title: 'Checkout and search errors', impact: 'major' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('sends nothing when the edit changes nothing', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Edit Checkout errors' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(api.post).not.toHaveBeenCalled()
+    expect(api.patch).not.toHaveBeenCalled()
+  })
+
+  it('edits and deletes a single update of an incident', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByText('Checkout errors'))
+    await user.click(screen.getByRole('button', { name: 'Edit the investigating update' }))
+    const text = screen.getByRole('textbox', { name: 'Update text' })
+    await user.clear(text)
+    await user.type(text, 'Looking into errors.')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/incidents/1/updates/1', { body: 'Looking into errors.' }))
+
+    await user.click(screen.getByRole('button', { name: 'Delete the identified update' }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/admin/incidents/1/updates/2'))
+  })
+
   it('deletes an incident only after confirmation', async () => {
     const user = userEvent.setup()
     renderPage()

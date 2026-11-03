@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
 import { incidents, incidentUpdates, incidentMonitors, monitors } from '../db/schema.js'
-import { eq, desc, inArray } from 'drizzle-orm'
+import { and, eq, desc, inArray } from 'drizzle-orm'
 import { sseService } from '../kit/sse.js'
 import { auditActor, writeAudit, diffObjects, snapshot } from '../kit/audit.js'
 import { requestIdentity } from '../kit/authMiddleware.js'
@@ -45,6 +45,12 @@ function resolvedAtFor(
 
 async function enrichIncident(incident: typeof incidents.$inferSelect) {
   return (await withIncidentDetails([incident]))[0]!
+}
+
+/** An edited timeline is a change to the incident: open status pages are told, feeds see a new updatedAt. */
+async function touchIncident(incident: typeof incidents.$inferSelect): Promise<void> {
+  const touched = (await db.update(incidents).set({ updatedAt: Date.now() }).where(eq(incidents.id, incident.id)).returning())[0]!
+  sseService.broadcast('incident.updated', await enrichIncident(touched))
 }
 
 export async function incidentRoutes(app: FastifyInstance) {
@@ -198,6 +204,44 @@ export async function incidentRoutes(app: FastifyInstance) {
     },
   )
 
+  // Fixing a typo or removing a detail that should not be public. The incident's status stays as it is,
+  // and subscribers are not notified again.
+  app.patch<{ Params: { id: string; updateId: string }; Body: { body?: unknown } }>(
+    '/:id/updates/:updateId', async (req, reply) => {
+      const incidentId = Number(req.params.id)
+      const where = and(eq(incidentUpdates.id, Number(req.params.updateId)), eq(incidentUpdates.incidentId, incidentId))
+      const existing = (await db.select().from(incidentUpdates).where(where))[0]
+      const incident = (await db.select().from(incidents).where(eq(incidents.id, incidentId)))[0]
+      if (!existing || !incident) return reply.code(404).send({ error: 'Not found' })
+      const body = req.body?.body
+      if (typeof body !== 'string' || !body.trim()) return reply.code(400).send({ error: 'body must be a non-empty text' })
+      if (body === existing.body) return existing
+
+      // The translations belong to the old wording; a stale one would contradict the new text.
+      const saved = (await db.update(incidentUpdates).set({ body, bodyTranslations: '{}' }).where(where).returning())[0]!
+      await touchIncident(incident)
+      writeAudit(auditActor(requestIdentity(req)), 'update', 'incident', incidentId, incident.title,
+        diffObjects({ updateBody: existing.body }, { updateBody: body }))
+      return saved
+    },
+  )
+
+  app.delete<{ Params: { id: string; updateId: string } }>(
+    '/:id/updates/:updateId', async (req, reply) => {
+      const incidentId = Number(req.params.id)
+      const where = and(eq(incidentUpdates.id, Number(req.params.updateId)), eq(incidentUpdates.incidentId, incidentId))
+      const existing = (await db.select().from(incidentUpdates).where(where))[0]
+      const incident = (await db.select().from(incidents).where(eq(incidents.id, incidentId)))[0]
+      if (!existing || !incident) return reply.code(404).send({ error: 'Not found' })
+
+      await db.delete(incidentUpdates).where(where)
+      await touchIncident(incident)
+      writeAudit(auditActor(requestIdentity(req)), 'update', 'incident', incidentId, incident.title,
+        snapshot({ deletedUpdate: existing.body }))
+      return reply.code(204).send()
+    },
+  )
+
   app.post<{ Params: { id: string }; Body: { monitorIds: number[] } }>(
     '/:id/monitors', async (req, reply) => {
       const incidentId = Number(req.params.id)
@@ -218,7 +262,10 @@ export async function incidentRoutes(app: FastifyInstance) {
           await db.insert(incidentMonitors).values(monitorIds.map((monitorId) => ({ incidentId, monitorId })))
         }
       })
-      return enrichIncident(existing)
+      const enriched = await enrichIncident(existing)
+      // Open status pages show which components an incident touches.
+      if (!existing.draft) sseService.broadcast('incident.updated', enriched)
+      return enriched
     },
   )
 }
