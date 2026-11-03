@@ -1,5 +1,5 @@
 import { isIP } from 'net'
-import { connect, type TLSSocket } from 'tls'
+import { connect } from 'tls'
 import { eq } from 'drizzle-orm'
 import { CERT_REMINDER_DAYS, DEFAULT_CERT_WARN_DAYS, MAX_CERT_WARN_DAYS } from '@bsp/shared'
 import type { CertExpiryConfig, HttpsConfig } from '@bsp/shared'
@@ -53,9 +53,8 @@ export const readCertificate: CertificateReader = (url, timeoutMs) => {
   // Where direct connections are not allowed, the handshake runs through a CONNECT tunnel, like the check itself.
   const proxy = proxyFor(url)
   return (proxy ? openTunnel(proxy, target.host, target.port, timeoutMs) : Promise.resolve(undefined)).then((through) => new Promise((resolve, reject) => {
-    let socket: TLSSocket | undefined
     const finish = (settle: () => void) => {
-      socket?.destroy()
+      tls.destroy()
       through?.destroy()
       settle()
     }
@@ -72,7 +71,6 @@ export const readCertificate: CertificateReader = (url, timeoutMs) => {
       rejectUnauthorized: false,
       timeout: timeoutMs,
     })
-    socket = tls
     tls.once('secureConnect', () => {
       const cert = tls.getPeerCertificate()
       const expiresAt = Date.parse(cert?.valid_to ?? '')
