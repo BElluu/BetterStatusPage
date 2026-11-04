@@ -7,7 +7,7 @@ Every document says what it describes in its `kind`: `Monitor` or `NotificationC
 | Where | What it does |
 |---|---|
 | **YAML** button on a monitor or a notification channel | Shows that one object as a document, to copy or download. Read only. |
-| **Export YAML** on the Monitors page (in its **⋯** menu) and on the Notifications page | Shows every monitor, notification channel and action you may read as one file, to copy or download. Read only. |
+| **Export YAML** on the Monitors and Notifications pages (in their **⋯** menus) | Shows every monitor, notification channel and action you may read as one file, to copy or download. Read only. |
 | **Import YAML** on the Monitors page (in its **⋯** menu) and on the Notifications page | Takes pasted or uploaded documents, shows what they would change, and creates or updates the objects when you apply them. |
 | [The API](api.md) | `GET /config/export` writes the documents, `POST /config/validate` and `POST /config/apply` read them, for scripts and pipelines. |
 
@@ -19,7 +19,7 @@ Every document says what it describes in its `kind`: `Monitor` or `NotificationC
 
 ### The YAML of an object
 
-Open a monitor (its page, or **Edit**) or a notification channel (**Edit**) and click **YAML**. The dialog shows the saved object as a document, with **Copy** and **Download**. **Export YAML** on **Monitors** (in the **⋯** menu) or on **Notifications** does the same for everything at once, which is the file to keep in a repository. It is only a view: to change the object, change it in the panel, or edit a copy of the document and import it.
+Open a monitor (its page, or **Edit**) or a notification channel (**Edit**) and click **YAML** (on a monitor's page it is **View YAML** in the **⋯** menu). The dialog shows the saved object as a document, with **Copy** and **Download**. **Export YAML** on **Monitors** or **Notifications** (in the **⋯** menu) does the same for everything at once, which is the file to keep in a repository. It is only a view: to change the object, change it in the panel, or edit a copy of the document and import it.
 
 The view shows what is saved, not what you have typed into an open form.
 

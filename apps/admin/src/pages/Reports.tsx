@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import type { Monitor, UptimeReport } from '@bsp/shared'
 import { Alert, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, useToast } from '@better-forge/ui'
 import { DataTable, DataTh, useTableSort } from '@better-forge/ui'
+import { ActionMenu } from '../components/ActionMenu'
 
 const DAY_MS = 86_400_000
 const MAX_RANGE_DAYS = 366
@@ -69,16 +70,18 @@ export default function ReportsPage() {
       <PageHeader
         title="Reports"
         subtitle="Uptime per monitor over a date range. Days are UTC days, and a failure not yet confirmed by the monitor's failure threshold does not lower uptime."
-        actions={<>
-          <button type="button" disabled={Boolean(rangeError)} onClick={() => exportCsv('total')} className="btn btn-outline">
-            <span className="material-symbols-outlined" aria-hidden="true">download</span>
-            Export summary CSV
-          </button>
-          <button type="button" disabled={Boolean(rangeError)} onClick={() => exportCsv('day')} className="btn btn-outline">
-            <span className="material-symbols-outlined" aria-hidden="true">download</span>
-            Export daily CSV
-          </button>
-        </>}
+        actions={
+          <ActionMenu
+            label="Export"
+            icon="download"
+            buttonClassName="btn btn-outline"
+            disabled={Boolean(rangeError)}
+            items={[
+              { label: 'Export summary CSV', icon: 'download', onSelect: () => exportCsv('total') },
+              { label: 'Export daily CSV', icon: 'download', onSelect: () => exportCsv('day') },
+            ]}
+          />
+        }
       >
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">

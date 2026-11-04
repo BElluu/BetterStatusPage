@@ -68,7 +68,7 @@ Email channels send through one SMTP server configured for the whole instance. E
 
 ### SMTP settings
 
-*Admin → Notifications → **SMTP Settings***
+*Admin → Notifications → **⋯** menu → **SMTP Settings***
 
 The same SMTP server is used by every email channel and by email [subscriptions](subscriptions.md).
 

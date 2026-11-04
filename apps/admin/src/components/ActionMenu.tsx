@@ -23,11 +23,12 @@ const GAP = 4
  * It opens below the button, or above it when there is no room. Arrow keys, Home and End move between the items;
  * Escape, Tab, a click outside, scrolling the page and resizing close it, and focus goes back to the button.
  */
-export function ActionMenu({ label, items, icon = 'more_horiz', buttonClassName = 'btn-icon' }: {
+export function ActionMenu({ label, items, icon = 'more_horiz', buttonClassName = 'btn-icon', disabled = false }: {
   label: string
   items: ActionMenuItem[]
   icon?: string
   buttonClassName?: string
+  disabled?: boolean
 }) {
   const [spot, setSpot] = useState<Spot | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -99,7 +100,7 @@ export function ActionMenu({ label, items, icon = 'more_horiz', buttonClassName 
 
   return (
     <>
-      <button ref={buttonRef} type="button" className={buttonClassName} aria-label={label} title={label} aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
+      <button ref={buttonRef} type="button" className={buttonClassName} aria-label={label} title={label} aria-haspopup="menu" aria-expanded={open} disabled={disabled} onClick={toggle}>
         <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '18px' }}>{icon}</span>
       </button>
       {spot && createPortal(

@@ -48,8 +48,10 @@ describe('ReportsPage', () => {
     await screen.findByText('99.900%')
 
     await user.selectOptions(screen.getByLabelText('Monitor'), '1')
-    await user.click(screen.getByRole('button', { name: 'Export daily CSV' }))
-    await user.click(screen.getByRole('button', { name: 'Export summary CSV' }))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Export daily CSV' }))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Export summary CSV' }))
 
     const [daily, summary] = vi.mocked(api.download).mock.calls
     expect(daily![0]).toMatch(/^\/admin\/reports\/uptime\/export\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}&monitorId=1&granularity=day$/)
@@ -66,7 +68,7 @@ describe('ReportsPage', () => {
 
     await user.clear(screen.getByLabelText('From'))
     expect(screen.getByText('Choose both dates.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Export daily CSV' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled()
     expect(vi.mocked(api.get).mock.calls.some(([path]) => path.startsWith('/admin/reports'))).toBe(false)
   })
 

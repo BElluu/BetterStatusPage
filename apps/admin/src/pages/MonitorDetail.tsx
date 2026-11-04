@@ -9,6 +9,7 @@ import { describeRecurrence } from '../components/maintenance/recurrence'
 import { ActivityBadges, MonitorStatusBadge, StatusBadge } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
 import { YamlViewModal } from '../components/YamlViewModal'
+import { ActionMenu } from '../components/ActionMenu'
 import { CopyButton } from '@better-forge/ui'
 import { webhookUrl } from '../components/monitors/MonitorTypeConfigFields'
 import { MONITOR_TYPES } from '../components/monitors/monitorTypes'
@@ -308,14 +309,15 @@ export default function MonitorDetailPage() {
               {checkNow.isPending ? 'Checking…' : 'Check now'}
             </button>
           )}
-          <button type="button" onClick={() => setShowYaml(true)} className="btn btn-outline">
-            <span className="material-symbols-outlined" aria-hidden="true">data_object</span>
-            YAML
-          </button>
           <button type="button" className="btn btn-primary" onClick={() => setEditing(true)}>
             <span className="material-symbols-outlined" aria-hidden="true">edit</span>
             Edit
           </button>
+          <ActionMenu
+            label="More actions"
+            buttonClassName="btn btn-outline"
+            items={[{ label: 'View YAML', icon: 'data_object', onSelect: () => setShowYaml(true) }]}
+          />
         </>}
       />
 

@@ -9,6 +9,7 @@ import { CHANNEL_TYPES, CHANNEL_TYPE_ORDER, type ChannelType } from '../componen
 import { ConfirmModal } from '@better-forge/ui'
 import { DataTable, DataTh, useTableSort } from '@better-forge/ui'
 import { Link } from 'react-router-dom'
+import { ActionMenu } from '../components/ActionMenu'
 import { deliveryHistoryUrl } from '../deliveryHistoryUrl'
 import { ModalFooter, ModalHeader, ModalShell } from '@better-forge/ui'
 import { Alert, EmptyStateLink, EmptyTableRow, ErrorState, Field, LoadingState, PageContainer, PageHeader, Pagination, QuickStartPanel, Switch, useToast, type FieldControlProps, type QuickStartOption } from '@better-forge/ui'
@@ -77,22 +78,19 @@ export default function NotificationsPage() {
             <span className="material-symbols-outlined" aria-hidden="true">history</span>
             Delivery history
           </Link>
-          <button type="button" onClick={() => setShowSmtp(true)} className="btn btn-secondary">
-            <span className="material-symbols-outlined" aria-hidden="true">forward_to_inbox</span>
-            SMTP Settings
-          </button>
-          <button type="button" onClick={() => setShowYaml(true)} className="btn btn-secondary">
-            <span className="material-symbols-outlined" aria-hidden="true">data_object</span>
-            Export YAML
-          </button>
-          <Link to="/admin/import" state={{ from: 'notifications' }} className="btn btn-secondary">
-            <span className="material-symbols-outlined" aria-hidden="true">upload_file</span>
-            Import YAML
-          </Link>
           <button type="button" onClick={() => openCreate()} className="btn btn-primary">
             <span className="material-symbols-outlined" aria-hidden="true">add</span>
             Add Channel
           </button>
+          <ActionMenu
+            label="More actions"
+            buttonClassName="btn btn-secondary"
+            items={[
+              { label: 'SMTP Settings', icon: 'forward_to_inbox', onSelect: () => setShowSmtp(true) },
+              { label: 'Export YAML', icon: 'data_object', onSelect: () => setShowYaml(true) },
+              { label: 'Import YAML', icon: 'upload_file', to: '/admin/import', state: { from: 'notifications' } },
+            ]}
+          />
         </>}
       />
 
