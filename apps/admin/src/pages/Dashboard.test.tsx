@@ -11,7 +11,7 @@ vi.mock('../api/client', () => ({
 }))
 
 
-const HEALTH = { uptime24h: 99, avgResponseMs: 120, responseTrend: Array.from({ length: 24 }, (_, i) => 100 + i), failingSince: null }
+const HEALTH = { uptime24h: 99, avgResponseMs: 120, responseTrend: Array.from({ length: 24 }, (_, i) => 100 + i), failureRunSince: null, latencyRatio: null }
 
 const monitors = [
   { id: 1, name: 'Checkout API', type: 'https', currentStatus: 'up', activity: { maintenance: false, windows: [], incident: null }, config: { url: 'https://shop.example.test' } },
@@ -123,7 +123,7 @@ describe('DashboardPage', () => {
   it('shows how long a monitor has been failing, its response time and the 24 hour numbers', async () => {
     mockData([
       monitors[0],
-      { ...monitors[1], health: { ...HEALTH, uptime24h: 91, avgResponseMs: 300, failingSince: Date.now() - 14 * 60_000 } },
+      { ...monitors[1], health: { ...HEALTH, uptime24h: 91, avgResponseMs: 300, failureRunSince: Date.now() - 14 * 60_000 } },
     ])
     renderPage()
 

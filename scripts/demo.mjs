@@ -41,9 +41,10 @@ if (!process.argv.includes('--skip-build')) {
 }
 
 console.log(`\nDemo at ${url} (Ctrl+C stops it and removes the data)`)
-// The app always listens on 3000 inside the container; only the published port changes.
+// The app always listens on 3000 inside the container; only the published port changes. It is published on this
+// machine only: until the first-run wizard is done, whoever reaches the port can create the admin account.
 process.exit(docker([
-  'run', '--rm', '-p', `${port}:3000`,
+  'run', '--rm', '-p', `127.0.0.1:${port}:3000`,
   '-e', 'BSP_DEMO_MODE=true', '-e', `PUBLIC_URL=${url}`, '-e', `ALLOWED_ORIGINS=${url}`,
   'bsp-demo-instance:local',
 ]))

@@ -72,12 +72,15 @@ export default function MonitorsPage() {
       es.onopen = () => { retryMs = 2000 }
       es.addEventListener('monitor.status', (e) => {
         const data = JSON.parse(e.data) as { monitorId: number; status: MonitorStatus; responseMs: number | null; checkedAt: number }
-        qc.setQueryData<Monitor[]>(['monitors'], (old) =>
+        const before = qc.getQueryData<MonitorListItem[]>(['monitors'])?.find((m) => m.id === data.monitorId)?.currentStatus
+        qc.setQueryData<MonitorListItem[]>(['monitors'], (old) =>
           old?.map((m) => m.id === data.monitorId
             ? { ...m, currentStatus: data.status, lastCheckedAt: data.checkedAt }
             : m,
           ),
         )
+        // How long an outage has lasted comes with the list, so a change of status asks for it.
+        if (before !== undefined && before !== data.status) void qc.invalidateQueries({ queryKey: ['monitors'] })
       })
       // The stream ends when the session is revoked. Check the session before reconnecting: the API
       // client sends a signed-out user to the login page instead of retrying forever.
@@ -381,7 +384,7 @@ export default function MonitorsPage() {
                   colSpan={6}
                   icon="filter_alt_off"
                   title="No monitors match the filters."
-                  description={<>A monitor must match the search, the status and every selected tag. <EmptyStateLink onClick={clearFilters}>Clear the filters</EmptyStateLink> to see all monitors.</>}
+                  description={<>A monitor must match the search, the status, the type and every selected tag. <EmptyStateLink onClick={clearFilters}>Clear the filters</EmptyStateLink> to see all monitors.</>}
                 />
               )}
             </tbody>

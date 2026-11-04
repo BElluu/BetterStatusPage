@@ -43,7 +43,7 @@ class FakeEventSource {
   }
 }
 
-const HEALTH = { uptime24h: 99, avgResponseMs: 120, responseTrend: Array.from({ length: 24 }, (_, i) => 100 + i), failingSince: null }
+const HEALTH = { uptime24h: 99, avgResponseMs: 120, responseTrend: Array.from({ length: 24 }, (_, i) => 100 + i), failureRunSince: null, latencyRatio: null }
 
 const monitors = [
   { id: 1, name: 'Checkout API', type: 'https', config: { url: 'https://checkout.example.test' }, intervalSecs: 60, currentStatus: 'up', activity: { maintenance: false, windows: [], incident: null }, lastCheckedAt: Date.UTC(2026, 8, 1, 12), tags: [{ label: 'prod', color: '#ff0000' }] },
@@ -141,7 +141,7 @@ describe('MonitorsPage', () => {
 
   it('shows uptime, a response trend and how long a failing monitor has been down', async () => {
     vi.mocked(api.get).mockResolvedValue([
-      { ...monitors[1], health: { ...HEALTH, uptime24h: 94.14, avgResponseMs: 48, failingSince: Date.now() - 14 * 60_000 } },
+      { ...monitors[1], health: { ...HEALTH, uptime24h: 94.14, avgResponseMs: 48, failureRunSince: Date.now() - 14 * 60_000 } },
       { ...monitors[2], health: { ...HEALTH, uptime24h: null, avgResponseMs: null, responseTrend: Array.from({ length: 24 }, () => null) } },
     ])
     renderPage()
@@ -247,8 +247,16 @@ describe('MonitorsPage', () => {
     const row = (await screen.findByText('Checkout API')).closest('tr')!
     expect(within(row).getByText('Operational')).toBeInTheDocument()
 
+    // A change of status also asks the server for the list again (it carries how long an outage has lasted), and the
+    // server by then knows the monitor is down.
+    const since = Date.now() - 330_000
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/admin/monitors') return monitors.map((m) => (m.id === 1 ? { ...m, currentStatus: 'down', health: { ...HEALTH, failureRunSince: since } } : m))
+      if (path === '/auth/session') return {}
+      throw new Error(`Unexpected GET ${path}`)
+    })
     act(() => FakeEventSource.instances[0]!.emit('monitor.status', { monitorId: 1, status: 'down', responseMs: null, checkedAt: Date.now() }))
-    expect(await within(row).findByText('Down')).toBeInTheDocument()
+    expect(await within(row).findByText('Down 5 min')).toBeInTheDocument()
   })
 
   it('checks the session before reconnecting a dropped stream', async () => {

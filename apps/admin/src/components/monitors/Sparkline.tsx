@@ -42,8 +42,11 @@ export function Sparkline({ values, status, label }: { values: ReadonlyArray<num
       {runs.filter((run) => run.length > 1).map((run, k) => (
         <path key={`a${k}`} d={`${line(run)} L${x(run[run.length - 1]!.i).toFixed(1)} ${H - PAD} L${x(run[0]!.i).toFixed(1)} ${H - PAD} Z`} fill={color} fillOpacity={0.16} />
       ))}
-      {runs.map((run, k) => (
+      {runs.filter((run) => run.length > 1).map((run, k) => (
         <path key={`l${k}`} d={line(run)} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+      ))}
+      {runs.filter((run) => run.length === 1).map((run) => (
+        <circle key={`d${run[0]!.i}`} cx={x(run[0]!.i)} cy={y(run[0]!.value)} r={1.4} fill={color} />
       ))}
       <circle cx={x(last.i)} cy={y(last.value)} r={2.2} fill={color} />
     </svg>

@@ -15,6 +15,9 @@ const incidentTones: Record<IncidentImpact, { color: string; bg: string }> = {
   critical: { color: 'var(--m3-down)',     bg: 'var(--m3-down-bg)' },
 }
 
+/** While the alert is open but not yet over, the p95 can be back near the usual; a ratio like 0.8× is no "slower". */
+const MIN_SHOWN_RATIO = 1.05
+
 function Chip({ icon, color, bg, title, children }: { icon: string; color: string; bg: string; title?: string; children: React.ReactNode }) {
   return (
     <span
@@ -39,7 +42,7 @@ export function ActivityBadges({ activity, slower = false, slowerRatio = null }:
       {activity.maintenance && <Chip icon="construction" color="var(--m3-primary)" bg="var(--m3-primary-fixed)">Maintenance</Chip>}
       {incident && <Chip icon="warning" {...incidentTones[incident]}>Incident · {incident}</Chip>}
       {slower && (
-        typeof slowerRatio === 'number'
+        typeof slowerRatio === 'number' && slowerRatio >= MIN_SHOWN_RATIO
           ? <Chip icon="speed" color="var(--m3-degraded)" bg="var(--m3-degraded-bg)" title={`Slower than usual: the p95 response time is ${slowerRatio.toFixed(1)}× the usual`}>Slower {slowerRatio.toFixed(1)}×</Chip>
           : <Chip icon="speed" color="var(--m3-degraded)" bg="var(--m3-degraded-bg)">Slower than usual</Chip>
       )}

@@ -328,8 +328,12 @@ export interface MonitorHealth {
   avgResponseMs: number | null
   /** Average response time per hour, oldest first, 24 entries; null for an hour without a timed check. */
   responseTrend: Array<number | null>
-  /** When the run of failed checks that the current down or degraded status belongs to began (unix ms); null otherwise. */
-  failingSince: number | null
+  /**
+   * When the run of failed checks behind the current down or degraded status began (unix ms): the first check after the
+   * last one that passed, even if the failure was only confirmed later. Not the monitor's own `failingSince`, which is
+   * set when a down outage is confirmed; null while the monitor passes.
+   */
+  failureRunSince: number | null
   /** How many times slower than usual the monitor is while its slower-than-usual alert is open (p95 over the baseline); null otherwise. */
   latencyRatio: number | null
 }

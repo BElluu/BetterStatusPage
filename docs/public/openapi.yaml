@@ -1438,6 +1438,7 @@ components:
           items: { $ref: '#/components/schemas/MonitorTag' }
         currentStatus: { type: string, enum: [up, down, degraded, pending, affected] }
         lastCheckedAt: { type: [integer, 'null'] }
+        failingSince: { type: [integer, 'null'], description: 'When the current confirmed outage began (ms since epoch); null while the monitor is up or the failure is not confirmed yet. Only set for a down outage.' }
         activity:
           type: object
           description: Only in the list and in the single-monitor response. What is going on around the monitor now.
@@ -1469,7 +1470,7 @@ components:
               type: array
               description: Average response time per hour, oldest first, 24 entries; null for an hour without a timed check.
               items: { type: [number, 'null'] }
-            failingSince: { type: [integer, 'null'], description: 'When the run of failed checks behind a down or degraded status began (ms since epoch); null otherwise.' }
+            failureRunSince: { type: [integer, 'null'], description: 'When the run of failed checks behind a down or degraded status began (ms since epoch): the first check after the last one that passed, even if the failure was only confirmed later. Not the same as the monitor''s own failingSince.' }
             latencyRatio: { type: [number, 'null'], description: 'While the slower-than-usual alert is open, the p95 of the latest window over the usual p95; null otherwise.' }
         webhookToken: { type: [string, 'null'], description: The heartbeat token of a `webhook` monitor. }
         createdAt: { type: integer }

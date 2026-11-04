@@ -15,9 +15,9 @@ export function monitorEndpoint(monitor: Pick<Monitor, 'type' | 'config'>): stri
     : `${monitor.type}`
 }
 
-/** A percentage with one decimal, without a trailing ".0": 100, 99.8, 94.1. */
+/** A percentage with one decimal, without a trailing ".0", rounded down so that 99.96 does not read as a perfect 100. */
 export function formatPercent(value: number): string {
-  return `${Number(value.toFixed(1))}%`
+  return `${Math.floor(value * 10 + 1e-9) / 10}%`
 }
 
 /** The slower-than-usual alert is open: the monitor still answers, but much slower than its own usual. */
@@ -26,7 +26,7 @@ export function isSlower(monitor: Pick<MonitorListItem, 'latencyAlertSince'>): b
 }
 
 /** How long a down or degraded monitor has been failing ("14 min"); undefined while it passes or the start is unknown. */
-export function failingFor(monitor: Pick<MonitorListItem, 'currentStatus' | 'health'>, now: number): string | undefined {
-  const since = monitor.health.failingSince
+export function failingFor(monitor: { currentStatus: string; health: { failureRunSince: number | null } }, now: number): string | undefined {
+  const since = monitor.health.failureRunSince
   return (monitor.currentStatus === 'down' || monitor.currentStatus === 'degraded') && since ? formatSpan(now - since) : undefined
 }
