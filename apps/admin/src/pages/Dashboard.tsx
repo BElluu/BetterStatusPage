@@ -6,7 +6,7 @@ import { ActivityBadges, MonitorStatusBadge, effectiveStatus } from '../componen
 import { Sparkline } from '../components/monitors/Sparkline'
 import { EmptyState, ErrorState, LoadingState, PageContainer, PageHeader } from '@better-forge/ui'
 import { formatDayMonth, formatDateTime } from '@better-forge/ui'
-import { STATUS_SEVERITY, failingFor, formatPercent, isSlower, monitorEndpoint } from '../components/monitors/monitorDisplay'
+import { failingFor, formatPercent, isSlower, monitorEndpoint, monitorSeverity } from '../components/monitors/monitorDisplay'
 import { formatAgo, useNow } from '../relativeTime'
 
 /** Shared surface for the summary card and the lists, matching the component cards. */
@@ -36,8 +36,8 @@ function MonitorRow({ monitor, now }: { monitor: MonitorListItem; now: number })
     >
       <span className="w-2 h-2 rounded-full" aria-hidden="true" style={{ background: STATUS_DOT[status] }} />
       <div className="min-w-0">
-        <h4 className="text-sm font-bold truncate" style={{ color: 'var(--m3-on-surface)' }}>{monitor.name}</h4>
-        <p className="text-xs font-label truncate" style={{ color: 'var(--m3-on-surface-variant)' }}>{monitorEndpoint(monitor)}</p>
+        <h4 className="text-sm font-bold truncate" style={{ color: 'var(--m3-on-surface)' }} title={monitor.name}>{monitor.name}</h4>
+        <p className="text-xs font-label truncate" style={{ color: 'var(--m3-on-surface-variant)' }} title={monitorEndpoint(monitor)}>{monitorEndpoint(monitor)}</p>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-1.5">
         {status === 'up' && isSlower(monitor) ? null : status === 'up' && avg !== null ? (
@@ -143,7 +143,7 @@ export default function DashboardPage() {
     : 'All Systems Operational'
 
   // Needs attention first, worst first; the rest keeps the order the monitors come in.
-  const sorted = [...monitors].sort((a, b) => STATUS_SEVERITY[effectiveStatus(a)] - STATUS_SEVERITY[effectiveStatus(b)])
+  const sorted = [...monitors].sort((a, b) => monitorSeverity(a) - monitorSeverity(b))
   const needsAttention = sorted.filter((m) => { const s = effectiveStatus(m); return (s !== 'up' && s !== 'pending') || isSlower(m) })
   const rest = sorted.filter((m) => !needsAttention.includes(m))
 

@@ -1,5 +1,6 @@
 import type { Monitor, MonitorListItem, MonitorStatus } from '@bsp/shared'
 import { formatSpan } from '../../relativeTime'
+import { effectiveStatus } from './StatusBadge'
 
 /** Worst first: what needs a reaction sorts above what works. */
 export const STATUS_SEVERITY: Record<MonitorStatus, number> = { down: 0, degraded: 1, affected: 2, pending: 3, up: 4 }
@@ -13,6 +14,12 @@ export function monitorEndpoint(monitor: Pick<Monitor, 'type' | 'config'>): stri
     : monitor.type === 'dns'
     ? (monitor.config as { hostname: string }).hostname
     : `${monitor.type}`
+}
+
+/** Sort rank, worst first. A monitor that answers but is slower than usual comes right after the degraded ones. */
+export function monitorSeverity(monitor: Pick<MonitorListItem, 'currentStatus' | 'activity' | 'latencyAlertSince'>): number {
+  const status = effectiveStatus(monitor)
+  return status === 'up' && isSlower(monitor) ? STATUS_SEVERITY.degraded + 0.5 : STATUS_SEVERITY[status]
 }
 
 /** A percentage with one decimal, without a trailing ".0", rounded down so that 99.96 does not read as a perfect 100. */

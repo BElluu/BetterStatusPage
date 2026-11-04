@@ -139,6 +139,31 @@ describe('MonitorsPage', () => {
     expect(screen.getByText('No monitors match the filters.')).toBeInTheDocument()
   })
 
+  it('shows the whole address and interval as a hint, since a long one is cut off in the row', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const line = await screen.findByText('https://checkout.example.test · every 60 s')
+    expect(line).toHaveAttribute('title', 'https://checkout.example.test · every 60 s')
+
+    await user.click(screen.getByRole('button', { name: 'Compact rows' }))
+    expect(screen.getByText('https://checkout.example.test · every 60 s')).toHaveAttribute('title', 'https://checkout.example.test · every 60 s')
+  })
+
+  it('puts the monitors that are slower than usual right after the degraded ones', async () => {
+    const quiet = { maintenance: false, windows: [], incident: null }
+    const slow = { latencyAlertSince: Date.now() - 60_000 }
+    vi.mocked(api.get).mockResolvedValue([
+      { ...monitors[0], id: 10, name: 'Fine', currentStatus: 'up' },
+      { ...monitors[0], id: 11, name: 'Slow', currentStatus: 'up', activity: quiet, ...slow },
+      { ...monitors[0], id: 12, name: 'Degraded', currentStatus: 'degraded' },
+      { ...monitors[0], id: 13, name: 'Down', currentStatus: 'down' },
+      { ...monitors[0], id: 14, name: 'Pending', currentStatus: 'pending' },
+    ])
+    renderPage()
+    await screen.findByText('Fine')
+    expect(names()).toEqual(['Down', 'Degraded', 'Slow', 'Pending', 'Fine'])
+  })
+
   it('shows uptime, a response trend and how long a failing monitor has been down', async () => {
     vi.mocked(api.get).mockResolvedValue([
       { ...monitors[1], health: { ...HEALTH, uptime24h: 94.14, avgResponseMs: 48, failureRunSince: Date.now() - 14 * 60_000 } },

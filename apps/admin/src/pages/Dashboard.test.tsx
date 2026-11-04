@@ -135,6 +135,14 @@ describe('DashboardPage', () => {
     expect(screen.getAllByRole('img', { name: /^Response time, last 24 hours, average/ })).toHaveLength(2)
   })
 
+  it('gives the name and address of a row as a hint, since a long one is cut off', async () => {
+    mockData([monitors[0]])
+    renderPage()
+
+    expect(await screen.findByRole('heading', { name: 'Checkout API', level: 4 })).toHaveAttribute('title', 'Checkout API')
+    expect(screen.getByText('https://shop.example.test')).toHaveAttribute('title', 'https://shop.example.test')
+  })
+
   it('lists a monitor that is slower than usual under Needs attention with how many times slower', async () => {
     mockData([
       { ...monitors[0], latencyAlertSince: Date.now() - 60_000, health: { ...HEALTH, latencyRatio: 3.14 } },
@@ -148,6 +156,19 @@ describe('DashboardPage', () => {
     expect(chip).toHaveAttribute('title', expect.stringContaining('3.1×'))
     // The chip stands in for the response time chip of the same monitor.
     expect(within(screen.getByText('Checkout API').closest('a')!).queryByText('120 ms')).not.toBeInTheDocument()
+  })
+
+  it('orders Needs attention worst first, with the slower-than-usual monitors after the degraded ones', async () => {
+    mockData([
+      { ...monitors[0], id: 20, name: 'Slow one', latencyAlertSince: Date.now() - 60_000 },
+      { ...monitors[2], id: 21, name: 'Degraded one' },
+      { ...monitors[1], id: 22, name: 'Down one' },
+    ])
+    renderPage()
+
+    await screen.findByRole('heading', { name: /^Needs attention · 3/ })
+    const rows = screen.getAllByRole('link').filter((a) => a.getAttribute('href')?.startsWith('/admin/monitors/'))
+    expect(rows.map((a) => a.querySelector('h4')?.textContent)).toEqual(['Down one', 'Degraded one', 'Slow one'])
   })
 
   it('cuts a long operational list and links to all monitors', async () => {

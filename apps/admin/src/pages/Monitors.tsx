@@ -13,7 +13,7 @@ import { DataTable, DataTh, useTableSort } from '@better-forge/ui'
 import { EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, QuickStartPanel, useToast, type QuickStartOption } from '@better-forge/ui'
 import { formatDateTime } from '@better-forge/ui'
 import { ActionMenu } from '../components/ActionMenu'
-import { STATUS_SEVERITY, failingFor, formatPercent, isSlower, monitorEndpoint } from '../components/monitors/monitorDisplay'
+import { failingFor, formatPercent, isSlower, monitorEndpoint, monitorSeverity } from '../components/monitors/monitorDisplay'
 import { Sparkline } from '../components/monitors/Sparkline'
 import { formatAgo, useNow } from '../relativeTime'
 
@@ -160,7 +160,7 @@ export default function MonitorsPage() {
     name: (m) => m.name,
     uptime: (m) => m.health.uptime24h,
     response: (m) => m.health.avgResponseMs,
-    currentStatus: (m) => STATUS_SEVERITY[effectiveStatus(m)],
+    currentStatus: (m) => monitorSeverity(m),
     lastCheckedAt: (m) => m.lastCheckedAt,
   }, { key: 'currentStatus' })
 
@@ -321,7 +321,7 @@ export default function MonitorsPage() {
                   <td className={cell}>
                     <div className={compact ? 'flex items-center gap-2 min-w-0' : undefined}>
                       <Link to={`/admin/monitors/${monitor.id}`} className={`font-medium hover:underline focus-ring rounded ${compact ? 'shrink-0' : ''}`} style={{ color: 'var(--m3-on-surface)' }}>{monitor.name}</Link>
-                      <div className={`font-mono text-xs truncate ${compact ? 'max-w-[240px]' : 'mt-0.5 max-w-[320px]'}`} style={{ color: 'var(--m3-secondary)' }}>
+                      <div className={`font-mono text-xs truncate ${compact ? 'max-w-[240px]' : 'mt-0.5 max-w-[320px]'}`} style={{ color: 'var(--m3-secondary)' }} title={`${monitorEndpoint(monitor)} · every ${monitor.intervalSecs} s`}>
                         {monitorEndpoint(monitor)} · every {monitor.intervalSecs} s
                       </div>
                       {((monitor.tags ?? []).length > 0 || showsCert(monitor)) && (
