@@ -15,9 +15,13 @@ const incidentTones: Record<IncidentImpact, { color: string; bg: string }> = {
   critical: { color: 'var(--m3-down)',     bg: 'var(--m3-down-bg)' },
 }
 
-function Chip({ icon, color, bg, children }: { icon: string; color: string; bg: string; children: React.ReactNode }) {
+/** While the alert is open but not yet over, the p95 can be back near the usual; a ratio like 0.8× is no "slower". */
+const MIN_SHOWN_RATIO = 1.05
+
+function Chip({ icon, color, bg, title, children }: { icon: string; color: string; bg: string; title?: string; children: React.ReactNode }) {
   return (
     <span
+      title={title}
       className="inline-flex items-center gap-1 text-xs font-sans font-semibold px-2.5 py-0.5 rounded-full"
       style={{ background: bg, color }}
     >
@@ -31,13 +35,17 @@ function Chip({ icon, color, bg, children }: { icon: string; color: string; bg: 
  * Chips for a running maintenance window, an open incident and a slower-than-usual alert, beside the status badge.
  * The last one is no status: the monitor still answers, so its own badge does not change.
  */
-export function ActivityBadges({ activity, slower = false }: { activity: MonitorActivity; slower?: boolean }) {
+export function ActivityBadges({ activity, slower = false, slowerRatio = null }: { activity: MonitorActivity; slower?: boolean; slowerRatio?: number | null | undefined }) {
   const incident = activity.incident
   return (
     <>
       {activity.maintenance && <Chip icon="construction" color="var(--m3-primary)" bg="var(--m3-primary-fixed)">Maintenance</Chip>}
       {incident && <Chip icon="warning" {...incidentTones[incident]}>Incident · {incident}</Chip>}
-      {slower && <Chip icon="speed" color="var(--m3-degraded)" bg="var(--m3-degraded-bg)">Slower than usual</Chip>}
+      {slower && (
+        typeof slowerRatio === 'number' && slowerRatio >= MIN_SHOWN_RATIO
+          ? <Chip icon="speed" color="var(--m3-degraded)" bg="var(--m3-degraded-bg)" title={`Slower than usual: the p95 response time is ${slowerRatio.toFixed(1)}× the usual`}>Slower {slowerRatio.toFixed(1)}×</Chip>
+          : <Chip icon="speed" color="var(--m3-degraded)" bg="var(--m3-degraded-bg)">Slower than usual</Chip>
+      )}
     </>
   )
 }
@@ -48,12 +56,13 @@ export function effectiveStatus(monitor: Pick<MonitorWithActivity, 'currentStatu
 }
 
 /** The effective status, with the reason when an incident, not the checks, sets it. */
-export function MonitorStatusBadge({ monitor }: { monitor: Pick<MonitorWithActivity, 'currentStatus' | 'activity'> }) {
+export function MonitorStatusBadge({ monitor, detail }: { monitor: Pick<MonitorWithActivity, 'currentStatus' | 'activity'>; detail?: string | undefined }) {
   const status = effectiveStatus(monitor)
-  return <StatusBadge status={status} reason={status !== monitor.currentStatus ? 'incident' : undefined} />
+  return <StatusBadge status={status} reason={status !== monitor.currentStatus ? 'incident' : undefined} detail={detail} />
 }
 
-export function StatusBadge({ status, reason }: { status: MonitorStatus; reason?: string | undefined }) {
+/** A status pill; `detail` is a short extra after the label, such as how long the monitor has been down. */
+export function StatusBadge({ status, reason, detail }: { status: MonitorStatus; reason?: string | undefined; detail?: string | undefined }) {
   const cfg = configs[status] ?? configs.pending
   return (
     <span
@@ -61,7 +70,7 @@ export function StatusBadge({ status, reason }: { status: MonitorStatus; reason?
       style={{ background: cfg.bg, color: cfg.color }}
     >
       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: cfg.color }} />
-      {cfg.label}{reason && ` · ${reason}`}
+      {cfg.label}{reason && ` · ${reason}`}{detail && !reason && ` ${detail}`}
     </span>
   )
 }

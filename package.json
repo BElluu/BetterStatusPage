@@ -37,6 +37,7 @@
     "restore": "npm run restore -w apps/api --",
     "kit:local": "node scripts/kit-local.mjs",
     "kit:reset": "npm ci",
+    "demo": "node scripts/demo.mjs",
     "check:kit": "node scripts/check-kit.mjs"
   },
   "devDependencies": {

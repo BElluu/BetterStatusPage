@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { DEFAULT_CERT_WARN_DAYS } from '@bsp/shared'
-import type { HttpsConfig, Monitor, MonitorStatus, MonitorType, MonitorWithActivity } from '@bsp/shared'
+import type { HttpsConfig, Monitor, MonitorStatus, MonitorListItem, MonitorType } from '@bsp/shared'
 import { ActivityBadges, MonitorStatusBadge, effectiveStatus } from '../components/monitors/StatusBadge'
 import MonitorFormModal from '../components/monitors/MonitorFormModal'
 import { YamlViewModal } from '../components/YamlViewModal'
@@ -11,7 +11,21 @@ import { MONITOR_TYPES } from '../components/monitors/monitorTypes'
 import { ConfirmModal } from '@better-forge/ui'
 import { DataTable, DataTh, useTableSort } from '@better-forge/ui'
 import { EmptyStateLink, EmptyTableRow, ErrorState, LoadingState, PageContainer, PageHeader, QuickStartPanel, useToast, type QuickStartOption } from '@better-forge/ui'
-import { formatClock, formatDateTime } from '@better-forge/ui'
+import { formatDateTime } from '@better-forge/ui'
+import { ActionMenu } from '../components/ActionMenu'
+import { failingFor, formatPercent, isSlower, monitorEndpoint, monitorSeverity } from '../components/monitors/monitorDisplay'
+import { Sparkline } from '../components/monitors/Sparkline'
+import { formatAgo, useNow } from '../relativeTime'
+
+type StatusFilter = 'all' | 'down' | 'degraded' | 'up'
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: 'all', label: 'All' }, { value: 'down', label: 'Down' }, { value: 'degraded', label: 'Degraded' }, { value: 'up', label: 'Operational' },
+]
+
+const COMPACT_KEY = 'bsp.monitors.compact'
+function readCompact(): boolean {
+  try { return localStorage.getItem(COMPACT_KEY) === '1' } catch { return false }
+}
 
 const MONITOR_QUICK_START: QuickStartOption<MonitorType>[] = MONITOR_TYPES.map((t) => ({
   key: t.value,
@@ -29,8 +43,18 @@ export default function MonitorsPage() {
   const [createType, setCreateType] = useState<MonitorType | undefined>(undefined)
   const [confirmDelete, setConfirmDelete] = useState<Monitor | null>(null)
   const [activeTags, setActiveTags] = useState<string[]>([])
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [typeFilter, setTypeFilter] = useState('all')
+  const now = useNow()
+  const [compact, setCompact] = useState(readCompact)
+  const cell = compact ? 'px-4 py-1.5' : 'px-4 py-3'
+  function chooseCompact(value: boolean) {
+    setCompact(value)
+    try { localStorage.setItem(COMPACT_KEY, value ? '1' : '0') } catch { /* the choice is just not remembered */ }
+  }
 
-  const { data: monitors = [], isPending, isError, refetch } = useQuery<MonitorWithActivity[]>({
+  const { data: monitors = [], isPending, isError, refetch } = useQuery<MonitorListItem[]>({
     queryKey: ['monitors'],
     queryFn: () => api.get('/admin/monitors'),
     refetchInterval: 30_000,
@@ -48,12 +72,15 @@ export default function MonitorsPage() {
       es.onopen = () => { retryMs = 2000 }
       es.addEventListener('monitor.status', (e) => {
         const data = JSON.parse(e.data) as { monitorId: number; status: MonitorStatus; responseMs: number | null; checkedAt: number }
-        qc.setQueryData<Monitor[]>(['monitors'], (old) =>
+        const before = qc.getQueryData<MonitorListItem[]>(['monitors'])?.find((m) => m.id === data.monitorId)?.currentStatus
+        qc.setQueryData<MonitorListItem[]>(['monitors'], (old) =>
           old?.map((m) => m.id === data.monitorId
             ? { ...m, currentStatus: data.status, lastCheckedAt: data.checkedAt }
             : m,
           ),
         )
+        // How long an outage has lasted comes with the list, so a change of status asks for it.
+        if (before !== undefined && before !== data.status) void qc.invalidateQueries({ queryKey: ['monitors'] })
       })
       // The stream ends when the session is revoked. Check the session before reconnecting: the API
       // client sends a signed-out user to the login page instead of retrying forever.
@@ -107,44 +134,60 @@ export default function MonitorsPage() {
     return [...map.entries()].map(([label, color]) => ({ label, color }))
   }, [monitors])
 
+  const statusCounts = useMemo(() => {
+    const counts = { all: monitors.length, down: 0, degraded: 0, up: 0 }
+    for (const m of monitors) {
+      const s = effectiveStatus(m)
+      if (s === 'down' || s === 'degraded' || s === 'up') counts[s]++
+    }
+    return counts
+  }, [monitors])
+  const types = useMemo(() => [...new Set(monitors.map((m) => m.type))].sort(), [monitors])
+
+  const needle = search.trim().toLowerCase()
   const filtered = useMemo(
-    () => activeTags.length === 0
-      ? monitors
-      : monitors.filter((m) => activeTags.every((tag) => (m.tags ?? []).some((t) => t.label === tag))),
-    [monitors, activeTags],
+    () => monitors.filter((m) =>
+      activeTags.every((tag) => (m.tags ?? []).some((t) => t.label === tag))
+      && (statusFilter === 'all' || effectiveStatus(m) === statusFilter)
+      && (typeFilter === 'all' || m.type === typeFilter)
+      && (!needle || m.name.toLowerCase().includes(needle) || m.type.toLowerCase().includes(needle) || monitorEndpoint(m).toLowerCase().includes(needle))),
+    [monitors, activeTags, statusFilter, typeFilter, needle],
   )
+  function clearFilters() { setActiveTags([]); setSearch(''); setStatusFilter('all'); setTypeFilter('all') }
+
+  // Worst status first by default, so an outage is never below the fold.
   const { rows: displayed, sort } = useTableSort(filtered, {
     name: (m) => m.name,
-    type: (m) => m.type,
-    intervalSecs: (m) => m.intervalSecs,
-    currentStatus: (m) => effectiveStatus(m),
+    uptime: (m) => m.health.uptime24h,
+    response: (m) => m.health.avgResponseMs,
+    currentStatus: (m) => monitorSeverity(m),
     lastCheckedAt: (m) => m.lastCheckedAt,
-  }, { key: 'name' })
+  }, { key: 'currentStatus' })
 
   return (
     <PageContainer>
       <PageHeader
         title="Monitors"
-        subtitle={isPending || isError ? undefined : `${monitors.length} monitor${monitors.length !== 1 ? 's' : ''} · Live`}
+        subtitle={isPending || isError ? undefined : `${monitors.length} monitor${monitors.length !== 1 ? 's' : ''}`}
         actions={<>
-          <button type="button" onClick={() => setShowYaml(true)} className="btn btn-secondary">
-            <span className="material-symbols-outlined" aria-hidden="true">data_object</span>
-            Export YAML
-          </button>
-          <Link to="/admin/import" state={{ from: 'monitors' }} className="btn btn-secondary">
-            <span className="material-symbols-outlined" aria-hidden="true">upload_file</span>
-            Import YAML
-          </Link>
           <button type="button" onClick={() => openCreate()} className="btn btn-primary">
             <span className="material-symbols-outlined" aria-hidden="true">add_circle</span>
             Add Monitor
           </button>
+          <ActionMenu
+            label="More actions"
+            buttonClassName="btn btn-secondary"
+            items={[
+              { label: 'Export YAML', icon: 'data_object', onSelect: () => setShowYaml(true) },
+              { label: 'Import YAML', icon: 'upload_file', to: '/admin/import', state: { from: 'monitors' } },
+            ]}
+          />
         </>}
       />
 
       {/* Tag filter bar */}
       {allTags.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap" role="group" aria-label="Filter by tag">
           <span className="font-mono text-xs uppercase tracking-wider" style={{ color: 'var(--m3-secondary)' }}>Filter:</span>
           {allTags.map((t) => {
             const active = activeTags.includes(t.label)
@@ -167,6 +210,65 @@ export default function MonitorsPage() {
         </div>
       )}
 
+      {monitors.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[180px]">
+            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" style={{ fontSize: '18px', color: 'var(--m3-secondary)' }}>search</span>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, URL or type"
+              aria-label="Search monitors"
+              className="w-full rounded-lg pl-9 pr-3 py-2 text-sm border border-transparent focus:outline-none focus:border-outline-variant"
+              style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-on-surface)' }}
+            />
+          </div>
+          <div className="inline-flex rounded-lg p-0.5" role="group" aria-label="Filter by status" style={{ background: 'var(--m3-surface-container)' }}>
+            {STATUS_FILTERS.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={statusFilter === value}
+                onClick={() => setStatusFilter(value)}
+                className="px-3 py-1.5 rounded-md text-sm font-medium focus-ring"
+                style={statusFilter === value ? { background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface)' } : { color: 'var(--m3-on-surface-variant)' }}
+              >
+                {label}<span className="ml-1.5 text-xs" style={{ color: 'var(--m3-secondary)' }}>{statusCounts[value]}</span>
+              </button>
+            ))}
+          </div>
+          {types.length > 1 && (
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              aria-label="Filter by type"
+              className="rounded-lg px-3 py-2 text-sm border border-transparent focus:outline-none focus:border-outline-variant"
+              style={{ background: 'var(--m3-surface-container)', color: 'var(--m3-on-surface)' }}
+            >
+              <option value="all">All types</option>
+              {types.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
+          <div className="inline-flex rounded-lg p-0.5 ml-auto" role="group" aria-label="Row density" style={{ background: 'var(--m3-surface-container)' }}>
+            {([[false, 'density_medium', 'Comfortable rows'], [true, 'density_small', 'Compact rows']] as const).map(([value, icon, label]) => (
+              <button
+                key={label}
+                type="button"
+                aria-pressed={compact === value}
+                aria-label={label}
+                title={label}
+                onClick={() => chooseCompact(value)}
+                className="px-2 py-1.5 rounded-md focus-ring"
+                style={compact === value ? { background: 'var(--m3-surface-container-high)', color: 'var(--m3-on-surface)' } : { color: 'var(--m3-on-surface-variant)' }}
+              >
+                <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: '18px', display: 'block' }}>{icon}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {isPending ? (
         <LoadingState label="Loading monitors…" />
       ) : isError ? (
@@ -183,7 +285,7 @@ export default function MonitorsPage() {
           <DataTable sort={sort} className="w-full min-w-[720px] text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--m3-outline-variant)' }}>
-                {([['Name', 'name'], ['Type', 'type'], ['Interval', 'intervalSecs'], ['Status', 'currentStatus'], ['Last Check', 'lastCheckedAt']] as const).map(([label, key]) => (
+                {([['Status', 'currentStatus'], ['Name', 'name'], ['Uptime 24 h', 'uptime'], ['Response', 'response'], ['Last Check', 'lastCheckedAt']] as const).map(([label, key]) => (
                   <DataTh
                     key={key}
                     scope="col"
@@ -205,51 +307,56 @@ export default function MonitorsPage() {
               </tr>
             </thead>
             <tbody>
-              {displayed.map((monitor, i) => (
+              {displayed.map((monitor) => (
                 <tr
                   key={monitor.id}
-                  className="transition-colors hover:bg-surface-container"
-                  style={{ borderTop: i > 0 ? '1px solid var(--m3-outline-variant)' : 'none' }}
+                  className={`border-t border-outline-variant first:border-t-0 transition-[background-color] ${effectiveStatus(monitor) === 'down' ? 'bg-[var(--m3-down-bg)] hover:bg-[color-mix(in_srgb,var(--m3-down)_12%,var(--m3-down-bg))]' : 'hover:bg-surface-container'}`}
                 >
-                  <td className="px-4 py-3">
-                    <Link to={`/admin/monitors/${monitor.id}`} className="font-medium hover:underline focus-ring rounded" style={{ color: 'var(--m3-on-surface)' }}>{monitor.name}</Link>
-                    {monitor.type === 'https' && typeof monitor.certExpiresAt === 'number' && (monitor.config as HttpsConfig).ignoreTls !== true && <CertExpiryChip monitor={monitor} />}
-                    {(monitor.tags ?? []).length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {(monitor.tags ?? []).map((t, j) => {
-                          const active = activeTags.includes(t.label)
-                          return (
-                            <button key={j} type="button" aria-pressed={active}
-                              onClick={(e) => { e.stopPropagation(); setActiveTags((prev) => active ? prev.filter((l) => l !== t.label) : [...prev, t.label]) }}
-                              className="text-xs px-1.5 py-0.5 rounded-full font-medium transition-all"
-                              style={{ background: active ? `${t.color}33` : `${t.color}22`, color: t.color, border: `1px solid ${active ? `${t.color}66` : `${t.color}44`}` }}
-                            >
-                              {t.label}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="font-mono text-xs uppercase px-1.5 py-0.5 rounded"
-                      style={{ color: 'var(--m3-secondary)', background: 'var(--m3-surface-container)' }}>
-                      {monitor.type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
-                    {monitor.intervalSecs}s
-                  </td>
-                  <td className="px-4 py-3">
+                  <td className={`${cell}`}>
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <MonitorStatusBadge monitor={monitor} />
-                      <ActivityBadges activity={monitor.activity} slower={monitor.latencyAlertSince !== null} />
+                      {!(effectiveStatus(monitor) === 'up' && isSlower(monitor)) && <MonitorStatusBadge monitor={monitor} detail={failingFor(monitor, now)} />}
+                      <ActivityBadges activity={monitor.activity} slower={isSlower(monitor)} slowerRatio={monitor.health.latencyRatio} />
                     </div>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--m3-secondary)' }}>
-                    {monitor.lastCheckedAt ? formatClock(monitor.lastCheckedAt, true) : '—'}
+                  <td className={cell}>
+                    <div className={compact ? 'flex items-center gap-2 min-w-0' : undefined}>
+                      <Link to={`/admin/monitors/${monitor.id}`} className={`font-medium hover:underline focus-ring rounded ${compact ? 'shrink-0' : ''}`} style={{ color: 'var(--m3-on-surface)' }}>{monitor.name}</Link>
+                      <div className={`font-mono text-xs truncate ${compact ? 'max-w-[240px]' : 'mt-0.5 max-w-[320px]'}`} style={{ color: 'var(--m3-secondary)' }} title={`${monitorEndpoint(monitor)} · every ${monitor.intervalSecs} s`}>
+                        {monitorEndpoint(monitor)} · every {monitor.intervalSecs} s
+                      </div>
+                      {((monitor.tags ?? []).length > 0 || showsCert(monitor)) && (
+                        <div className={`flex items-center gap-1 ${compact ? 'shrink-0' : 'flex-wrap mt-1'}`}>
+                          {(monitor.tags ?? []).map((t, j) => {
+                            const active = activeTags.includes(t.label)
+                            return (
+                              <button key={j} type="button" aria-pressed={active}
+                                onClick={(e) => { e.stopPropagation(); setActiveTags((prev) => active ? prev.filter((l) => l !== t.label) : [...prev, t.label]) }}
+                                className="text-xs px-1.5 py-0.5 rounded-full font-medium transition-all"
+                                style={{ background: active ? `${t.color}33` : `${t.color}22`, color: t.color, border: `1px solid ${active ? `${t.color}66` : `${t.color}44`}` }}
+                              >
+                                {t.label}
+                              </button>
+                            )
+                          })}
+                          {showsCert(monitor) && <CertExpiryChip monitor={monitor} />}
+                        </div>
+                      )}
+                    </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className={`${cell} font-mono text-xs tabular-nums`}>
+                    {monitor.health.uptime24h !== null ? formatPercent(monitor.health.uptime24h) : '—'}
+                  </td>
+                  <td className={`${cell}`}>
+                    <Sparkline
+                      values={monitor.health.responseTrend}
+                      status={effectiveStatus(monitor)}
+                      label={`Response time, last 24 hours${monitor.health.avgResponseMs !== null ? `, average ${Math.round(monitor.health.avgResponseMs)} ms` : ''}`}
+                    />
+                  </td>
+                  <td className={`${cell} text-xs whitespace-nowrap`} style={{ color: 'var(--m3-secondary)' }} title={monitor.lastCheckedAt ? formatDateTime(monitor.lastCheckedAt) : undefined}>
+                    {monitor.lastCheckedAt ? formatAgo(monitor.lastCheckedAt, now) : '—'}
+                  </td>
+                  <td className={`${cell}`}>
                     <div className="flex items-center justify-end gap-1">
                       {monitor.type !== 'webhook' && (
                         <ActionBtn
@@ -261,12 +368,13 @@ export default function MonitorsPage() {
                           <IconRefresh spinning={checkingId === monitor.id} />
                         </ActionBtn>
                       )}
-                      <ActionBtn onClick={() => setEditingMonitor(monitor)} title="Edit" label={`Edit ${monitor.name}`}>
-                        <IconEdit />
-                      </ActionBtn>
-                      <ActionBtn onClick={() => setConfirmDelete(monitor)} title="Delete" label={`Delete ${monitor.name}`} danger>
-                        <IconTrash />
-                      </ActionBtn>
+                      <ActionMenu
+                        label={`More actions for ${monitor.name}`}
+                        items={[
+                          { label: 'Edit', icon: 'edit', onSelect: () => setEditingMonitor(monitor) },
+                          { label: 'Delete', icon: 'delete', onSelect: () => setConfirmDelete(monitor), danger: true },
+                        ]}
+                      />
                     </div>
                   </td>
                 </tr>
@@ -275,8 +383,8 @@ export default function MonitorsPage() {
                 <EmptyTableRow
                   colSpan={6}
                   icon="filter_alt_off"
-                  title="No monitors match the selected tags."
-                  description={<>Every selected tag must be on a monitor. <EmptyStateLink onClick={() => setActiveTags([])}>Clear the filter</EmptyStateLink> to see all monitors.</>}
+                  title="No monitors match the filters."
+                  description={<>A monitor must match the search, the status, the type and every selected tag. <EmptyStateLink onClick={clearFilters}>Clear the filters</EmptyStateLink> to see all monitors.</>}
                 />
               )}
             </tbody>
@@ -313,17 +421,22 @@ export default function MonitorsPage() {
   )
 }
 
+/** Whether the monitor shows how long its TLS certificate is still valid. */
+function showsCert(monitor: Monitor): boolean {
+  return monitor.type === 'https' && typeof monitor.certExpiresAt === 'number' && (monitor.config as HttpsConfig).ignoreTls !== true
+}
+
 /** Days until the endpoint's certificate expires, tinted once it is inside the warning window. */
 function CertExpiryChip({ monitor }: { monitor: Monitor }) {
   const expiresAt = monitor.certExpiresAt!
   const days = Math.floor((expiresAt - Date.now()) / 86_400_000)
   const certExpiry = (monitor.config as HttpsConfig).certExpiry
   const warnDays = certExpiry?.enabled ? certExpiry.warnDays : DEFAULT_CERT_WARN_DAYS
-  const color = days < 0 ? 'var(--m3-down)' : days <= warnDays ? 'var(--m3-degraded)' : 'var(--m3-secondary)'
+  const color = days < 0 ? 'var(--m3-down)' : days <= warnDays ? 'var(--m3-degraded)' : 'var(--m3-up)'
   return (
-    <div className="font-mono text-xs mt-0.5" style={{ color }} title={`TLS certificate expires ${formatDateTime(expiresAt)}`}>
-      {days < 0 ? 'TLS certificate expired' : `TLS certificate: ${days} ${days === 1 ? 'day' : 'days'} left`}
-    </div>
+    <span className="font-mono text-[10px]" style={{ color }} title={`TLS certificate expires ${formatDateTime(expiresAt)}`}>
+      {days < 0 ? 'TLS expired' : `TLS ${days} d`}
+    </span>
   )
 }
 
@@ -341,26 +454,5 @@ function ActionBtn({ children, onClick, title, label, danger = false, disabled =
 }
 
 function IconRefresh({ spinning = false }: { spinning?: boolean }) {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true" className={spinning ? 'animate-spin' : undefined}>
-      <path d="M1 7a6 6 0 106-6 6 6 0 00-4.5 2L1 4.5" />
-      <path d="M1 1v3.5H4.5" />
-    </svg>
-  )
-}
-
-function IconEdit() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z" />
-    </svg>
-  )
-}
-
-function IconTrash() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M2 3.5h10M5 3.5V2h4v1.5M5.5 6v4.5M8.5 6v4.5M3 3.5l.7 8h6.6l.7-8" />
-    </svg>
-  )
+  return <span className={`material-symbols-outlined ${spinning ? 'animate-spin' : ''}`} aria-hidden="true" style={{ fontSize: '18px' }}>refresh</span>
 }

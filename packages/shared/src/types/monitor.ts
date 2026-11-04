@@ -320,6 +320,26 @@ export interface MonitorActivity {
 
 export type MonitorWithActivity = Monitor & { activity: MonitorActivity }
 
+/** How a monitor did over the last 24 hours; the admin list carries it next to the monitor. */
+export interface MonitorHealth {
+  /** Share of counted checks that passed, in percent; null when no check counted (a new or webhook monitor). */
+  uptime24h: number | null
+  /** Average response time in ms over the timed checks; null when there were none. */
+  avgResponseMs: number | null
+  /** Average response time per hour, oldest first, 24 entries; null for an hour without a timed check. */
+  responseTrend: Array<number | null>
+  /**
+   * When the run of failed checks behind the current down or degraded status began (unix ms): the first check after the
+   * last one that passed, even if the failure was only confirmed later. Not the monitor's own `failingSince`, which is
+   * set when a down outage is confirmed; null while the monitor passes.
+   */
+  failureRunSince: number | null
+  /** How many times slower than usual the monitor is while its slower-than-usual alert is open (p95 over the baseline); null otherwise. */
+  latencyRatio: number | null
+}
+
+export type MonitorListItem = MonitorWithActivity & { health: MonitorHealth }
+
 export type PublicMonitor = Pick<Monitor, 'id' | 'name' | 'type' | 'currentStatus' | 'lastCheckedAt'>
 
 export interface MonitorResult {

@@ -80,7 +80,8 @@ test('a monitor shows itself as YAML, and the YAML is what the import reads', as
 test('an operator can open Import from Monitors, a branding user cannot open it', async ({ browser }) => {
   const operator = await pageAs(browser, 'operator')
   await operator.goto(`${ADMIN_URL}/monitors`)
-  await operator.getByRole('link', { name: 'Import YAML' }).click()
+  await operator.getByRole('button', { name: 'More actions', exact: true }).click()
+  await operator.getByRole('menuitem', { name: 'Import YAML' }).click()
   await expect(operator).toHaveURL(/\/import$/)
   await operator.context().close()
 

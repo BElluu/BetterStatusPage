@@ -79,6 +79,7 @@ Copy `apps/template` from Better-Forge (`npx degit BElluu/Better-Forge/apps/temp
 
 - Tests and the end-to-end scenarios run through `tsx`, which does not check types; `npm run typecheck` (`tsconfig.test.json`, then `tsc --noEmit` of `apps/admin`, `apps/status` and `apps/api`) does, and CI runs it. Run it after editing tests or code.
 
+- To see a change with realistic data, `npm run demo` builds the app image from this checkout, adds the seed from the BSPDemo repository (`../BSPDemo`, or `DEMO_DIR`) and runs it on http://localhost:3000 (`PORT`, `-- --skip-build`); the data disappears when the container stops, and the first-run wizard creates the admin account.
 - Icons come from a subset of Material Symbols. After using a new icon name (or raising `@better-forge/*`), run `npm run build:icons` to add it to the fonts (`npm run check:icons` fails in CI otherwise).
 - Rename code, CSS, and DB identifiers when UI wording changes; names must match what the UI says.
 - Do not reference other products as the model for a feature in docs, README, or code comments.
