@@ -82,7 +82,8 @@ function renderWithProviders(ui: React.ReactNode) {
 }
 
 async function openSmtp(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: /SMTP Settings/ }))
+  await user.click(screen.getByRole('button', { name: 'More actions' }))
+  await user.click(screen.getByRole('menuitem', { name: /SMTP Settings/ }))
   // Wait for the stored settings to populate the form.
   await waitFor(() => expect(screen.getByPlaceholderText('smtp.example.com')).toHaveValue(smtpDirect.host))
 }
@@ -99,6 +100,7 @@ describe('NotificationsPage', () => {
   })
 
   it('lists channels with their recipients, recovery flag and status', async () => {
+    const user = userEvent.setup()
     renderWithProviders(<NotificationsPage />)
 
     expect(await screen.findByText('Ops mail')).toBeInTheDocument()
@@ -113,7 +115,9 @@ describe('NotificationsPage', () => {
     expect(within(rows[3]!).getByText('teams')).toBeInTheDocument()
     expect(within(rows[4]!).getByText('slack')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Delivery history/ })).toHaveAttribute('href', '/admin/delivery-history?tab=notifications')
-    expect(screen.getByRole('link', { name: 'Import YAML' })).toHaveAttribute('href', '/admin/import')
+    expect(screen.queryByRole('link', { name: 'Import YAML' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Import YAML' })).toHaveAttribute('href', '/admin/import')
   })
 
   it('offers channel type tiles without channels and opens the form with that type', async () => {

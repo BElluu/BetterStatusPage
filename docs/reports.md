@@ -28,7 +28,7 @@ Uptime is counted the same way as on the status page: a failure that the monitor
 
 ## Exporting CSV
 
-Both buttons export the range, and the monitor, that is currently selected. Text a spreadsheet could run as a formula (starting with `=`, `+`, `-` or `@`) is prefixed with an apostrophe.
+Both items of the **Export** menu (beside the filters) export the range, and the monitor, that is currently selected. Text a spreadsheet could run as a formula (starting with `=`, `+`, `-` or `@`) is prefixed with an apostrophe.
 
 **Export summary CSV** has one row per monitor, with the columns `monitor_id, monitor, from, to, checks_total, checks_up, uptime_pct, avg_response_ms, incidents`.
 

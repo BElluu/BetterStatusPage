@@ -7,6 +7,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ### Changed
 
+- **Fewer buttons in page headers**: **Notifications** keeps **Delivery history** and **Add Channel** and moves **SMTP Settings**, **Export YAML** and **Import YAML** into a **⋯** menu, **Reports** has one **Export** menu with the summary and daily CSV, and a monitor's page moves **YAML** into a **⋯** menu (**View YAML**).
+
 - **Dashboard and monitor list show problems first**: the Dashboard has one status strip (state, uptime and average response time over 24 hours) instead of three tiles, lists the monitors that are down or degraded under **Needs attention** ahead of the rest, with how long they have been failing (or, for a slower-than-usual alert, **Slower 3.1×**, how many times slower they are) and a response time chart for every monitor, shows open incidents (a link leads to all of them) and upcoming or running maintenance beside them, and says when it was last updated, with a button to refresh now, instead of the always-green *Live Metrics* badge. The Monitors list is sorted by status by default, can be searched by name, address or type and filtered by status and type, shows uptime and a response chart per monitor, **Last Check** as "12 s ago", can show compact rows (remembered in the browser), and moves **Edit**, **Delete**, **Export YAML** and **Import YAML** into **⋯** menus. The monitor list in the API (`GET /monitors`) carries a new `health` object (`uptime24h`, `avgResponseMs`, `responseTrend`, `failureRunSince`, `latencyRatio`). See [Monitors](monitors.md#the-monitor-list).
 
 ### Added
