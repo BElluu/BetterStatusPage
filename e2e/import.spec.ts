@@ -62,7 +62,8 @@ test('a monitor shows itself as YAML, and the YAML is what the import reads', as
   const id = (await ok<Array<{ id: number; key: string }>>(adminApi.get('admin/monitors'))).find((monitor) => monitor.key === key)!.id
 
   await page.goto(`${ADMIN_URL}/monitors/${id}`)
-  await page.getByRole('button', { name: 'YAML' }).click()
+  await page.getByRole('button', { name: 'More actions' }).click()
+  await page.getByRole('menuitem', { name: 'View YAML' }).click()
   const dialog = page.getByRole('dialog', { name: 'YAML' })
   await expect(dialog.getByLabel('YAML')).toContainText(`key: ${key}`)
   await expect(dialog.getByLabel('YAML')).toContainText('kind: Monitor')
