@@ -5,6 +5,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-05
+
 ### Changed
 
 - **Fewer buttons in page headers**: **Notifications** keeps **Delivery history** and **Add Channel** and moves **SMTP Settings**, **Export YAML** and **Import YAML** into a **⋯** menu, **Reports** has one **Export** menu with the summary and daily CSV, and a monitor's page moves **YAML** into a **⋯** menu (**View YAML**).

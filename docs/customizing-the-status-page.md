@@ -18,9 +18,6 @@ All three are open to the `admin`, `operator` and `branding` roles. See [Who can
 
 The left side is the **Toolbox**, the right side is the canvas. Drag an item from the toolbox onto the canvas, or press its **+** button to add it below everything else on the page.
 
-> [!WARNING]
-> **Not released yet.** The tabbed toolbox is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 The left panel has two tabs, **Add** and **Properties**. **Add** shows the blocks (group, text, divider, incidents, maintenance) as tiles that stay in place, and under them the list of monitors, which is the only part that scrolls. In the list you can:
 
 - search by monitor name or type,
