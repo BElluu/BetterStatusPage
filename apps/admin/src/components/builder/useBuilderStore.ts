@@ -132,6 +132,9 @@ export const useBuilderStore = create<BuilderState>((set) => ({
   applyGridLayout: (items) => {
     const posMap = new Map(items.map((i) => [i.i, { x: i.x, y: i.y, w: i.w, h: i.h }]))
     set((s) => {
+      // The grid reports every block it shows. A layout that misses one is from before the tree changed (a block
+      // was just dropped in and the grid still reports its old state), and applying it would undo that change.
+      if (s.tree.children.some((node) => !posMap.has(node.id))) return s
       let changed = false
       const children = s.tree.children.map((node) => {
         const pos = posMap.get(node.id)

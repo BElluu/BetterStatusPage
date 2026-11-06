@@ -106,4 +106,15 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().tree.children[0]!.grid?.y).toBe(4)
     expect(useBuilderStore.getState().isDirty).toBe(true)
   })
+
+  it('ignores a grid layout from before a block was dropped in, so it does not undo the shift', () => {
+    useBuilderStore.getState().addNode('root', { ...createMonitorNode(1), grid: { x: 0, y: 3, w: 1, h: 1 } })
+    const first = useBuilderStore.getState().tree.children[0]!
+    useBuilderStore.getState().insertRootNode({ ...createMonitorNode(2), grid: { x: 0, y: 3, w: 1, h: 1 } }, 3)
+    expect(useBuilderStore.getState().tree.children[0]!.grid?.y).toBe(4)
+
+    // The grid still reports the layout without the new block.
+    useBuilderStore.getState().applyGridLayout([{ i: first.id, x: 0, y: 3, w: 1, h: 1 }])
+    expect(useBuilderStore.getState().tree.children[0]!.grid?.y).toBe(4)
+  })
 })
