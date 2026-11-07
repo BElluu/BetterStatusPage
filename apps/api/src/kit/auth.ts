@@ -9,6 +9,7 @@ import { getStatusPageAccess, viewerProvisioningAllowed } from '../services/stat
 import { sseService } from './sse.js'
 import { audit } from './audit.js'
 import { roles } from './roles.js'
+import { serviceFetch } from '../services/ssrfGuard.js'
 
 /**
  * Cookies are `Secure` in production, which a browser keeps only over HTTPS (or on localhost). `COOKIE_SECURE=false`
@@ -47,6 +48,8 @@ export const auth: Auth = createAuth({
   secureCookies,
   rateLimits: { signIn: LOGIN_RATE_LIMIT, sensitiveAction: SENSITIVE_ACTION_RATE_LIMIT },
   returnTargets: ['status'],
+  // Discovery, token exchange and key requests to the SSO provider leave through the outbound proxy.
+  fetch: serviceFetch,
   hooks: {
     // Ending a session also closes the live event streams it had open.
     onSessionsRevoked(match) {

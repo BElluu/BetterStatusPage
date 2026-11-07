@@ -7,6 +7,7 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ### Fixed
 
+- **Single sign-on through the outbound proxy**: OIDC discovery, the token exchange and the key requests to the identity provider now honour `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`, instead of timing out where direct connections are blocked. See [Monitors](monitors.md#outbound-proxy). ([#158](https://github.com/BElluu/BetterStatusPage/issues/158))
 - **Page Builder crash when dropping a block between others**: dropping a new block anywhere but below the last one crashed the page (React error #185). ([#157](https://github.com/BElluu/BetterStatusPage/issues/157))
 
 ## [0.8.2] - 2026-11-05
