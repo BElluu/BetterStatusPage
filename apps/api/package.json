@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@better-forge/audit": "0.2.0",
-    "@better-forge/auth": "0.3.0",
+    "@better-forge/auth": "0.4.1",
     "@better-forge/backup": "0.2.0",
     "@better-forge/config-as-code": "0.2.0",
     "@better-forge/contracts": "0.2.0",

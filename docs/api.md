@@ -54,7 +54,7 @@ The three presets:
 A token is meant for automation, so it never reaches account or credential management, whatever permissions it has:
 
 - users, passwords and two-factor authentication,
-- single sign-on settings,
+- single sign-on settings and [account creation by group](single-sign-on.md#creating-accounts-on-first-sign-in),
 - who may view a private status page (status page access),
 - vault settings and secret values (a token with `vault:use` can list vault and secret names, which is what the monitor form needs to pick one),
 - backups,

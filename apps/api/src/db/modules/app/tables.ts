@@ -348,6 +348,20 @@ export const statusPageAccess = sqliteTable('status_page_access', {
   updatedAt: integer('updated_at').notNull(),
 })
 
+/** Who a first SSO sign-in from the admin panel creates an account for, and with which role; one row. Off until an administrator turns it on. */
+export const ssoProvisioning = sqliteTable('sso_provisioning', {
+  id: integer('id').primaryKey(),
+  /** 1 = a first SSO sign-in without a matching account creates one. */
+  enabled: integer('enabled').notNull().default(0),
+  /** JSON string[] of email domains (lowercase, without "@") that may sign up. */
+  allowedDomains: text('allowed_domains').notNull().default('[]'),
+  /** The ID token claim that lists the person's groups. */
+  groupsClaim: text('groups_claim').notNull().default('groups'),
+  /** JSON {group, role}[]: the role a group gives. */
+  groupRoles: text('group_roles').notNull().default('[]'),
+  updatedAt: integer('updated_at').notNull(),
+})
+
 /** Whether agents may use the MCP endpoint, and whether they may change data; one row. Both are off until an administrator turns them on. */
 export const mcpSettings = sqliteTable('mcp_settings', {
   id: integer('id').primaryKey(),

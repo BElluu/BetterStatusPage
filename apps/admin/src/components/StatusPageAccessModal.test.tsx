@@ -23,44 +23,34 @@ describe('StatusPageAccessModal', () => {
     vi.mocked(api.get).mockResolvedValue(PUBLIC)
   })
 
-  it('makes the page private, lets SSO create viewer accounts for listed domains and closes', async () => {
+  it('makes the page private and closes, keeping who gets a viewer account as it is', async () => {
     const user = userEvent.setup()
+    vi.mocked(api.get).mockResolvedValue({ ...PUBLIC, ssoCreateViewers: true, ssoViewerDomains: ['example.com'] })
     vi.mocked(api.put).mockImplementation(async (_path, body) => ({ ...(body as AdminStatusPageAccess), ssoConfigured: true }))
     const onClose = renderModal()
 
     expect(await screen.findByRole('heading', { name: 'Status page access' })).toBeInTheDocument()
-    expect(screen.queryByRole('switch', { name: 'Create viewer accounts on single sign-on' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: /viewer accounts/i })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('switch', { name: 'Private status page' }))
-    await user.click(screen.getByRole('switch', { name: 'Create viewer accounts on single sign-on' }))
-    await user.type(screen.getByLabelText('Email domains'), 'example.com, example.org;  ')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(api.put).toHaveBeenCalledWith('/admin/status-page-access', {
-      private: true, ssoCreateViewers: true, ssoViewerDomains: ['example.com', 'example.org'],
+      private: true, ssoCreateViewers: true, ssoViewerDomains: ['example.com'],
     }))
     await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
 
   it('shows why the settings were refused and stays open', async () => {
     const user = userEvent.setup()
-    vi.mocked(api.put).mockRejectedValue(new Error('Add at least one email domain to create viewer accounts on SSO sign-in'))
-    vi.mocked(api.get).mockResolvedValue({ ...PUBLIC, private: true })
+    vi.mocked(api.put).mockRejectedValue(new Error('Refused'))
     const onClose = renderModal()
 
-    await user.click(await screen.findByRole('switch', { name: 'Create viewer accounts on single sign-on' }))
+    await user.click(await screen.findByRole('switch', { name: 'Private status page' }))
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(await screen.findByText(/Add at least one email domain/)).toBeInTheDocument()
+    expect(await screen.findByText('Refused')).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
-  })
-
-  it('needs single sign-on before it can create viewer accounts', async () => {
-    vi.mocked(api.get).mockResolvedValue({ ...PUBLIC, private: true, ssoConfigured: false })
-    renderModal()
-
-    expect(await screen.findByRole('switch', { name: 'Create viewer accounts on single sign-on' })).toBeDisabled()
-    expect(screen.getByText('Set up single sign-on first.')).toBeInTheDocument()
   })
 
   it('offers a retry when the settings cannot be loaded', async () => {

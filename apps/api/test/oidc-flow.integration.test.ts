@@ -13,7 +13,10 @@ import { auditLog, authSessions, oidcSettings, users } from '../src/db/schema.js
 import { requireAuth, requireRole } from '../src/kit/authMiddleware.js'
 import { authRoutes } from '../src/kit/authRoutes.js'
 import { oidcSettingsRoutes } from '../src/kit/oidcSettingsRoutes.js'
+import { adminSsoProvisioningRoutes } from '../src/routes/ssoProvisioning.js'
+import { getSsoProvisioning, saveSsoProvisioning } from '../src/services/ssoProvisioning.js'
 import { userRoutes } from '../src/kit/userRoutes.js'
+import type { SsoProvisioningSettings } from '@bsp/shared'
 import { saveStatusPageAccess } from '../src/services/statusPageAccess.js'
 import { createTestDb, initTestDb, teardownTestDb } from './helpers/testDb.js'
 
@@ -82,6 +85,7 @@ before(async () => {
     protectedApp.register(async (adminApp) => {
       adminApp.addHook('preHandler', requireRole())
       adminApp.register(oidcSettingsRoutes, { prefix: '/oidc' })
+      adminApp.register(adminSsoProvisioningRoutes, { prefix: '/sso-provisioning' })
       adminApp.register(userRoutes, { prefix: '/users' })
     })
   }, { prefix: '/admin' })
@@ -388,5 +392,171 @@ describe('Confirming sensitive actions in an SSO session', () => {
     const changed = await app.inject({ method: 'POST', url: '/auth/change-password', headers: fresh, payload: { newPassword: 'chosen-by-sso-user' } })
     assert.equal(changed.statusCode, 200)
     assert.equal(changed.json().authMethod, 'oidc')
+  })
+})
+
+describe('SSO account creation from the admin panel', () => {
+  const settings: SsoProvisioningSettings = {
+    enabled: true,
+    allowedDomains: ['corp.test'],
+    groupsClaim: 'groups',
+    groupRoles: [{ group: 'Technicians', role: 'admin' }, { group: 'Operators', role: 'operator' }, { group: 'Domain Users', role: 'viewer' }],
+  }
+  const signUp = (name: string, extra: Record<string, unknown> = {}, start?: string) =>
+    runFlow({ sub: `${name}-sub`, email: `${name}@corp.test`, email_verified: true, ...extra }, start)
+
+  after(async () => {
+    await saveSsoProvisioning({ enabled: false, allowedDomains: [], groupsClaim: 'groups', groupRoles: [] })
+    await saveStatusPageAccess({})
+  })
+
+  it('creates nobody while it is off', async () => {
+    await saveSsoProvisioning({ ...settings, enabled: false })
+    const response = await signUp('off', { groups: ['Technicians'] })
+    assert.equal(response.headers.location, '/admin/login?error=oidc_no_account')
+  })
+
+  it('gives the highest role of the mapped groups, admin included', async () => {
+    await saveSsoProvisioning(settings)
+    assert.equal((await signUp('boss', { groups: ['Domain Users', 'Technicians', 'other'] })).headers.location, '/admin/')
+    assert.equal((await userByEmail('boss@corp.test')).role, 'admin')
+    // The audit log says which role the account was created with and which rule gave it.
+    const created = (await db.select().from(auditLog)).find((entry) => entry.entityType === 'user' && entry.action === 'create' && entry.userEmail === 'boss@corp.test')
+    assert.deepEqual(JSON.parse(created!.diff!), {
+      email: 'boss@corp.test', role: 'admin', createdBy: 'sso', issuer, rule: 'Group mapping, domain corp.test: Technicians (admin), Domain Users (viewer)',
+    })
+    await signUp('worker', { groups: ['Operators', 'Domain Users'] })
+    assert.equal((await userByEmail('worker@corp.test')).role, 'operator')
+    const reader = await signUp('reader', { groups: ['Domain Users'] })
+    assert.equal((await userByEmail('reader@corp.test')).role, 'viewer')
+    assert.equal(reader.headers.location, '/')
+  })
+
+  it('refuses a person without a mapped group, a groups claim that is not a list, another domain or an unvouched email', async () => {
+    await saveSsoProvisioning(settings)
+    const refused = '/admin/login?error=oidc_no_account'
+    assert.equal((await signUp('nogroup', { groups: ['unmapped'] })).headers.location, refused)
+    assert.equal((await signUp('noclaim')).headers.location, refused)
+    assert.equal((await signUp('textclaim', { groups: 'Technicians' })).headers.location, refused)
+    assert.equal((await signUp('caseclaim', { groups: ['technicians'] })).headers.location, refused)
+    assert.equal((await runFlow({ sub: 'x-sub', email: 'x@elsewhere.test', email_verified: true, groups: ['Technicians'] })).headers.location, refused)
+    assert.equal((await signUp('unverified', { groups: ['Technicians'], email_verified: false })).headers.location, refused)
+    assert.equal((await db.select().from(users).where(eq(users.email, 'nogroup@corp.test'))).length, 0)
+  })
+
+  it('reads the claim the settings name', async () => {
+    await saveSsoProvisioning({ ...settings, groupsClaim: 'roles' })
+    await signUp('custom', { groups: ['Technicians'], roles: ['Operators'] })
+    assert.equal((await userByEmail('custom@corp.test')).role, 'operator')
+  })
+
+  it('never gives more than a viewer to a sign-in that started on the status page', async () => {
+    await saveSsoProvisioning(settings)
+    // Not private: nothing is created, whatever the groups say.
+    assert.equal((await signUp('page1', { groups: ['Technicians'] }, '/auth/oidc/login?returnTo=status')).headers.location, '/?sign-in-error=oidc_no_account')
+    await saveStatusPageAccess({ private: true, ssoCreateViewers: true, ssoViewerDomains: ['corp.test'] })
+    await signUp('page2', { groups: ['Technicians'] }, '/auth/oidc/login?returnTo=status')
+    assert.equal((await userByEmail('page2@corp.test')).role, 'viewer')
+    const viewerAudit = (await db.select().from(auditLog)).find((entry) => entry.action === 'create' && entry.userEmail === 'page2@corp.test')
+    assert.equal(JSON.parse(viewerAudit!.diff!).rule, 'Status page access, domain corp.test')
+    // Groups are not needed there.
+    await signUp('page3', {}, '/auth/oidc/login?returnTo=status')
+    assert.equal((await userByEmail('page3@corp.test')).role, 'viewer')
+    await saveStatusPageAccess({})
+  })
+
+  it('does not ask for more than the sign-in settings do about the email, and falls back to a viewer where the page allows it', async () => {
+    await saveSsoProvisioning(settings)
+    // Entra ID sends neither claim by default: it is accepted only where the SSO settings accept providers that omit them.
+    assert.equal((await signUp('noclaims', { groups: ['Operators'], email_verified: undefined })).headers.location, '/admin/login?error=oidc_no_account')
+    await db.update(oidcSettings).set({ allowUnverifiedEmail: 1 })
+    try {
+      await signUp('noclaims', { groups: ['Operators'], email_verified: undefined })
+      assert.equal((await userByEmail('noclaims@corp.test')).role, 'operator')
+      // An email the provider reports as unverified is still refused.
+      assert.equal((await signUp('reported', { groups: ['Operators'], email_verified: false })).headers.location, '/admin/login?error=oidc_no_account')
+    } finally {
+      await db.update(oidcSettings).set({ allowUnverifiedEmail: 0 })
+    }
+    await runFlow({ sub: 'entra2-sub', email: 'entra@corp.test', xms_edov: true, groups: ['Operators'] })
+    assert.equal((await userByEmail('entra@corp.test')).role, 'operator')
+    await runFlow({ sub: 'str-sub', email: 'str@corp.test', email_verified: 'true', groups: ['Operators'] })
+    assert.equal((await userByEmail('str@corp.test')).role, 'operator')
+
+    // No mapped group: nothing, unless the private page lets this domain in as a viewer.
+    assert.equal((await signUp('fallback', { groups: ['unmapped'] })).headers.location, '/admin/login?error=oidc_no_account')
+    await saveStatusPageAccess({ private: true, ssoCreateViewers: true, ssoViewerDomains: ['corp.test'] })
+    assert.equal((await signUp('fallback', { groups: ['unmapped'] })).headers.location, '/')
+    assert.equal((await userByEmail('fallback@corp.test')).role, 'viewer')
+    await saveStatusPageAccess({})
+  })
+
+  it('does not read a groups claim that is not the token\'s own', async () => {
+    await saveSsoProvisioning({ ...settings, groupsClaim: 'toString' })
+    const response = await signUp('inherited', { groups: ['Technicians'] })
+    assert.equal(response.headers.location, '/admin/login?error=oidc_no_account')
+  })
+
+  it('shows the role in the test sign-in without creating the account', async () => {
+    await saveSsoProvisioning(settings)
+    const response = await runFlow({ sub: 'try-sub', email: 'try@corp.test', email_verified: true, groups: ['Technicians'] }, '/admin/oidc/test-sign-in', { cookie: admin['cookie']! })
+    const location = new URL(response.headers.location!, 'http://localhost')
+    const result = (await app.inject({ url: `/admin/oidc/test-sign-in/${location.searchParams.get('result')}`, headers: admin })).json()
+    assert.equal(result.outcome, 'provision')
+    assert.equal(result.role, 'admin')
+    assert.match(result.reason, /Technicians \(admin\)/)
+    assert.equal((await db.select().from(users).where(eq(users.email, 'try@corp.test'))).length, 0)
+  })
+})
+
+describe('SSO account creation settings', () => {
+  const body = { enabled: true, allowedDomains: ['corp.test'], groupsClaim: 'groups', groupRoles: [{ group: 'Technicians', role: 'admin' }] }
+  const put = (payload: Record<string, unknown>) => app.inject({ method: 'PUT', url: '/admin/sso-provisioning', headers: admin, payload })
+  after(async () => { await saveSsoProvisioning({ enabled: false, allowedDomains: [], groupsClaim: 'groups', groupRoles: [] }) })
+
+  it('is confirmed with the password when it gives more, and then saved and audited', async () => {
+    assert.equal((await put(body)).statusCode, 400)
+    assert.equal((await put({ ...body, currentPassword: 'wrong' })).statusCode, 400)
+    assert.equal((await getSsoProvisioning()).enabled, false)
+    const saved = await put({ ...body, allowedDomains: [' @Corp.test '], currentPassword: password })
+    assert.equal(saved.statusCode, 200)
+    assert.deepEqual(saved.json().allowedDomains, ['corp.test'])
+    const audit = (await db.select().from(auditLog)).filter((entry) => entry.entityType === 'sso_provisioning')
+    assert.equal(audit.length, 1)
+  })
+
+  it('does not ask again to turn it down, but asks for a higher role', async () => {
+    assert.equal((await put({ ...body, groupRoles: [{ group: 'Technicians', role: 'viewer' }] })).statusCode, 200)
+    assert.equal((await put(body)).statusCode, 400)
+    assert.equal((await put({ ...body, enabled: false })).statusCode, 200)
+  })
+
+  it('asks again for a new domain alone and for another claim alone, but not for fewer', async () => {
+    assert.equal((await put({ ...body, currentPassword: password })).statusCode, 200)
+    assert.equal((await put({ ...body, allowedDomains: ['corp.test', 'new.test'] })).statusCode, 400)
+    assert.equal((await put({ ...body, groupsClaim: 'roles' })).statusCode, 400)
+    assert.equal((await put({ ...body, allowedDomains: ['corp.test', 'new.test'], currentPassword: password })).statusCode, 200)
+    assert.equal((await put({ ...body })).statusCode, 200)
+    assert.deepEqual((await getSsoProvisioning()).allowedDomains, ['corp.test'])
+  })
+
+  it('stores group names without the spaces around them and sees "A" and "A " as one group', async () => {
+    const saved = await put({ ...body, groupRoles: [{ group: '  Technicians ', role: 'admin' }], currentPassword: password })
+    assert.deepEqual(saved.json().groupRoles, [{ group: 'Technicians', role: 'admin' }])
+    const twice = await put({ ...body, groupRoles: [{ group: 'A', role: 'admin' }, { group: 'A ', role: 'viewer' }], currentPassword: password })
+    assert.equal(twice.statusCode, 400)
+  })
+
+  it('refuses settings that would let anybody in or are malformed', async () => {
+    const bad = async (payload: Record<string, unknown>) => (await put({ ...body, currentPassword: password, ...payload })).statusCode
+    assert.equal(await bad({ allowedDomains: [] }), 400)
+    assert.equal(await bad({ groupRoles: [] }), 400)
+    assert.equal(await bad({ groupRoles: [{ group: 'a', role: 'root' }] }), 400)
+    assert.equal(await bad({ groupRoles: [{ group: 'a', role: 'admin' }, { group: 'a', role: 'viewer' }] }), 400)
+    assert.equal(await bad({ groupRoles: [{ group: '', role: 'admin' }] }), 400)
+    assert.equal(await bad({ groupsClaim: 'not a claim!' }), 400)
+    assert.equal(await bad({ groupsClaim: '__proto__' }), 400)
+    assert.equal(await bad({ groupsClaim: 'constructor' }), 400)
+    assert.equal(await bad({ allowedDomains: ['not a domain'] }), 400)
   })
 })

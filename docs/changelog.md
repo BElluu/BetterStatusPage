@@ -5,6 +5,14 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+### Added
+
+- **Account creation by group on single sign-on**: in **Users → Single sign-on** (the **Admin sign-in page** icon beside the form) a first SSO sign-in from the admin sign-in page can create the account, with the role of the person's group at the identity provider (`viewer`, `branding`, `operator` or `admin`, the highest of several). It is off by default, needs a list of email domains and a mapped group, and is confirmed like creating an API token. The audit log records the role and the rule (matched groups) of every account created by SSO. A sign-in from a private status page still only ever creates a Viewer. ([#159](https://github.com/BElluu/BetterStatusPage/issues/159)) See [Single sign-on](single-sign-on.md#creating-accounts-on-first-sign-in).
+
+### Changed
+
+- **All single sign-on settings in one dialog**: **Users → Single sign-on** now holds the provider settings and, in an icon strip beside the form like the one of a monitor, **Admin sign-in page** (who gets an account, by group), **Options** and **Private status page** (viewer accounts), with **Admin sign-in page** open first and one **Save** for all of them with one password or identity-provider confirmation. **Status page access** keeps only the private switch, and the separate **SSO account creation** button is gone. The settings and the API are unchanged. See [Single sign-on](single-sign-on.md#creating-accounts-on-first-sign-in) and [Private status page](private-status-page.md#viewer-accounts-through-single-sign-on).
+
 ### Fixed
 
 - **Single sign-on through the outbound proxy**: OIDC discovery, the token exchange and the key requests to the identity provider now honour `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`, instead of timing out where direct connections are blocked. See [Monitors](monitors.md#outbound-proxy). ([#158](https://github.com/BElluu/BetterStatusPage/issues/158))

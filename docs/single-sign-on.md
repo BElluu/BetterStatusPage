@@ -4,10 +4,10 @@ BetterStatusPage can sign administrators in through any OpenID Connect (OIDC) id
 
 ## How it works
 
-- SSO signs in **existing users only**. Create the user first in **Users → New User**, then they can use SSO. The one exception is a [private status page](private-status-page.md#viewer-accounts-through-single-sign-on): it can let SSO create **Viewer** accounts for email domains you list.
+- By default SSO signs in **existing users only**. Create the user first in **Users → New User**, then they can use SSO. Two settings let a first sign-in create the account instead: [account creation by group](#creating-accounts-on-first-sign-in) for the admin sign-in page, and, for a [private status page](private-status-page.md#viewer-accounts-through-single-sign-on), **Viewer** accounts for email domains you list.
 - The **first** SSO sign-in matches the account by the **email** claim from the identity provider, case-insensitively. The email must be verified: the provider must send `email_verified: true`, or, for Microsoft Entra ID, `xms_edov: true` (see [Microsoft Entra ID](#microsoft-entra-id)).
 - That first sign-in links the provider account (issuer + `sub` claim) to the user, shown as **SSO** in **Users**. Later sign-ins match on this link, not on the email, so they keep working when the email changes at the provider. An email address that is later given to someone else at the provider cannot take over the account: that sign-in is refused with `subject_mismatch`. If the issuer URL is changed, the next sign-in links the account again by email.
-- The user keeps their BetterStatusPage role (`admin`, `operator`, `branding`, `viewer`). Roles are not read from the identity provider.
+- The user keeps their BetterStatusPage role (`admin`, `operator`, `branding`, `viewer`). Roles are not read from the identity provider after the account exists; only [account creation by group](#creating-accounts-on-first-sign-in) reads groups, once, when it creates the account.
 - An SSO sign-in replaces the local password, because the identity provider authenticates the user. It never changes the stored password.
 - A user who turned on two-factor authentication in **Settings** still enters their code after an SSO sign-in, the same as after a password sign-in. Users without 2FA go straight in, so the identity provider's own MFA applies to them.
 - An SSO sign-in revokes a temporary password that was never replaced: it stops working, and the user is not asked to change it. The temporary password therefore never has to be handed to an SSO user, and the one the administrator knows cannot be used. A user who also wants to sign in with a password sets one in **Settings**, confirming with SSO. If an administrator resets the password of an SSO user, for example while the identity provider is down, the new temporary password works until that user's next SSO sign-in.
@@ -31,13 +31,35 @@ No restart or `.env` change is needed.
    | Redirect URI | Optional. Defaults to `PUBLIC_URL` + `/api/v1/auth/oidc/callback`. Set it when the admin panel is served from another origin. |
    | Scopes | Defaults to `openid email profile`. |
    | Button label | Text of the button on the sign-in page. |
-   | Accept providers that omit `email_verified` | For providers that send no verification claim at all. Enable it only when the provider's email claim is trustworthy. Not needed for Microsoft Entra ID: add the `xms_edov` optional claim instead. |
-   | Disable password sign-in | See [Password sign-in and lockout protection](#password-sign-in-and-lockout-protection). |
+   | Accept providers that omit `email_verified` (**Options** icon) | For providers that send no verification claim at all. Enable it only when the provider's email claim is trustworthy. Not needed for Microsoft Entra ID: add the `xms_edov` optional claim instead. |
+   | Disable password sign-in (**Options** icon) | See [Password sign-in and lockout protection](#password-sign-in-and-lockout-protection). |
 
 3. Click **Test connection** to run OIDC discovery against the issuer, then **Save**. Saving asks you to confirm who you are, see [Confirming sensitive actions](#confirming-sensitive-actions).
 4. Reopen the form and click **Test sign-in**. It opens the identity provider in a new tab with the saved settings, and after you sign in there it shows every claim of the ID token and what a real sign-in would do: which user it signs in as, whether it links the account, or why it is refused. Nobody is signed in, nothing is linked and nothing is saved. It works while SSO is switched off, so you can check the setup before enabling it.
 
 The sign-in page shows the SSO button as soon as the settings are saved. The button starts the sign-in on the host of the redirect URI, so it works even when the admin panel was opened under another name (for example `127.0.0.1` while the redirect URI uses `localhost`); after signing in you are on the redirect URI's host.
+
+## Creating accounts on first sign-in
+
+> [!WARNING]
+> **Not released yet.** Creating accounts by group is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+Without this, someone who signs in through SSO and has no account is refused. In **Users → Single sign-on**, open **Admin sign-in page** (the first icon beside the form) and you can let the identity provider decide who gets an account and with which role. It is saved with the rest of the dialog by one **Save**.
+
+| Field | Notes |
+|-------|-------|
+| Create accounts on sign-in | Off by default. |
+| Email domains | Required. Only an email from one of these domains can sign up, so accounts at a shared provider such as Google cannot. |
+| Groups claim | The ID token claim that lists the person's groups, `groups` by default. It must be a list of names. Use **Test sign-in** to see which claims your provider sends. Microsoft Entra ID needs the **groups** optional claim added to the ID token; it sends group object IDs unless you configure names, and a person in too many groups (about 200) gets no `groups` claim at all, so they are refused. |
+| Group to role | Each group (exactly as the groups claim carries it, case-sensitive) gives `viewer`, `branding`, `operator` or `admin`. Copy the values from **Test sign-in**: Microsoft Entra ID sends the **object ID** of a group (a GUID), not its name, and Keycloak sends a path such as `/Technicians` unless *Full group path* is off in its *Group Membership* mapper. |
+
+A first sign-in from the admin sign-in page creates an account when the email passes the same check as any SSO sign-in (the provider does not report it as unverified, see [How it works](#how-it-works)), its domain is listed and the person is in at least one mapped group. Nothing more is asked of the email: Microsoft Entra ID sends no verification claim by default, so for it the group mapping and the domain list are the protection. Use a tenant-specific issuer URL for it, never `/common` or `/organizations`, because the groups of another tenant are not yours to trust. They get the **highest** role of their mapped groups. A person in none of them gets no account; there is no default role. The account is linked to their identity at once, has no usable password and signs in through SSO only, and the audit log records it as a created user with `createdBy: sso`, the `role` it was created with and the `rule` that gave it: the matched groups and the domain.
+
+- **The role is set once.** Changing a person's groups at the provider later does not change their role, and removing them from a group does not take access away. Change or remove the user in **Users**, or remove them at the provider, which also stops them from signing in.
+- **From a private status page the role is always Viewer.** A sign-in that started on the status page ignores the group mapping and only follows the *Private status page* section ([Viewer accounts](private-status-page.md#viewer-accounts-through-single-sign-on)). The group mapping is never used there, even for a person in an admin group; they get Viewer and can have the role raised in **Users**. A sign-in from the admin page that matches no group may still become a Viewer under those same page settings.
+- **Saving is confirmed** the way creating an API token is (see [Confirming sensitive actions](#confirming-sensitive-actions)) whenever it gives more than before: turning it on, a new domain, another claim or a higher role for a group. Turning it down is not asked twice. Every change is written to the audit log (**SSO Account Creation**).
+- **Test sign-in** shows *Creates the Admin account …* (or the role the groups give) for a sign-in that would create one, without creating it. It tests the admin sign-in page, not the status page.
+- Mapping a group to **Admin** gives full access to everyone in that group from the listed domains on their first sign-in. Map only groups you control at the provider.
 
 ## Configure it with environment variables
 
@@ -95,7 +117,7 @@ The sign-in page shows only *"Single sign-on failed"* or *"No account matches yo
 
 | Code | Meaning | Fix |
 |------|---------|-----|
-| `no_matching_account` | No user has that email. | Create the user in **Users → New User**. |
+| `no_matching_account` | No user has that email, and no account was created: [account creation by group](#creating-accounts-on-first-sign-in) is off, the email's domain is not listed, the provider does not vouch for the email, or the person is in no mapped group. | Create the user in **Users → New User**, or check the domains, the groups claim and the mapping with **Test sign-in**. |
 | `subject_mismatch` | The user with that email is linked to a different account at the same provider. The email address may have been given to someone else. | Check who owns the provider account. If the user's account at the provider was really replaced, delete and re-create the user. |
 | `email_not_verified` | The provider sent `email_verified` or `xms_edov` as `false`, or sent neither. | Verify the email at the provider. For Entra ID add the `xms_edov` claim. |
 | `no_email_claim` | The ID token has no `email` claim. The entry lists the claims it had. | Add `email` to *Scopes*; for Entra ID also add the `email` optional claim. |

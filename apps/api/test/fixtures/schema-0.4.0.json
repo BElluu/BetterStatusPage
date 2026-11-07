@@ -326,6 +326,12 @@
     },
     {
       "type": "table",
+      "name": "sso_provisioning",
+      "table": "sso_provisioning",
+      "sql": "CREATE TABLE sso_provisioning (\n  id INTEGER PRIMARY KEY,\n  enabled INTEGER NOT NULL DEFAULT 0,\n  allowed_domains TEXT NOT NULL DEFAULT '[]',\n  groups_claim TEXT NOT NULL DEFAULT 'groups',\n  group_roles TEXT NOT NULL DEFAULT '[]',\n  updated_at INTEGER NOT NULL\n)"
+    },
+    {
+      "type": "table",
       "name": "static_mirror_runs",
       "table": "static_mirror_runs",
       "sql": "CREATE TABLE static_mirror_runs (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  ran_at INTEGER NOT NULL,\n  ok INTEGER NOT NULL,\n  uploaded_files INTEGER NOT NULL DEFAULT 0,\n  error TEXT\n)"

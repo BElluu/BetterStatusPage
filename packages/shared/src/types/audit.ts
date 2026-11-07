@@ -12,6 +12,7 @@ export type AuditEntityType =
   | 'subscriber'
   | 'status_page_access'
   | 'mcp_settings'
+  | 'sso_provisioning'
   | 'branding'
   | 'layout'
   | 'locale'
