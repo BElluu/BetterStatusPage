@@ -59,3 +59,42 @@ test('moves canvas monitors into a group and group monitors back out', async ({ 
   expect(savedGroup.children!.map((child) => child.id)).toEqual(['lm'])
   expect(saved.children.some((node) => node.id === 'gm')).toBe(true)
 })
+
+// Regression for #157: a block dropped between existing ones used to crash the builder (React error #185).
+for (const block of ['Divider', 'Incidents', 'Maintenance', 'Text']) {
+  test(`a ${block} block dropped between existing blocks keeps the builder working`, async ({ adminPage: page, adminApi }) => {
+    const errors: string[] = []
+    page.on('pageerror', (error) => errors.push(error.message))
+    await ok(adminApi.put('admin/layout', {
+      data: {
+        tree: {
+          id: 'root', type: 'page', children: [
+            { id: 'd1', type: 'divider', grid: { x: 0, y: 0, w: 3, h: 1 } },
+            { id: 'd2', type: 'divider', grid: { x: 0, y: 1, w: 3, h: 1 } },
+            { id: 'd3', type: 'divider', grid: { x: 0, y: 2, w: 3, h: 1 } },
+          ],
+        },
+      },
+    }))
+    await page.goto(`${ADMIN_URL}/builder`)
+    const dividers = page.getByRole('button', { name: 'Divider', exact: true })
+    await expect(dividers).toHaveCount(3)
+
+    // The middle of the second divider: the new block lands between the first and the last.
+    const second = (await dividers.nth(1).boundingBox())!
+    await drag(page, page.getByRole('button', { name: `Add ${block} to the page` }),
+      { x: second.x + second.width / 2, y: second.y + 2 })
+
+    await expect(page.locator('.react-grid-placeholder')).toBeHidden()
+    await expect(page.locator('.react-grid-item')).toHaveCount(4)
+    await expect(page.getByText('Something went wrong')).toBeHidden()
+    expect(errors).toEqual([])
+
+    await page.waitForTimeout(300)
+    await page.getByRole('button', { name: 'Save' }).click()
+    await expect(page.getByText('Saved!')).toBeVisible()
+    const saved = await ok<Tree>(adminApi.get('admin/layout'))
+    expect(saved.children).toHaveLength(4)
+    expect(saved.children.filter((node) => node.id.startsWith('d'))).toHaveLength(3)
+  })
+}
