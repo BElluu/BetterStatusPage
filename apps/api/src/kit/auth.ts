@@ -6,6 +6,7 @@ import { vault } from './vault.js'
 import { resolvePublicUrl } from './runtime.js'
 import { LOGIN_RATE_LIMIT, SENSITIVE_ACTION_RATE_LIMIT } from '../config/rateLimits.js'
 import { getStatusPageAccess, viewerProvisioningAllowed } from '../services/statusPageAccess.js'
+import { getSsoProvisioning, roleForSsoSignIn } from '../services/ssoProvisioning.js'
 import { sseService } from './sse.js'
 import { audit } from './audit.js'
 import { roles } from './roles.js'
@@ -56,9 +57,16 @@ export const auth: Auth = createAuth({
       if ('sessionId' in match) sseService.disconnectSessions((session) => session.sessionId === match.sessionId)
       else sseService.disconnectSessions((session) => session.userId === match.userId && session.sessionId !== match.exceptSessionId)
     },
-    // A first SSO sign-in to a private status page may create a viewer account, when the page's access settings allow it.
-    async resolveUnknownSsoUser({ email }) {
-      return viewerProvisioningAllowed(await getStatusPageAccess(), email) ? { role: 'viewer' } : null
+    // A first SSO sign-in without an account. From a private status page it may create a viewer, when the page's access
+    // settings allow it, and never more. From the admin panel the role comes from the group mapping, when that is on;
+    // without a match that sign-in may still become a viewer under those same page settings. `returnTo` is chosen by the
+    // browser, so nothing here treats it as a reason to give more: each path checks its own settings.
+    async resolveUnknownSsoUser({ email, claims, returnTo }) {
+      const viewer = async () => viewerProvisioningAllowed(await getStatusPageAccess(), email)
+        ? { role: 'viewer', reason: `Status page access, domain ${email.slice(email.lastIndexOf('@') + 1).toLowerCase()}` }
+        : null
+      if (returnTo === 'status') return viewer()
+      return roleForSsoSignIn(await getSsoProvisioning(), email, claims) ?? viewer()
     },
     // A viewer has nothing to do in the admin console, so they land on the status page wherever they started; sign-in
     // errors are shown on the screen the sign-in started from.

@@ -172,7 +172,7 @@ A monitor without a `latencyAlert` block, or with `enabled: false`, has the aler
 
 ### What is left out
 
-Runtime state does not belong in a configuration: the current status, the last check, and the certificate expiry that was read are not exported. The status page layout, incidents, maintenance windows, branding, languages, subscribers and subscription settings, SMTP settings, users, single sign-on, status page access, API tokens and vaults are not documents.
+Runtime state does not belong in a configuration: the current status, the last check, and the certificate expiry that was read are not exported. The status page layout, incidents, maintenance windows, branding, languages, subscribers and subscription settings, SMTP settings, users, single sign-on, SSO account creation, status page access, API tokens and vaults are not documents.
 
 ---
 

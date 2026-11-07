@@ -12,7 +12,7 @@ export const adminUiConfig: UiConfig = {
   brand: { name: 'BetterStatusPage', logoLight: '/admin/logo_light.png', logoDark: '/admin/logo_dark.png' },
   texts: {
     ssoNewAccount: 'Creates the Viewer account {user} for the private status page and links this identity-provider account to it.',
-    ssoSignInHint: 'A private status page can let SSO create Viewer accounts, see Status page access.',
+    ssoSignInHint: 'Who gets an account on a first sign-in is set in the sections on the right.',
     appName: 'BetterStatusPage',
     tokenCannotManage: 'users, single sign-on, status page access, vaults, backups or other tokens',
     tokenVaultTargets: 'a monitor or channel',

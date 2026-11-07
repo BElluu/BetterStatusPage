@@ -1,5 +1,7 @@
-import { UsersPage } from '@better-forge/ui'
+import { UsersPage, type SsoSectionEntry } from '@better-forge/ui'
+import { AdminSignInSection } from '../components/AdminSignInSection'
 import { StatusPageAccessModal } from '../components/StatusPageAccessModal'
+import { StatusPageViewersSection } from '../components/StatusPageViewersSection'
 
 const ROLES = [
   { value: 'admin',    label: 'Admin',    desc: 'Full access' },
@@ -15,7 +17,14 @@ const ACTIONS = [
   { label: 'Status page access', icon: 'lock', dialog: (close: () => void) => <StatusPageAccessModal onClose={close} /> },
 ]
 
-/** The users page with the roles of this product and the setting of who may view a private status page. */
+/** The sections of the Single sign-on dialog, in the order of its icon strip; the first one opens first. */
+const SSO_SECTIONS: readonly SsoSectionEntry[] = [
+  { key: 'admin', label: 'Admin sign-in page', icon: 'admin_panel_settings', Component: AdminSignInSection },
+  'options',
+  { key: 'status', label: 'Private status page', icon: 'visibility_lock', Component: StatusPageViewersSection },
+]
+
+/** The users page with the roles of this product, who may view a private status page, and who gets an account on a first single sign-on. */
 export default function Users() {
-  return <UsersPage roles={ROLES} roleRank={ROLE_RANK} defaultRole="branding" actions={ACTIONS} />
+  return <UsersPage roles={ROLES} roleRank={ROLE_RANK} defaultRole="branding" actions={ACTIONS} ssoSections={SSO_SECTIONS} />
 }

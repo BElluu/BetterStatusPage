@@ -32,7 +32,7 @@ The role is checked by the API on every request, not only by the admin panel, so
 | **Settings** (own password, 2FA, sessions) | Yes | Yes | Yes | No |
 | Pick a vault secret in a monitor (names only, never values) | Yes | Yes | No | No |
 | [**Vault**](vault.md): create and edit vaults and secrets | Yes | No | No | No |
-| **Users**, **Single sign-on**, **Status page access** | Yes | No | No | No |
+| **Users**, **Single sign-on** (with account creation), **Status page access** | Yes | No | No | No |
 | **Audit Log** | Yes | No | No | No |
 | [**API tokens**](api.md) and the [**MCP** switches](mcp.md#turn-it-on) | Yes | No | No | No |
 | [**Import**](configuration-as-code.md): monitors and notification channels | Yes | Yes | No | No |
@@ -168,13 +168,13 @@ The **Audit Log** (administrators only) records who changed what and when. Each 
 | Subscription Settings, Subscriber | Settings changes, subscriber deletion |
 | Vault, Vault Secret | Create, update, delete (secret values never) |
 | Branding, Status Page Layout, Language | Branding and page builder saves, translation changes |
-| User | Create (also viewer accounts created through SSO), role change, password reset, delete |
+| User | Create (also accounts created through SSO, with the role of the person's group or Viewer), role change, password reset, delete |
 | Vault Secret (revealed) | An administrator revealed a secret value: **Allowed**, with who and which secret, never the value. |
 | API Token | Created or revoked: name, permissions, the first characters of the token and its expiry, never the token. |
 | Import | One entry for each import that changed something, with the counts (created, updated, unchanged). Every monitor and channel it changed also has an entry of its own. |
 | Monitor (heartbeat token) | Resetting the heartbeat token of a webhook monitor is recorded as `heartbeat_token_reset`, never the token. |
 | User Security | Password changed, 2FA turned on or off, 2FA reset by an administrator (`admin_recovery`) or from the command line (`emergency_cli`), SSO account linked, temporary password revoked by an SSO sign-in |
-| SSO Settings, Status Page Access, MCP | Settings changes (for [MCP](mcp.md#turn-it-on), the two switches, never the password) |
+| SSO Settings, SSO Account Creation, Status Page Access, MCP | Settings changes (for [MCP](mcp.md#turn-it-on), the two switches, never the password) |
 | Backup, Backup Schedule | Backup created, downloaded (**Allowed**) or deleted, schedule changes |
 | Sign-in | Every sign-in with a password or SSO: **Allowed** (with the method and whether a 2FA code was used) or **Denied** (with the reason) |
 

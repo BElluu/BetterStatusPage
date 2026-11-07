@@ -507,4 +507,14 @@ CREATE TABLE IF NOT EXISTS mcp_settings (
   updated_at INTEGER NOT NULL
 );
 ` },
+  { kind: 'exec', sql: `
+CREATE TABLE IF NOT EXISTS sso_provisioning (
+  id INTEGER PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  allowed_domains TEXT NOT NULL DEFAULT '[]',
+  groups_claim TEXT NOT NULL DEFAULT 'groups',
+  group_roles TEXT NOT NULL DEFAULT '[]',
+  updated_at INTEGER NOT NULL
+);
+` },
 ]

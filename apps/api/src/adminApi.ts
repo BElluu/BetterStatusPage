@@ -16,6 +16,7 @@ import { auditRoutes } from './kit/auditRoutes.js'
 import { adminLocaleRoutes } from './routes/locales.js'
 import { adminSubscriberRoutes } from './routes/subscriptions.js'
 import { adminStatusPageAccessRoutes } from './routes/statusPageAccess.js'
+import { adminSsoProvisioningRoutes } from './routes/ssoProvisioning.js'
 import { adminMcpSettingsRoutes } from './routes/mcpSettings.js'
 import { adminStaticMirrorRoutes } from './routes/staticMirror.js'
 import { backupRoutes } from './kit/backupRoutes.js'
@@ -78,6 +79,7 @@ export async function adminApi(adminApp: FastifyInstance) {
           [userRoutes, { prefix: '/users' }],
           [oidcSettingsRoutes, { prefix: '/oidc' }],
           [adminStatusPageAccessRoutes, { prefix: '/status-page-access' }],
+          [adminSsoProvisioningRoutes, { prefix: '/sso-provisioning' }],
           [adminStaticMirrorRoutes, { prefix: '/static-mirror' }],
           [vaultRoutes, { prefix: '/vaults' }],
           [backupRoutes, { prefix: '/backups' }],

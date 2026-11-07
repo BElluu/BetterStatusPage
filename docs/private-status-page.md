@@ -31,10 +31,12 @@ When signed in, the page header shows an account menu with who is signed in and 
 Creating an account for every person who may view the page does not scale for an internal page. With SSO configured you can let the identity provider decide instead:
 
 1. Set up [single sign-on](single-sign-on.md).
-2. In **Users → Status page access**, with the page private, switch on **Create viewer accounts on single sign-on**.
+2. In **Users → Single sign-on**, open **Private status page** (the eye icon beside the form) and switch on **Create viewer accounts on sign-in**. The dialog has one **Save** for the sign-in settings and for this.
 3. List the **email domains** that may get an account, for example `example.com`. At least one domain is required. Otherwise anyone with an account at a shared provider (a personal Google or Microsoft account) could sign up.
 
 A person without an account who signs in through SSO with a **verified** email from one of these domains then gets a Viewer account. The account is linked to their identity-provider account at once, has no usable password and signs in through SSO only. Each such account is written to the audit log as a created user, with `createdBy: sso`.
+
+A sign-in that starts on the status page never gets more than Viewer, whatever groups the person is in; [account creation by group](single-sign-on.md#creating-accounts-on-first-sign-in) applies to the admin sign-in page only.
 
 Viewer accounts are only created while the page is private. Existing accounts are never changed: someone who already has an account keeps their role. **Test sign-in** in **Users → Single sign-on** shows *Creates the Viewer account …* for a sign-in that would create one, without creating it.
 

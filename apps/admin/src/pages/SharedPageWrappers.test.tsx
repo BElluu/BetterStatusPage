@@ -55,7 +55,7 @@ describe('shared pages as this product configures them', () => {
     expect(login).toHaveTextContent('Live status updates|Incidents and maintenance notices|Alerts through your notification channels')
   })
 
-  it('gives the users page the roles of this product and the status page access setting', () => {
+  it('gives the users page the roles of this product and the sign-in access settings', () => {
     render(<Users />)
     expect(screen.getByTestId('users').textContent).toBe('admin,operator,branding,viewer|admin,operator,branding,viewer|branding|Status page access')
   })

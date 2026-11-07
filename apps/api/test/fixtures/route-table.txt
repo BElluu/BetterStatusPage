@@ -51,6 +51,7 @@ GET /api/v1/admin/oidc/test-sign-in | auth=yes | token=no | scope=- | roles=admi
 GET /api/v1/admin/oidc/test-sign-in/:id | auth=yes | token=no | scope=- | roles=admin
 GET /api/v1/admin/reports/uptime | auth=yes | token=yes | scope=reports | roles=admin,operator
 GET /api/v1/admin/reports/uptime/export | auth=yes | token=yes | scope=reports | roles=admin,operator
+GET /api/v1/admin/sso-provisioning/ | auth=yes | token=no | scope=- | roles=admin
 GET /api/v1/admin/static-mirror/ | auth=yes | token=no | scope=- | roles=admin
 GET /api/v1/admin/status-page-access/ | auth=yes | token=no | scope=- | roles=admin
 GET /api/v1/admin/subscribers/ | auth=yes | token=yes | scope=subscribers | roles=admin,operator
@@ -144,6 +145,8 @@ HEAD /api/v1/admin/oidc/test-sign-in | auth=yes | token=no | scope=- | roles=adm
 HEAD /api/v1/admin/oidc/test-sign-in/:id | auth=yes | token=no | scope=- | roles=admin
 HEAD /api/v1/admin/reports/uptime | auth=yes | token=yes | scope=reports | roles=admin,operator
 HEAD /api/v1/admin/reports/uptime/export | auth=yes | token=yes | scope=reports | roles=admin,operator
+HEAD /api/v1/admin/sso-provisioning | auth=yes | token=no | scope=- | roles=admin
+HEAD /api/v1/admin/sso-provisioning/ | auth=yes | token=no | scope=- | roles=admin
 HEAD /api/v1/admin/static-mirror | auth=yes | token=no | scope=- | roles=admin
 HEAD /api/v1/admin/static-mirror/ | auth=yes | token=no | scope=- | roles=admin
 HEAD /api/v1/admin/status-page-access | auth=yes | token=no | scope=- | roles=admin
@@ -267,6 +270,7 @@ PUT /api/v1/admin/monitors/:id/dependencies | auth=yes | token=yes | scope=monit
 PUT /api/v1/admin/notifications/monitor/:monitorId/channels | auth=yes | token=yes | scope=channels | roles=admin,operator
 PUT /api/v1/admin/notifications/smtp | auth=yes | token=yes | scope=channels | roles=admin,operator
 PUT /api/v1/admin/oidc/ | auth=yes | token=no | scope=- | roles=admin
+PUT /api/v1/admin/sso-provisioning/ | auth=yes | token=no | scope=- | roles=admin
 PUT /api/v1/admin/static-mirror/ | auth=yes | token=no | scope=- | roles=admin
 PUT /api/v1/admin/status-page-access/ | auth=yes | token=no | scope=- | roles=admin
 PUT /api/v1/admin/subscribers/settings | auth=yes | token=yes | scope=subscribers | roles=admin,operator
