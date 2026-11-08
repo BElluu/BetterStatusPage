@@ -225,9 +225,6 @@ A failed send is recorded in the delivery history with the HTTP status and the s
 
 ## Twilio
 
-> [!WARNING]
-> **Not released yet.** The Twilio channel is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 A Twilio channel sends a **text message (SMS)** or places a **voice call** that reads the alert aloud, so an alert reaches a person who is away from chat. It needs the **Account SID** (`AC` and 32 hex digits) and the **Auth Token** of your Twilio account (shown only by its last four characters once saved, or read from the [vault](vault.md) as a **Secure Value** secret), the **From** number that belongs to the account and the **To** number that receives the message. Both numbers are in international format, `+` and the country code (`+15551234567`). **Send as** picks the text message (default) or the call.
 
 The message holds the headline (*Monitor API is DOWN*), the status, the error and the check time, cut to 480 characters (three SMS segments), and a call reads the same text. The optional **Message Text** is a templated line above the facts. Twilio bills every message and call to your account, so use the channel for the monitors that justify waking someone, and combine it with [alert hygiene](alert-hygiene.md) (failure thresholds, rate caps) to keep the bill predictable. Requests go to `api.twilio.com` through the [outbound proxy](monitors.md#outbound-proxy) when one is set.

@@ -5,6 +5,8 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-11-08
+
 ### Added
 
 - **Twilio channel**: a notification channel sends an alert as a **text message (SMS)** or a **voice call** that reads it, through your own Twilio account (Account SID, auth token, or one read from the vault, a sending and a receiving number). The channel is checked when it is saved, the token is masked like the other channel secrets, and the requests go through the outbound proxy. New channel type `twilio` in the API and configuration files. See [Notification channels](notification-channels.md#twilio).

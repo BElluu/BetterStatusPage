@@ -41,9 +41,6 @@ The sign-in page shows the SSO button as soon as the settings are saved. The but
 
 ## Creating accounts on first sign-in
 
-> [!WARNING]
-> **Not released yet.** Creating accounts by group is only in the `main` branch; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
-
 Without this, someone who signs in through SSO and has no account is refused. In **Users → Single sign-on**, open **Admin sign-in page** (the first icon beside the form) and you can let the identity provider decide who gets an account and with which role. It is saved with the rest of the dialog by one **Save**.
 
 | Field | Notes |
