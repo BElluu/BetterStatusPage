@@ -139,7 +139,9 @@ export default function NotificationsPage() {
                         ? `${String(cfg['serverUrl'] || 'https://ntfy.sh')}/${String(cfg['topic'] ?? '')}`
                         : ch.type === 'pushover'
                           ? String(cfg['userKey'] ?? '')
-                          : String(cfg['url'] ?? '')
+                          : ch.type === 'twilio'
+                            ? String(cfg['to'] ?? '')
+                            : String(cfg['url'] ?? '')
                 return (
                   <tr key={ch.id}
                     className="transition-colors"

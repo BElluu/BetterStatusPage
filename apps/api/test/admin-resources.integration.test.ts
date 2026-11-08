@@ -253,6 +253,19 @@ describe('notification configuration', () => {
     assert.equal((await create('pushover', { vault: { vaultId: 1, secretId: 2 }, userKey: 'u' })).statusCode, 200)
   })
 
+  it('validates Twilio configs and masks the auth token', async () => {
+    const create = (config: unknown) => app.inject({ method: 'POST', url: '/notifications/channels', payload: { name: 'SMS', type: 'twilio', config } })
+    const ok = { accountSid: 'AC' + 'a'.repeat(32), authToken: 'tok0123456789abcdWXYZ', from: '+15551234567', to: '+48123456789' }
+    for (const config of [{}, { ...ok, accountSid: 'nope' }, { ...ok, from: '15551234567' }, { ...ok, to: ' ' }, { ...ok, authToken: '' }, { ...ok, authToken: '••••••••XXXX1' }]) {
+      assert.equal((await create(config)).statusCode, 400, JSON.stringify(config))
+    }
+    const created = await create(ok)
+    assert.equal(created.statusCode, 200)
+    assert.equal(created.json().config.authToken, '••••••••WXYZ')
+    const { authToken: _token, ...rest } = ok
+    assert.equal((await create({ ...rest, vault: { vaultId: 1, secretId: 2 }, mode: 'call' })).statusCode, 200)
+  })
+
   it('masks ntfy and Pushover tokens, and refuses to keep an ntfy token when the server changes', async () => {
     const ntfy = (await app.inject({
       method: 'POST', url: '/notifications/channels',

@@ -23,7 +23,7 @@
     "@better-forge/db": "0.2.0",
     "@better-forge/mcp": "0.2.0",
     "@better-forge/mirror": "0.2.0",
-    "@better-forge/notify": "0.4.0",
+    "@better-forge/notify": "0.4.1",
     "@better-forge/runtime": "0.2.0",
     "@better-forge/vault": "0.2.0",
     "@bsp/shared": "*",

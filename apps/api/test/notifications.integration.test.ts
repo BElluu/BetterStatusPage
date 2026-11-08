@@ -244,7 +244,7 @@ describe('notification delivery', () => {
     assert.ok(!delivery!.lastError!.includes('SECRET'))
   })
 
-  async function pushChannelFixture(type: 'ntfy' | 'pushover', config: Record<string, unknown>) {
+  async function pushChannelFixture(type: 'ntfy' | 'pushover' | 'twilio', config: Record<string, unknown>) {
     const now = Date.now()
     const [monitor] = await db.insert(monitors).values({
       name: 'Push API', type: 'https', intervalSecs: 60, timeoutMs: 1_000, retries: 1,
@@ -373,6 +373,41 @@ describe('notification delivery', () => {
     const [delivery] = await db.select().from(notificationDeliveries)
     assert.equal(delivery!.lastError, 'Pushover API returned HTTP 400: user identifier is invalid')
     assert.ok(!delivery!.lastError!.includes('APPSECRET'))
+  })
+
+  it('sends a Twilio text message with basic auth, and a call as TwiML', async () => {
+    const sid = 'AC' + 'b'.repeat(32)
+    const config = { accountSid: sid, authToken: 'TWILIOSECRET', from: '+15551234567', to: '+48123456789', text: 'Heads up' }
+    const monitor = await pushChannelFixture('twilio', config)
+    const calls: Array<{ url: string; auth: string; form: URLSearchParams }> = []
+    await withFetch((url, init) => {
+      calls.push({ url, auth: String((init?.headers as Record<string, string>)['Authorization']), form: new URLSearchParams(String(init?.body)) })
+      return new Response('{}', { status: 201 })
+    }, async () => {
+      await sendNotifications(monitor, 'down', 'up', 'x'.repeat(2_000))
+      await db.update(notificationChannels).set({ config: JSON.stringify({ ...config, mode: 'call' }) })
+      await sendNotifications(monitor, 'down', 'up', 'boom')
+    })
+
+    assert.equal(calls.length, 2)
+    assert.equal(calls[0]!.url, `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`)
+    assert.equal(calls[0]!.auth, `Basic ${Buffer.from(`${sid}:TWILIOSECRET`).toString('base64')}`)
+    assert.equal(calls[0]!.form.get('To'), '+48123456789')
+    assert.equal(calls[0]!.form.get('From'), '+15551234567')
+    assert.ok(calls[0]!.form.get('Body')!.length <= 480)
+    assert.ok(calls[1]!.url.endsWith('/Calls.json'))
+    assert.match(calls[1]!.form.get('Twiml')!, /^<Response><Say>/)
+  })
+
+  it('does not leak the Twilio token into a failed delivery', async () => {
+    const monitor = await pushChannelFixture('twilio', { accountSid: 'AC' + 'b'.repeat(32), authToken: 'TWILIOSECRET', from: '+15551234567', to: '+48123456789' })
+    await withFetch(
+      () => new Response(JSON.stringify({ message: 'The To phone number is not valid' }), { status: 400 }),
+      () => sendNotifications(monitor, 'down', 'up', 'boom'),
+    )
+    const [delivery] = await db.select().from(notificationDeliveries)
+    assert.equal(delivery!.lastError, 'Twilio API returned HTTP 400: The To phone number is not valid')
+    assert.ok(!delivery!.lastError!.includes('TWILIOSECRET'))
   })
 
   it('respects recovery flags and suppresses affected transitions', async () => {

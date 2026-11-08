@@ -3,7 +3,7 @@ import { CHANNEL_TYPES, CHANNEL_TYPE_ORDER, buildChannelConfig, initialDrafts, i
 
 describe('channel type descriptors', () => {
   it('describes every type offered in the switcher', () => {
-    expect(CHANNEL_TYPE_ORDER.map((type) => CHANNEL_TYPES[type].label)).toEqual(['Email', 'Webhook', 'Discord', 'Teams', 'Slack', 'Telegram', 'ntfy', 'Pushover'])
+    expect(CHANNEL_TYPE_ORDER.map((type) => CHANNEL_TYPES[type].label)).toEqual(['Email', 'Webhook', 'Discord', 'Teams', 'Slack', 'Telegram', 'ntfy', 'Pushover', 'Twilio'])
     expect(isChannelType('slack')).toBe(true)
     expect(isChannelType('pager')).toBe(false)
   })
@@ -27,6 +27,7 @@ describe('channel type descriptors', () => {
       telegram: { botToken: '123:abc', chatId: '-100500', text: 'Heads up' },
       ntfy: { serverUrl: 'https://ntfy.example.test', topic: 'alerts', accessToken: 'tk_abc', text: 'Heads up' },
       pushover: { appToken: 'app-token', userKey: 'user-key', text: 'Heads up' },
+      twilio: { accountSid: 'AC' + 'a'.repeat(32), authToken: 'auth-token', from: '+15551234567', to: '+48123456789', mode: 'call', text: 'Heads up' },
     }
     for (const type of CHANNEL_TYPE_ORDER) {
       expect(buildChannelConfig(type, initialDrafts(type, configs[type]))).toEqual(configs[type])
