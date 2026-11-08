@@ -1,6 +1,6 @@
 # Notification channels
 
-Notification channels tell **your team** when a monitor goes down, degrades, recovers or has a TLS certificate about to expire. A channel is one destination — an email address, an HTTP endpoint, a Slack, Discord or Microsoft Teams webhook, a Telegram chat, an ntfy topic, a Pushover recipient — and you decide per monitor which channels it alerts.
+Notification channels tell **your team** when a monitor goes down, degrades, recovers or has a TLS certificate about to expire. A channel is one destination — an email address, an HTTP endpoint, a Slack, Discord or Microsoft Teams webhook, a Telegram chat, an ntfy topic, a Pushover recipient, a phone number for text messages or calls — and you decide per monitor which channels it alerts.
 
 Channels live under *Admin → Alerts → **Notifications*** (operator role or higher). To notify the people who read your status page instead, see [Subscriptions](subscriptions.md). To make something happen when a monitor goes down, such as starting a failover job, see [Actions](actions.md).
 
@@ -18,8 +18,9 @@ Channels live under *Admin → Alerts → **Notifications*** (operator role or h
 | **Telegram** | A Telegram chat, group or channel, through your own bot | Formatted message with a severity emoji |
 | **ntfy** | A topic on ntfy.sh or your own ntfy server | Push notification, high priority when a monitor is down |
 | **Pushover** | A Pushover user or group | Push notification, high priority when a monitor is down |
+| **Twilio** | A phone number, through your own Twilio account | Text message (SMS) or a voice call that reads the alert |
 
-Email and Webhook are fully templated. Slack, Discord, Teams and Telegram build a rich message automatically and let you add one templated line on top; ntfy and Pushover send a plain-text push the same way.
+Email and Webhook are fully templated. Slack, Discord, Teams and Telegram build a rich message automatically and let you add one templated line on top; ntfy, Pushover and Twilio send a plain-text message the same way.
 
 ## Creating a channel
 
@@ -222,6 +223,19 @@ A failed send is recorded in the delivery history with the HTTP status and the s
 
 ---
 
+## Twilio
+
+> [!WARNING]
+> **Not released yet.** The Twilio channel is not in a published release; build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+A Twilio channel sends a **text message (SMS)** or places a **voice call** that reads the alert aloud, so an alert reaches a person who is away from chat. It needs the **Account SID** (`AC` and 32 hex digits) and the **Auth Token** of your Twilio account (shown only by its last four characters once saved, or read from the [vault](vault.md) as a **Secure Value** secret), the **From** number that belongs to the account and the **To** number that receives the message. Both numbers are in international format, `+` and the country code (`+15551234567`). **Send as** picks the text message (default) or the call.
+
+The message holds the headline (*Monitor API is DOWN*), the status, the error and the check time, cut to 480 characters (three SMS segments), and a call reads the same text. The optional **Message Text** is a templated line above the facts. Twilio bills every message and call to your account, so use the channel for the monitors that justify waking someone, and combine it with [alert hygiene](alert-hygiene.md) (failure thresholds, rate caps) to keep the bill predictable. Requests go to `api.twilio.com` through the [outbound proxy](monitors.md#outbound-proxy) when one is set.
+
+A failed send is recorded in the delivery history with the HTTP status and the reason Twilio gives, for example `Twilio API returned HTTP 400: The To phone number is not valid`. The token never appears in it.
+
+---
+
 ## Template variables
 
 Any `{{name}}` in a templated field is replaced when the notification is sent. Templated fields are:
@@ -236,6 +250,7 @@ Any `{{name}}` in a templated field is replaced when the notification is sent. T
 | Telegram | **Message Text** |
 | ntfy | **Message Text** |
 | Pushover | **Message Text** |
+| Twilio | **Message Text** |
 
 A variable that does not exist for the event is left in the text unchanged — for example `{{cert_host}}` in an ordinary alert is sent literally as `{{cert_host}}`.
 
@@ -298,7 +313,7 @@ Digests are described in [Alert hygiene](alert-hygiene.md#grouping-bursts-into-o
 ## Saved secrets
 
 The webhook URL of a Slack, Discord or Microsoft Teams channel is the credential for posting to it, so a saved URL is
-never shown again, in the form or in the API: it reads back as `••••••••`. The same goes for the Telegram bot token, the ntfy access token and the Pushover application token
+never shown again, in the form or in the API: it reads back as `••••••••`. The same goes for the Telegram bot token, the ntfy access token, the Pushover application token and the Twilio auth token
 (which keep their last four characters visible) and for credential headers of a webhook channel (a header whose name
 contains `auth`, `token`, `secret`, `key`, `pass`, `pwd`, `credential`, `cookie`, `session` or `signature`). Leave the field untouched to keep
 the stored value, or enter a new one to replace it. To change a webhook URL you paste the new one; there is nothing to edit. For a webhook channel, changing the **URL** while keeping a stored credential header is refused: enter the header again. Credentials written into a URL or the request body are not masked.
@@ -398,6 +413,7 @@ A channel has a unique `key` next to its `id` (see [Keys](api.md#monitors-and-no
 | `telegram` | `chatId`, and `botToken` or a `vault` reference to the token; `text` (optional) |
 | `ntfy` | `topic`; `serverUrl`, `accessToken` or a `vault` reference to it, and `text` (all optional) |
 | `pushover` | `userKey`, and `appToken` or a `vault` reference to the token; `text` (optional) |
+| `twilio` | `accountSid`, `from`, `to` (numbers like `+15551234567`), and `authToken` or a `vault` reference to it; `mode` (`sms` by default, or `call`) and `text` (optional) |
 
 Whether successful runs of an action are sent is `config.notifyOnActionSuccess` (`true`). The wording for actions is `config.eventOverrides.action`, made of the message fields of the type (`subject` and `body` for email, `body` for webhook, `content` for Discord, `summary` for Teams, `text` for the others). Any other field in it is refused, so it can never change where a message goes.
 

@@ -6,7 +6,7 @@ import type { VaultPickerProps } from '@better-forge/ui'
 import { DEFAULT_EMAIL_BODY, DEFAULT_EMAIL_SUBJECT } from '@bsp/shared'
 import { DiscordIcon, SlackIcon, TeamsIcon, TelegramIcon } from './icons'
 
-export type ChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack' | 'telegram' | 'ntfy' | 'pushover'
+export type ChannelType = 'email' | 'webhook' | 'discord' | 'teams' | 'slack' | 'telegram' | 'ntfy' | 'pushover' | 'twilio'
 
 /** The variables of every event, then the ones only some events carry. */
 const VARS = ['{{monitor_name}}', '{{monitor_type}}', '{{status}}', '{{previous_status}}', '{{error_message}}', '{{checked_at}}', '{{monitor_list}}', '{{affected_count}}', '{{event_type}}']
@@ -34,6 +34,7 @@ interface SlackDraft { webhookUrl: string; text: string }
 interface TelegramDraft { botToken: string; vault: VaultRef | undefined; chatId: string; text: string }
 interface NtfyDraft { serverUrl: string; topic: string; accessToken: string; vault: VaultRef | undefined; text: string }
 interface PushoverDraft { appToken: string; vault: VaultRef | undefined; userKey: string; text: string }
+interface TwilioDraft { accountSid: string; authToken: string; vault: VaultRef | undefined; from: string; to: string; mode: 'sms' | 'call'; text: string }
 
 export interface ChannelDrafts {
   email: EmailDraft
@@ -44,6 +45,7 @@ export interface ChannelDrafts {
   telegram: TelegramDraft
   ntfy: NtfyDraft
   pushover: PushoverDraft
+  twilio: TwilioDraft
 }
 
 export interface ChannelFieldsProps<D> {
@@ -256,6 +258,44 @@ function PushoverFields({ draft, onChange, vaultPicker }: ChannelFieldsProps<Pus
   )
 }
 
+function TwilioFields({ draft, onChange, vaultPicker }: ChannelFieldsProps<TwilioDraft>) {
+  return (
+    <>
+      <Field label="Account SID">
+        <input value={draft.accountSid} onChange={(e) => onChange({ ...draft, accountSid: e.target.value })} required className="input-sig" placeholder="AC…" autoComplete="off" />
+      </Field>
+      <CredentialSection
+        {...vaultPicker}
+        vault={draft.vault}
+        onVaultChange={(vault) => onChange({ ...draft, vault })}
+        mappingFields={[]}
+        valueLabel="auth token"
+        secretTypes={['value']}
+      >
+        <Field label="Auth Token">
+          {/* A stored token comes back masked; selecting it on focus makes replacing it a single paste. */}
+          <input value={draft.authToken} onChange={(e) => onChange({ ...draft, authToken: e.target.value })} onFocus={(e) => e.target.select()} required className="input-sig" autoComplete="off" />
+        </Field>
+      </CredentialSection>
+      <Field label="From (Twilio number)">
+        <input value={draft.from} onChange={(e) => onChange({ ...draft, from: e.target.value })} required className="input-sig" placeholder="+15551234567" autoComplete="off" />
+      </Field>
+      <Field label="To (recipient)">
+        <input value={draft.to} onChange={(e) => onChange({ ...draft, to: e.target.value })} required className="input-sig" placeholder="+48123456789" autoComplete="off" />
+      </Field>
+      <Field label="Send as">
+        <select value={draft.mode} onChange={(e) => onChange({ ...draft, mode: e.target.value as 'sms' | 'call' })} className="input-sig">
+          <option value="sms">Text message (SMS)</option>
+          <option value="call">Voice call</option>
+        </select>
+      </Field>
+      <InfoBox title="Message is sent automatically">
+        Both numbers are in international format (+ and the country code). A text message holds the headline, status and error, cut to three segments; a call reads the same text aloud. Message Text is an optional line above them (supports variables). Twilio bills every message and call.
+      </InfoBox>
+    </>
+  )
+}
+
 function WebhookFields({ draft, onChange }: ChannelFieldsProps<WebhookDraft>) {
   const setHeaders = (headers: [string, string][]) => onChange({ ...draft, headers })
   const updateHeader = (i: number, field: 0 | 1, val: string) =>
@@ -405,10 +445,26 @@ export const CHANNEL_TYPES: { [K in ChannelType]: ChannelTypeDescriptor<ChannelD
     build: (d) => ({ ...(d.vault ? { vault: d.vault } : { appToken: d.appToken.trim() }), userKey: d.userKey.trim(), ...(d.text ? { text: d.text } : {}) }),
     Fields: PushoverFields,
   },
+  twilio: {
+    label: 'Twilio',
+    hint: 'SMS or voice call',
+    icon: materialIcon('call'),
+    defaultDraft: () => ({ accountSid: '', authToken: '', vault: undefined, from: '', to: '', mode: 'sms', text: '' }),
+    parse: (c) => ({ accountSid: str(c['accountSid']), authToken: str(c['authToken']), vault: (c['vault'] as VaultRef | undefined) ?? undefined, from: str(c['from']), to: str(c['to']), mode: c['mode'] === 'call' ? 'call' : 'sms', text: str(c['text']) }),
+    build: (d) => ({
+      accountSid: d.accountSid.trim(),
+      ...(d.vault ? { vault: d.vault } : { authToken: d.authToken.trim() }),
+      from: d.from.trim(),
+      to: d.to.trim(),
+      mode: d.mode,
+      ...(d.text ? { text: d.text } : {}),
+    }),
+    Fields: TwilioFields,
+  },
 }
 
 /** Display order of the type switcher. */
-export const CHANNEL_TYPE_ORDER: ChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack', 'telegram', 'ntfy', 'pushover']
+export const CHANNEL_TYPE_ORDER: ChannelType[] = ['email', 'webhook', 'discord', 'teams', 'slack', 'telegram', 'ntfy', 'pushover', 'twilio']
 
 export function isChannelType(value: unknown): value is ChannelType {
   return typeof value === 'string' && value in CHANNEL_TYPES
@@ -422,7 +478,7 @@ export function initialDrafts(type: ChannelType | null, config: unknown): Channe
   const stored = (config && typeof config === 'object' ? config : {}) as Record<string, unknown>
   const pick = <K extends ChannelType>(k: K): ChannelDrafts[K] =>
     (type === k ? CHANNEL_TYPES[k].parse(stored) : CHANNEL_TYPES[k].defaultDraft())
-  return { email: pick('email'), webhook: pick('webhook'), discord: pick('discord'), teams: pick('teams'), slack: pick('slack'), telegram: pick('telegram'), ntfy: pick('ntfy'), pushover: pick('pushover') }
+  return { email: pick('email'), webhook: pick('webhook'), discord: pick('discord'), teams: pick('teams'), slack: pick('slack'), telegram: pick('telegram'), ntfy: pick('ntfy'), pushover: pick('pushover'), twilio: pick('twilio') }
 }
 
 /** What the Action tab of the form sets: the wording of action messages, and whether a run that succeeded is told too. */
@@ -487,6 +543,7 @@ const MESSAGE_FIELDS: Record<ChannelType, MessageField[]> = {
   telegram: single('text', 'Message Text (optional)', monitorLine, actionLine),
   ntfy: single('text', 'Message Text (optional)', monitorLine, actionLine),
   pushover: single('text', 'Message Text (optional)', monitorLine, actionLine),
+  twilio: single('text', 'Message Text (optional)', monitorLine, actionLine),
 }
 
 /** What the stored config says an action message should look like, for the fields this type has. */

@@ -92,7 +92,7 @@ export default function ChannelFormModal({ channel, initialType, onClose, onSave
   }
   useEffect(() => {
     api.get<VaultPickerProps['vaults']>('/admin/vaults').then(setVaults).catch(() => {})
-    for (const draft of [drafts.telegram, drafts.ntfy, drafts.pushover]) {
+    for (const draft of [drafts.telegram, drafts.ntfy, drafts.pushover, drafts.twilio]) {
       if (draft.vault?.vaultId) loadSecrets(draft.vault.vaultId)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

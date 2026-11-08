@@ -35,14 +35,14 @@ None of these is a verdict. If another product fits better, use it.
 | **Subscribers** | ✓ Email, webhook, RSS, Slack | ✕ | • RSS | ✓ Email, SMS, Slack | ✓ Email, Slack, Teams | ✓ Email, webhook, RSS | • Email |
 | **Private status page** | ✓ Whole page | • Whole dashboard | ✕ | ✓ Paid plan | ✓ Paid plan | ✓ Paid extra | — |
 | **Single sign-on** | ✓ OIDC | • Whole dashboard | — | ✓ Paid plan | ✓ Paid plan | ✓ Paid extra | — |
-| **SMS notifications** | ✕ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| **SMS notifications** | ✓ Twilio | ✓ | ✓ | ✓ | ✓ | ✓ | — |
 | **Configuration as code** | ✓ YAML | ✓ YAML only | ✕ | • API | • API | ✓ Terraform | • API |
 | **Edited in a web UI** | ✓ | ✕ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | **Page when the server is down** | ✓ Static fallback | ✕ | ✕ | ✓ Vendor hosts it | ✓ Vendor hosts it | ✓ Vendor hosts it | ✕ |
 
 ✓ yes · • partly, the note says how · ✕ no, or not in the documentation · — does not apply or not checked
 
-Hosted services (Statuspage, Instatus, Better Stack) mean nothing to run and a page that stays up when you are down; the price is plan limits, extras billed on top and your data on their servers. Moving from one means you run, patch and [back up](backup-restore.md) a server, and there is no phone channel. Cachet publishes a page but runs no checks, so something else has to feed it; read its current license text and release status before you pick it.
+Hosted services (Statuspage, Instatus, Better Stack) mean nothing to run and a page that stays up when you are down; the price is plan limits, extras billed on top and your data on their servers. Moving from one means you run, patch and [back up](backup-restore.md) a server, and phone alerts need your own Twilio account. Cachet publishes a page but runs no checks, so something else has to feed it; read its current license text and release status before you pick it.
 
 ---
 
