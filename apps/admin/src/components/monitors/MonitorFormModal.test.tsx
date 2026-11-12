@@ -53,10 +53,10 @@ async function pickType(user: ReturnType<typeof userEvent.setup>, label: string)
   await user.click(screen.getByRole('option', { name: (name) => name.startsWith(label) }))
 }
 
-function renderModal(monitor: Monitor | null = null) {
+function renderModal(monitor: Monitor | null = null, allGroups: string[] = []) {
   const onClose = vi.fn()
   const onSaved = vi.fn()
-  render(<MonitorFormModal monitor={monitor} onClose={onClose} onSaved={onSaved} />)
+  render(<MonitorFormModal monitor={monitor} allGroups={allGroups} onClose={onClose} onSaved={onSaved} />)
   return { onClose, onSaved }
 }
 
@@ -89,6 +89,7 @@ function existingMonitor(patch: Partial<Monitor> = {}): Monitor {
     lastCheckedAt: null,
     webhookToken: null,
     tags: [{ label: 'prod', color: '#6366f1' }],
+    group: null,
     certExpiresAt: null,
     certCheckedAt: null,
     createdAt: 1,
@@ -173,9 +174,37 @@ describe('MonitorFormModal', () => {
       latencyAlertSustain: 3,
       config: { url: 'https://api.example.test/health', method: 'POST', expectedStatus: 201, keyword: 'healthy' },
       tags: [],
+      group: null,
     })
     expect(api.put).toHaveBeenCalledWith('/admin/notifications/monitor/42/channels', { channelIds: [3] })
     expect(api.put).toHaveBeenCalledWith('/admin/monitors/42/dependencies', { dependsOnIds: [1] })
+  })
+
+  it('saves the group and offers the ones in use', async () => {
+    const user = userEvent.setup()
+    const { onSaved } = renderModal(null, ['Acme Corp'])
+
+    await user.type(field('Name'), 'Acme site')
+    await user.click(field('Group'))
+    await user.click(await screen.findByRole('option', { name: 'Acme Corp' }))
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+    expect(createdBody()).toMatchObject({ name: 'Acme site', group: 'Acme Corp' })
+  })
+
+  it('saves a group name that does not exist yet', async () => {
+    const user = userEvent.setup()
+    const { onSaved } = renderModal(null, ['Acme Corp'])
+
+    await user.type(field('Name'), 'Globex site')
+    await user.type(field('Group'), ' Globex ')
+    expect(screen.getByRole('option', { name: /New group “Globex”/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Acme Corp' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Create Monitor' }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+    expect(createdBody()).toMatchObject({ group: 'Globex' })
   })
 
   it('saves response checks on headers and JSON fields and a slow-response limit', async () => {

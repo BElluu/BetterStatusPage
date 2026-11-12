@@ -55,7 +55,7 @@ When the client connects, the server sends it short instructions: how to work (s
 | Tool | Answers | Permission |
 |---|---|---|
 | `status_overview` | Monitors per status, the ones that are not up, open incidents, running maintenance. Start here. | `monitors:read` (incidents and maintenance are added when the token can read them) |
-| `list_monitors` | Monitors with status, interval, last check, tags; filter by status, type or tag | `monitors:read` |
+| `list_monitors` | Monitors with status, interval, last check, tags, group; filter by status, type, tag or group | `monitors:read` |
 | `get_monitor` | One monitor with its configuration (secrets masked), thresholds and activity | `monitors:read` |
 | `monitor_stats` | Uptime, failures, response-time percentiles and recent failures over a window | `monitors:read` |
 | `monitor_results` | Individual check results, newest first, optionally failures only | `monitors:read` |

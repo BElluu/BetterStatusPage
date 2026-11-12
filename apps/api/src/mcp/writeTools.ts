@@ -213,6 +213,7 @@ const monitorSettings = {
   failureThreshold: z.number().int().optional().describe('Consecutive failures before an alert'),
   recoveryThreshold: z.number().int().optional(),
   tags: z.array(z.object({ label: z.string().min(1).max(40), color: z.string().min(1).max(20) })).max(20).optional().describe('Replaces the tags'),
+  group: z.string().max(60).nullable().optional().describe('Group the monitor is listed under; null or empty = ungrouped'),
   autoIncidentMinutes: z.number().int().nullable().optional().describe('Minutes down before an incident opens by itself; null turns it off'),
   autoIncidentMode: z.enum(['draft', 'published']).optional().describe('published needs incidents:write'),
   autoIncidentTemplateId: z.number().int().nullable().optional().describe('See list_incident_templates; null = the default template. A template needs incidents:write'),
