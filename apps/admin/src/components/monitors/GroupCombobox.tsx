@@ -25,7 +25,8 @@ export function GroupCombobox({ id, value, groups, onChange }: Props) {
   const typed = value.trim()
   const needle = typed.toLowerCase()
   const matches = groups.filter((g) => !needle || g.toLowerCase().includes(needle))
-  const isNew = typed !== '' && !groups.some((g) => g.toLowerCase() === needle)
+  // Groups are told apart by their exact name, so "acme" is a new group next to "Acme".
+  const isNew = typed !== '' && !groups.includes(typed)
 
   function pick(group: string) {
     onChange(group)

@@ -78,6 +78,17 @@ const change = (result: Doc, kind: string, key?: string) => result['changes'].fi
 
 // ── creating ────────────────────────────────────────────────────────────────────────────────────────────────────
 
+describe('monitor group', () => {
+  it('is stored, counted as a change, exported and cleared by a document without it', async () => {
+    await applied([site({ group: 'Acme Corp', notifications: [], dependsOn: [] })])
+    assert.equal(rows('monitors').find((m) => m['key'] === 'public-site')!['group_name'], 'Acme Corp')
+    assert.deepEqual((await applied([site({ group: 'Acme Corp', notifications: [], dependsOn: [] })]))['summary'], { create: 0, update: 0, unchanged: 1 })
+    assert.deepEqual((await applied([site({ group: 'Globex', notifications: [], dependsOn: [] })]))['summary'], { create: 0, update: 1, unchanged: 0 })
+    await applied([site({ notifications: [], dependsOn: [] })])
+    assert.equal(rows('monitors').find((m) => m['key'] === 'public-site')!['group_name'], null)
+  })
+})
+
 describe('importing into an empty installation', () => {
   it('creates channels, monitors and their links', async () => {
     const result = await applied(baseline())

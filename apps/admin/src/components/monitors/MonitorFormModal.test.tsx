@@ -193,6 +193,18 @@ describe('MonitorFormModal', () => {
     expect(createdBody()).toMatchObject({ name: 'Acme site', group: 'Acme Corp' })
   })
 
+  it('offers a group typed in another case as a new one', async () => {
+    const user = userEvent.setup()
+    renderModal(null, ['Acme Corp'])
+
+    await user.type(field('Group'), 'acme corp')
+    expect(screen.getByRole('option', { name: 'Acme Corp' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /New group “acme corp”/ })).toBeInTheDocument()
+    await user.clear(field('Group'))
+    await user.type(field('Group'), 'Acme Corp')
+    expect(screen.queryByRole('option', { name: /New group/ })).not.toBeInTheDocument()
+  })
+
   it('saves a group name that does not exist yet', async () => {
     const user = userEvent.setup()
     const { onSaved } = renderModal(null, ['Acme Corp'])
