@@ -151,6 +151,19 @@ describe('monitor input validation', () => {
     assert.deepEqual([created.failureThreshold, created.recoveryThreshold], [20, 1])
   })
 
+  it('keeps a trimmed group, treats blank as none and refuses a wrong one', async () => {
+    const created = (await post({ name: 'Grouped', type: 'webhook', group: '  Acme Corp ' })).json()
+    assert.equal(created.group, 'Acme Corp')
+    assert.equal((await post({ name: 'Ungrouped', type: 'webhook' })).json().group, null)
+    const patch = (payload: Record<string, unknown>) => app.inject({ method: 'PATCH', url: `/monitors/${created.id}`, payload })
+    assert.equal((await patch({ intervalSecs: 30 })).json().group, 'Acme Corp')
+    assert.equal((await patch({ group: '   ' })).json().group, null)
+    assert.equal((await patch({ group: 'Globex' })).json().group, 'Globex')
+    assert.equal((await patch({ group: null })).json().group, null)
+    assert.equal((await patch({ group: 5 })).statusCode, 400)
+    assert.match((await post({ name: 'X', type: 'webhook', group: 'g'.repeat(61) })).json().error, /^group must be at most 60/)
+  })
+
   it('validates only the fields an update carries', async () => {
     const created = (await post({ name: 'Patched', type: 'webhook' })).json()
     assert.equal((await app.inject({ method: 'PATCH', url: `/monitors/${created.id}`, payload: { intervalSecs: 30 } })).json().intervalSecs, 30)

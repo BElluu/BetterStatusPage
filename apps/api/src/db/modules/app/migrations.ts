@@ -368,6 +368,7 @@ CREATE TABLE IF NOT EXISTS status_page_access (
   { kind: 'column', sql: `ALTER TABLE monitors ADD COLUMN latency_baseline_at INTEGER`, desc: 'monitors.latency_baseline_at' },
   { kind: 'column', sql: `ALTER TABLE monitors ADD COLUMN latency_alert_since INTEGER`, desc: 'monitors.latency_alert_since' },
   { kind: 'column', sql: `ALTER TABLE monitors ADD COLUMN latency_alert_count INTEGER NOT NULL DEFAULT 0`, desc: 'monitors.latency_alert_count' },
+  { kind: 'column', sql: `ALTER TABLE monitors ADD COLUMN group_name TEXT`, desc: 'monitors.group_name' },
   { kind: 'column', sql: `ALTER TABLE incidents ADD COLUMN draft INTEGER NOT NULL DEFAULT 0`, desc: 'incidents.draft' },
   { kind: 'column', sql: `ALTER TABLE incidents ADD COLUMN auto_monitor_id INTEGER`, desc: 'incidents.auto_monitor_id' },
   { kind: 'column', sql: `ALTER TABLE maintenance_windows ADD COLUMN recurrence TEXT NOT NULL DEFAULT 'none'`, desc: 'maintenance_windows.recurrence' },

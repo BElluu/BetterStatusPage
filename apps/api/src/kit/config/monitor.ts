@@ -14,7 +14,7 @@ import { mayLinkChannels, type DesiredChannel } from './channel.js'
 import type { ExportState, State } from './state.js'
 import { entityKeys, exportByKey, linkOrder, MAX_CONFIG_DEPTH, missingLink } from './shared.js'
 
-const MONITOR_FIELDS = ['kind', 'key', 'name', 'type', 'intervalSecs', 'timeoutMs', 'retries', 'failureThreshold', 'recoveryThreshold', 'config', 'tags', 'notifications', 'dependsOn', 'autoIncident', 'latencyAlert', 'actions', 'heartbeatToken']
+const MONITOR_FIELDS = ['kind', 'key', 'name', 'type', 'intervalSecs', 'timeoutMs', 'retries', 'failureThreshold', 'recoveryThreshold', 'config', 'tags', 'group', 'notifications', 'dependsOn', 'autoIncident', 'latencyAlert', 'actions', 'heartbeatToken']
 const AUTO_INCIDENT_FIELDS = ['enabled', 'afterMinutes', 'mode', 'template']
 const LATENCY_ALERT_FIELDS = ['enabled', 'factor', 'windowMinutes', 'minDeltaMs', 'sustain']
 
@@ -230,7 +230,7 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
       const current: Json = {
         name: existing.name, type: existing.type, intervalSecs: existing.intervalSecs, timeoutMs: existing.timeoutMs, retries: existing.retries,
         failureThreshold: existing.failureThreshold, recoveryThreshold: existing.recoveryThreshold,
-        config: JSON.parse(existing.config), tags: JSON.parse(existing.tags ?? '[]'),
+        config: JSON.parse(existing.config), tags: JSON.parse(existing.tags ?? '[]'), group: existing.group,
         notifications: currentChannelKeys(existing.id), dependsOn: currentDependencies(existing.id),
         actions: currentActionLinks(existing.id),
         autoIncident: autoIncidentState(existing.autoIncidentMinutes, existing.autoIncidentMode, existing.autoIncidentTemplateId),
@@ -240,7 +240,7 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
       const wanted: Json = {
         name: values.name, type: values.type, intervalSecs: values.intervalSecs, timeoutMs: values.timeoutMs, retries: values.retries,
         failureThreshold: values.failureThreshold, recoveryThreshold: values.recoveryThreshold,
-        config, tags: values.tags, notifications: [...monitor.notifications].sort(), dependsOn: [...monitor.dependsOn].sort(),
+        config, tags: values.tags, group: values.group, notifications: [...monitor.notifications].sort(), dependsOn: [...monitor.dependsOn].sort(),
         // A document without an `actions` field leaves the links alone; only an empty list removes them.
         ...(monitor.actions !== null ? { actions: [...monitor.actions].sort(linkOrder) } : {}),
         autoIncident: autoIncidentState(auto.minutes, auto.mode, auto.templateId),
@@ -292,6 +292,7 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
         if (fields.includes('failureThreshold')) updates.failureThreshold = values.failureThreshold
         if (fields.includes('recoveryThreshold')) updates.recoveryThreshold = values.recoveryThreshold
         if (fields.includes('tags')) updates.tags = JSON.stringify(values.tags)
+        if (fields.includes('group')) updates.group = values.group
         if (fields.includes('autoIncident')) {
           updates.autoIncidentMinutes = auto.minutes
           updates.autoIncidentMode = auto.mode
@@ -322,7 +323,7 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
           key: monitor.key, name: values.name, type: values.type,
           intervalSecs: values.intervalSecs, timeoutMs: values.timeoutMs, retries: values.retries,
           failureThreshold: values.failureThreshold, recoveryThreshold: values.recoveryThreshold,
-          config: JSON.stringify(config), tags: JSON.stringify(values.tags),
+          config: JSON.stringify(config), tags: JSON.stringify(values.tags), group: values.group,
           autoIncidentMinutes: auto.minutes, autoIncidentMode: auto.mode, autoIncidentTemplateId: auto.templateId,
           latencyAlertFactor: values.latencyAlertFactor, latencyAlertWindowMinutes: values.latencyAlertWindowMinutes,
           latencyAlertMinDeltaMs: values.latencyAlertMinDeltaMs, latencyAlertSustain: values.latencyAlertSustain,
@@ -388,6 +389,7 @@ export const monitorKind: ConfigKind<State, ExportState, DesiredMonitor, Planned
       recoveryThreshold: row.recoveryThreshold,
       config: ctx.exportVaultRefs(maskSecrets('monitor', JSON.parse(row.config))) as Json,
       tags: JSON.parse(row.tags ?? '[]'),
+      ...(row.group ? { group: row.group } : {}),
       ...(row.type === 'webhook' ? { heartbeatToken: SECRET_MASK } : {}),
       notifications: keysOfIds(state.linkRows.filter((link) => link.monitorId === row.id).map((link) => link.channelId), channelKey),
       dependsOn: keysOfIds(state.dependencyRows.filter((dependency) => dependency.dependentId === row.id).map((dependency) => dependency.dependsOnId), monitorKey),

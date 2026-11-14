@@ -57,6 +57,7 @@ export const MONITOR_SETTINGS: Record<string, SettingDoc> = {
   failureThreshold: optional('number', 'Consecutive failed checks before an alert. A value outside the range is brought into it. The public page still updates at once.', { default: 1, ...range(THRESHOLD_RANGE) }),
   recoveryThreshold: optional('number', 'Consecutive good checks before a recovery. A value outside the range is brought into it.', { default: 1, ...range(THRESHOLD_RANGE) }),
   tags: optional('array', 'Up to 20 { label, color } tags.'),
+  group: optional('string', 'Name of the group the monitor is listed under in the admin; null or empty = ungrouped. At most 60 characters.'),
   autoIncidentMinutes: optional('number', 'Opens an incident by itself when the monitor stays down this many minutes; null turns it off.', range(AUTO_INCIDENT_MINUTES_RANGE)),
   autoIncidentMode: optional('string', 'draft keeps the automatic incident private until published; published shows it at once (needs incidents:write).', { values: ['draft', 'published'], default: 'draft' }),
   autoIncidentTemplateId: optional('number', 'Incident template for the automatic incident (see list_incident_templates); null uses the default. A template needs incidents:write.'),

@@ -19,8 +19,8 @@ function withoutHeartbeatToken({ webhookToken: _hidden, ...monitor }: Row): Row 
 }
 
 function summary(monitor: Row): Row {
-  const { id, key, name, type, currentStatus, intervalSecs, lastCheckedAt, failingSince, certExpiresAt, tags, activity } = monitor
-  return { id, key, name, type, currentStatus, intervalSecs, lastCheckedAt, failingSince, certExpiresAt, tags, activity }
+  const { id, key, name, type, currentStatus, intervalSecs, lastCheckedAt, failingSince, certExpiresAt, tags, group, activity } = monitor
+  return { id, key, name, type, currentStatus, intervalSecs, lastCheckedAt, failingSince, certExpiresAt, tags, group, activity }
 }
 
 const id = z.number().int().min(1).describe('Monitor id')
@@ -61,12 +61,13 @@ const statusOverview = defineTool({
 const listMonitors = defineTool({
   name: 'list_monitors',
   title: 'List monitors',
-  description: 'Monitors with their current status, interval, last check and tags. Filter by status, type or tag.',
+  description: 'Monitors with their current status, interval, last check, tags and group. Filter by status, type, tag or group.',
   scope: 'monitors:read',
   input: {
     status: z.string().optional().describe('Current status, for example down, degraded or up'),
     type: z.string().optional().describe('Monitor type, for example https, ping, dns, postgresql'),
     tag: z.string().optional().describe('Tag label'),
+    group: z.string().optional().describe('Group name'),
     limit: z.number().int().min(1).max(100).default(50),
     offset: z.number().int().min(0).default(0),
   },
@@ -74,7 +75,8 @@ const listMonitors = defineTool({
     const matching = (await monitorList(ctx)).filter((monitor) =>
       (args.status === undefined || monitor['currentStatus'] === args.status)
       && (args.type === undefined || monitor['type'] === args.type)
-      && (args.tag === undefined || rows(monitor['tags']).some((tag) => tag['label'] === args.tag)))
+      && (args.tag === undefined || rows(monitor['tags']).some((tag) => tag['label'] === args.tag))
+      && (args.group === undefined || monitor['group'] === args.group))
     return { total: matching.length, offset: args.offset, items: matching.slice(args.offset, args.offset + args.limit).map(summary) }
   },
 })
@@ -228,7 +230,7 @@ const systemHealth = defineTool({
 const monitorConfigFields = defineTool({
   name: 'monitor_config_fields',
   title: 'Monitor types and their settings',
-  description: 'What a monitor of each type can be configured with. Without a type: every type with a one-line summary. With a type: the JSON Schema of its `config` (the type of each field, allowed values, default, range, whether the API checks it, whether it is a secret) and the settings every monitor has (interval, thresholds, tags, automatic incident, slower-than-usual alert). Use it before monitor_create and monitor_update, and whenever you are not sure an option exists: an option that is off does not appear in get_monitor.',
+  description: 'What a monitor of each type can be configured with. Without a type: every type with a one-line summary. With a type: the JSON Schema of its `config` (the type of each field, allowed values, default, range, whether the API checks it, whether it is a secret) and the settings every monitor has (interval, thresholds, tags, group, automatic incident, slower-than-usual alert). Use it before monitor_create and monitor_update, and whenever you are not sure an option exists: an option that is off does not appear in get_monitor.',
   scope: 'monitors:read',
   input: { type: z.enum(MONITOR_TYPES as [MonitorType, ...MonitorType[]]).optional() },
   async handler(args) {

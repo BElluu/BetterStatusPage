@@ -699,6 +699,18 @@ describe('what the agent is told', () => {
     assert.equal((await call(token, 'monitor_update', { id: created.id, config: { cacheBuster: 'yes' } })).isError, true, 'the API checks the type')
   })
 
+  it('sets and clears a monitor group, and lists monitors by group', async () => {
+    const token = await tokenWith('monitors:write', 'monitors:read')
+    const created = await createMonitor({ name: 'Grouped', type: 'https', config: { url: 'https://group.example.test' } })
+    const set = await call(token, 'monitor_update', { id: created.id, group: ' Acme Corp ' })
+    assert.ok(!set.isError, set.content[0]!.text)
+    const listed = async (group: string) => (JSON.parse((await call(token, 'list_monitors', { group })).content[0]!.text) as { items: Array<{ id: number; group: string | null }> }).items
+    assert.deepEqual((await listed('Acme Corp')).map((m) => [m.id, m.group]), [[created.id, 'Acme Corp']])
+    assert.deepEqual(await listed('Other'), [])
+    assert.ok(!(await call(token, 'monitor_update', { id: created.id, group: null })).isError)
+    assert.deepEqual(await listed('Acme Corp'), [])
+  })
+
   it('sets tags, the automatic incident and the slower-than-usual alert like the monitor form', async () => {
     const token = await tokenWith('monitors:write')
     const created = await createMonitor({ name: 'Form parity', type: 'https', config: { url: 'https://form.example.test' } })

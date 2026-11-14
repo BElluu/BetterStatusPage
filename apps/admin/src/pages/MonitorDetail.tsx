@@ -487,6 +487,7 @@ export default function MonitorDetailPage() {
         <MonitorFormModal
           monitor={monitor}
           allTags={[...new Map(monitors.flatMap((m) => m.tags ?? []).map((t) => [t.label, t])).values()]}
+          allGroups={[...new Set(monitors.flatMap((m) => m.group ? [m.group] : []))].sort((a, b) => a.localeCompare(b))}
           onClose={() => setEditing(false)}
           onSaved={() => {
             setEditing(false)
