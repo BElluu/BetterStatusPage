@@ -110,6 +110,12 @@ Open `http://your-server:3000/admin` for first-run setup. For internet-facing de
 
 ---
 
+## One-Click Deploy
+
+[![Deploy on RepoCloud](https://d16t0pc4846x52.cloudfront.net/deploylobe.svg)](https://repocloud.io/details/Better%20Status%20Page/)
+
+---
+
 ## Development
 
 Needs Node.js 26.10+ and npm 11+.
