@@ -5,6 +5,10 @@ The project follows [Semantic Versioning](https://semver.org/); while it is belo
 
 ## [Unreleased]
 
+### Added
+
+- **Monitor groups**: a monitor can be put in a **group** (a name of up to 60 characters, set in the monitor form, in the API as `group`, in configuration files and through MCP). The Monitors page lists the monitors in collapsible sections, one per group, with the ungrouped ones last. See [Monitors](monitors.md#groups). ([#165](https://github.com/BElluu/BetterStatusPage/issues/165))
+
 ## [0.8.3] - 2026-11-08
 
 ### Added

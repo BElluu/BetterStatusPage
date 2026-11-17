@@ -124,7 +124,7 @@ export async function monitorRoutes(app: FastifyInstance) {
     failureThreshold?: number; recoveryThreshold?: number
     autoIncidentMinutes?: number | null; autoIncidentMode?: string; autoIncidentTemplateId?: number | null
     latencyAlertFactor?: number | null; latencyAlertWindowMinutes?: number; latencyAlertMinDeltaMs?: number; latencyAlertSustain?: number
-    tags?: Array<{ label: string; color: string }>
+    tags?: Array<{ label: string; color: string }>; group?: string | null
   } }>('/', async (req, reply) => {
     const parsed = parseNewMonitor(req.body)
     if ('error' in parsed) return reply.code(400).send({ error: parsed.error })
@@ -157,6 +157,7 @@ export async function monitorRoutes(app: FastifyInstance) {
       latencyAlertSustain: fields.latencyAlertSustain,
       config: JSON.stringify(secrets.config),
       tags: JSON.stringify(fields.tags),
+      group: fields.group,
       currentStatus: 'pending',
       alertConfirmedStatus: 'pending',
       webhookToken: fields.type === 'webhook' ? generateWebhookToken() : null,
@@ -186,7 +187,7 @@ export async function monitorRoutes(app: FastifyInstance) {
     failureThreshold: number; recoveryThreshold: number
     autoIncidentMinutes: number | null; autoIncidentMode: string; autoIncidentTemplateId: number | null
     latencyAlertFactor: number | null; latencyAlertWindowMinutes: number; latencyAlertMinDeltaMs: number; latencyAlertSustain: number
-    tags: Array<{ label: string; color: string }>
+    tags: Array<{ label: string; color: string }>; group: string | null
   }> }>('/:id', async (req, reply) => {
     const id = Number(req.params.id)
     const existing = (await db.select().from(monitors).where(eq(monitors.id, id)))[0]
@@ -229,12 +230,13 @@ export async function monitorRoutes(app: FastifyInstance) {
       Object.assign(updates, certResetsFor(JSON.parse(existing.config), secrets.config))
     }
     if (patch.tags !== undefined) updates.tags = JSON.stringify(patch.tags)
+    if (patch.group !== undefined) updates.group = patch.group
 
     const results = await db.update(monitors).set(updates).where(eq(monitors.id, id)).returning()
     const m = parseMonitor(results[0]!)
     const actor = requestIdentity(req)
-    const before = { name: existing.name, type: existing.type, intervalSecs: existing.intervalSecs, timeoutMs: existing.timeoutMs, retries: existing.retries, failureThreshold: existing.failureThreshold, recoveryThreshold: existing.recoveryThreshold, latencyAlertFactor: existing.latencyAlertFactor, latencyAlertWindowMinutes: existing.latencyAlertWindowMinutes, latencyAlertMinDeltaMs: existing.latencyAlertMinDeltaMs, latencyAlertSustain: existing.latencyAlertSustain, tags: existing.tags }
-    const after  = { name: m.name, type: m.type, intervalSecs: m.intervalSecs, timeoutMs: m.timeoutMs, retries: m.retries, failureThreshold: m.failureThreshold, recoveryThreshold: m.recoveryThreshold, latencyAlertFactor: m.latencyAlertFactor, latencyAlertWindowMinutes: m.latencyAlertWindowMinutes, latencyAlertMinDeltaMs: m.latencyAlertMinDeltaMs, latencyAlertSustain: m.latencyAlertSustain, tags: JSON.stringify(m.tags) }
+    const before = { name: existing.name, type: existing.type, intervalSecs: existing.intervalSecs, timeoutMs: existing.timeoutMs, retries: existing.retries, failureThreshold: existing.failureThreshold, recoveryThreshold: existing.recoveryThreshold, latencyAlertFactor: existing.latencyAlertFactor, latencyAlertWindowMinutes: existing.latencyAlertWindowMinutes, latencyAlertMinDeltaMs: existing.latencyAlertMinDeltaMs, latencyAlertSustain: existing.latencyAlertSustain, tags: existing.tags, group: existing.group }
+    const after  = { name: m.name, type: m.type, intervalSecs: m.intervalSecs, timeoutMs: m.timeoutMs, retries: m.retries, failureThreshold: m.failureThreshold, recoveryThreshold: m.recoveryThreshold, latencyAlertFactor: m.latencyAlertFactor, latencyAlertWindowMinutes: m.latencyAlertWindowMinutes, latencyAlertMinDeltaMs: m.latencyAlertMinDeltaMs, latencyAlertSustain: m.latencyAlertSustain, tags: JSON.stringify(m.tags), group: m.group }
     const diff = diffObjects(before as Record<string, unknown>, after as Record<string, unknown>)
     if (patch.config !== undefined) diff['config'] = { from: '[previous config]', to: '[updated config]' }
     if (Object.keys(diff).length) writeAudit(auditActor(actor), 'update', 'monitor', id, existing.name, diff)

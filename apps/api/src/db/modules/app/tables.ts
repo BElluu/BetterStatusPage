@@ -57,6 +57,8 @@ export const monitors = sqliteTable('monitors', {
   latencyAlertSince: integer('latency_alert_since'),
   /** Consecutive checks agreeing on the opposite state (towards an alert, or towards its recovery). */
   latencyAlertCount: integer('latency_alert_count').notNull().default(0),
+  /** The group the monitor is listed under in the admin; null = ungrouped. */
+  group: text('group_name'),
 })
 
 export const monitorResults = sqliteTable('monitor_results', {

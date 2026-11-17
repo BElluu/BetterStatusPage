@@ -374,6 +374,28 @@ describe('MonitorsPage', () => {
     expect(screen.queryByText(/Preselected/)).not.toBeInTheDocument()
   })
 
+  it('lists monitors in collapsible groups, ungrouped last, and opens them all while filtering', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.get).mockResolvedValue([
+      { ...monitors[0], group: 'Initech' },
+      { ...monitors[1], group: 'Acme Corp' },
+      { ...monitors[2], group: null },
+    ])
+    renderPage()
+    await screen.findByText('Checkout API')
+
+    const headers = screen.getAllByRole('button', { name: /^(Acme Corp|Initech|Ungrouped)/ })
+    expect(headers.map((h) => h.textContent?.replace('expand_more', ''))).toEqual(['Acme Corp11 down', 'Initech1', 'Ungrouped1'])
+
+    await user.click(headers[1]!)
+    expect(screen.queryByText('Checkout API')).not.toBeInTheDocument()
+    expect(screen.getByText('billing db')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Initech/ })).toHaveAttribute('aria-expanded', 'false')
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search monitors' }), 'checkout')
+    expect(screen.getByText('Checkout API')).toBeInTheDocument()
+  })
+
   it('keeps the table when no monitor matches the tag filter and can clear it', async () => {
     const user = userEvent.setup()
     vi.mocked(api.get).mockResolvedValue([

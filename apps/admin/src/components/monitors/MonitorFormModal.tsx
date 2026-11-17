@@ -16,6 +16,7 @@ import { ScheduleSection } from './ScheduleSection'
 import { AutoIncidentSection, type AutoIncidentValues } from './AutoIncidentSection'
 import { LatencyAlertSection, type LatencyAlertValues } from './LatencyAlertSection'
 import { TagsSection } from './TagsSection'
+import { GroupCombobox } from './GroupCombobox'
 import { TestResultPanel, type TestResult } from './TestResultPanel'
 import { Alert } from '@better-forge/ui'
 
@@ -24,6 +25,7 @@ interface Props {
   /** Type preselected when creating a monitor; ignored when editing. */
   initialType?: MonitorType | undefined
   allTags?: MonitorTag[]
+  allGroups?: string[]
   onClose: () => void
   onSaved: () => void
 }
@@ -61,7 +63,7 @@ function actionLinkProblem(links: MonitorAction[] | null): string | null {
   return null
 }
 
-export default function MonitorFormModal({ monitor, initialType = 'https', allTags = [], onClose, onSaved }: Props) {
+export default function MonitorFormModal({ monitor, initialType = 'https', allTags = [], allGroups = [], onClose, onSaved }: Props) {
   const isEdit = !!monitor
   const [showYaml, setShowYaml] = useState(false)
   const [name, setName]               = useState(monitor?.name ?? '')
@@ -86,6 +88,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     latencyAlertSustain: monitor?.latencyAlertSustain ?? DEFAULT_LATENCY_ALERT.sustain,
   })
   const [tags, setTags]                 = useState<MonitorTag[]>(monitor?.tags ?? [])
+  const [group, setGroup]               = useState(monitor?.group ?? '')
   // A new database monitor cannot work without credentials, so their panel starts open.
   const [sidePanel, setSidePanel] = useState<SidePanelKey | null>(!monitor && isDatabaseType(initialType) ? 'credentials' : null)
   const [webhookToken, setWebhookToken] = useState<string | null>(monitor?.webhookToken ?? null)
@@ -225,7 +228,7 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
     }
     setLoading(true)
     try {
-      const body = { name, type, intervalSecs, timeoutMs, retries, failureThreshold, recoveryThreshold, ...autoIncident, ...latencyAlert, ...(supportsLatencyAlert(type) ? {} : { latencyAlertFactor: null }), config, tags }
+      const body = { name, type, intervalSecs, timeoutMs, retries, failureThreshold, recoveryThreshold, ...autoIncident, ...latencyAlert, ...(supportsLatencyAlert(type) ? {} : { latencyAlertFactor: null }), config, tags, group: group.trim() || null }
       if (isEdit) {
         await api.patch(`/admin/monitors/${monitor.id}`, body)
         await api.put(`/admin/notifications/monitor/${monitor.id}/channels`, { channelIds: [...selectedChannelIds] })
@@ -301,6 +304,10 @@ export default function MonitorFormModal({ monitor, initialType = 'https', allTa
 
           <Field label="Name">
             <input value={name} onChange={(e) => setName(e.target.value)} required className="input-sig" placeholder="My Service" />
+          </Field>
+
+          <Field label="Group">
+            {({ id }) => <GroupCombobox id={id} value={group} groups={allGroups} onChange={setGroup} />}
           </Field>
 
 

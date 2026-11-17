@@ -95,6 +95,21 @@ The configuration of a monitor is checked when it is created, changed, imported 
 
 Fields the table does not name are not checked: the check reports a wrong value when it runs.
 
+### Groups
+
+> [!WARNING]
+> **Not released yet.** This feature is not in a published release; to use it, build the image yourself from the `main` branch (see [Deployment](deployment.md)).
+
+Put a monitor in a **group** to keep a long list in order, for example one group per customer. In the
+monitor form the **Group** field takes a name (up to 60 characters) and suggests the groups already in
+use; leave it empty for no group. Once any monitor has a group, the monitor list shows one section per
+group, in alphabetical order, with the ungrouped monitors last under **Ungrouped**. Each section has a
+count and, when something in it is down, how many; click its title to collapse or expand it (the browser
+remembers which are collapsed). While a search or filter is active every section stays open, so a match is
+never hidden. A group is only a name: it does not change the checks, the alerts or the public status page,
+and it works together with tags. The API field is `group`; in a [configuration file](configuration-as-code.md)
+it is `group` too.
+
 ### Tags
 
 Give a tag a label and pick one of ten colours. Labels you have already used elsewhere are

@@ -288,6 +288,8 @@ export interface Monitor {
   lastCheckedAt: number | null
   webhookToken: string | null
   tags: MonitorTag[]
+  /** The group the monitor is listed under in the admin; null = ungrouped. */
+  group: string | null
   /** Expiry of the TLS certificate last seen on an HTTPS monitor's endpoint; null when unknown. */
   certExpiresAt: number | null
   certCheckedAt: number | null

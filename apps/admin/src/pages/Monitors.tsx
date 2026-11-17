@@ -27,6 +27,11 @@ function readCompact(): boolean {
   try { return localStorage.getItem(COMPACT_KEY) === '1' } catch { return false }
 }
 
+const COLLAPSED_KEY = 'bsp.monitors.collapsedGroups'
+function readCollapsed(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]') as string[]) } catch { return new Set() }
+}
+
 const MONITOR_QUICK_START: QuickStartOption<MonitorType>[] = MONITOR_TYPES.map((t) => ({
   key: t.value,
   label: t.label,
@@ -48,10 +53,18 @@ export default function MonitorsPage() {
   const [typeFilter, setTypeFilter] = useState('all')
   const now = useNow()
   const [compact, setCompact] = useState(readCompact)
+  const [collapsed, setCollapsed] = useState(readCollapsed)
   const cell = compact ? 'px-4 py-1.5' : 'px-4 py-3'
   function chooseCompact(value: boolean) {
     setCompact(value)
     try { localStorage.setItem(COMPACT_KEY, value ? '1' : '0') } catch { /* the choice is just not remembered */ }
+  }
+
+  function toggleGroup(group: string) {
+    const next = new Set(collapsed)
+    if (!next.delete(group)) next.add(group)
+    setCollapsed(next)
+    try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next])) } catch { /* the choice is just not remembered */ }
   }
 
   const { data: monitors = [], isPending, isError, refetch } = useQuery<MonitorListItem[]>({
@@ -134,6 +147,8 @@ export default function MonitorsPage() {
     return [...map.entries()].map(([label, color]) => ({ label, color }))
   }, [monitors])
 
+  const allGroups = useMemo(() => [...new Set(monitors.flatMap((m) => m.group ? [m.group] : []))].sort((a, b) => a.localeCompare(b)), [monitors])
+
   const statusCounts = useMemo(() => {
     const counts = { all: monitors.length, down: 0, degraded: 0, up: 0 }
     for (const m of monitors) {
@@ -163,6 +178,17 @@ export default function MonitorsPage() {
     currentStatus: (m) => monitorSeverity(m),
     lastCheckedAt: (m) => m.lastCheckedAt,
   }, { key: 'currentStatus' })
+
+  // Groups are alphabetical with the ungrouped monitors last; the order inside a group is the table's sort. A filter
+  // opens every group, so a match is never hidden in a collapsed one.
+  const filtering = activeTags.length > 0 || statusFilter !== 'all' || typeFilter !== 'all' || needle !== ''
+  const sections = useMemo(() => {
+    const byGroup = new Map<string, MonitorListItem[]>()
+    for (const m of displayed) byGroup.set(m.group ?? '', [...(byGroup.get(m.group ?? '') ?? []), m])
+    return [...byGroup.entries()]
+      .sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)))
+      .map(([group, items]) => ({ group, items }))
+  }, [displayed])
 
   return (
     <PageContainer>
@@ -307,7 +333,31 @@ export default function MonitorsPage() {
               </tr>
             </thead>
             <tbody>
-              {displayed.map((monitor) => (
+              {sections.flatMap(({ group, items }) => [
+                ...(allGroups.length > 0 ? [(() => {
+                  const open = filtering || !collapsed.has(group)
+                  const down = items.filter((m) => effectiveStatus(m) === 'down').length
+                  return (
+                    <tr key={`group:${group}`} className="border-t border-outline-variant first:border-t-0" style={{ background: 'var(--m3-surface-container)' }}>
+                      <td colSpan={6} className="px-2 py-1">
+                        <button
+                          type="button"
+                          aria-expanded={open}
+                          disabled={filtering}
+                          onClick={() => toggleGroup(group)}
+                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium focus-ring"
+                          style={{ color: 'var(--m3-on-surface)' }}
+                        >
+                          <span className="material-symbols-outlined transition-transform" aria-hidden="true" style={{ fontSize: '18px', color: 'var(--m3-secondary)', transform: open ? undefined : 'rotate(-90deg)' }}>expand_more</span>
+                          {group || 'Ungrouped'}
+                          <span className="text-xs font-normal" style={{ color: 'var(--m3-secondary)' }}>{items.length}</span>
+                          {down > 0 && <span className="text-xs font-normal" style={{ color: 'var(--m3-down)' }}>{down} down</span>}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })()] : []),
+                ...(filtering || !collapsed.has(group) || allGroups.length === 0 ? items : []).map((monitor) => (
                 <tr
                   key={monitor.id}
                   className={`border-t border-outline-variant first:border-t-0 transition-[background-color] ${effectiveStatus(monitor) === 'down' ? 'bg-[var(--m3-down-bg)] hover:bg-[color-mix(in_srgb,var(--m3-down)_12%,var(--m3-down-bg))]' : 'hover:bg-surface-container'}`}
@@ -378,7 +428,8 @@ export default function MonitorsPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                )),
+              ])}
               {displayed.length === 0 && (
                 <EmptyTableRow
                   colSpan={6}
@@ -397,6 +448,7 @@ export default function MonitorsPage() {
           monitor={editingMonitor}
           initialType={createType}
           allTags={allTags}
+          allGroups={allGroups}
           onClose={() => { setShowCreate(false); setEditingMonitor(null) }}
           onSaved={() => {
             qc.invalidateQueries({ queryKey: ['monitors'] })

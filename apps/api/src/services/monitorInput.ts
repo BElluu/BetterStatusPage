@@ -14,6 +14,7 @@ export const AUTO_INCIDENT_MINUTES_RANGE = [1, 10_080] as const
 const AUTO_INCIDENT_MODES: readonly AutoIncidentMode[] = ['draft', 'published']
 const MAX_NAME_LENGTH = 200
 const MAX_TAGS = 20
+export const MAX_GROUP_LENGTH = 60
 
 /** What a heartbeat token looks like: the heartbeat route and the configuration import both accept exactly this. */
 export const WEBHOOK_TOKEN_PATTERN = /^[0-9a-f]{48}$/
@@ -56,6 +57,8 @@ export interface MonitorFields {
   latencyAlertSustain: number
   config: Record<string, unknown>
   tags: MonitorTag[]
+  /** The group the monitor is listed under; null = ungrouped. */
+  group: string | null
 }
 
 export type LatencyFields = Pick<MonitorFields, 'latencyAlertFactor' | 'latencyAlertWindowMinutes' | 'latencyAlertMinDeltaMs' | 'latencyAlertSustain'>
@@ -152,6 +155,15 @@ function parseTags(value: unknown): Parsed<MonitorTag[]> {
   return { value: value.map((tag) => ({ label: tag.label as string, color: tag.color as string })) }
 }
 
+/** A group is a free name; a blank one means no group. */
+function parseGroup(value: unknown): Parsed<string | null> {
+  if (value === null) return { value: null }
+  if (typeof value !== 'string') return { error: 'group must be a string or null' }
+  const group = value.trim()
+  if (group.length > MAX_GROUP_LENGTH) return { error: `group must be at most ${MAX_GROUP_LENGTH} characters` }
+  return { value: group || null }
+}
+
 function parseType(value: unknown): Parsed<MonitorType> {
   return MONITOR_TYPES.includes(value as MonitorType)
     ? { value: value as MonitorType }
@@ -190,6 +202,8 @@ export function parseNewMonitor(body: unknown): Parsed<MonitorFields> {
   if ('error' in config) return config
   const tags = parseTags(input['tags'] ?? [])
   if ('error' in tags) return tags
+  const group = parseGroup(input['group'] ?? null)
+  if ('error' in group) return group
   const auto = parseAutoIncident(input)
   if ('error' in auto) return auto
   const latency = parseLatencyAlert(input)
@@ -208,7 +222,7 @@ export function parseNewMonitor(body: unknown): Parsed<MonitorFields> {
       latencyAlertWindowMinutes: latency.value.latencyAlertWindowMinutes ?? DEFAULT_LATENCY_ALERT.windowMinutes,
       latencyAlertMinDeltaMs: latency.value.latencyAlertMinDeltaMs ?? DEFAULT_LATENCY_ALERT.minDeltaMs,
       latencyAlertSustain: latency.value.latencyAlertSustain ?? DEFAULT_LATENCY_ALERT.sustain,
-      config: config.value, tags: tags.value,
+      config: config.value, tags: tags.value, group: group.value,
     },
   }
 }
@@ -259,6 +273,11 @@ export function parseMonitorPatch(body: unknown, existing: ExistingMonitor): Par
     const tags = parseTags(input['tags'])
     if ('error' in tags) return tags
     patch.tags = tags.value
+  }
+  if (input['group'] !== undefined) {
+    const group = parseGroup(input['group'])
+    if ('error' in group) return group
+    patch.group = group.value
   }
   return { value: patch }
 }
